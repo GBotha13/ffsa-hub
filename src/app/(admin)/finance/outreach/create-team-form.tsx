@@ -1,0 +1,201 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Plus } from "lucide-react";
+
+type Program = {
+  id: string;
+  name: string;
+  code: string;
+};
+
+export function CreateTeamForm({ programs }: { programs: Program[] }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [teamName, setTeamName] = useState("");
+  const [programId, setProgramId] = useState("");
+  const [location, setLocation] = useState("");
+  const [country, setCountry] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [peopleCount, setPeopleCount] = useState("");
+  const [totalBudget, setTotalBudget] = useState("");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/finance/outreach/teams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          program_id: programId,
+          team_name: teamName,
+          location: location || null,
+          country: country || null,
+          start_date: startDate || null,
+          end_date: endDate || null,
+          people_count: peopleCount ? Number(peopleCount) : 0,
+          total_budget_zar: totalBudget ? Number(totalBudget) : 0,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Failed to create team");
+        return;
+      }
+
+      setOpen(false);
+      setTeamName("");
+      setProgramId("");
+      setLocation("");
+      setCountry("");
+      setStartDate("");
+      setEndDate("");
+      setPeopleCount("");
+      setTotalBudget("");
+      router.refresh();
+    } catch {
+      setError("Network error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button>
+          <Plus className="mr-2 h-4 w-4" />
+          New Team
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Create Outreach Team</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <Label>Team Name *</Label>
+              <Input
+                required
+                value={teamName}
+                onChange={(e) => setTeamName(e.target.value)}
+                placeholder="e.g. Burundi Team A"
+              />
+            </div>
+            <div className="col-span-2">
+              <Label>School / Program *</Label>
+              <Select value={programId} onValueChange={setProgramId} required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a school..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {programs.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name} ({p.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Location</Label>
+              <Input
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="e.g. Bujumbura"
+              />
+            </div>
+            <div>
+              <Label>Country</Label>
+              <Input
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+                placeholder="e.g. Burundi"
+              />
+            </div>
+            <div>
+              <Label>Start Date</Label>
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>End Date</Label>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>People Count</Label>
+              <Input
+                type="number"
+                min="0"
+                value={peopleCount}
+                onChange={(e) => setPeopleCount(e.target.value)}
+                placeholder="0"
+              />
+            </div>
+            <div>
+              <Label>Total Budget (ZAR)</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={totalBudget}
+                onChange={(e) => setTotalBudget(e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+          </div>
+
+          {error && <p className="text-sm text-destructive">{error}</p>}
+
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading || !programId}>
+              {loading ? "Creating..." : "Create Team"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

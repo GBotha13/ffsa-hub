@@ -1,0 +1,172 @@
+import {
+  LayoutDashboard,
+  Users,
+  Calendar,
+  GraduationCap,
+  UsersRound,
+  Wallet,
+  Mail,
+  Globe,
+  UserCog,
+  Shield,
+  Heart,
+  type LucideIcon,
+} from "lucide-react";
+
+export interface ModuleDefinition {
+  id: string;
+  label: string;
+  href: string;
+  icon: LucideIcon;
+  description: string;
+  /** Role names that grant access. Empty array = any authenticated user. */
+  requiredRoles: string[];
+}
+
+export interface PortalTab {
+  id: string;
+  label: string;
+  href: string;
+  icon: LucideIcon;
+}
+
+/** Admin modules — visible only if the user has at least one of requiredRoles. */
+export const ADMIN_MODULES: ModuleDefinition[] = [
+  {
+    id: "dashboard",
+    label: "Dashboard",
+    href: "/dashboard",
+    icon: LayoutDashboard,
+    description: "Overview and stats",
+    requiredRoles: [], // any authenticated user
+  },
+  {
+    id: "contacts",
+    label: "Contacts",
+    href: "/contacts",
+    icon: Users,
+    description: "CRM directory and marketing contacts",
+    requiredRoles: ["super_admin", "admin", "staff"],
+  },
+  {
+    id: "events",
+    label: "Events",
+    href: "/events",
+    icon: Calendar,
+    description: "Events, registrations, and attendance",
+    requiredRoles: ["super_admin", "admin", "events_admin"],
+  },
+  {
+    id: "schools",
+    label: "Schools",
+    href: "/schools",
+    icon: GraduationCap,
+    description: "DTS, DBS, SBS, and other programs",
+    requiredRoles: ["super_admin", "admin", "program_leader"],
+  },
+  {
+    id: "teams",
+    label: "Teams",
+    href: "/teams",
+    icon: UsersRound,
+    description: "Ministry and outreach teams",
+    requiredRoles: ["super_admin", "admin", "team_leader"],
+  },
+  {
+    id: "finance",
+    label: "Finance",
+    href: "/finance",
+    icon: Wallet,
+    description: "Fees, rent, support levels",
+    requiredRoles: ["super_admin", "admin", "finance_admin"],
+  },
+  {
+    id: "prayer-room",
+    label: "Prayer Room",
+    href: "/prayer-room",
+    icon: Heart,
+    description: "Devo set schedule, sign-ups, and team roster",
+    requiredRoles: [], // visible to ALL authenticated users
+  },
+  {
+    id: "communications",
+    label: "Communications",
+    href: "/communications",
+    icon: Mail,
+    description: "Announcements and partner updates",
+    requiredRoles: ["super_admin", "admin", "comms_admin"],
+  },
+  {
+    id: "mission",
+    label: "Mission",
+    href: "/mission",
+    icon: Globe,
+    description: "Outreach trips and impact stats",
+    requiredRoles: ["super_admin", "admin", "mission_leader"],
+  },
+];
+
+/** System management modules — shown at the bottom of the sidebar. */
+export const SYSTEM_MODULES: ModuleDefinition[] = [
+  {
+    id: "users",
+    label: "Users",
+    href: "/users",
+    icon: UserCog,
+    description: "Manage login accounts",
+    requiredRoles: ["super_admin", "admin"],
+  },
+  {
+    id: "roles",
+    label: "Roles",
+    href: "/roles",
+    icon: Shield,
+    description: "Role definitions",
+    requiredRoles: ["super_admin"],
+  },
+];
+
+/** Personal portal tabs — always visible to any logged-in user. */
+export const PORTAL_TABS: PortalTab[] = [
+  {
+    id: "profile",
+    label: "Profile",
+    href: "/profile",
+    icon: Users,
+  },
+  {
+    id: "my-events",
+    label: "My Events",
+    href: "/my-events",
+    icon: Calendar,
+  },
+  {
+    id: "my-finance",
+    label: "Finance",
+    href: "/my-finance",
+    icon: Wallet,
+  },
+  {
+    id: "my-schools",
+    label: "Schools",
+    href: "/my-schools",
+    icon: GraduationCap,
+  },
+  {
+    id: "my-mission",
+    label: "Mission",
+    href: "/my-mission",
+    icon: Globe,
+  },
+];
+
+/** Returns modules the user can access based on their role names. */
+export function getAccessibleModules(
+  modules: ModuleDefinition[],
+  userRoles: string[]
+): ModuleDefinition[] {
+  return modules.filter((mod) => {
+    if (mod.requiredRoles.length === 0) return true; // open to all
+    return mod.requiredRoles.some((r) => userRoles.includes(r));
+  });
+}

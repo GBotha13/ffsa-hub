@@ -1,0 +1,188 @@
+import { createClient } from "@/lib/supabase/server";
+import { getEnrollmentsByUser, getResponsesByUser } from "@/services/schools";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { GraduationCap, FileText } from "lucide-react";
+import Link from "next/link";
+
+export default async function MySchoolsPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return <p>Not authenticated.</p>;
+  }
+
+  const userId = user.id;
+  const { data: enrollments } = await getEnrollmentsByUser(supabase, userId);
+  const { data: myResponses } = await getResponsesByUser(supabase, userId);
+
+  // Get programs with open applications
+  const { data: openPrograms } = await supabase
+    .from("programs")
+    .select("id, name, code, credit_hours")
+    .eq("application_open", true)
+    .eq("status", "active")
+    .order("name", { ascending: true });
+
+  // Build a set of program IDs the user already applied to
+  const appliedProgramIds = new Set(
+    (myResponses ?? []).map((r: { program_id: string }) => r.program_id)
+  );
+
+  // Build a map of programId -> response status
+  const responseStatusMap = new Map<string, string>();
+  for (const r of myResponses ?? []) {
+    responseStatusMap.set(
+      (r as { program_id: string }).program_id,
+      (r as { status: string }).status
+    );
+  }
+
+  const statusColors: Record<string, "default" | "secondary" | "destructive"> = {
+    active: "default",
+    completed: "secondary",
+    withdrawn: "destructive",
+    on_hold: "secondary",
+  };
+
+  const appStatusColors: Record<string, "default" | "secondary" | "destructive"> = {
+    submitted: "secondary",
+    accepted: "default",
+    rejected: "destructive",
+    waitlisted: "secondary",
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">My Schools</h1>
+        <p className="text-sm text-muted-foreground">
+          Your applications, enrollments, grades, and transcripts
+        </p>
+      </div>
+
+      {/* Open Applications Section */}
+      {openPrograms && openPrograms.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Open Applications
+          </h2>
+          <div className="grid gap-4 md:grid-cols-2">
+            {openPrograms.map((program: {
+              id: string;
+              name: string;
+              code: string;
+              credit_hours: number;
+            }) => {
+              const applied = appliedProgramIds.has(program.id);
+              const appStatus = responseStatusMap.get(program.id);
+
+              return (
+                <Card key={program.id} className="hover:border-primary/50 transition-colors">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base">{program.name}</CardTitle>
+                      {applied && appStatus && (
+                        <Badge variant={appStatusColors[appStatus] ?? "secondary"}>
+                          {appStatus}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm font-mono text-muted-foreground">
+                      {program.code}
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">
+                        {program.credit_hours} credit hours
+                      </span>
+                      {applied ? (
+                        <span className="text-sm text-muted-foreground">
+                          Application submitted
+                        </span>
+                      ) : (
+                        <Link
+                          href={`/my-schools/apply/${program.id}`}
+                          className="text-sm font-medium text-primary hover:underline"
+                        >
+                          Apply Now &rarr;
+                        </Link>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Enrollments Section */}
+      <div className="space-y-3">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <GraduationCap className="h-5 w-5" />
+          My Enrollments
+        </h2>
+
+        {!enrollments || enrollments.length === 0 ? (
+          <Card>
+            <CardContent className="py-6">
+              <p className="text-sm text-muted-foreground text-center">
+                You are not currently enrolled in any programs.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            {enrollments.map((enrollment: {
+              id: string;
+              status: string;
+              enrolled_at: string;
+              completed_at: string | null;
+              programs: {
+                id: string;
+                name: string;
+                code: string;
+                credit_hours: number;
+              };
+            }) => (
+              <Link key={enrollment.id} href={`/my-schools/${enrollment.id}`}>
+                <Card className="hover:border-primary/50 transition-colors cursor-pointer">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base">
+                        {enrollment.programs.name}
+                      </CardTitle>
+                      <Badge variant={statusColors[enrollment.status] ?? "secondary"}>
+                        {enrollment.status}
+                      </Badge>
+                    </div>
+                    <p className="text-sm font-mono text-muted-foreground">
+                      {enrollment.programs.code}
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center justify-between text-sm text-muted-foreground">
+                      <span>
+                        Enrolled:{" "}
+                        {new Date(enrollment.enrolled_at).toLocaleDateString()}
+                      </span>
+                      <span>
+                        {enrollment.programs.credit_hours} credit hours
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

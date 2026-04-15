@@ -1,0 +1,385 @@
+"use client";
+
+import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Upload, CheckCircle2, AlertTriangle } from "lucide-react";
+import * as XLSX from "xlsx";
+
+type Category = {
+  id: string;
+  name: string;
+  slug: string;
+  sort_order: number;
+};
+
+type ParsedRow = {
+  header: string;
+  amount: number;
+  peopleCount: number | null;
+  matchedCategory: Category | null;
+  manualCategoryId: string | null;
+};
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function matchCategory(
+  header: string,
+  categories: Category[]
+): Category | null {
+  const headerLower = header.toLowerCase().trim();
+  const headerSlug = slugify(header);
+
+  // Pass 1: exact match
+  for (const cat of categories) {
+    if (cat.name.toLowerCase() === headerLower) return cat;
+  }
+  // Pass 2: slug match
+  for (const cat of categories) {
+    if (cat.slug === headerSlug) return cat;
+  }
+  // Pass 3: fuzzy match
+  for (const cat of categories) {
+    const catLower = cat.name.toLowerCase();
+    if (headerLower.includes(catLower) || catLower.includes(headerLower)) {
+      return cat;
+    }
+  }
+  return null;
+}
+
+export function BudgetImport({
+  teamId,
+  categories,
+}: {
+  teamId: string;
+  categories: Category[];
+}) {
+  const router = useRouter();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [open, setOpen] = useState(false);
+  const [rows, setRows] = useState<ParsedRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [imported, setImported] = useState(false);
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = new Uint8Array(evt.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
+
+        if (json.length === 0) {
+          toast.error("Spreadsheet is empty");
+          return;
+        }
+
+        // Try to detect column layout
+        // Option A: Columns are category names with amounts as values (wide format)
+        // Option B: Rows have "Category" and "Amount" columns (long format)
+        const headers = Object.keys(json[0]);
+        const hasCategory = headers.some((h) =>
+          h.toLowerCase().includes("category")
+        );
+        const hasAmount = headers.some((h) =>
+          h.toLowerCase().includes("amount") || h.toLowerCase().includes("budget")
+        );
+
+        let parsed: ParsedRow[] = [];
+
+        if (hasCategory && hasAmount) {
+          // Long format: each row is a category
+          const catCol = headers.find((h) =>
+            h.toLowerCase().includes("category")
+          )!;
+          const amtCol = headers.find(
+            (h) =>
+              h.toLowerCase().includes("amount") ||
+              h.toLowerCase().includes("budget")
+          )!;
+          const peopleCol = headers.find((h) =>
+            h.toLowerCase().includes("people")
+          );
+
+          for (const row of json) {
+            const catName = String(row[catCol] ?? "").trim();
+            const amount = Number(row[amtCol] ?? 0);
+            const people = peopleCol ? Number(row[peopleCol] ?? 0) || null : null;
+            if (!catName || amount <= 0) continue;
+
+            parsed.push({
+              header: catName,
+              amount,
+              peopleCount: people,
+              matchedCategory: matchCategory(catName, categories),
+              manualCategoryId: null,
+            });
+          }
+        } else {
+          // Wide format: column headers are category names, first row has amounts
+          const firstRow = json[0];
+          for (const header of headers) {
+            const value = Number(firstRow[header]);
+            if (isNaN(value) || value <= 0) continue;
+
+            parsed.push({
+              header,
+              amount: value,
+              peopleCount: null,
+              matchedCategory: matchCategory(header, categories),
+              manualCategoryId: null,
+            });
+          }
+        }
+
+        if (parsed.length === 0) {
+          toast.error("No valid budget data found in spreadsheet");
+          return;
+        }
+
+        setRows(parsed);
+        setImported(false);
+      } catch {
+        toast.error("Failed to parse spreadsheet");
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function handleManualMatch(index: number, categoryId: string) {
+    setRows((prev) =>
+      prev.map((r, i) =>
+        i === index ? { ...r, manualCategoryId: categoryId } : r
+      )
+    );
+  }
+
+  async function handleImport() {
+    setLoading(true);
+    try {
+      const importRows = rows
+        .filter((r) => r.matchedCategory || r.manualCategoryId)
+        .map((r) => ({
+          category_name: r.header,
+          category_id: r.manualCategoryId || r.matchedCategory?.id,
+          amount: r.amount,
+          people_count: r.peopleCount,
+        }));
+
+      const res = await fetch("/api/finance/outreach/budgets/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ team_id: teamId, rows: importRows }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        toast.error(json.error || "Import failed");
+        return;
+      }
+
+      const { results } = json;
+      toast.success(
+        `Imported ${results.matched} budget${results.matched !== 1 ? "s" : ""}${
+          results.unmatched.length > 0
+            ? `. ${results.unmatched.length} unmatched.`
+            : ""
+        }`
+      );
+      setImported(true);
+      router.refresh();
+    } catch {
+      toast.error("Network error during import");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const matchedCount = rows.filter(
+    (r) => r.matchedCategory || r.manualCategoryId
+  ).length;
+  const unmatchedCount = rows.filter(
+    (r) => !r.matchedCategory && !r.manualCategoryId
+  ).length;
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (!v) {
+          setRows([]);
+          setImported(false);
+          if (fileRef.current) fileRef.current.value = "";
+        }
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline">
+          <Upload className="mr-2 h-4 w-4" />
+          Import Budget
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Import Budget from Spreadsheet</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div>
+            <Label>Upload CSV or Excel file</Label>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              onChange={handleFileChange}
+              className="mt-1 block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Supports two formats: columns as category names (wide), or
+              Category/Amount columns (long)
+            </p>
+          </div>
+
+          {rows.length > 0 && (
+            <>
+              <div className="flex items-center gap-4 text-sm">
+                <span className="flex items-center gap-1 text-green-600">
+                  <CheckCircle2 className="h-4 w-4" />
+                  {matchedCount} matched
+                </span>
+                {unmatchedCount > 0 && (
+                  <span className="flex items-center gap-1 text-yellow-600">
+                    <AlertTriangle className="h-4 w-4" />
+                    {unmatchedCount} unmatched
+                  </span>
+                )}
+              </div>
+
+              <div className="rounded-lg border bg-card">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Column Header</TableHead>
+                      <TableHead>Matched Category</TableHead>
+                      <TableHead className="text-right">Amount (ZAR)</TableHead>
+                      <TableHead className="text-right">People</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((row, idx) => {
+                      const isMatched = !!(
+                        row.matchedCategory || row.manualCategoryId
+                      );
+                      return (
+                        <TableRow
+                          key={idx}
+                          className={!isMatched ? "bg-yellow-50" : ""}
+                        >
+                          <TableCell className="font-medium">
+                            {row.header}
+                          </TableCell>
+                          <TableCell>
+                            {row.matchedCategory ? (
+                              <span className="text-green-600">
+                                {row.matchedCategory.name}
+                              </span>
+                            ) : (
+                              <Select
+                                value={row.manualCategoryId ?? ""}
+                                onValueChange={(v) =>
+                                  handleManualMatch(idx, v)
+                                }
+                              >
+                                <SelectTrigger className="w-[180px]">
+                                  <SelectValue placeholder="Select category..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {categories.map((c) => (
+                                    <SelectItem key={c.id} value={c.id}>
+                                      {c.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-mono">
+                            {row.amount.toLocaleString(undefined, {
+                              minimumFractionDigits: 2,
+                            })}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {row.peopleCount ?? "—"}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setRows([]);
+                    if (fileRef.current) fileRef.current.value = "";
+                  }}
+                >
+                  Clear
+                </Button>
+                <Button
+                  onClick={handleImport}
+                  disabled={loading || matchedCount === 0 || imported}
+                >
+                  {loading
+                    ? "Importing..."
+                    : imported
+                      ? "Imported!"
+                      : `Import ${matchedCount} Budget${matchedCount !== 1 ? "s" : ""}`}
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
