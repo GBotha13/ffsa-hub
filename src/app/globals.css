@@ -4,26 +4,36 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 222 47% 11%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222 47% 11%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 222 47% 11%;
-    --radius: 0.5rem;
+    /* ── Cinematic Dark Theme ── */
+    --background: 20 12% 6%;
+    --foreground: 38 18% 92%;
+
+    --card: 22 10% 9%;
+    --card-foreground: 38 18% 92%;
+
+    --popover: 22 10% 10%;
+    --popover-foreground: 38 18% 92%;
+
+    --primary: 42 95% 55%;
+    --primary-foreground: 0 0% 5%;
+
+    --secondary: 22 8% 14%;
+    --secondary-foreground: 38 18% 80%;
+
+    --muted: 22 8% 12%;
+    --muted-foreground: 30 8% 52%;
+
+    --accent: 22 8% 16%;
+    --accent-foreground: 38 18% 92%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 38 18% 92%;
+
+    --border: 22 8% 16%;
+    --input: 22 8% 16%;
+    --ring: 42 95% 55%;
+
+    --radius: 0.625rem;
   }
 }
 
@@ -31,7 +41,89 @@
   * {
     @apply border-border;
   }
+
+  html {
+    @apply dark;
+  }
+
   body {
     @apply bg-background text-foreground;
+    position: relative;
+  }
+
+  /* ── Paper grain texture overlay ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+    background-size: 180px 180px;
+    opacity: 0.028;
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* ── Thin scrollbar ── */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 2px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground));
+  }
+}
+
+@layer components {
+  /* ── Card lift on hover ── */
+  .card-hover {
+    @apply transition-all duration-200;
+  }
+  .card-hover:hover {
+    @apply -translate-y-0.5;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 0 0 1px hsl(var(--border));
+  }
+
+  /* ── Yellow glow accent ── */
+  .glow-yellow {
+    box-shadow: 0 0 14px rgba(245, 197, 24, 0.22);
+  }
+
+  /* ── Consistent section label ── */
+  .section-label {
+    @apply text-xs font-semibold uppercase tracking-widest text-muted-foreground/60;
+    letter-spacing: 0.12em;
+  }
+
+  /* ── Elevated surface ── */
+  .surface-elevated {
+    background: hsl(22 8% 13%);
+    border: 1px solid hsl(22 8% 20%);
+    border-radius: var(--radius);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+  }
+}
+
+@layer utilities {
+  /* ── Page entry animation ── */
+  .animate-fade-up {
+    animation: fadeUp 0.28s ease forwards;
+  }
+
+  @keyframes fadeUp {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 }

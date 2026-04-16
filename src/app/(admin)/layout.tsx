@@ -38,10 +38,10 @@ export default async function AdminLayout({
   return (
     <div className="flex h-screen overflow-hidden">
       <AdminSidebar userRoles={userRoles} />
-      <main className="flex-1 overflow-y-auto bg-muted/30">
-        <div className="mx-auto max-w-6xl px-6 py-8">
-            <ProfileCompletionGate>{children}</ProfileCompletionGate>
-          </div>
+      <main className="flex-1 overflow-y-auto bg-background pt-14 md:pt-0">
+        <div className="mx-auto max-w-6xl px-4 md:px-6 py-6 md:py-8 animate-fade-up">
+          <ProfileCompletionGate>{children}</ProfileCompletionGate>
+        </div>
       </main>
     </div>
   );

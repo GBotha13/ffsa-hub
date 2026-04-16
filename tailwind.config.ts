@@ -50,6 +50,10 @@ const config: Config = {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      fontFamily: {
+        display: ["'Bebas Neue'", "sans-serif"],
+        sans: ["'Inter'", "sans-serif"],
+      },
     },
   },
   plugins: [tailwindcssAnimate],
