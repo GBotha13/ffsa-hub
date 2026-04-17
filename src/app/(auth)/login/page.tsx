@@ -215,7 +215,7 @@ export default function LoginPage() {
           textTransform: "uppercase",
         }}
       >
-        ENCOUNTER · EQUIP · GO
+        CATALYSE A GENERATION · EVANGELISE THE WORLD
       </p>
 
       {/* Bottom rule */}
