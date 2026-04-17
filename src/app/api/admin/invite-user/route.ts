@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { Resend } from "resend";
+import { inviteEmailHtml } from "@/lib/email/templates/invite";
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request: Request) {
   // Verify the calling user is an admin
@@ -29,10 +33,7 @@ export async function POST(request: Request) {
   const { email, first_name, last_name } = body;
 
   if (!email) {
-    return NextResponse.json(
-      { error: "email is required" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "email is required" }, { status: 400 });
   }
 
   const adminSupabase = createAdminClient();
@@ -52,28 +53,53 @@ export async function POST(request: Request) {
   }
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-  const { data: newAuthUser, error: authError } =
-    await adminSupabase.auth.admin.inviteUserByEmail(email, {
-      redirectTo: `${siteUrl}/auth/confirm`,
+
+  // Generate invite link without sending Supabase's default email
+  const { data: linkData, error: linkError } =
+    await adminSupabase.auth.admin.generateLink({
+      type: "invite",
+      email,
+      options: {
+        redirectTo: `${siteUrl}/auth/confirm`,
+      },
     });
 
-  if (authError) {
+  if (linkError || !linkData?.properties?.action_link) {
     return NextResponse.json(
-      { error: authError.message },
+      { error: linkError?.message || "Failed to generate invite link" },
       { status: 500 }
     );
   }
 
-  if (!newAuthUser?.user) {
+  const inviteUrl = linkData.properties.action_link;
+
+  // Send branded email via Resend
+  const fromEmail = process.env.RESEND_FROM_EMAIL || "noreply@ffsahub.com";
+  const { error: emailError } = await resend.emails.send({
+    from: `Fire & Fragrance SA <${fromEmail}>`,
+    to: email,
+    subject: "You're invited to FFSA Hub",
+    html: inviteEmailHtml({
+      firstName: first_name || undefined,
+      inviteUrl,
+    }),
+  });
+
+  if (emailError) {
     return NextResponse.json(
-      { error: "Failed to create auth user" },
+      { error: `Failed to send invite email: ${emailError.message}` },
       { status: 500 }
     );
   }
 
   // Create app-level user record
+  const newUserId = linkData.user?.id;
+  if (!newUserId) {
+    return NextResponse.json({ error: "Failed to get user ID" }, { status: 500 });
+  }
+
   const { error: userError } = await adminSupabase.from("users").insert({
-    id: newAuthUser.user.id,
+    id: newUserId,
     email: email,
     first_name: first_name || null,
     last_name: last_name || null,
@@ -81,8 +107,6 @@ export async function POST(request: Request) {
   });
 
   if (userError) {
-    // Attempt to clean up the auth user if app-level creation fails
-    await adminSupabase.auth.admin.deleteUser(newAuthUser.user.id);
     return NextResponse.json(
       { error: `Failed to create user record: ${userError.message}` },
       { status: 500 }
@@ -98,7 +122,7 @@ export async function POST(request: Request) {
 
   if (selfServiceRole) {
     await adminSupabase.from("user_roles").insert({
-      user_id: newAuthUser.user.id,
+      user_id: newUserId,
       role_id: selfServiceRole.id,
       assigned_by: authUser.id,
     });
@@ -109,12 +133,9 @@ export async function POST(request: Request) {
     user_id: authUser.id,
     action: "create",
     resource_type: "users",
-    resource_id: newAuthUser.user.id,
+    resource_id: newUserId,
     changes: { email, first_name, last_name },
   });
 
-  return NextResponse.json({
-    success: true,
-    user_id: newAuthUser.user.id,
-  });
+  return NextResponse.json({ success: true, user_id: newUserId });
 }
