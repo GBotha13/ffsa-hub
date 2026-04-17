@@ -82,7 +82,7 @@ function SidebarLogo() {
             textTransform: "uppercase",
           }}
         >
-          SOUTH AFRICA HUB
+          HUB
         </span>
       </div>
     </Link>

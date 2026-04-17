@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
-import { Inter, Bebas_Neue } from "next/font/google";
+import { Roboto, Bebas_Neue } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+const roboto = Roboto({
+  weight: ["400", "500", "700"],
+  subsets: ["latin"],
+  variable: "--font-roboto",
+});
 const bebasNeue = Bebas_Neue({
   weight: "400",
   subsets: ["latin"],
@@ -21,8 +25,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`dark ${inter.variable} ${bebasNeue.variable}`}>
-      <body className={inter.className}>
+    <html lang="en" className={`dark ${roboto.variable} ${bebasNeue.variable}`}>
+      <body className={roboto.className}>
         {children}
         <Toaster />
       </body>

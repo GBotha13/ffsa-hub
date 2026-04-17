@@ -82,7 +82,7 @@ export default function LoginPage() {
               textTransform: "uppercase",
             }}
           >
-            SOUTH AFRICA HUB
+            HUB
           </span>
           <div style={{ height: "1px", flex: 1, maxWidth: "60px", background: "hsl(22 8% 20%)" }} />
         </div>

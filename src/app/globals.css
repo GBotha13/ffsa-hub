@@ -34,6 +34,7 @@
     --ring: 42 95% 55%;
 
     --radius: 0.625rem;
+    --font-body: var(--font-roboto, 'Roboto', sans-serif);
   }
 }
 
@@ -45,7 +46,12 @@
   body {
     @apply bg-background text-foreground;
     background-color: #0D0B09;
+    font-family: var(--font-roboto, 'Roboto', sans-serif);
     position: relative;
+  }
+
+  button, input, label, a, p, span, td, th, li {
+    font-family: var(--font-roboto, 'Roboto', sans-serif);
   }
 
   /* ── Paper grain texture overlay ── */
@@ -78,6 +84,14 @@
 }
 
 @layer components {
+  /* ── Buttons: Roboto Medium, all caps ── */
+  button, [role="button"] {
+    font-family: var(--font-roboto, 'Roboto', sans-serif) !important;
+    font-weight: 500 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
   /* ── Card lift on hover ── */
   .card-hover {
     @apply transition-all duration-200;
