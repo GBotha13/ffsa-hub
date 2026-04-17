@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Check, X, Trash2 } from "lucide-react";
+import { Check, X, Trash2, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 
 interface AdminPanelProps {
@@ -70,12 +70,17 @@ export default function AdminPanel({ userId }: AdminPanelProps) {
     <div>
       <Tabs value={adminTab} onValueChange={setAdminTab}>
         <TabsList>
-          <TabsTrigger value="pending">Pending Requests</TabsTrigger>
+          <TabsTrigger value="pending">Pending Sets</TabsTrigger>
+          <TabsTrigger value="join-requests">Join Requests</TabsTrigger>
           <TabsTrigger value="labels">Labels</TabsTrigger>
         </TabsList>
 
         <TabsContent value="pending">
           <PendingRequests userId={userId} />
+        </TabsContent>
+
+        <TabsContent value="join-requests">
+          <JoinRequests userId={userId} />
         </TabsContent>
 
         <TabsContent value="labels">
@@ -228,6 +233,181 @@ function PendingRequests({ userId }: { userId: string }) {
           </CardContent>
         </Card>
       ))}
+    </div>
+  );
+}
+
+// ─── Join Requests ──────────────────────────────────────────
+
+interface EvalRequest {
+  id: string;
+  role: string;
+  instruments: string[];
+  background: string | null;
+  status: string;
+  review_note: string | null;
+  created_at: string;
+  users: { id: string; first_name: string; last_name: string; preferred_name: string | null; email: string };
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  worship_leader: "Worship Leader",
+  musician: "Musician",
+  prayer_leader: "Prayer Leader",
+};
+
+function JoinRequests({ userId }: { userId: string }) {
+  const [requests, setRequests] = useState<EvalRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [decliningId, setDecliningId] = useState<string | null>(null);
+  const [declineNote, setDeclineNote] = useState("");
+  const [statusFilter, setStatusFilter] = useState("pending");
+
+  const fetchRequests = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/prayer-room/eval-requests?status=${statusFilter}`);
+      if (res.ok) setRequests(await res.json());
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter]);
+
+  useEffect(() => { fetchRequests(); }, [fetchRequests]);
+
+  const handleApprove = async (id: string) => {
+    try {
+      const res = await fetch("/api/prayer-room/eval-requests", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, action: "approve" }),
+      });
+      if (!res.ok) throw new Error("Failed to approve");
+      toast.success("Approved — labels have been assigned to this person.");
+      fetchRequests();
+    } catch {
+      toast.error("Failed to approve request");
+    }
+  };
+
+  const handleDecline = async (id: string) => {
+    try {
+      const res = await fetch("/api/prayer-room/eval-requests", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, action: "decline", review_note: declineNote }),
+      });
+      if (!res.ok) throw new Error("Failed to decline");
+      toast.success("Request declined.");
+      setDecliningId(null);
+      setDeclineNote("");
+      fetchRequests();
+    } catch {
+      toast.error("Failed to decline request");
+    }
+  };
+
+  return (
+    <div className="space-y-4 mt-2">
+      <div className="flex gap-2">
+        {["pending", "approved", "declined"].map((s) => (
+          <button
+            key={s}
+            onClick={() => setStatusFilter(s)}
+            className="capitalize rounded-lg px-3 py-1.5 text-xs font-medium transition-all"
+            style={{
+              background: statusFilter === s ? "hsl(42 95% 55%)" : "hsl(22 10% 8%)",
+              color: statusFilter === s ? "#0D0B09" : "hsl(30 8% 52%)",
+              border: statusFilter === s ? "1px solid hsl(42 95% 55%)" : "1px solid hsl(22 8% 15%)",
+            }}
+          >
+            {s}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-muted-foreground py-4">Loading...</p>
+      ) : requests.length === 0 ? (
+        <p className="text-sm text-muted-foreground py-4">No {statusFilter} join requests.</p>
+      ) : (
+        requests.map((req) => (
+          <Card key={req.id}>
+            <CardContent className="py-4 space-y-3">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-sm">
+                      {(req.users.preferred_name || req.users.first_name) + " " + req.users.last_name}
+                    </span>
+                    <Badge variant="outline" className="text-xs capitalize">
+                      {ROLE_LABELS[req.role] || req.role}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">{req.users.email}</p>
+                  {req.instruments?.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {req.instruments.map((i) => (
+                        <Badge key={i} variant="secondary" className="text-xs">{i}</Badge>
+                      ))}
+                    </div>
+                  )}
+                  {req.background && (
+                    <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
+                      &ldquo;{req.background}&rdquo;
+                    </p>
+                  )}
+                </div>
+
+                {statusFilter === "pending" && (
+                  <div className="flex gap-1 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-green-600"
+                      onClick={() => handleApprove(req.id)}
+                    >
+                      <UserCheck className="h-4 w-4 mr-1" /> Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-red-600"
+                      onClick={() => setDecliningId(decliningId === req.id ? null : req.id)}
+                    >
+                      <X className="h-4 w-4 mr-1" /> Decline
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {decliningId === req.id && (
+                <div className="space-y-2 pt-2 border-t border-border">
+                  <Input
+                    value={declineNote}
+                    onChange={(e) => setDeclineNote(e.target.value)}
+                    placeholder="Reason for declining (optional)..."
+                  />
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="destructive" onClick={() => handleDecline(req.id)}>
+                      Confirm Decline
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => { setDecliningId(null); setDeclineNote(""); }}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {req.review_note && statusFilter !== "pending" && (
+                <p className="text-xs text-muted-foreground italic border-t border-border pt-2">
+                  Note: {req.review_note}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        ))
+      )}
     </div>
   );
 }

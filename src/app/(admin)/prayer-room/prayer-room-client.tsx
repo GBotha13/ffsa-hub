@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CalendarDays, PlusCircle, User, Settings } from "lucide-react";
+import { CalendarDays, PlusCircle, User, Settings, DoorOpen } from "lucide-react";
 import ScheduleView from "./components/schedule-view";
 import SignupForm from "./components/signup-form";
 import MyDevoSets from "./components/my-devo-sets";
 import AdminPanel from "./components/admin-panel";
+import JoinTheRoomForm from "./components/join-the-room-form";
 
 interface PrayerRoomClientProps {
   userId: string;
@@ -37,6 +38,10 @@ export default function PrayerRoomClient({
             <User className="h-4 w-4" />
             My Devo Sets
           </TabsTrigger>
+          <TabsTrigger value="join-the-room" className="gap-1.5">
+            <DoorOpen className="h-4 w-4" />
+            Join the Room
+          </TabsTrigger>
           {isAdmin && (
             <TabsTrigger value="admin" className="gap-1.5">
               <Settings className="h-4 w-4" />
@@ -55,6 +60,10 @@ export default function PrayerRoomClient({
 
         <TabsContent value="my-sets">
           <MyDevoSets userId={userId} />
+        </TabsContent>
+
+        <TabsContent value="join-the-room">
+          <JoinTheRoomForm userId={userId} />
         </TabsContent>
 
         {isAdmin && (
