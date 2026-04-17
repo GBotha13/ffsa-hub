@@ -37,57 +37,54 @@ function NavLink({
       href={href}
       onClick={onClick}
       className={cn(
-        "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-all duration-150",
+        "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150",
         isActive
-          ? "text-primary-foreground"
-          : "text-muted-foreground hover:text-foreground hover:bg-accent"
+          ? ""
+          : "text-muted-foreground hover:text-foreground hover:bg-white/5"
       )}
       style={
         isActive
           ? {
-              background: "hsl(42 95% 55%)",
-              boxShadow: "0 0 14px rgba(245,197,24,0.2)",
+              background: "hsl(42 95% 55% / 0.12)",
+              color: "hsl(42 95% 60%)",
+              borderLeft: "2px solid hsl(42 95% 55%)",
+              paddingLeft: "calc(0.75rem - 2px)",
             }
           : undefined
       }
     >
       <Icon className="h-4 w-4 shrink-0" />
-      {label}
+      <span style={{ letterSpacing: "0.01em" }}>{label}</span>
     </Link>
   );
 }
 
 function SidebarLogo() {
   return (
-    <Link href="/dashboard" className="block">
+    <Link href="/dashboard" className="block group">
       <div
-        className="text-foreground leading-none"
         style={{
-          fontFamily: "var(--font-bebas, 'Bebas Neue', 'Arial Black', sans-serif)",
-          fontSize: "21px",
-          letterSpacing: "0.07em",
+          fontFamily: "var(--font-bebas, 'Arial Black', sans-serif)",
+          fontSize: "26px",
+          letterSpacing: "0.06em",
+          lineHeight: 1,
+          color: "#F0EBE3",
         }}
       >
         FIRE &amp; FRAGRANCE
       </div>
-      <div className="flex items-center gap-2 mt-1">
+      <div className="flex items-center gap-2 mt-1.5">
+        <div style={{ height: "1px", width: "14px", background: "hsl(42 95% 55%)" }} />
         <span
-          className="text-muted-foreground/60 uppercase tracking-widest"
-          style={{ fontSize: "9px", letterSpacing: "0.22em", fontWeight: 600 }}
-        >
-          SOUTH AFRICA
-        </span>
-        <span
-          className="font-bold rounded"
           style={{
-            background: "hsl(42 95% 55%)",
-            color: "hsl(0 0% 5%)",
             fontSize: "8px",
-            letterSpacing: "0.1em",
-            padding: "1px 5px",
+            letterSpacing: "0.28em",
+            fontWeight: 700,
+            color: "hsl(42 95% 55%)",
+            textTransform: "uppercase",
           }}
         >
-          HUB
+          SOUTH AFRICA HUB
         </span>
       </div>
     </Link>
@@ -217,8 +214,8 @@ export function AdminSidebar({ userRoles }: AdminSidebarProps) {
   const visibleSystem = getAccessibleModules(SYSTEM_MODULES, userRoles);
 
   const sidebarStyle = {
-    background: "hsl(20 14% 5%)",
-    borderRight: "1px solid hsl(22 8% 13%)",
+    background: "#0D0B09",
+    borderRight: "1px solid hsl(22 8% 12%)",
   };
 
   return (

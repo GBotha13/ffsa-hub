@@ -6,13 +6,6 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -27,10 +20,7 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
       setError(error.message);
@@ -38,7 +28,6 @@ export default function LoginPage() {
       return;
     }
 
-    // Check if user has an admin role and redirect accordingly
     const { data: userRoles } = await supabase
       .from("user_roles")
       .select("roles(name)")
@@ -55,52 +44,199 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-2xl font-bold tracking-tight">
-            FFSA Platform
-          </CardTitle>
-          <CardDescription>
-            Sign in to your account
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-              />
-            </div>
+    <div className="relative flex min-h-screen flex-col items-center justify-center px-4 overflow-hidden" style={{ background: "#0D0B09" }}>
 
-            {error && (
-              <p className="text-sm text-destructive">{error}</p>
-            )}
+      {/* Atmospheric vignette */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background: "radial-gradient(ellipse 80% 60% at 50% 40%, rgba(245,197,24,0.04) 0%, transparent 70%)",
+        }}
+      />
 
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Signing in..." : "Sign in"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+      {/* Top rule */}
+      <div
+        className="absolute top-0 left-0 right-0"
+        style={{ height: "2px", background: "linear-gradient(90deg, transparent, hsl(42 95% 55%), transparent)" }}
+      />
+
+      {/* Logo block */}
+      <div className="relative mb-12 text-center animate-fade-up">
+        <p
+          style={{
+            fontSize: "10px",
+            letterSpacing: "0.35em",
+            fontWeight: 700,
+            color: "hsl(42 95% 55%)",
+            textTransform: "uppercase",
+            marginBottom: "0.75rem",
+          }}
+        >
+          SOUTH AFRICA
+        </p>
+        <h1
+          style={{
+            fontFamily: "var(--font-bebas, 'Arial Black', sans-serif)",
+            fontSize: "clamp(3rem, 10vw, 5.5rem)",
+            letterSpacing: "0.05em",
+            lineHeight: 1,
+            color: "#F0EBE3",
+          }}
+        >
+          FIRE &amp; FRAGRANCE
+        </h1>
+        <div className="flex items-center justify-center gap-4 mt-3">
+          <div style={{ height: "1px", flex: 1, maxWidth: "60px", background: "hsl(22 8% 20%)" }} />
+          <span
+            style={{
+              fontSize: "9px",
+              letterSpacing: "0.3em",
+              fontWeight: 700,
+              color: "hsl(30 8% 38%)",
+              textTransform: "uppercase",
+            }}
+          >
+            INTERNAL HUB
+          </span>
+          <div style={{ height: "1px", flex: 1, maxWidth: "60px", background: "hsl(22 8% 20%)" }} />
+        </div>
+      </div>
+
+      {/* Form card */}
+      <div
+        className="relative w-full max-w-sm animate-fade-up"
+        style={{
+          animationDelay: "60ms",
+          background: "hsl(22 10% 8%)",
+          border: "1px solid hsl(22 8% 15%)",
+          borderRadius: "14px",
+          padding: "2.25rem",
+          boxShadow: "0 24px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03)",
+        }}
+      >
+        <p
+          style={{
+            fontSize: "10px",
+            letterSpacing: "0.25em",
+            fontWeight: 600,
+            color: "hsl(30 8% 40%)",
+            textTransform: "uppercase",
+            marginBottom: "1.75rem",
+            textAlign: "center",
+          }}
+        >
+          Sign in to your account
+        </p>
+
+        <form onSubmit={handleLogin} className="space-y-5">
+          <div className="space-y-1.5">
+            <Label
+              htmlFor="email"
+              style={{
+                fontSize: "9px",
+                letterSpacing: "0.18em",
+                textTransform: "uppercase",
+                fontWeight: 700,
+                color: "hsl(30 8% 45%)",
+              }}
+            >
+              Email Address
+            </Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="email"
+              className="h-11"
+              style={{
+                background: "hsl(20 12% 5%)",
+                border: "1px solid hsl(22 8% 17%)",
+                color: "#F0EBE3",
+                borderRadius: "8px",
+                fontSize: "14px",
+              }}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label
+              htmlFor="password"
+              style={{
+                fontSize: "9px",
+                letterSpacing: "0.18em",
+                textTransform: "uppercase",
+                fontWeight: 700,
+                color: "hsl(30 8% 45%)",
+              }}
+            >
+              Password
+            </Label>
+            <Input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              autoComplete="current-password"
+              className="h-11"
+              style={{
+                background: "hsl(20 12% 5%)",
+                border: "1px solid hsl(22 8% 17%)",
+                color: "#F0EBE3",
+                borderRadius: "8px",
+                fontSize: "14px",
+              }}
+            />
+          </div>
+
+          {error && (
+            <p className="text-sm" style={{ color: "hsl(0 72% 65%)", fontSize: "12px" }}>
+              {error}
+            </p>
+          )}
+
+          <Button
+            type="submit"
+            className="w-full h-11 font-bold transition-all duration-200"
+            disabled={loading}
+            style={{
+              background: loading ? "hsl(42 80% 42%)" : "hsl(42 95% 55%)",
+              color: "#0D0B09",
+              fontSize: "11px",
+              letterSpacing: "0.22em",
+              textTransform: "uppercase",
+              borderRadius: "8px",
+              marginTop: "0.5rem",
+              boxShadow: loading ? "none" : "0 4px 18px rgba(245,197,24,0.25)",
+            }}
+          >
+            {loading ? "Signing in..." : "Sign In"}
+          </Button>
+        </form>
+      </div>
+
+      {/* Tagline */}
+      <p
+        className="mt-10 animate-fade-up"
+        style={{
+          animationDelay: "120ms",
+          fontSize: "9px",
+          letterSpacing: "0.3em",
+          color: "hsl(30 8% 25%)",
+          textTransform: "uppercase",
+        }}
+      >
+        ENCOUNTER · EQUIP · GO
+      </p>
+
+      {/* Bottom rule */}
+      <div
+        className="absolute bottom-0 left-0 right-0"
+        style={{ height: "1px", background: "linear-gradient(90deg, transparent, hsl(22 8% 15%), transparent)" }}
+      />
     </div>
   );
 }
