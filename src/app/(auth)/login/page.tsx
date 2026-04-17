@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import Image from "next/image";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -62,41 +63,26 @@ export default function LoginPage() {
 
       {/* Logo block */}
       <div className="relative mb-12 text-center animate-fade-up">
-        <p
-          style={{
-            fontSize: "10px",
-            letterSpacing: "0.35em",
-            fontWeight: 700,
-            color: "hsl(42 95% 55%)",
-            textTransform: "uppercase",
-            marginBottom: "0.75rem",
-          }}
-        >
-          SOUTH AFRICA
-        </p>
-        <h1
-          style={{
-            fontFamily: "var(--font-bebas, 'Arial Black', sans-serif)",
-            fontSize: "clamp(3rem, 10vw, 5.5rem)",
-            letterSpacing: "0.05em",
-            lineHeight: 1,
-            color: "#F0EBE3",
-          }}
-        >
-          FIRE &amp; FRAGRANCE
-        </h1>
-        <div className="flex items-center justify-center gap-4 mt-3">
+        <Image
+          src="/ff-logo.png"
+          alt="Fire & Fragrance"
+          width={280}
+          height={70}
+          style={{ objectFit: "contain", margin: "0 auto" }}
+          priority
+        />
+        <div className="flex items-center justify-center gap-4 mt-4">
           <div style={{ height: "1px", flex: 1, maxWidth: "60px", background: "hsl(22 8% 20%)" }} />
           <span
             style={{
               fontSize: "9px",
               letterSpacing: "0.3em",
               fontWeight: 700,
-              color: "hsl(30 8% 38%)",
+              color: "hsl(42 95% 55%)",
               textTransform: "uppercase",
             }}
           >
-            INTERNAL HUB
+            SOUTH AFRICA HUB
           </span>
           <div style={{ height: "1px", flex: 1, maxWidth: "60px", background: "hsl(22 8% 20%)" }} />
         </div>

@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils/cn";
 import { LogOut, Menu } from "lucide-react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import {
@@ -62,17 +63,14 @@ function NavLink({
 function SidebarLogo() {
   return (
     <Link href="/dashboard" className="block group">
-      <div
-        style={{
-          fontFamily: "var(--font-bebas, 'Arial Black', sans-serif)",
-          fontSize: "26px",
-          letterSpacing: "0.06em",
-          lineHeight: 1,
-          color: "#F0EBE3",
-        }}
-      >
-        FIRE &amp; FRAGRANCE
-      </div>
+      <Image
+        src="/ff-logo.png"
+        alt="Fire & Fragrance"
+        width={160}
+        height={40}
+        style={{ objectFit: "contain", objectPosition: "left" }}
+        priority
+      />
       <div className="flex items-center gap-2 mt-1.5">
         <div style={{ height: "1px", width: "14px", background: "hsl(42 95% 55%)" }} />
         <span
