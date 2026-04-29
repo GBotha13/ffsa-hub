@@ -53,7 +53,7 @@ export default async function EventDetailPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">{event.title}</h1>
+          <h1 className="page-title">{event.title}</h1>
           <p className="text-sm text-muted-foreground">
             {event.start_date}
             {event.end_date && event.end_date !== event.start_date

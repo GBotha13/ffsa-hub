@@ -39,10 +39,8 @@ export default function FinancePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Finance</h1>
-        <p className="text-sm text-muted-foreground">
-          Financial management modules for FFSA
-        </p>
+        <p className="page-eyebrow">FINANCIAL MANAGEMENT</p>
+        <h1 className="page-title">Finance</h1>
       </div>
 
       {/* Integrations */}
@@ -58,17 +56,17 @@ export default function FinancePage() {
               key={mod.title}
               className={
                 mod.ready
-                  ? "hover:border-primary/50 transition-colors cursor-pointer"
-                  : "opacity-60"
+                  ? "card-hover cursor-pointer"
+                  : "opacity-50"
               }
             >
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <Icon className="h-5 w-5" />
+                  <Icon className="h-5 w-5" style={{ color: "var(--yellow)" }} />
                   {mod.title}
                   {!mod.ready && (
-                    <span className="ml-auto text-xs font-normal text-muted-foreground">
-                      Coming Soon
+                    <span className="ml-auto text-xs font-normal uppercase tracking-widest text-muted-foreground">
+                      Soon
                     </span>
                   )}
                 </CardTitle>

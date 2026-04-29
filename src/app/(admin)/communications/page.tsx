@@ -1,31 +1,22 @@
 import { Mail } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function CommunicationsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Communications</h1>
-        <p className="text-sm text-muted-foreground">
-          Announcements, partner updates, and internal communications
-        </p>
+        <p className="page-eyebrow">ANNOUNCEMENTS &amp; OUTREACH</p>
+        <h1 className="page-title">Communications</h1>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base text-muted-foreground">
-            <Mail className="h-5 w-5" />
-            Coming Soon
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            The Communications module is under development. It will handle
-            internal announcements, partner update tracking, email/SMS
-            campaigns, and communication history for staff and supporters.
-          </p>
-        </CardContent>
-      </Card>
+      <div className="surface-2 rounded-xl border border-white/[0.06] p-10 text-center">
+        <Mail className="h-10 w-10 mx-auto mb-4 opacity-40" />
+        <p className="font-semibold text-white mb-2 uppercase tracking-widest text-sm">Coming Soon</p>
+        <p className="text-sm text-muted-foreground max-w-md mx-auto">
+          The Communications module is under development. It will handle
+          internal announcements, partner update tracking, email/SMS
+          campaigns, and communication history for staff and supporters.
+        </p>
+      </div>
     </div>
   );
 }

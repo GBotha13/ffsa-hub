@@ -36,7 +36,7 @@ export default async function ContactDetailPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">
+          <h1 className="page-title">
             {contact.preferred_name ?? contact.first_name} {contact.last_name}
           </h1>
           {contact.preferred_name && (

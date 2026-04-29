@@ -32,10 +32,8 @@ export default async function MyFinancePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Finance</h1>
-        <p className="text-sm text-muted-foreground">
-          Your financial information and outreach team assignments
-        </p>
+        <p className="page-eyebrow">PERSONAL</p>
+        <h1 className="page-title">My Finance</h1>
       </div>
 
       {/* Outreach Teams */}

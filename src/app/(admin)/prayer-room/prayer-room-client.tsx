@@ -22,7 +22,10 @@ export default function PrayerRoomClient({
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">Prayer Room</h1>
+      <div className="mb-6">
+        <p className="page-eyebrow">DEVOTIONAL SETS</p>
+        <h1 className="page-title">Prayer Room</h1>
+      </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>

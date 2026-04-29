@@ -30,10 +30,9 @@ export default async function UsersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Users</h1>
-          <p className="text-sm text-muted-foreground">
-            {count ?? 0} user accounts
-          </p>
+          <p className="page-eyebrow">SYSTEM ACCESS</p>
+          <h1 className="page-title">Users</h1>
+          <p className="text-sm text-muted-foreground mt-1">{count ?? 0} user accounts</p>
         </div>
         {isSuperAdmin && <InviteUserForm />}
       </div>

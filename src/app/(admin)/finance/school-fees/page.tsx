@@ -44,10 +44,8 @@ export default async function SchoolFeesPage() {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">School Fees</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage fee structures, student payments, and country tiers
-          </p>
+          <p className="page-eyebrow">FINANCIAL MANAGEMENT</p>
+          <h1 className="page-title">School Fees</h1>
         </div>
       </div>
 

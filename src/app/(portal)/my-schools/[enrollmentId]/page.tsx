@@ -136,7 +136,7 @@ export default async function EnrollmentDetailPage({
       {/* Program Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">{program.name}</h1>
+          <h1 className="page-title">{program.name}</h1>
           <p className="text-sm text-muted-foreground">
             {program.code} &middot;{" "}
             {new Date(enrollment.enrolled_at).toLocaleDateString()} &middot;{" "}

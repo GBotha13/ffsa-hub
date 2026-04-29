@@ -15,10 +15,8 @@ export default async function SchoolsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Schools</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage programs, courses, enrollments, and grades
-          </p>
+          <p className="page-eyebrow">TRAINING &amp; EDUCATION</p>
+          <h1 className="page-title">Schools</h1>
         </div>
         <CreateProgramForm />
       </div>

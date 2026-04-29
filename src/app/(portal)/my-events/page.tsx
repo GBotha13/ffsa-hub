@@ -33,10 +33,8 @@ export default async function MyEventsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">My Events</h1>
-        <p className="text-sm text-muted-foreground">
-          Events you are registered for
-        </p>
+        <p className="page-eyebrow">PERSONAL</p>
+        <h1 className="page-title">My Events</h1>
       </div>
 
       <Card>

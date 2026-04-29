@@ -111,20 +111,18 @@ export default function NewContactPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Add Contact</h1>
-        <p className="text-sm text-muted-foreground">
-          Create a new contact record
-        </p>
+        <p className="page-eyebrow">PEOPLE &amp; RELATIONSHIPS</p>
+        <h1 className="page-title">Add Contact</h1>
       </div>
 
       {duplicates.length > 0 && (
-        <Card className="border-yellow-300 bg-yellow-50">
+        <Card style={{ borderColor: 'var(--yellow-border)', background: 'rgba(245,197,24,0.06)' }}>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base text-yellow-800">
+            <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--yellow)' }}>
               <AlertTriangle className="h-5 w-5" />
               Potential Duplicates Found
             </CardTitle>
-            <CardDescription className="text-yellow-700">
+            <CardDescription>
               The following existing records may match. Use an existing record or create a new one.
             </CardDescription>
           </CardHeader>
@@ -132,7 +130,7 @@ export default function NewContactPage() {
             {duplicates.map((dup) => (
               <div
                 key={dup.id}
-                className="flex items-center justify-between rounded-md border bg-white p-3"
+                className="flex items-center justify-between rounded-md border border-white/10 bg-white/5 p-3"
               >
                 <div>
                   <p className="font-medium">

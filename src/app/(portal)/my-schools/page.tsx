@@ -58,10 +58,8 @@ export default async function MySchoolsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">My Schools</h1>
-        <p className="text-sm text-muted-foreground">
-          Your applications, enrollments, grades, and transcripts
-        </p>
+        <p className="page-eyebrow">TRAINING &amp; EDUCATION</p>
+        <h1 className="page-title">My Schools</h1>
       </div>
 
       {/* Open Applications Section */}

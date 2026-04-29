@@ -174,12 +174,8 @@ export function OutreachDashboardClient({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Organization Dashboard
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Fire & Fragrance South Africa — Overview
-          </p>
+          <p className="page-eyebrow">OUTREACH FINANCE</p>
+          <h1 className="page-title">Organisation Dashboard</h1>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Select value={schoolFilter} onValueChange={setSchoolFilter}>

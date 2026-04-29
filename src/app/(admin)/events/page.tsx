@@ -36,8 +36,9 @@ export default async function EventsPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Events</h1>
-          <p className="text-sm text-muted-foreground">{count ?? 0} events</p>
+          <p className="page-eyebrow">EVENTS &amp; GATHERINGS</p>
+          <h1 className="page-title">Events</h1>
+          <p className="text-sm text-muted-foreground mt-1">{count ?? 0} events</p>
         </div>
         <Link href="/events/new">
           <Button size="sm" className="gap-1">
@@ -47,24 +48,25 @@ export default async function EventsPage({
         </Link>
       </div>
 
-      <div className="flex gap-1">
+      <div className="flex gap-1 flex-wrap">
         {[undefined, "draft", "published", "completed", "cancelled"].map(
-          (status) => (
-            <Link
-              key={status ?? "all"}
-              href={`/events${status ? `?status=${status}` : ""}`}
-            >
-              <Button
-                variant={
-                  (params.status ?? undefined) === status ? "default" : "ghost"
-                }
-                size="sm"
-                className="capitalize"
+          (status) => {
+            const isActive = (params.status ?? undefined) === status;
+            return (
+              <Link
+                key={status ?? "all"}
+                href={`/events${status ? `?status=${status}` : ""}`}
               >
-                {status ?? "All"}
-              </Button>
-            </Link>
-          )
+                <Button
+                  variant={isActive ? "default" : "ghost"}
+                  size="sm"
+                  className="capitalize"
+                >
+                  {status ?? "All"}
+                </Button>
+              </Link>
+            );
+          }
         )}
       </div>
 
