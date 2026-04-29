@@ -15,7 +15,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Plus, Search } from "lucide-react";
-import type { PersonType } from "@/types/database";
+import type { Tables } from "@/types/database";
+type PersonType = Tables<"person_types">;
 
 interface ContactsListProps {
   contacts: Array<{

@@ -1,4 +1,6 @@
-import type { Database, EventInsert, EventUpdate } from "@/types/database";
+import type { Database, TablesInsert, TablesUpdate } from "@/types/database";
+type EventInsert = TablesInsert<"events">;
+type EventUpdate = TablesUpdate<"events">;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Client = any;

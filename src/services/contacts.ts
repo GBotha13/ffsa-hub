@@ -1,4 +1,6 @@
-import type { ContactInsert, ContactUpdate } from "@/types/database";
+import type { TablesInsert, TablesUpdate } from "@/types/database";
+type ContactInsert = TablesInsert<"contacts">;
+type ContactUpdate = TablesUpdate<"contacts">;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Client = any;

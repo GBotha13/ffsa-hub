@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getRoles } from "@/services/roles";
-import type { Role } from "@/types/database";
+import type { Tables } from "@/types/database";
+type Role = Tables<"roles">;
 import { Badge } from "@/components/ui/badge";
 import {
   Table,

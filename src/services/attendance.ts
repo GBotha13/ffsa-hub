@@ -1,4 +1,5 @@
-import type { Database, AttendanceRecordInsert } from "@/types/database";
+import type { Database, TablesInsert } from "@/types/database";
+type AttendanceRecordInsert = TablesInsert<"attendance_records">;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Client = any;
