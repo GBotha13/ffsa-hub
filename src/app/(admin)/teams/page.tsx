@@ -1,6 +1,13 @@
 import { UsersRound } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import { requireModuleAccess } from "@/lib/require-permission";
 
-export default function TeamsPage() {
+export default async function TeamsPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  await requireModuleAccess(supabase, user.id, "teams");
   return (
     <div className="space-y-6">
       <div>

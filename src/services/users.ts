@@ -94,12 +94,36 @@ export async function updateLastSignIn(supabase: Client, userId: string) {
     .single();
 }
 
-/** Mark onboarding as complete by setting accepted_at unconditionally. */
+/** Mark onboarding as complete — sets pending_approval so super admin can review. */
 export async function completeOnboarding(supabase: Client, userId: string) {
   return supabase
     .from("users")
-    .update({ accepted_at: new Date().toISOString() })
+    .update({
+      accepted_at: new Date().toISOString(),
+      status: "pending_approval",
+    })
     .eq("id", userId)
     .select()
     .single();
+}
+
+/** Approve a user and activate their account (super_admin only). */
+export async function approveUser(
+  supabase: Client,
+  userId: string,
+  approvedBy: string,
+  jobTitle?: string
+) {
+  const update: Record<string, unknown> = { status: "active" };
+  if (jobTitle !== undefined) update.job_title = jobTitle;
+  return supabase.from("users").update(update).eq("id", userId).select().single();
+}
+
+/** Count users currently awaiting approval. */
+export async function getPendingApprovalCount(supabase: Client) {
+  const { count } = await supabase
+    .from("users")
+    .select("*", { count: "exact", head: true })
+    .eq("status", "pending_approval");
+  return count ?? 0;
 }

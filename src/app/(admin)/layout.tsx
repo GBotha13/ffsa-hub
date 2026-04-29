@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { AdminSidebar } from "@/components/admin-sidebar";
 import { ProfileCompletionGate } from "@/components/profile-completion-gate";
+import { PendingApprovalGate } from "@/components/pending-approval-gate";
 
 export default async function AdminLayout({
   children,
@@ -9,8 +10,9 @@ export default async function AdminLayout({
 }) {
   const supabase = await createClient();
 
-  // Load the current user's role names server-side
   let userRoles: string[] = [];
+  let permittedModules: Set<string> = new Set();
+
   try {
     const {
       data: { user },
@@ -30,17 +32,40 @@ export default async function AdminLayout({
           })
           .filter(Boolean) as string[];
       }
+
+      // Load permission-based module access for non-admin users
+      const isAdmin =
+        userRoles.includes("super_admin") || userRoles.includes("admin");
+
+      if (!isAdmin) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: permRows } = await (supabase as any)
+          .from("user_permissions")
+          .select("permissions(module)")
+          .eq("user_id", user.id);
+
+        if (permRows) {
+          for (const row of permRows as Array<{ permissions: { module: string } | { module: string }[] }>) {
+            const perm = Array.isArray(row.permissions)
+              ? row.permissions[0]
+              : row.permissions;
+            if (perm?.module) permittedModules.add(perm.module);
+          }
+        }
+      }
     }
   } catch {
-    // If roles can't be loaded, sidebar falls back to no module access
+    // Sidebar falls back to no module access
   }
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <AdminSidebar userRoles={userRoles} />
+      <AdminSidebar userRoles={userRoles} permittedModules={permittedModules} />
       <main className="flex-1 overflow-y-auto bg-background pt-14 md:pt-0">
         <div className="mx-auto max-w-6xl px-4 md:px-6 py-6 md:py-8 animate-fade-up">
-          <ProfileCompletionGate>{children}</ProfileCompletionGate>
+          <ProfileCompletionGate>
+            <PendingApprovalGate>{children}</PendingApprovalGate>
+          </ProfileCompletionGate>
         </div>
       </main>
     </div>

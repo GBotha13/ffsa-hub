@@ -1,10 +1,15 @@
 import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import { requireModuleAccess } from "@/lib/require-permission";
 import { getPrograms } from "@/services/schools";
 import { ProgramsTable } from "./programs-table";
 import { CreateProgramForm } from "./create-program-form";
 
 export default async function SchoolsPage() {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  await requireModuleAccess(supabase, user.id, "schools");
   const { data: programs, error } = await getPrograms(supabase);
 
   if (error) {

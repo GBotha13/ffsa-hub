@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { AdminSidebar } from "@/components/admin-sidebar";
 import { ProfileCompletionGate } from "@/components/profile-completion-gate";
+import { PendingApprovalGate } from "@/components/pending-approval-gate";
 
 export default async function PortalLayout({
   children,
@@ -10,6 +11,8 @@ export default async function PortalLayout({
   const supabase = await createClient();
 
   let userRoles: string[] = [];
+  let permittedModules: Set<string> = new Set();
+
   try {
     const {
       data: { user },
@@ -29,6 +32,26 @@ export default async function PortalLayout({
           })
           .filter(Boolean) as string[];
       }
+
+      const isAdmin =
+        userRoles.includes("super_admin") || userRoles.includes("admin");
+
+      if (!isAdmin) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: permRows } = await (supabase as any)
+          .from("user_permissions")
+          .select("permissions(module)")
+          .eq("user_id", user.id);
+
+        if (permRows) {
+          for (const row of permRows as Array<{ permissions: { module: string } | { module: string }[] }>) {
+            const perm = Array.isArray(row.permissions)
+              ? row.permissions[0]
+              : row.permissions;
+            if (perm?.module) permittedModules.add(perm.module);
+          }
+        }
+      }
     }
   } catch {
     // fallback to empty roles
@@ -36,11 +59,13 @@ export default async function PortalLayout({
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <AdminSidebar userRoles={userRoles} />
+      <AdminSidebar userRoles={userRoles} permittedModules={permittedModules} />
       <main className="flex-1 overflow-y-auto bg-muted/30">
         <div className="mx-auto max-w-4xl px-6 py-8">
-            <ProfileCompletionGate>{children}</ProfileCompletionGate>
-          </div>
+          <ProfileCompletionGate>
+            <PendingApprovalGate>{children}</PendingApprovalGate>
+          </ProfileCompletionGate>
+        </div>
       </main>
     </div>
   );

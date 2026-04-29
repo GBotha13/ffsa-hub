@@ -1,6 +1,13 @@
 import { Mail } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import { requireModuleAccess } from "@/lib/require-permission";
 
-export default function CommunicationsPage() {
+export default async function CommunicationsPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  await requireModuleAccess(supabase, user.id, "communications");
   return (
     <div className="space-y-6">
       <div>

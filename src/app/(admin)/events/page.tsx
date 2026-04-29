@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import { requireModuleAccess } from "@/lib/require-permission";
 import { getEvents } from "@/services/events";
 import type { Event } from "@/types/database";
 import Link from "next/link";
@@ -21,6 +23,9 @@ export default async function EventsPage({
 }) {
   const params = await searchParams;
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  await requireModuleAccess(supabase, user.id, "events");
   const { data: events, count } = await getEvents(supabase, {
     status: params.status,
   });

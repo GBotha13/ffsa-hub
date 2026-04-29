@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import { requireModuleAccess } from "@/lib/require-permission";
 import { getContacts } from "@/services/contacts";
 import { getPersonTypes } from "@/services/contacts";
 import { ContactsList } from "./contacts-list";
@@ -10,6 +12,9 @@ export default async function ContactsPage({
 }) {
   const params = await searchParams;
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  await requireModuleAccess(supabase, user.id, "contacts");
 
   const status = params.status ?? "active";
   const search = params.search;

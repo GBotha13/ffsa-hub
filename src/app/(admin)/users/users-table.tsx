@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2 } from "lucide-react";
+import Link from "next/link";
+import { Trash2, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +24,8 @@ type UserRow = {
   email: string | null;
   is_active: boolean;
   accepted_at: string | null;
+  status: string | null;
+  job_title: string | null;
   last_sign_in_at: string | null;
   user_roles: Array<{
     id: string;
@@ -81,10 +84,10 @@ export function UsersTable({
           <TableRow>
             <TableHead>Name</TableHead>
             <TableHead>Email</TableHead>
-            <TableHead>Roles</TableHead>
+            <TableHead>Job Title</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Last Sign In</TableHead>
-            <TableHead className="w-[60px]" />
+            <TableHead className="w-[80px]" />
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -99,7 +102,11 @@ export function UsersTable({
             </TableRow>
           ) : (
             users.map((user) => (
-              <TableRow key={user.id}>
+              <TableRow
+                key={user.id}
+                className="cursor-pointer"
+                onClick={() => router.push(`/users/${user.id}`)}
+              >
                 <TableCell className="font-medium">
                   {user.display_name ??
                     (user.first_name
@@ -109,29 +116,33 @@ export function UsersTable({
                 <TableCell className="text-muted-foreground">
                   {user.email ?? "—"}
                 </TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap gap-1">
-                    {user.user_roles?.map((ur) => (
-                      <Badge key={ur.id} variant="secondary" className="text-xs">
-                        {ur.roles?.display_name ?? "Unknown"}
-                        {ur.scope_type && (
-                          <span className="ml-1 opacity-60">
-                            ({ur.scope_type})
-                          </span>
-                        )}
-                      </Badge>
-                    ))}
-                  </div>
+                <TableCell className="text-muted-foreground">
+                  {user.job_title ?? "—"}
                 </TableCell>
                 <TableCell>
                   <Badge
-                    variant={user.is_active ? "default" : "destructive"}
+                    variant={
+                      user.status === "active"
+                        ? "default"
+                        : user.status === "pending_approval"
+                        ? "outline"
+                        : "secondary"
+                    }
+                    style={
+                      user.status === "pending_approval"
+                        ? {
+                            borderColor: "hsl(42 95% 55% / 0.4)",
+                            color: "hsl(42 95% 60%)",
+                            background: "hsl(42 80% 18%)",
+                          }
+                        : undefined
+                    }
                   >
-                    {user.is_active
-                      ? user.accepted_at
-                        ? "Active"
-                        : "Invited"
-                      : "Disabled"}
+                    {user.status === "active"
+                      ? "Active"
+                      : user.status === "pending_approval"
+                      ? "Pending Approval"
+                      : "Invited"}
                   </Badge>
                 </TableCell>
                 <TableCell className="text-muted-foreground">
@@ -139,18 +150,21 @@ export function UsersTable({
                     ? new Date(user.last_sign_in_at).toLocaleDateString()
                     : "Never"}
                 </TableCell>
-                <TableCell>
-                  {user.id !== currentUserId && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground hover:text-destructive"
-                      onClick={() => handleDelete(user)}
-                      disabled={deleting === user.id}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center gap-1">
+                    {user.id !== currentUserId && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => handleDelete(user)}
+                        disabled={deleting === user.id}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </div>
                 </TableCell>
               </TableRow>
             ))

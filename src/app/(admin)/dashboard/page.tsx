@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { Users, Calendar, UserCheck, ClipboardCheck, ArrowUpRight } from "lucide-react";
+import { Users, Calendar, UserCheck, ClipboardCheck, ArrowUpRight, Clock } from "lucide-react";
+import { getPendingApprovalCount } from "@/services/users";
 
 function StatCard({
   label,
@@ -85,6 +86,28 @@ function StatCard({
 export default async function DashboardPage() {
   const supabase = await createClient();
 
+  // Check if current user is super_admin (for pending approvals banner)
+  const {
+    data: { user: authUser },
+  } = await supabase.auth.getUser();
+
+  let isSuperAdmin = false;
+  let pendingCount = 0;
+
+  if (authUser) {
+    const { data: superCheck } = await supabase
+      .from("user_roles")
+      .select("roles!inner(name)")
+      .eq("user_id", authUser.id)
+      .eq("roles.name", "super_admin")
+      .limit(1);
+    isSuperAdmin = (superCheck?.length ?? 0) > 0;
+
+    if (isSuperAdmin) {
+      pendingCount = await getPendingApprovalCount(supabase);
+    }
+  }
+
   const [contactsResult, eventsResult, usersResult, recentRegistrations, upcomingEvents] =
     await Promise.all([
       supabase.from("contacts").select("*", { count: "exact", head: true }).eq("status", "active"),
@@ -133,6 +156,51 @@ export default async function DashboardPage() {
           Dashboard
         </h1>
       </div>
+
+      {/* Pending approvals banner — super admin only */}
+      {isSuperAdmin && pendingCount > 0 && (
+        <Link
+          href="/users?filter=pending"
+          className="flex items-center justify-between rounded-xl px-5 py-4 transition-opacity hover:opacity-90"
+          style={{
+            background: "hsl(42 95% 55% / 0.08)",
+            border: "1px solid hsl(42 95% 55% / 0.3)",
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              style={{
+                width: "34px",
+                height: "34px",
+                borderRadius: "8px",
+                background: "hsl(42 95% 55% / 0.15)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <Clock className="h-4 w-4" style={{ color: "hsl(42 95% 55%)" }} />
+            </div>
+            <div>
+              <p
+                style={{
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  color: "#F0EBE3",
+                  marginBottom: "1px",
+                }}
+              >
+                {pendingCount} staff member{pendingCount !== 1 ? "s" : ""} awaiting approval
+              </p>
+              <p style={{ fontSize: "11px", color: "hsl(42 95% 65%)" }}>
+                Review and assign access privileges to activate their accounts
+              </p>
+            </div>
+          </div>
+          <ArrowUpRight className="h-4 w-4 shrink-0" style={{ color: "hsl(42 95% 55%)" }} />
+        </Link>
+      )}
 
       {/* Stat cards */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">

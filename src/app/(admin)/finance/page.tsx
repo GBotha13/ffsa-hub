@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { requireModuleAccess } from "@/lib/require-permission";
 import { Globe, Wallet, CreditCard, Home } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { XeroConnection } from "./xero-connection";
@@ -35,7 +38,12 @@ const FINANCE_MODULES = [
   },
 ];
 
-export default function FinancePage() {
+export default async function FinancePage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  await requireModuleAccess(supabase, user.id, "finance");
+
   return (
     <div className="space-y-6">
       <div>

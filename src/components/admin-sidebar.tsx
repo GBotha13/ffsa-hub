@@ -18,6 +18,7 @@ import {
 
 interface AdminSidebarProps {
   userRoles: string[];
+  permittedModules?: Set<string>;
 }
 
 function NavLink({
@@ -196,7 +197,7 @@ function NavContent({
   );
 }
 
-export function AdminSidebar({ userRoles }: AdminSidebarProps) {
+export function AdminSidebar({ userRoles, permittedModules }: AdminSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
@@ -208,8 +209,8 @@ export function AdminSidebar({ userRoles }: AdminSidebarProps) {
     router.refresh();
   }
 
-  const visibleModules = getAccessibleModules(ADMIN_MODULES, userRoles);
-  const visibleSystem = getAccessibleModules(SYSTEM_MODULES, userRoles);
+  const visibleModules = getAccessibleModules(ADMIN_MODULES, userRoles, permittedModules);
+  const visibleSystem = getAccessibleModules(SYSTEM_MODULES, userRoles, permittedModules);
 
   const sidebarStyle = {
     background: "#0D0B09",

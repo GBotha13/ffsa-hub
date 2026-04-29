@@ -160,13 +160,27 @@ export const PORTAL_TABS: PortalTab[] = [
   },
 ];
 
-/** Returns modules the user can access based on their role names. */
+/**
+ * Returns modules the user can access.
+ *
+ * super_admin and admin see everything.
+ * Everyone else sees only modules they have at least one permission for
+ * (permittedModules is the set of module ids from user_permissions).
+ */
 export function getAccessibleModules(
   modules: ModuleDefinition[],
-  userRoles: string[]
+  userRoles: string[],
+  permittedModules?: Set<string>
 ): ModuleDefinition[] {
+  const isAdmin =
+    userRoles.includes("super_admin") || userRoles.includes("admin");
+
   return modules.filter((mod) => {
-    if (mod.requiredRoles.length === 0) return true; // open to all
-    return mod.requiredRoles.some((r) => userRoles.includes(r));
+    // Always open (dashboard, prayer room)
+    if (mod.requiredRoles.length === 0) return true;
+    // Admins see everything
+    if (isAdmin) return true;
+    // Otherwise check the permissions-based set
+    return permittedModules?.has(mod.id) ?? false;
   });
 }
