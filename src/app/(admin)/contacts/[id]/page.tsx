@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import Link from "next/link";
 
 export default async function ContactDetailPage({
   params,
@@ -34,13 +35,19 @@ export default async function ContactDetailPage({
 
   return (
     <div className="space-y-6">
+      <div>
+        <Link href="/contacts" className="text-xs text-muted-foreground hover:text-foreground uppercase tracking-widest" style={{ letterSpacing: "0.15em" }}>
+          ← Contacts
+        </Link>
+      </div>
       <div className="flex items-center justify-between">
         <div>
+          <p className="page-eyebrow">PEOPLE &amp; RELATIONSHIPS</p>
           <h1 className="page-title">
             {contact.preferred_name ?? contact.first_name} {contact.last_name}
           </h1>
           {contact.preferred_name && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground mt-1">
               Legal name: {contact.first_name} {contact.last_name}
             </p>
           )}

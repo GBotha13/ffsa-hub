@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getEventById } from "@/services/events";
 import { getRegistrationsForEvent } from "@/services/registrations";
@@ -51,10 +52,16 @@ export default async function EventDetailPage({
 
   return (
     <div className="space-y-6">
+      <div>
+        <Link href="/events" className="text-xs text-muted-foreground hover:text-foreground uppercase" style={{ letterSpacing: "0.15em" }}>
+          ← Events
+        </Link>
+      </div>
       <div className="flex items-center justify-between">
         <div>
+          <p className="page-eyebrow">EVENTS &amp; GATHERINGS</p>
           <h1 className="page-title">{event.title}</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground mt-1">
             {event.start_date}
             {event.end_date && event.end_date !== event.start_date
               ? ` – ${event.end_date}`

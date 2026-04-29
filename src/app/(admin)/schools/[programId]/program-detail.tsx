@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -145,10 +146,16 @@ export function ProgramDetail({
   return (
     <div className="space-y-6">
       {/* Header */}
+      <div>
+        <Link href="/schools" className="text-xs text-muted-foreground hover:text-foreground uppercase" style={{ letterSpacing: "0.15em" }}>
+          ← Schools
+        </Link>
+      </div>
       <div className="flex items-center justify-between">
         <div>
+          <p className="page-eyebrow">TRAINING &amp; EDUCATION</p>
           <h1 className="page-title">{program.name}</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground mt-1">
             {program.code} &middot; {program.credit_hours} credit hours
             {program.description && ` — ${program.description}`}
           </p>
