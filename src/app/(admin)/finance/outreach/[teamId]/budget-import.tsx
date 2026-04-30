@@ -389,7 +389,14 @@ export function BudgetImport({
                       return (
                         <TableRow
                           key={idx}
-                          className={!isMatched ? "bg-yellow-50" : ""}
+                          style={
+                            !isMatched
+                              ? {
+                                  background: "hsl(42 80% 18%)",
+                                  borderLeft: "2px solid hsl(42 95% 55%)",
+                                }
+                              : undefined
+                          }
                         >
                           <TableCell className="font-medium">
                             {row.header}
