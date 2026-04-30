@@ -102,6 +102,61 @@ export function BudgetImport({
   const [loading, setLoading] = useState(false);
   const [imported, setImported] = useState(false);
 
+  function parseVariableCostSheet(rawRows: unknown[][]): ParsedRow[] | null {
+    // Detect FFSA variable cost format:
+    // header row contains "Amount", "Frequency", "People", "Total"
+    // data rows: col[1] = category name, col[5] = total budget
+    let dataStart = -1;
+    for (let i = 0; i < rawRows.length; i++) {
+      const cells = (rawRows[i] as unknown[]).map((c) =>
+        String(c ?? "").toLowerCase().trim()
+      );
+      if (
+        cells.includes("amount") &&
+        cells.includes("total") &&
+        cells.includes("people")
+      ) {
+        dataStart = i + 1;
+        break;
+      }
+    }
+    if (dataStart === -1) return null;
+
+    // Aggregate totals by matched category (multiple destination rows → one budget line)
+    const aggregated = new Map<
+      string,
+      { displayName: string; total: number; matched: Category | null }
+    >();
+
+    for (let i = dataStart; i < rawRows.length; i++) {
+      const row = rawRows[i] as unknown[];
+      const name = String(row[1] ?? "").trim();
+      const total = parseCurrency(row[5]);
+      if (!name || total <= 0) continue;
+      if (name.toLowerCase() === "total") continue;
+
+      const matched = matchCategory(name, categories);
+      // Use matched category id as key so destinations aggregate correctly
+      const key = matched ? matched.id : name.toLowerCase();
+
+      if (aggregated.has(key)) {
+        aggregated.get(key)!.total += total;
+      } else {
+        aggregated.set(key, { displayName: name, total, matched });
+      }
+    }
+
+    if (aggregated.size === 0) return null;
+
+    return Array.from(aggregated.values()).map((item) => ({
+      header: item.displayName,
+      amount: Math.round(item.total * 100) / 100,
+      peopleCount: null,
+      matchedCategory: item.matched,
+      manualCategoryId: null,
+    }));
+  }
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -112,28 +167,40 @@ export function BudgetImport({
         const data = new Uint8Array(evt.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: "array" });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
 
+        // --- Try FFSA variable-cost format first (raw array parse) ---
+        const rawRows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+          header: 1,
+          defval: "",
+        });
+        const variableCostParsed = parseVariableCostSheet(rawRows);
+        if (variableCostParsed && variableCostParsed.length > 0) {
+          setRows(variableCostParsed);
+          setImported(false);
+          return;
+        }
+
+        // --- Fall back to standard formats ---
+        const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
         if (json.length === 0) {
           toast.error("Spreadsheet is empty");
           return;
         }
 
-        // Try to detect column layout
-        // Option A: Columns are category names with amounts as values (wide format)
-        // Option B: Rows have "Category" and "Amount" columns (long format)
         const headers = Object.keys(json[0]);
         const hasCategory = headers.some((h) =>
           h.toLowerCase().includes("category")
         );
-        const hasAmount = headers.some((h) =>
-          h.toLowerCase().includes("amount") || h.toLowerCase().includes("budget")
+        const hasAmount = headers.some(
+          (h) =>
+            h.toLowerCase().includes("amount") ||
+            h.toLowerCase().includes("budget")
         );
 
         let parsed: ParsedRow[] = [];
 
         if (hasCategory && hasAmount) {
-          // Long format: each row is a category
+          // Long format: each row is a category with Category + Amount columns
           const catCol = headers.find((h) =>
             h.toLowerCase().includes("category")
           )!;
@@ -149,7 +216,9 @@ export function BudgetImport({
           for (const row of json) {
             const catName = String(row[catCol] ?? "").trim();
             const amount = parseCurrency(row[amtCol]);
-            const people = peopleCol ? parseCurrency(row[peopleCol]) || null : null;
+            const people = peopleCol
+              ? parseCurrency(row[peopleCol]) || null
+              : null;
             if (!catName || amount <= 0) continue;
 
             parsed.push({
