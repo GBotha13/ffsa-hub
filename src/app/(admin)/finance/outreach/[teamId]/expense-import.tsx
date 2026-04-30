@@ -271,10 +271,15 @@ export function ExpenseImport({
             expense_date: row.date,
             receipt_code: row.receiptCode,
             vendor: row.vendor,
-            description: row.description,
+            // description is NOT NULL in DB — fall back to category name
+            description: row.description || row.categoryName,
             purchaser: row.purchaser,
             payment_method: "card",
+            // local_amount is NOT NULL in DB — use ZAR amount for ZAR-only entries
+            local_currency: "ZAR",
+            local_amount: row.zarAmount,
             zar_amount: row.zarAmount,
+            exchange_rate: 1,
             notes: row.notes,
           }),
         });
