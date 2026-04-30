@@ -34,6 +34,7 @@ import { Plus, Trash2, Edit2, Loader2, Upload, X } from "lucide-react";
 import { SUPPORTED_CURRENCIES } from "@/lib/currencies";
 import { ReceiptGallery } from "./receipt-gallery";
 import { createClient } from "@/lib/supabase/client";
+import { ExpenseImport } from "./expense-import";
 
 // ────────────────────────────────────────────────────────────
 // TYPES
@@ -345,12 +346,15 @@ export function ExpensesTab({
           }}
         >
           {!readOnly && (
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <Plus className="mr-2 h-4 w-4" />
-                Add Expense
-              </Button>
-            </DialogTrigger>
+            <div className="flex gap-2">
+              <ExpenseImport teamId={teamId} categories={categories} />
+              <DialogTrigger asChild>
+                <Button size="sm">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Expense
+                </Button>
+              </DialogTrigger>
+            </div>
           )}
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
