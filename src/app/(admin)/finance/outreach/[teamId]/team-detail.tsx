@@ -220,7 +220,7 @@ export function TeamDetail({
   const totalBudgeted = budgets.reduce((sum, b) => sum + Number(b.budget_amount_zar), 0);
   const totalSpent = expenses.reduce((sum, e) => sum + Number(e.zar_amount), 0);
   const totalReleased = fundReleases.reduce((sum, r) => sum + Number(r.amount_zar), 0);
-  const remainingFunds = totalReleased - totalSpent;
+  const remainingFunds = totalBudgeted - totalSpent;
 
   // Closeout lock — prevent edits when finances are closed
   const isFinanceLocked =
