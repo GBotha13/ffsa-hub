@@ -53,6 +53,16 @@ function slugify(text: string): string {
     .replace(/^-|-$/g, "");
 }
 
+// Strips currency formatting like "R12,000.00" or "R 1 200" → 12000
+function parseCurrency(value: unknown): number {
+  if (typeof value === "number") return value;
+  const cleaned = String(value ?? "")
+    .replace(/[R$€£\s]/g, "")
+    .replace(/,/g, "");
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? 0 : num;
+}
+
 function matchCategory(
   header: string,
   categories: Category[]
@@ -138,8 +148,8 @@ export function BudgetImport({
 
           for (const row of json) {
             const catName = String(row[catCol] ?? "").trim();
-            const amount = Number(row[amtCol] ?? 0);
-            const people = peopleCol ? Number(row[peopleCol] ?? 0) || null : null;
+            const amount = parseCurrency(row[amtCol]);
+            const people = peopleCol ? parseCurrency(row[peopleCol]) || null : null;
             if (!catName || amount <= 0) continue;
 
             parsed.push({
@@ -154,8 +164,8 @@ export function BudgetImport({
           // Wide format: column headers are category names, first row has amounts
           const firstRow = json[0];
           for (const header of headers) {
-            const value = Number(firstRow[header]);
-            if (isNaN(value) || value <= 0) continue;
+            const value = parseCurrency(firstRow[header]);
+            if (value <= 0) continue;
 
             parsed.push({
               header,
