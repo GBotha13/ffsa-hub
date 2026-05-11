@@ -61,22 +61,22 @@ function NavLink({
   );
 }
 
-function SidebarLogo() {
+function SidebarLogo({ compact = false }: { compact?: boolean }) {
   return (
     <Link href="/dashboard" className="block group">
       <Image
         src="/ff-logo.png"
         alt="Fire & Fragrance"
-        width={160}
-        height={40}
+        width={compact ? 90 : 110}
+        height={compact ? 24 : 28}
         style={{ objectFit: "contain", objectPosition: "left" }}
         priority
       />
-      <div className="flex items-center gap-2 mt-1.5">
-        <div style={{ height: "1px", width: "14px", background: "hsl(42 95% 55%)" }} />
+      <div className="flex items-center gap-1.5 mt-1">
+        <div style={{ height: "1px", width: "10px", background: "hsl(42 95% 55%)" }} />
         <span
           style={{
-            fontSize: "8px",
+            fontSize: "7px",
             letterSpacing: "0.28em",
             fontWeight: 700,
             color: "hsl(42 95% 55%)",
@@ -241,7 +241,7 @@ export function AdminSidebar({ userRoles, permittedModules }: AdminSidebarProps)
           borderBottom: "1px solid hsl(22 8% 13%)",
         }}
       >
-        <SidebarLogo />
+        <SidebarLogo compact />
         <Button
           variant="ghost"
           size="sm"

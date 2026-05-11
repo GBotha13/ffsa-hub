@@ -189,7 +189,7 @@ export default function OnboardingPage() {
         style={{ borderBottom: "1px solid hsl(22 8% 12%)" }}
       >
         <div className="flex items-center gap-3">
-          <Image src="/ff-logo.png" alt="Fire & Fragrance" width={100} height={26} style={{ objectFit: "contain" }} priority />
+          <Image src="/ff-logo.png" alt="Fire & Fragrance" width={80} height={20} style={{ objectFit: "contain" }} priority />
           <div style={{ height: "1px", width: "12px", background: "var(--yellow)" }} />
           <span style={{ fontSize: "8px", letterSpacing: "0.3em", fontWeight: 700, color: "var(--yellow)", textTransform: "uppercase" }}>
             HUB

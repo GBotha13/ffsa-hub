@@ -66,8 +66,8 @@ export default function LoginPage() {
         <Image
           src="/ff-logo.png"
           alt="Fire & Fragrance"
-          width={280}
-          height={70}
+          width={180}
+          height={45}
           style={{ objectFit: "contain", margin: "0 auto" }}
           priority
         />
