@@ -53,6 +53,28 @@ export async function updateProgram(
   return supabase.from("programs").update(data).eq("id", id).select().single();
 }
 
+export async function archiveProgram(supabase: Client, id: string) {
+  return supabase
+    .from("programs")
+    .update({ status: "archived" })
+    .eq("id", id)
+    .select()
+    .single();
+}
+
+export async function restoreProgram(supabase: Client, id: string) {
+  return supabase
+    .from("programs")
+    .update({ status: "active" })
+    .eq("id", id)
+    .select()
+    .single();
+}
+
+export async function deleteProgram(supabase: Client, id: string) {
+  return supabase.from("programs").delete().eq("id", id);
+}
+
 // ────────────────────────────────────────────────────────────
 // COURSES
 // ────────────────────────────────────────────────────────────

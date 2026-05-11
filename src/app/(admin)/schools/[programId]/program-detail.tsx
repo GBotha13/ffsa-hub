@@ -31,7 +31,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, Download, ChevronUp, ChevronDown, Edit2, ClipboardList, Copy, Check, Link as LinkIcon } from "lucide-react";
+import { Plus, Trash2, Download, ChevronUp, ChevronDown, Edit2, ClipboardList, Copy, Check, Link as LinkIcon, Archive } from "lucide-react";
+import { ProgramActions } from "../program-actions";
 
 // ────────────────────────────────────────────────────────────
 // TYPES
@@ -165,6 +166,14 @@ export function ProgramDetail({
           ← Schools
         </Link>
       </div>
+      {program.status === "archived" && (
+        <div className="flex items-center gap-3 rounded-lg border border-yellow-600/30 bg-yellow-950/20 px-4 py-3">
+          <Archive className="h-4 w-4 text-yellow-500 shrink-0" />
+          <p className="text-sm text-yellow-200">
+            This program is archived. It is hidden from non-admin users and no new enrollments can be made.
+          </p>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <p className="page-eyebrow">TRAINING &amp; EDUCATION</p>
@@ -174,9 +183,12 @@ export function ProgramDetail({
             {program.description && ` — ${program.description}`}
           </p>
         </div>
-        <Badge variant={program.status === "active" ? "default" : "secondary"}>
-          {program.status}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant={program.status === "active" ? "default" : "secondary"}>
+            {program.status}
+          </Badge>
+          <ProgramActions program={program} variant="button" redirectAfterDelete />
+        </div>
       </div>
 
       {/* Tabs */}

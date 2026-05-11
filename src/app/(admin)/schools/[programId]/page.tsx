@@ -39,10 +39,6 @@ export default async function ProgramDetailPage({
 
   return (
     <div className="space-y-6">
-      <Link href="/schools" className="text-sm text-muted-foreground hover:underline">
-        &larr; Back to Schools
-      </Link>
-
       <ProgramDetail
         program={program}
         enrollments={enrollments ?? []}
