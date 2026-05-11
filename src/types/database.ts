@@ -61,6 +61,8 @@ export type Database = {
       application_responses: {
         Row: {
           answers: Json
+          applicant_email: string | null
+          applicant_info: Json | null
           created_at: string
           id: string
           program_id: string
@@ -69,10 +71,12 @@ export type Database = {
           status: string
           submitted_at: string
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           answers?: Json
+          applicant_email?: string | null
+          applicant_info?: Json | null
           created_at?: string
           id?: string
           program_id: string
@@ -81,10 +85,12 @@ export type Database = {
           status?: string
           submitted_at?: string
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           answers?: Json
+          applicant_email?: string | null
+          applicant_info?: Json | null
           created_at?: string
           id?: string
           program_id?: string
@@ -93,7 +99,7 @@ export type Database = {
           status?: string
           submitted_at?: string
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -2107,6 +2113,10 @@ export type Database = {
       get_my_contact_id: { Args: never; Returns: string }
       grade_to_points: { Args: { grade: string }; Returns: number }
       has_any_role: { Args: { required_roles: string[] }; Returns: boolean }
+      has_permission: {
+        Args: { required_permission: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           check_scope_id?: string

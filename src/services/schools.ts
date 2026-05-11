@@ -396,6 +396,7 @@ export async function getResponsesByProgram(supabase: Client, programId: string)
     .select("*, users!application_responses_user_id_fkey(id, first_name, last_name, preferred_name, email)")
     .eq("program_id", programId)
     .order("submitted_at", { ascending: false });
+  // Note: nullable user_id FK join returns null for public applicants — PostgREST handles this automatically
 }
 
 export async function getResponseByUserAndProgram(
@@ -425,6 +426,47 @@ export async function createResponse(supabase: Client, data: {
   answers: Array<{ question_id: string; question_label: string; answer: string }>;
 }) {
   return supabase.from("application_responses").insert(data).select().single();
+}
+
+export async function createPublicResponse(supabase: Client, data: {
+  program_id: string;
+  applicant_email: string;
+  applicant_info: Record<string, unknown>;
+  answers: Array<{ question_id: string; question_label: string; answer: string }>;
+}) {
+  return supabase
+    .from("application_responses")
+    .insert({
+      program_id: data.program_id,
+      user_id: null,
+      applicant_email: data.applicant_email,
+      applicant_info: data.applicant_info,
+      answers: data.answers,
+    })
+    .select()
+    .single();
+}
+
+export async function getResponseByEmailAndProgram(
+  supabase: Client,
+  email: string,
+  programId: string
+) {
+  return supabase
+    .from("application_responses")
+    .select("id, status")
+    .eq("applicant_email", email)
+    .eq("program_id", programId)
+    .is("user_id", null)
+    .maybeSingle();
+}
+
+export async function getProgramPublicInfo(supabase: Client, programId: string) {
+  return supabase
+    .from("programs")
+    .select("id, name, code, description, application_open, status")
+    .eq("id", programId)
+    .single();
 }
 
 export async function updateResponseStatus(

@@ -31,7 +31,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, Download, ChevronUp, ChevronDown, Edit2, ClipboardList } from "lucide-react";
+import { Plus, Trash2, Download, ChevronUp, ChevronDown, Edit2, ClipboardList, Copy, Check, Link as LinkIcon } from "lucide-react";
 
 // ────────────────────────────────────────────────────────────
 // TYPES
@@ -101,10 +101,24 @@ type AppQuestion = {
   is_required: boolean;
 };
 
+type ApplicantInfo = {
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone?: string;
+  date_of_birth?: string;
+  gender?: string;
+  nationality?: string;
+  country?: string;
+  city?: string;
+};
+
 type AppResponse = {
   id: string;
   program_id: string;
-  user_id: string;
+  user_id: string | null;
+  applicant_email: string | null;
+  applicant_info: ApplicantInfo | null;
   answers: Array<{ question_id: string; question_label: string; answer: string }>;
   status: string;
   reviewed_by: string | null;
@@ -116,7 +130,7 @@ type AppResponse = {
     last_name: string | null;
     preferred_name: string | null;
     email: string | null;
-  };
+  } | null;
 };
 
 const LETTER_GRADES = [
@@ -868,6 +882,15 @@ function ApplicationTab({
   const [editingQuestion, setEditingQuestion] = useState<AppQuestion | null>(null);
   const [reviewingResponse, setReviewingResponse] = useState<AppResponse | null>(null);
 
+  const [copied, setCopied] = useState(false);
+
+  function copyPublicLink() {
+    const link = `${window.location.origin}/apply/${programId}`;
+    navigator.clipboard.writeText(link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   // Question form state
   const [qLabel, setQLabel] = useState("");
   const [qDescription, setQDescription] = useState("");
@@ -1013,6 +1036,34 @@ function ApplicationTab({
     setReviewLoading(true);
 
     try {
+      // Public applicant being accepted — use the accept-application pipeline
+      if (reviewStatus === "accepted" && !reviewingResponse.user_id) {
+        const shouldAccept = confirm(
+          "Accept this application? This will create a user account, enroll the student, and send them an invite email."
+        );
+        if (!shouldAccept) {
+          setReviewLoading(false);
+          return;
+        }
+
+        const res = await fetch("/api/admin/accept-application", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ response_id: reviewingResponse.id }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          alert(data.error || "Failed to accept application");
+          return;
+        }
+
+        setReviewingResponse(null);
+        router.refresh();
+        return;
+      }
+
+      // Standard status update (for authenticated applicants or non-accept statuses)
       const res = await fetch("/api/schools/applications/responses", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -1028,8 +1079,8 @@ function ApplicationTab({
         return;
       }
 
-      // If accepted, offer to auto-enroll
-      if (reviewStatus === "accepted") {
+      // If accepted (authenticated user), offer to auto-enroll
+      if (reviewStatus === "accepted" && reviewingResponse.user_id) {
         const shouldEnroll = confirm(
           "Application accepted! Would you like to automatically enroll this student in the program?"
         );
@@ -1054,11 +1105,20 @@ function ApplicationTab({
     }
   }
 
-  function userName(u: { first_name: string | null; last_name: string | null; preferred_name: string | null; email: string | null }) {
-    if (u.first_name) {
-      return `${u.preferred_name ?? u.first_name} ${u.last_name ?? ""}`.trim();
+  function respName(resp: AppResponse) {
+    if (resp.users) {
+      const u = resp.users;
+      if (u.first_name) return `${u.preferred_name ?? u.first_name} ${u.last_name ?? ""}`.trim();
+      return u.email ?? "Unknown";
     }
-    return u.email ?? "Unknown";
+    if (resp.applicant_info) {
+      return `${resp.applicant_info.first_name} ${resp.applicant_info.last_name}`.trim();
+    }
+    return resp.applicant_email ?? "Unknown";
+  }
+
+  function respEmail(resp: AppResponse) {
+    return resp.users?.email ?? resp.applicant_email ?? resp.applicant_info?.email ?? "—";
   }
 
   const responseStatusColors: Record<string, "default" | "secondary" | "destructive"> = {
@@ -1071,27 +1131,64 @@ function ApplicationTab({
   return (
     <div className="space-y-6">
       {/* Application Open Toggle */}
-      <div className="flex items-center justify-between rounded-lg border p-4">
-        <div>
-          <h3 className="font-medium">Application Status</h3>
-          <p className="text-sm text-muted-foreground">
-            {isOpen
-              ? "Application is open — students can apply from their portal."
-              : "Application is closed — students cannot apply."}
-          </p>
+      <div className="rounded-lg border p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-medium">Application Status</h3>
+            <p className="text-sm text-muted-foreground">
+              {isOpen
+                ? "Application is open — students can apply from the portal or via the public link."
+                : "Application is closed — students cannot apply."}
+            </p>
+          </div>
+          <Button
+            variant={isOpen ? "destructive" : "default"}
+            size="sm"
+            onClick={handleToggleOpen}
+            disabled={toggling}
+          >
+            {toggling
+              ? "Updating..."
+              : isOpen
+                ? "Close Application"
+                : "Open Application"}
+          </Button>
         </div>
-        <Button
-          variant={isOpen ? "destructive" : "default"}
-          size="sm"
-          onClick={handleToggleOpen}
-          disabled={toggling}
-        >
-          {toggling
-            ? "Updating..."
-            : isOpen
-              ? "Close Application"
-              : "Open Application"}
-        </Button>
+
+        {isOpen && (
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
+            <div className="flex items-center gap-2 text-sm font-medium text-primary">
+              <LinkIcon className="h-4 w-4" />
+              Public Application Link
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Share this link with prospective students. They can apply without needing an account.
+            </p>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 rounded-md border bg-background px-3 py-2 text-sm font-mono select-all truncate">
+                {`${window.location.origin}/apply/${programId}`}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 gap-2"
+                onClick={copyPublicLink}
+              >
+                {copied ? (
+                  <>
+                    <Check className="h-4 w-4 text-green-500" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4" />
+                    Copy Link
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ─── APPLICATION BUILDER ─── */}
@@ -1276,10 +1373,13 @@ function ApplicationTab({
                 {responses.map((resp) => (
                   <TableRow key={resp.id}>
                     <TableCell className="font-medium">
-                      {userName(resp.users)}
+                      {respName(resp)}
+                      {!resp.user_id && (
+                        <Badge variant="secondary" className="ml-2 text-xs">Public</Badge>
+                      )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {resp.users.email ?? "—"}
+                      {respEmail(resp)}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {new Date(resp.submitted_at).toLocaleDateString()}
@@ -1319,19 +1419,42 @@ function ApplicationTab({
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              Application Review — {reviewingResponse && userName(reviewingResponse.users)}
+              Application Review — {reviewingResponse && respName(reviewingResponse)}
             </DialogTitle>
           </DialogHeader>
 
           {reviewingResponse && (
             <div className="space-y-6">
-              {/* Student Info */}
-              <div className="text-sm text-muted-foreground">
-                <p>Email: {reviewingResponse.users.email}</p>
+              {/* Applicant Info */}
+              <div className="text-sm text-muted-foreground space-y-1">
+                <p>Email: {respEmail(reviewingResponse)}</p>
                 <p>
                   Submitted:{" "}
                   {new Date(reviewingResponse.submitted_at).toLocaleDateString()}
                 </p>
+                {!reviewingResponse.user_id && reviewingResponse.applicant_info && (
+                  <div className="mt-3 rounded-md bg-muted p-3 space-y-1">
+                    <p className="text-xs font-medium text-foreground uppercase tracking-wider mb-2">Applicant Details</p>
+                    {reviewingResponse.applicant_info.phone && (
+                      <p>Phone: {reviewingResponse.applicant_info.phone}</p>
+                    )}
+                    {reviewingResponse.applicant_info.date_of_birth && (
+                      <p>Date of Birth: {reviewingResponse.applicant_info.date_of_birth}</p>
+                    )}
+                    {reviewingResponse.applicant_info.gender && (
+                      <p>Gender: {reviewingResponse.applicant_info.gender}</p>
+                    )}
+                    {reviewingResponse.applicant_info.nationality && (
+                      <p>Nationality: {reviewingResponse.applicant_info.nationality}</p>
+                    )}
+                    {reviewingResponse.applicant_info.country && (
+                      <p>Country: {reviewingResponse.applicant_info.country}</p>
+                    )}
+                    {reviewingResponse.applicant_info.city && (
+                      <p>City: {reviewingResponse.applicant_info.city}</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Answers */}
