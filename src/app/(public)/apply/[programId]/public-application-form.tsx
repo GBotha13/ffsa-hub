@@ -1,20 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { FormField } from "@/components/form/form-field";
+import { ErrorSummary } from "@/components/form/error-summary";
+import { buildFormSchema } from "@/lib/build-form-schema";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { CheckCircle2 } from "lucide-react";
+  PERSONAL_INFO_FIELDS,
+  mapDbQuestion,
+  type FormQuestion,
+  type FileValue,
+} from "@/lib/form-types";
+import { CheckCircle2, Loader2, Copy, Check } from "lucide-react";
 
-type Question = {
+type DbQuestion = {
   id: string;
   label: string;
   description: string | null;
@@ -30,6 +33,79 @@ type ReferenceSlot = {
   is_required: boolean;
 };
 
+type ReferenceLink = { label: string; url: string };
+
+function SuccessScreen({
+  programName,
+  referenceLinks,
+}: {
+  programName: string;
+  referenceLinks: ReferenceLink[];
+}) {
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+
+  function copyToClipboard(url: string, idx: number) {
+    navigator.clipboard.writeText(url);
+    setCopiedIdx(idx);
+    setTimeout(() => setCopiedIdx(null), 2000);
+  }
+
+  return (
+    <div className="text-center space-y-6 py-8">
+      <CheckCircle2 className="h-14 w-14 text-primary mx-auto" />
+      <div className="space-y-2">
+        <h2 className="text-xl font-bold text-foreground">
+          Application Received
+        </h2>
+        <p className="text-sm text-muted-foreground max-w-md mx-auto">
+          Thank you for applying to {programName}. We&apos;ve sent a
+          confirmation to your email. Our team will review your application and
+          get back to you soon.
+        </p>
+      </div>
+
+      {referenceLinks.length > 0 && (
+        <div className="space-y-3 max-w-md mx-auto text-left">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Reference Links
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Send these links to your referees so they can submit their references:
+          </p>
+
+          <div className="space-y-2">
+            {referenceLinks.map((link, idx) => (
+              <div key={idx} className="flex items-center gap-2 rounded-md border bg-card p-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-foreground">
+                    {link.label}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {link.url}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => copyToClipboard(link.url, idx)}
+                >
+                  {copiedIdx === idx ? (
+                    <Check className="h-3.5 w-3.5" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function PublicApplicationForm({
   programId,
   programName,
@@ -38,57 +114,124 @@ export function PublicApplicationForm({
 }: {
   programId: string;
   programName: string;
-  questions: Question[];
+  questions: DbQuestion[];
   referenceSlots?: ReferenceSlot[];
 }) {
   const [submitted, setSubmitted] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Personal info
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [dateOfBirth, setDateOfBirth] = useState("");
-  const [gender, setGender] = useState("");
-  const [nationality, setNationality] = useState("");
-  const [country, setCountry] = useState("");
-  const [city, setCity] = useState("");
-
-  // Question answers
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-
-  // References
+  const [applicationId, setApplicationId] = useState("");
+  const [referenceLinks, setReferenceLinks] = useState<ReferenceLink[]>([]);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const [refNames, setRefNames] = useState<Record<string, string>>({});
   const [refEmails, setRefEmails] = useState<Record<string, string>>({});
 
-  function setAnswer(questionId: string, value: string) {
-    setAnswers((prev) => ({ ...prev, [questionId]: value }));
-  }
+  const mappedQuestions = useMemo(
+    () => questions.map(mapDbQuestion),
+    [questions]
+  );
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
+  const allQuestions: FormQuestion[] = useMemo(
+    () => [...PERSONAL_INFO_FIELDS, ...mappedQuestions],
+    [mappedQuestions]
+  );
 
-    // Validate required question answers
-    for (const q of questions) {
-      if (q.is_required && !answers[q.id]?.trim()) {
-        setError(`Please answer the required question: "${q.label}"`);
-        setLoading(false);
-        return;
+  const schema = useMemo(
+    () => buildFormSchema(allQuestions),
+    [allQuestions]
+  );
+
+  const defaultValues = useMemo(() => {
+    const defaults: Record<string, unknown> = {};
+    for (const q of allQuestions) {
+      if (q.type === "checkbox_group") {
+        defaults[q.id] = [];
+      } else if (q.type === "consent") {
+        defaults[q.id] = false;
+      } else if (q.type === "file") {
+        defaults[q.id] = null;
+      } else {
+        defaults[q.id] = "";
+      }
+    }
+    return defaults;
+  }, [allQuestions]);
+
+  const {
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm({
+    resolver: zodResolver(schema),
+    defaultValues,
+    mode: "onBlur",
+  });
+
+  async function onSubmit(data: Record<string, unknown>) {
+    setServerError(null);
+
+    const applicantInfo: Record<string, unknown> = {};
+    const answers: Array<{
+      question_id: string;
+      question_label: string;
+      answer: string;
+    }> = [];
+    const files: Array<{
+      questionId: string;
+      storagePath: string;
+      mimeType: string;
+      size: number;
+    }> = [];
+
+    for (const q of PERSONAL_INFO_FIELDS) {
+      applicantInfo[q.id] = data[q.id] || null;
+    }
+
+    for (const q of mappedQuestions) {
+      const value = data[q.id];
+      if (q.type === "file" && value && typeof value === "object") {
+        const fv = value as FileValue;
+        files.push({
+          questionId: q.id,
+          storagePath: fv.storagePath,
+          mimeType: fv.mimeType,
+          size: fv.size,
+        });
+        answers.push({
+          question_id: q.id,
+          question_label: q.label,
+          answer: fv.storagePath,
+        });
+      } else if (q.type === "checkbox_group" && Array.isArray(value)) {
+        answers.push({
+          question_id: q.id,
+          question_label: q.label,
+          answer: (value as string[]).join(", "),
+        });
+      } else if (q.type === "consent") {
+        answers.push({
+          question_id: q.id,
+          question_label: q.label,
+          answer: value ? "Yes" : "No",
+        });
+      } else {
+        answers.push({
+          question_id: q.id,
+          question_label: q.label,
+          answer: String(value ?? ""),
+        });
       }
     }
 
-    // Validate required reference slots
-    for (const slot of referenceSlots) {
-      if (slot.is_required && (!refNames[slot.id]?.trim() || !refEmails[slot.id]?.trim())) {
-        setError(`Please provide referee details for: "${slot.label}"`);
-        setLoading(false);
-        return;
-      }
-    }
+    const references = referenceSlots
+      .filter(
+        (slot) =>
+          refNames[slot.id]?.trim() && refEmails[slot.id]?.trim()
+      )
+      .map((slot) => ({
+        slot_id: slot.id,
+        referee_name: refNames[slot.id].trim(),
+        referee_email: refEmails[slot.id].trim(),
+      }));
 
     try {
       const res = await fetch("/api/public/applications", {
@@ -97,214 +240,98 @@ export function PublicApplicationForm({
         body: JSON.stringify({
           program_id: programId,
           applicant_info: {
-            first_name: firstName,
-            last_name: lastName,
-            email,
-            phone: phone || null,
-            date_of_birth: dateOfBirth || null,
-            gender: gender || null,
-            nationality: nationality || null,
-            country: country || null,
-            city: city || null,
+            ...applicantInfo,
+            first_name: applicantInfo.first_name,
+            last_name: applicantInfo.last_name,
+            email: applicantInfo.email,
           },
-          answers: questions.map((q) => ({
-            question_id: q.id,
-            question_label: q.label,
-            answer: answers[q.id] ?? "",
-          })),
-          references: referenceSlots
-            .filter((slot) => refNames[slot.id]?.trim() && refEmails[slot.id]?.trim())
-            .map((slot) => ({
-              slot_id: slot.id,
-              referee_name: refNames[slot.id].trim(),
-              referee_email: refEmails[slot.id].trim(),
-            })),
+          answers,
+          references,
+          files: files.length > 0 ? files : undefined,
         }),
       });
 
-      const data = await res.json();
+      const result = await res.json();
 
       if (!res.ok) {
-        setError(data.error || "Failed to submit application");
+        setServerError(result.error || "Failed to submit application");
+        window.scrollTo({ top: 0, behavior: "smooth" });
         return;
       }
 
+      setApplicationId(result.id);
+      setReferenceLinks(result.referenceLinks ?? []);
       setSubmitted(true);
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch {
-      setError("Network error. Please try again.");
-    } finally {
-      setLoading(false);
+      setServerError("Network error. Please try again.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
+  }
+
+  function onError() {
+    setHasAttemptedSubmit(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   if (submitted) {
     return (
-      <div className="text-center space-y-4 py-8">
-        <CheckCircle2 className="h-12 w-12 text-primary mx-auto" />
-        <h2 className="text-xl font-bold text-foreground">
-          Application Submitted!
-        </h2>
-        <p className="text-sm text-muted-foreground max-w-md mx-auto">
-          Thank you for applying to {programName}. We've sent a confirmation to
-          your email. Our team will review your application and get back to you
-          soon.
-        </p>
-      </div>
+      <SuccessScreen
+        programName={programName}
+        referenceLinks={referenceLinks}
+      />
     );
   }
 
+  const personalQuestions = allQuestions.filter(
+    (q) => q.section === "personal"
+  );
+  const applicationQuestions = allQuestions.filter(
+    (q) => q.section === "questions"
+  );
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
+    <form
+      onSubmit={handleSubmit(onSubmit, onError)}
+      className="space-y-8"
+      noValidate
+    >
+      {serverError && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4">
+          <p className="text-sm text-destructive">{serverError}</p>
+        </div>
+      )}
+
+      {hasAttemptedSubmit && Object.keys(errors).length > 0 && (
+        <ErrorSummary errors={errors} questions={allQuestions} />
+      )}
+
       {/* Personal Information */}
       <div className="rounded-lg border bg-card p-6 space-y-4">
         <h2 className="font-semibold text-foreground">Personal Information</h2>
-
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <Label>
-              First Name <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              required
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              placeholder="First name"
-            />
-          </div>
-          <div>
-            <Label>
-              Last Name <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              required
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              placeholder="Last name"
-            />
-          </div>
+          {personalQuestions.slice(0, 2).map((q) => (
+            <FormField key={q.id} question={q} control={control} />
+          ))}
         </div>
-
-        <div>
-          <Label>
-            Email <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            required
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="your@email.com"
-          />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <Label>Phone</Label>
-            <Input
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+27 ..."
-            />
-          </div>
-          <div>
-            <Label>Date of Birth</Label>
-            <Input
-              type="date"
-              value={dateOfBirth}
-              onChange={(e) => setDateOfBirth(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <Label>Gender</Label>
-            <Select value={gender} onValueChange={setGender}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="male">Male</SelectItem>
-                <SelectItem value="female">Female</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Nationality</Label>
-            <Input
-              value={nationality}
-              onChange={(e) => setNationality(e.target.value)}
-              placeholder="e.g. South African"
-            />
-          </div>
-          <div>
-            <Label>Country</Label>
-            <Input
-              value={country}
-              onChange={(e) => setCountry(e.target.value)}
-              placeholder="e.g. South Africa"
-            />
-          </div>
-        </div>
-
-        <div className="sm:w-1/2">
-          <Label>City</Label>
-          <Input
-            value={city}
-            onChange={(e) => setCity(e.target.value)}
-            placeholder="e.g. Cape Town"
-          />
-        </div>
+        {personalQuestions.slice(2).map((q) => (
+          <FormField key={q.id} question={q} control={control} />
+        ))}
       </div>
 
       {/* Application Questions */}
-      {questions.length > 0 && (
+      {applicationQuestions.length > 0 && (
         <div className="rounded-lg border bg-card p-6 space-y-4">
           <h2 className="font-semibold text-foreground">
             Application Questions
           </h2>
-
-          {questions.map((q) => (
-            <div key={q.id} className="space-y-1">
-              <Label>
-                {q.label}
-                {q.is_required && (
-                  <span className="text-destructive"> *</span>
-                )}
-              </Label>
-              {q.description && (
-                <p className="text-xs text-muted-foreground">{q.description}</p>
-              )}
-              {q.type === "multiple_choice" && q.options && q.options.length > 0 ? (
-                <div className="flex flex-col gap-2 pt-1">
-                  {q.options.map((option) => (
-                    <label key={option} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name={`q-${q.id}`}
-                        value={option}
-                        checked={answers[q.id] === option}
-                        onChange={() => setAnswer(q.id, option)}
-                      />
-                      <span className="text-sm">{option}</span>
-                    </label>
-                  ))}
-                </div>
-              ) : q.type === "long_answer" ? (
-                <Textarea
-                  value={answers[q.id] ?? ""}
-                  onChange={(e) => setAnswer(q.id, e.target.value)}
-                  rows={4}
-                  placeholder="Your answer..."
-                />
-              ) : (
-                <Input
-                  value={answers[q.id] ?? ""}
-                  onChange={(e) => setAnswer(q.id, e.target.value)}
-                  placeholder="Your answer..."
-                />
-              )}
-            </div>
+          {applicationQuestions.map((q) => (
+            <FormField
+              key={q.id}
+              question={q}
+              control={control}
+              applicationId={applicationId || programId}
+            />
           ))}
         </div>
       )}
@@ -314,7 +341,8 @@ export function PublicApplicationForm({
         <div className="rounded-lg border bg-card p-6 space-y-4">
           <h2 className="font-semibold text-foreground">References</h2>
           <p className="text-sm text-muted-foreground">
-            Please provide contact details for the following references. They will receive an email with a link to submit their reference.
+            Please provide contact details for the following references. They
+            will receive an email with a link to submit their reference.
           </p>
 
           {referenceSlots.map((slot) => (
@@ -322,29 +350,55 @@ export function PublicApplicationForm({
               <div>
                 <p className="text-sm font-medium">
                   {slot.label}
-                  {slot.is_required && <span className="text-destructive"> *</span>}
+                  {slot.is_required && (
+                    <span className="text-destructive ml-0.5">*</span>
+                  )}
                 </p>
                 {slot.description && (
-                  <p className="text-xs text-muted-foreground">{slot.description}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {slot.description}
+                  </p>
                 )}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <Label>Referee Name {slot.is_required && <span className="text-destructive">*</span>}</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor={`ref_${slot.id}_name`}>
+                    Referee Name
+                    {slot.is_required && (
+                      <span className="text-destructive ml-0.5">*</span>
+                    )}
+                  </Label>
                   <Input
+                    id={`ref_${slot.id}_name`}
                     placeholder="Full name"
                     value={refNames[slot.id] ?? ""}
-                    onChange={(e) => setRefNames((prev) => ({ ...prev, [slot.id]: e.target.value }))}
+                    onChange={(e) =>
+                      setRefNames((prev) => ({
+                        ...prev,
+                        [slot.id]: e.target.value,
+                      }))
+                    }
                     required={slot.is_required}
                   />
                 </div>
-                <div>
-                  <Label>Referee Email {slot.is_required && <span className="text-destructive">*</span>}</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor={`ref_${slot.id}_email`}>
+                    Referee Email
+                    {slot.is_required && (
+                      <span className="text-destructive ml-0.5">*</span>
+                    )}
+                  </Label>
                   <Input
+                    id={`ref_${slot.id}_email`}
                     type="email"
                     placeholder="referee@email.com"
                     value={refEmails[slot.id] ?? ""}
-                    onChange={(e) => setRefEmails((prev) => ({ ...prev, [slot.id]: e.target.value }))}
+                    onChange={(e) =>
+                      setRefEmails((prev) => ({
+                        ...prev,
+                        [slot.id]: e.target.value,
+                      }))
+                    }
                     required={slot.is_required}
                   />
                 </div>
@@ -354,13 +408,21 @@ export function PublicApplicationForm({
         </div>
       )}
 
-      {error && (
-        <p className="text-sm text-destructive text-center">{error}</p>
-      )}
-
-      <Button type="submit" className="w-full" disabled={loading}>
-        {loading ? "Submitting..." : "Submit Application"}
+      <Button
+        type="submit"
+        className="w-full"
+        disabled={isSubmitting}
+      >
+        {isSubmitting ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Submitting...
+          </>
+        ) : (
+          "SUBMIT APPLICATION"
+        )}
       </Button>
     </form>
   );
 }
+

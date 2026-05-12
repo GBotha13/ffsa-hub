@@ -1190,7 +1190,7 @@ function ApplicationTab({
             description: qDescription || null,
             type: qType,
             is_required: qRequired,
-            options: qType === "multiple_choice" ? qOptions.split("\n").map((o: string) => o.trim()).filter(Boolean) : [],
+            options: (qType === "multiple_choice" || qType === "checkbox_group") ? qOptions.split("\n").map((o: string) => o.trim()).filter(Boolean) : [],
           }),
         });
         const data = await res.json();
@@ -1210,7 +1210,7 @@ function ApplicationTab({
             type: qType,
             is_required: qRequired,
             sort_order: questions.length,
-            options: qType === "multiple_choice" ? qOptions.split("\n").map((o: string) => o.trim()).filter(Boolean) : [],
+            options: (qType === "multiple_choice" || qType === "checkbox_group") ? qOptions.split("\n").map((o: string) => o.trim()).filter(Boolean) : [],
           }),
         });
         const data = await res.json();
@@ -1581,6 +1581,14 @@ function ApplicationTab({
                       <SelectItem value="short_answer">Short Answer</SelectItem>
                       <SelectItem value="long_answer">Long Answer (Essay)</SelectItem>
                       <SelectItem value="multiple_choice">Multiple Choice</SelectItem>
+                      <SelectItem value="yes_no">Yes / No</SelectItem>
+                      <SelectItem value="checkbox_group">Checkbox Group</SelectItem>
+                      <SelectItem value="country">Country Select</SelectItem>
+                      <SelectItem value="phone">Phone Number</SelectItem>
+                      <SelectItem value="date">Date</SelectItem>
+                      <SelectItem value="email">Email</SelectItem>
+                      <SelectItem value="file">Photo Upload</SelectItem>
+                      <SelectItem value="consent">Consent Checkbox</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1595,7 +1603,7 @@ function ApplicationTab({
                   <Label htmlFor="q-required" className="mb-0">Required</Label>
                 </div>
               </div>
-              {qType === "multiple_choice" && (
+              {(qType === "multiple_choice" || qType === "checkbox_group") && (
                 <div>
                   <Label>Options (one per line) *</Label>
                   <Textarea
@@ -1665,7 +1673,19 @@ function ApplicationTab({
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-sm">{q.label}</span>
                     <Badge variant="secondary" className="text-xs">
-                      {q.type === "long_answer" ? "Essay" : q.type === "multiple_choice" ? "Multiple Choice" : "Short"}
+                      {({
+                        short_answer: "Short",
+                        long_answer: "Essay",
+                        multiple_choice: "Multiple Choice",
+                        yes_no: "Yes/No",
+                        checkbox_group: "Checkboxes",
+                        country: "Country",
+                        phone: "Phone",
+                        date: "Date",
+                        email: "Email",
+                        file: "Photo",
+                        consent: "Consent",
+                      } as Record<string, string>)[q.type] ?? q.type}
                     </Badge>
                     {q.is_required && (
                       <Badge variant="secondary" className="text-xs">Required</Badge>

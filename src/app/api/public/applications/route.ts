@@ -16,7 +16,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const { program_id, applicant_info, answers, references } = body;
+  const { program_id, applicant_info, answers, references, files } = body;
 
   if (!program_id || !applicant_info || !answers) {
     return NextResponse.json(
@@ -107,12 +107,16 @@ export async function POST(request: Request) {
   }
 
   // Insert the application
+  const enrichedInfo = files && Array.isArray(files) && files.length > 0
+    ? { ...applicant_info, files }
+    : applicant_info;
+
   const { data: response, error: insertError } = await createPublicResponse(
     supabase,
     {
       program_id,
       applicant_email: email,
-      applicant_info,
+      applicant_info: enrichedInfo,
       answers,
     }
   );
@@ -138,6 +142,8 @@ export async function POST(request: Request) {
 
   // Create reference requests and send emails to referees
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://ffsahub.com";
+  const referenceLinks: Array<{ label: string; url: string }> = [];
+
   if (references && Array.isArray(references) && references.length > 0) {
     const { data: slots } = await getReferenceSlotsByProgram(supabase, program_id);
     const slotMap = new Map<string, any>((slots ?? []).map((s: any) => [s.id, s]));
@@ -155,6 +161,11 @@ export async function POST(request: Request) {
       if (refRequest) {
         const slot = slotMap.get(ref.slot_id);
         const referenceUrl = `${siteUrl}/reference/${refRequest.token}`;
+
+        referenceLinks.push({
+          label: slot?.label ?? "Reference",
+          url: referenceUrl,
+        });
 
         await resend.emails.send({
           from: `Fire & Fragrance SA <${fromEmail}>`,
@@ -177,5 +188,5 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({ success: true, id: response.id });
+  return NextResponse.json({ success: true, id: response.id, referenceLinks });
 }
