@@ -167,6 +167,12 @@ const LETTER_GRADES = [
 // MAIN COMPONENT
 // ────────────────────────────────────────────────────────────
 
+type RefRequestSummary = {
+  id: string;
+  application_id: string;
+  status: string;
+};
+
 export function ProgramDetail({
   program,
   enrollments,
@@ -175,6 +181,7 @@ export function ProgramDetail({
   questions,
   responses,
   referenceSlots,
+  refRequestSummaries,
 }: {
   program: Program;
   enrollments: Enrollment[];
@@ -183,6 +190,7 @@ export function ProgramDetail({
   questions: AppQuestion[];
   responses: AppResponse[];
   referenceSlots: ReferenceSlot[];
+  refRequestSummaries: RefRequestSummary[];
 }) {
   return (
     <div className="space-y-6">
@@ -260,6 +268,7 @@ export function ProgramDetail({
             questions={questions}
             responses={responses}
             referenceSlots={referenceSlots}
+            refRequestSummaries={refRequestSummaries}
           />
         </TabsContent>
       </Tabs>
@@ -909,12 +918,14 @@ function ApplicationTab({
   questions,
   responses,
   referenceSlots,
+  refRequestSummaries,
 }: {
   programId: string;
   applicationOpen: boolean;
   questions: AppQuestion[];
   responses: AppResponse[];
   referenceSlots: ReferenceSlot[];
+  refRequestSummaries: RefRequestSummary[];
 }) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(applicationOpen);
@@ -1647,6 +1658,7 @@ function ApplicationTab({
                   <TableHead>Email</TableHead>
                   <TableHead>Submitted</TableHead>
                   <TableHead>Status</TableHead>
+                  {referenceSlots.length > 0 && <TableHead>References</TableHead>}
                   <TableHead className="w-[80px]" />
                 </TableRow>
               </TableHeader>
@@ -1666,10 +1678,42 @@ function ApplicationTab({
                       {new Date(resp.submitted_at).toLocaleDateString()}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={responseStatusColors[resp.status] ?? "secondary"}>
-                        {resp.status}
-                      </Badge>
+                      {(() => {
+                        const refs = refRequestSummaries.filter((r) => r.application_id === resp.id);
+                        const totalRefs = refs.length;
+                        const submittedRefs = refs.filter((r) => r.status === "submitted").length;
+                        const allRefsIn = totalRefs > 0 && submittedRefs === totalRefs;
+                        const isComplete = allRefsIn && resp.status === "submitted";
+
+                        if (isComplete) {
+                          return (
+                            <Badge style={{ background: "hsl(142 55% 25%)", color: "hsl(142 55% 75%)", border: "1px solid hsl(142 55% 35%)" }}>
+                              Complete
+                            </Badge>
+                          );
+                        }
+                        return (
+                          <Badge variant={responseStatusColors[resp.status] ?? "secondary"}>
+                            {resp.status}
+                          </Badge>
+                        );
+                      })()}
                     </TableCell>
+                    {referenceSlots.length > 0 && (
+                      <TableCell>
+                        {(() => {
+                          const refs = refRequestSummaries.filter((r) => r.application_id === resp.id);
+                          const totalRefs = refs.length;
+                          const submittedRefs = refs.filter((r) => r.status === "submitted").length;
+                          if (totalRefs === 0) return <span className="text-xs text-muted-foreground">—</span>;
+                          return (
+                            <span className={`text-xs font-medium ${submittedRefs === totalRefs ? "text-green-500" : "text-yellow-500"}`}>
+                              {submittedRefs}/{totalRefs}
+                            </span>
+                          );
+                        })()}
+                      </TableCell>
+                    )}
                     <TableCell>
                       <Button
                         variant="outline"

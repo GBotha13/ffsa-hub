@@ -561,6 +561,14 @@ export async function createReferenceRequest(supabase: Client, data: {
   return supabase.from("reference_requests").insert(data).select().single();
 }
 
+export async function getReferenceRequestSummaries(supabase: Client, applicationIds: string[]) {
+  if (applicationIds.length === 0) return { data: [], error: null };
+  return supabase
+    .from("reference_requests")
+    .select("id, application_id, status")
+    .in("application_id", applicationIds);
+}
+
 export async function getReferenceRequestsByApplication(supabase: Client, applicationId: string) {
   return supabase
     .from("reference_requests")
