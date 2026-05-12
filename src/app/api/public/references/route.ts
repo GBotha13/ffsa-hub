@@ -37,11 +37,11 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const { token, relationship, known_duration, reference_text } = body;
+  const { token, relationship, known_duration, reference_text, form_data } = body;
 
-  if (!token || !reference_text) {
+  if (!token) {
     return NextResponse.json(
-      { error: "token and reference_text are required" },
+      { error: "token is required" },
       { status: 400 }
     );
   }
@@ -65,7 +65,8 @@ export async function POST(request: Request) {
   const { data, error } = await submitReference(supabase, token, {
     relationship: relationship || "",
     known_duration: known_duration || "",
-    reference_text,
+    reference_text: reference_text || "",
+    form_data: form_data || {},
   });
 
   if (error) {

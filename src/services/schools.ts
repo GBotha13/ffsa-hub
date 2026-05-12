@@ -580,7 +580,7 @@ export async function getReferenceRequestByToken(supabase: Client, token: string
 export async function submitReference(
   supabase: Client,
   token: string,
-  data: { relationship: string; known_duration: string; reference_text: string }
+  data: { relationship: string; known_duration: string; reference_text: string; form_data?: Record<string, any> }
 ) {
   return supabase
     .from("reference_requests")

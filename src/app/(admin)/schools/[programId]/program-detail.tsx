@@ -122,6 +122,7 @@ type ReferenceRequest = {
   known_duration: string | null;
   reference_text: string | null;
   submitted_at: string | null;
+  form_data: Record<string, any> | null;
   reference_slots: { label: string; description: string | null } | null;
 };
 
@@ -1778,20 +1779,112 @@ function ApplicationTab({
                             </Badge>
                           </div>
                           {ref.status === "submitted" && (
-                            <div className="space-y-2 pt-1 border-t text-sm">
-                              {ref.relationship && (
+                            <div className="space-y-3 pt-2 border-t text-sm">
+                              {/* Basic info */}
+                              <div className="grid grid-cols-2 gap-2">
+                                {ref.relationship && (
+                                  <div>
+                                    <p className="text-xs font-medium text-muted-foreground">Relationship</p>
+                                    <p>{ref.relationship}</p>
+                                  </div>
+                                )}
+                                {ref.known_duration && (
+                                  <div>
+                                    <p className="text-xs font-medium text-muted-foreground">Known Duration</p>
+                                    <p>{ref.known_duration}</p>
+                                  </div>
+                                )}
+                                {ref.form_data?.whatsapp_number && (
+                                  <div>
+                                    <p className="text-xs font-medium text-muted-foreground">WhatsApp</p>
+                                    <p>{ref.form_data.whatsapp_number}</p>
+                                  </div>
+                                )}
+                              </div>
+                              {ref.form_data?.growth_context && (
                                 <div>
-                                  <p className="text-xs font-medium text-muted-foreground">Relationship</p>
-                                  <p>{ref.relationship}</p>
+                                  <p className="text-xs font-medium text-muted-foreground">Growth/Discipleship Context</p>
+                                  <p className="whitespace-pre-wrap">{ref.form_data.growth_context}</p>
                                 </div>
                               )}
-                              {ref.known_duration && (
+
+                              {/* Character ratings */}
+                              {ref.form_data?.character_ratings && Object.keys(ref.form_data.character_ratings).length > 0 && (
                                 <div>
-                                  <p className="text-xs font-medium text-muted-foreground">Known Duration</p>
-                                  <p>{ref.known_duration}</p>
+                                  <p className="text-xs font-medium text-muted-foreground mb-1">Character Assessment</p>
+                                  <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
+                                    {Object.entries(ref.form_data.character_ratings).map(([trait, rating]) => (
+                                      <div key={trait} className="flex justify-between">
+                                        <span className="text-muted-foreground">{trait}</span>
+                                        <span className={
+                                          rating === "Excellent" ? "text-green-500" :
+                                          rating === "Good" ? "text-blue-400" :
+                                          rating === "Fair" ? "text-yellow-500" :
+                                          "text-red-400"
+                                        }>{rating as string}</span>
+                                      </div>
+                                    ))}
+                                  </div>
                                 </div>
                               )}
-                              {ref.reference_text && (
+                              {ref.form_data?.additional_comments && (
+                                <div>
+                                  <p className="text-xs font-medium text-muted-foreground">Additional Comments on Character</p>
+                                  <p className="whitespace-pre-wrap">{ref.form_data.additional_comments}</p>
+                                </div>
+                              )}
+
+                              {/* Short answers */}
+                              {ref.form_data?.christian_history && (
+                                <div>
+                                  <p className="text-xs font-medium text-muted-foreground">Christian History</p>
+                                  <p><strong>{ref.form_data.christian_history}</strong> — {ref.form_data.christian_history_why}</p>
+                                </div>
+                              )}
+                              {ref.form_data?.strengths_weaknesses && (
+                                <div>
+                                  <p className="text-xs font-medium text-muted-foreground">Strengths & Weaknesses</p>
+                                  <p className="whitespace-pre-wrap">{ref.form_data.strengths_weaknesses}</p>
+                                </div>
+                              )}
+                              {ref.form_data?.seeking_growth && (
+                                <div>
+                                  <p className="text-xs font-medium text-muted-foreground">Actively Seeking Growth?</p>
+                                  <p className="whitespace-pre-wrap">{ref.form_data.seeking_growth}</p>
+                                </div>
+                              )}
+                              {ref.form_data?.missions_ministry && (
+                                <div>
+                                  <p className="text-xs font-medium text-muted-foreground">Missions/Ministry Area</p>
+                                  <p className="whitespace-pre-wrap">{ref.form_data.missions_ministry}</p>
+                                </div>
+                              )}
+                              {ref.form_data?.recommendation && (
+                                <div>
+                                  <p className="text-xs font-medium text-muted-foreground">Recommendation</p>
+                                  <p>
+                                    <Badge variant={
+                                      ref.form_data.recommendation === "Yes" ? "default" :
+                                      ref.form_data.recommendation === "No" ? "destructive" :
+                                      "secondary"
+                                    }>
+                                      {ref.form_data.recommendation}
+                                    </Badge>
+                                  </p>
+                                  {ref.form_data.recommendation_explanation && (
+                                    <p className="whitespace-pre-wrap mt-1 text-muted-foreground">{ref.form_data.recommendation_explanation}</p>
+                                  )}
+                                </div>
+                              )}
+                              {ref.form_data?.other_comments && (
+                                <div>
+                                  <p className="text-xs font-medium text-muted-foreground">Other Comments</p>
+                                  <p className="whitespace-pre-wrap">{ref.form_data.other_comments}</p>
+                                </div>
+                              )}
+
+                              {/* Fallback for old-style references without form_data */}
+                              {!ref.form_data && ref.reference_text && (
                                 <div>
                                   <p className="text-xs font-medium text-muted-foreground">Reference</p>
                                   <p className="whitespace-pre-wrap">{ref.reference_text}</p>
