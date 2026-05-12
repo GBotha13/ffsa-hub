@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { program_id, label, description, type, sort_order, is_required } = body;
+  const { program_id, label, description, type, sort_order, is_required, options } = body;
 
   if (!program_id || !label) {
     return NextResponse.json(
@@ -29,6 +29,7 @@ export async function POST(request: Request) {
     type: type || "short_answer",
     sort_order: sort_order ?? 0,
     is_required: is_required ?? true,
+    options: options ?? [],
   });
 
   if (error) {
@@ -49,7 +50,7 @@ export async function PUT(request: Request) {
   }
 
   const body = await request.json();
-  const { id, label, description, type, sort_order, is_required } = body;
+  const { id, label, description, type, sort_order, is_required, options } = body;
 
   if (!id) {
     return NextResponse.json({ error: "id is required" }, { status: 400 });
@@ -61,6 +62,7 @@ export async function PUT(request: Request) {
   if (type !== undefined) updateData.type = type;
   if (sort_order !== undefined) updateData.sort_order = sort_order;
   if (is_required !== undefined) updateData.is_required = is_required;
+  if (options !== undefined) updateData.options = options;
 
   const { data, error } = await updateQuestion(supabase, id, updateData);
 

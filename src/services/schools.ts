@@ -386,6 +386,7 @@ export async function createQuestion(supabase: Client, data: {
   type?: string;
   sort_order?: number;
   is_required?: boolean;
+  options?: string[];
 }) {
   return supabase.from("application_questions").insert(data).select().single();
 }

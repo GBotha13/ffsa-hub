@@ -20,6 +20,7 @@ type Question = {
   description: string | null;
   type: string;
   is_required: boolean;
+  options: string[] | null;
 };
 
 type ReferenceSlot = {
@@ -274,7 +275,22 @@ export function PublicApplicationForm({
               {q.description && (
                 <p className="text-xs text-muted-foreground">{q.description}</p>
               )}
-              {q.type === "long_answer" ? (
+              {q.type === "multiple_choice" && q.options && q.options.length > 0 ? (
+                <div className="flex flex-col gap-2 pt-1">
+                  {q.options.map((option) => (
+                    <label key={option} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name={`q-${q.id}`}
+                        value={option}
+                        checked={answers[q.id] === option}
+                        onChange={() => setAnswer(q.id, option)}
+                      />
+                      <span className="text-sm">{option}</span>
+                    </label>
+                  ))}
+                </div>
+              ) : q.type === "long_answer" ? (
                 <Textarea
                   value={answers[q.id] ?? ""}
                   onChange={(e) => setAnswer(q.id, e.target.value)}

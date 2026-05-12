@@ -100,6 +100,7 @@ type AppQuestion = {
   type: string;
   sort_order: number;
   is_required: boolean;
+  options: string[] | null;
 };
 
 type ReferenceSlot = {
@@ -1121,6 +1122,7 @@ function ApplicationTab({
   const [qLabel, setQLabel] = useState("");
   const [qDescription, setQDescription] = useState("");
   const [qType, setQType] = useState("short_answer");
+  const [qOptions, setQOptions] = useState("");
   const [qRequired, setQRequired] = useState(true);
   const [qLoading, setQLoading] = useState(false);
   const [qError, setQError] = useState<string | null>(null);
@@ -1154,6 +1156,7 @@ function ApplicationTab({
     setQLabel("");
     setQDescription("");
     setQType("short_answer");
+    setQOptions("");
     setQRequired(true);
     setQError(null);
     setEditingQuestion(null);
@@ -1165,6 +1168,7 @@ function ApplicationTab({
     setQLabel(q.label);
     setQDescription(q.description ?? "");
     setQType(q.type);
+    setQOptions(q.options?.join("\n") ?? "");
     setQRequired(q.is_required);
     setShowAddQuestion(true);
   }
@@ -1186,6 +1190,7 @@ function ApplicationTab({
             description: qDescription || null,
             type: qType,
             is_required: qRequired,
+            options: qType === "multiple_choice" ? qOptions.split("\n").map((o: string) => o.trim()).filter(Boolean) : [],
           }),
         });
         const data = await res.json();
@@ -1205,6 +1210,7 @@ function ApplicationTab({
             type: qType,
             is_required: qRequired,
             sort_order: questions.length,
+            options: qType === "multiple_choice" ? qOptions.split("\n").map((o: string) => o.trim()).filter(Boolean) : [],
           }),
         });
         const data = await res.json();
@@ -1574,6 +1580,7 @@ function ApplicationTab({
                     <SelectContent>
                       <SelectItem value="short_answer">Short Answer</SelectItem>
                       <SelectItem value="long_answer">Long Answer (Essay)</SelectItem>
+                      <SelectItem value="multiple_choice">Multiple Choice</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1588,6 +1595,18 @@ function ApplicationTab({
                   <Label htmlFor="q-required" className="mb-0">Required</Label>
                 </div>
               </div>
+              {qType === "multiple_choice" && (
+                <div>
+                  <Label>Options (one per line) *</Label>
+                  <Textarea
+                    value={qOptions}
+                    onChange={(e) => setQOptions(e.target.value)}
+                    placeholder={"Option 1\nOption 2\nOption 3"}
+                    rows={4}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Enter each choice on a new line.</p>
+                </div>
+              )}
               {qError && <p className="text-sm text-destructive">{qError}</p>}
               <div className="flex gap-2">
                 <Button type="submit" size="sm" disabled={qLoading}>
@@ -1646,7 +1665,7 @@ function ApplicationTab({
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-sm">{q.label}</span>
                     <Badge variant="secondary" className="text-xs">
-                      {q.type === "long_answer" ? "Essay" : "Short"}
+                      {q.type === "long_answer" ? "Essay" : q.type === "multiple_choice" ? "Multiple Choice" : "Short"}
                     </Badge>
                     {q.is_required && (
                       <Badge variant="secondary" className="text-xs">Required</Badge>
