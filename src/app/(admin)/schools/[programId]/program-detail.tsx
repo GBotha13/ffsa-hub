@@ -31,7 +31,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, Download, ChevronUp, ChevronDown, Edit2, ClipboardList, Copy, Check, Link as LinkIcon, Archive } from "lucide-react";
+import { Plus, Trash2, Download, ChevronUp, ChevronDown, Edit2, ClipboardList, Copy, Check, Link as LinkIcon, Archive, BookTemplate, Upload, Loader2 } from "lucide-react";
 import { ProgramActions } from "../program-actions";
 
 // ────────────────────────────────────────────────────────────
@@ -1127,6 +1127,88 @@ function ApplicationTab({
   const [qLoading, setQLoading] = useState(false);
   const [qError, setQError] = useState<string | null>(null);
 
+  // Template state
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [templateDesc, setTemplateDesc] = useState("");
+  const [templateSaving, setTemplateSaving] = useState(false);
+  const [templateError, setTemplateError] = useState<string | null>(null);
+  const [showImportTemplate, setShowImportTemplate] = useState(false);
+  const [templates, setTemplates] = useState<Array<{ id: string; name: string; description: string | null; application_template_questions: [{ count: number }] }>>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [importingId, setImportingId] = useState<string | null>(null);
+
+  async function handleSaveAsTemplate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!templateName.trim()) return;
+    setTemplateSaving(true);
+    setTemplateError(null);
+    try {
+      const res = await fetch("/api/schools/applications/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save_from_program",
+          program_id: programId,
+          name: templateName.trim(),
+          description: templateDesc.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setTemplateError(data.error || "Failed to save template");
+        return;
+      }
+      setShowSaveTemplate(false);
+      setTemplateName("");
+      setTemplateDesc("");
+    } catch {
+      setTemplateError("Network error");
+    } finally {
+      setTemplateSaving(false);
+    }
+  }
+
+  async function loadTemplates() {
+    setTemplatesLoading(true);
+    try {
+      const res = await fetch("/api/schools/applications/templates");
+      const data = await res.json();
+      if (res.ok) setTemplates(data.templates ?? []);
+    } catch { /* ignore */ }
+    setTemplatesLoading(false);
+  }
+
+  async function handleImportTemplate(templateId: string) {
+    setImportingId(templateId);
+    try {
+      const res = await fetch("/api/schools/applications/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "import_to_program",
+          template_id: templateId,
+          program_id: programId,
+        }),
+      });
+      if (res.ok) {
+        setShowImportTemplate(false);
+        router.refresh();
+      }
+    } catch { /* ignore */ }
+    setImportingId(null);
+  }
+
+  async function handleDeleteTemplate(templateId: string) {
+    if (!confirm("Delete this template? This cannot be undone.")) return;
+    try {
+      const res = await fetch(`/api/schools/applications/templates?id=${templateId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) loadTemplates();
+    } catch { /* ignore */ }
+  }
+
   // Review state
   const [reviewStatus, setReviewStatus] = useState("");
   const [reviewLoading, setReviewLoading] = useState(false);
@@ -1537,17 +1619,134 @@ function ApplicationTab({
             <ClipboardList className="h-4 w-4" />
             Application Questions ({questions.length})
           </h3>
-          <Button
-            size="sm"
-            onClick={() => {
-              resetQuestionForm();
-              setShowAddQuestion(true);
-            }}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Add Question
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setShowImportTemplate(true);
+                loadTemplates();
+              }}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Import Template
+            </Button>
+            {questions.length > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowSaveTemplate(true)}
+              >
+                <BookTemplate className="mr-2 h-4 w-4" />
+                Save as Template
+              </Button>
+            )}
+            <Button
+              size="sm"
+              onClick={() => {
+                resetQuestionForm();
+                setShowAddQuestion(true);
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add Question
+            </Button>
+          </div>
         </div>
+
+        {/* Save as Template Dialog */}
+        {showSaveTemplate && (
+          <div className="rounded-lg border bg-card p-4 space-y-3">
+            <h4 className="text-sm font-medium">Save Questions as Template</h4>
+            <p className="text-xs text-muted-foreground">
+              Save the current {questions.length} question{questions.length !== 1 ? "s" : ""} as a reusable template.
+            </p>
+            <form onSubmit={handleSaveAsTemplate} className="space-y-3">
+              <div>
+                <Label>Template Name *</Label>
+                <Input
+                  required
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                  placeholder="e.g. Standard FFBX Application"
+                />
+              </div>
+              <div>
+                <Label>Description</Label>
+                <Input
+                  value={templateDesc}
+                  onChange={(e) => setTemplateDesc(e.target.value)}
+                  placeholder="Optional description"
+                />
+              </div>
+              {templateError && <p className="text-sm text-destructive">{templateError}</p>}
+              <div className="flex gap-2">
+                <Button type="submit" size="sm" disabled={templateSaving}>
+                  {templateSaving ? "Saving..." : "Save Template"}
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => setShowSaveTemplate(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* Import from Template Dialog */}
+        {showImportTemplate && (
+          <div className="rounded-lg border bg-card p-4 space-y-3">
+            <h4 className="text-sm font-medium">Import from Template</h4>
+            <p className="text-xs text-muted-foreground">
+              Select a template to add its questions to this application. Existing questions will be kept.
+            </p>
+            {templatesLoading ? (
+              <div className="flex items-center gap-2 py-4 justify-center text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading templates...
+              </div>
+            ) : templates.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No templates yet. Save questions from a program to create one.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {templates.map((t) => (
+                  <div key={t.id} className="flex items-center gap-3 rounded-md border p-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{t.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {t.application_template_questions?.[0]?.count ?? 0} question{(t.application_template_questions?.[0]?.count ?? 0) !== 1 ? "s" : ""}
+                        {t.description ? ` — ${t.description}` : ""}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      disabled={importingId !== null}
+                      onClick={() => handleImportTemplate(t.id)}
+                    >
+                      {importingId === t.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "Import"
+                      )}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() => handleDeleteTemplate(t.id)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Button variant="outline" size="sm" onClick={() => setShowImportTemplate(false)}>
+              Close
+            </Button>
+          </div>
+        )}
 
         {/* Add/Edit Question Form */}
         {showAddQuestion && (

@@ -1,0 +1,113 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import {
+  getApplicationTemplates,
+  getApplicationTemplate,
+  createApplicationTemplate,
+  createTemplateQuestions,
+  deleteApplicationTemplate,
+  getQuestionsByProgram,
+  createQuestion,
+} from "@/services/schools";
+
+export async function GET() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+
+  const { data, error } = await getApplicationTemplates(supabase);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ templates: data });
+}
+
+export async function POST(request: Request) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+
+  const body = await request.json();
+  const { action } = body;
+
+  if (action === "save_from_program") {
+    const { program_id, name, description } = body;
+    if (!program_id || !name) {
+      return NextResponse.json({ error: "program_id and name are required" }, { status: 400 });
+    }
+
+    const { data: questions } = await getQuestionsByProgram(supabase, program_id);
+    if (!questions || questions.length === 0) {
+      return NextResponse.json({ error: "No questions to save as template" }, { status: 400 });
+    }
+
+    const { data: template, error: tErr } = await createApplicationTemplate(supabase, {
+      name,
+      description: description || null,
+      created_by: user.id,
+    });
+    if (tErr) return NextResponse.json({ error: tErr.message }, { status: 500 });
+
+    const templateQuestions = questions.map((q: any, i: number) => ({
+      template_id: template.id,
+      label: q.label,
+      description: q.description || null,
+      type: q.type,
+      sort_order: q.sort_order ?? i,
+      is_required: q.is_required,
+      options: q.options ?? [],
+    }));
+
+    const { error: qErr } = await createTemplateQuestions(supabase, templateQuestions);
+    if (qErr) return NextResponse.json({ error: qErr.message }, { status: 500 });
+
+    return NextResponse.json({ success: true, template });
+  }
+
+  if (action === "import_to_program") {
+    const { template_id, program_id } = body;
+    if (!template_id || !program_id) {
+      return NextResponse.json({ error: "template_id and program_id are required" }, { status: 400 });
+    }
+
+    const { data: template, error: tErr } = await getApplicationTemplate(supabase, template_id);
+    if (tErr || !template) {
+      return NextResponse.json({ error: "Template not found" }, { status: 404 });
+    }
+
+    const { data: existing } = await getQuestionsByProgram(supabase, program_id);
+    const startOrder = existing?.length ?? 0;
+
+    const tQuestions = template.application_template_questions ?? [];
+    for (let i = 0; i < tQuestions.length; i++) {
+      const q = tQuestions[i];
+      await createQuestion(supabase, {
+        program_id,
+        label: q.label,
+        description: q.description || null,
+        type: q.type,
+        sort_order: startOrder + i,
+        is_required: q.is_required,
+        options: q.options ?? [],
+      });
+    }
+
+    return NextResponse.json({ success: true, imported: tQuestions.length });
+  }
+
+  return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+}
+
+export async function DELETE(request: Request) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
+
+  const { error } = await deleteApplicationTemplate(supabase, id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ success: true });
+}

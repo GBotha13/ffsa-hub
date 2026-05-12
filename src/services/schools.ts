@@ -603,3 +603,53 @@ export async function submitReference(
     .select()
     .single();
 }
+
+// ────────────────────────────────────────────────────────────
+// APPLICATION TEMPLATES
+// ────────────────────────────────────────────────────────────
+
+export async function getApplicationTemplates(supabase: Client) {
+  return supabase
+    .from("application_templates")
+    .select("*, application_template_questions(count)")
+    .order("created_at", { ascending: false });
+}
+
+export async function getApplicationTemplate(supabase: Client, id: string) {
+  return supabase
+    .from("application_templates")
+    .select("*, application_template_questions(*)")
+    .eq("id", id)
+    .order("sort_order", { referencedTable: "application_template_questions", ascending: true })
+    .single();
+}
+
+export async function createApplicationTemplate(
+  supabase: Client,
+  data: { name: string; description?: string; created_by?: string }
+) {
+  return supabase
+    .from("application_templates")
+    .insert(data)
+    .select()
+    .single();
+}
+
+export async function deleteApplicationTemplate(supabase: Client, id: string) {
+  return supabase.from("application_templates").delete().eq("id", id);
+}
+
+export async function createTemplateQuestions(
+  supabase: Client,
+  questions: Array<{
+    template_id: string;
+    label: string;
+    description?: string | null;
+    type: string;
+    sort_order: number;
+    is_required: boolean;
+    options?: unknown;
+  }>
+) {
+  return supabase.from("application_template_questions").insert(questions);
+}
