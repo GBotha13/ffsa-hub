@@ -109,6 +109,9 @@ export function mapDbQuestion(q: DbQuestion): FormQuestion {
     label: q.label,
     helpText: q.description ?? undefined,
     required: q.is_required,
-    options: q.options?.map((o) => ({ value: o, label: o })),
+    options: q.options?.map((o, i) => {
+      const seen = q.options!.slice(0, i).filter((prev) => prev === o).length;
+      return { value: seen > 0 ? `${o}__${i}` : o, label: o };
+    }),
   };
 }
