@@ -10,7 +10,6 @@ import { FormField } from "@/components/form/form-field";
 import { ErrorSummary } from "@/components/form/error-summary";
 import { buildFormSchema } from "@/lib/build-form-schema";
 import {
-  PERSONAL_INFO_FIELDS,
   mapDbQuestion,
   type FormQuestion,
   type FileValue,
@@ -125,14 +124,9 @@ export function PublicApplicationForm({
   const [refNames, setRefNames] = useState<Record<string, string>>({});
   const [refEmails, setRefEmails] = useState<Record<string, string>>({});
 
-  const mappedQuestions = useMemo(
+  const allQuestions: FormQuestion[] = useMemo(
     () => questions.map(mapDbQuestion),
     [questions]
-  );
-
-  const allQuestions: FormQuestion[] = useMemo(
-    () => [...PERSONAL_INFO_FIELDS, ...mappedQuestions],
-    [mappedQuestions]
   );
 
   const schema = useMemo(
@@ -169,7 +163,6 @@ export function PublicApplicationForm({
   async function onSubmit(data: Record<string, unknown>) {
     setServerError(null);
 
-    const applicantInfo: Record<string, unknown> = {};
     const answers: Array<{
       question_id: string;
       question_label: string;
@@ -182,11 +175,7 @@ export function PublicApplicationForm({
       size: number;
     }> = [];
 
-    for (const q of PERSONAL_INFO_FIELDS) {
-      applicantInfo[q.id] = data[q.id] || null;
-    }
-
-    for (const q of mappedQuestions) {
+    for (const q of allQuestions) {
       const value = data[q.id];
       if (q.type === "file" && value && typeof value === "object") {
         const fv = value as FileValue;
@@ -239,12 +228,6 @@ export function PublicApplicationForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           program_id: programId,
-          applicant_info: {
-            ...applicantInfo,
-            first_name: applicantInfo.first_name,
-            last_name: applicantInfo.last_name,
-            email: applicantInfo.email,
-          },
           answers,
           references,
           files: files.length > 0 ? files : undefined,
@@ -283,13 +266,6 @@ export function PublicApplicationForm({
     );
   }
 
-  const personalQuestions = allQuestions.filter(
-    (q) => q.section === "personal"
-  );
-  const applicationQuestions = allQuestions.filter(
-    (q) => q.section === "questions"
-  );
-
   return (
     <form
       onSubmit={handleSubmit(onSubmit, onError)}
@@ -306,26 +282,10 @@ export function PublicApplicationForm({
         <ErrorSummary errors={errors} questions={allQuestions} />
       )}
 
-      {/* Personal Information */}
-      <div className="rounded-lg border bg-card p-6 space-y-4">
-        <h2 className="font-semibold text-foreground">Personal Information</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {personalQuestions.slice(0, 2).map((q) => (
-            <FormField key={q.id} question={q} control={control} />
-          ))}
-        </div>
-        {personalQuestions.slice(2).map((q) => (
-          <FormField key={q.id} question={q} control={control} />
-        ))}
-      </div>
-
       {/* Application Questions */}
-      {applicationQuestions.length > 0 && (
+      {allQuestions.length > 0 && (
         <div className="rounded-lg border bg-card p-6 space-y-4">
-          <h2 className="font-semibold text-foreground">
-            Application Questions
-          </h2>
-          {applicationQuestions.map((q) => (
+          {allQuestions.map((q) => (
             <FormField
               key={q.id}
               question={q}

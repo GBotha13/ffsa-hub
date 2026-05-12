@@ -14,30 +14,36 @@ import { referenceRequestEmailHtml } from "@/lib/email/templates/reference-reque
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+function findAnswerByType(
+  answers: Array<{ question_id: string; question_label: string; answer: string }>,
+  questions: Array<{ id: string; type: string; label: string }>,
+  type: string
+): string | null {
+  const questionIds = new Set(questions.filter((q) => q.type === type).map((q) => q.id));
+  const match = answers.find((a) => questionIds.has(a.question_id) && a.answer?.trim());
+  return match?.answer?.trim() || null;
+}
+
+function findAnswerByLabel(
+  answers: Array<{ question_id: string; question_label: string; answer: string }>,
+  patterns: string[]
+): string | null {
+  for (const pattern of patterns) {
+    const match = answers.find(
+      (a) => a.question_label.toLowerCase().includes(pattern) && a.answer?.trim()
+    );
+    if (match) return match.answer.trim();
+  }
+  return null;
+}
+
 export async function POST(request: Request) {
   const body = await request.json();
-  const { program_id, applicant_info, answers, references, files } = body;
+  const { program_id, answers, references, files } = body;
 
-  if (!program_id || !applicant_info || !answers) {
+  if (!program_id || !answers) {
     return NextResponse.json(
       { error: "Missing required fields" },
-      { status: 400 }
-    );
-  }
-
-  const { first_name, last_name, email } = applicant_info;
-
-  if (!first_name || !last_name || !email) {
-    return NextResponse.json(
-      { error: "First name, last name, and email are required" },
-      { status: 400 }
-    );
-  }
-
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
-    return NextResponse.json(
-      { error: "Please provide a valid email address" },
       { status: 400 }
     );
   }
@@ -52,43 +58,6 @@ export async function POST(request: Request) {
       { error: "This program is not currently accepting applications" },
       { status: 400 }
     );
-  }
-
-  // Check for duplicate: same email already applied to this program
-  const { data: existing } = await getResponseByEmailAndProgram(
-    supabase,
-    email,
-    program_id
-  );
-
-  if (existing) {
-    return NextResponse.json(
-      { error: "An application with this email has already been submitted for this program" },
-      { status: 409 }
-    );
-  }
-
-  // Also check if an authenticated user with this email already applied
-  const { data: existingUser } = await supabase
-    .from("users")
-    .select("id")
-    .eq("email", email)
-    .maybeSingle();
-
-  if (existingUser) {
-    const { data: existingUserResponse } = await supabase
-      .from("application_responses")
-      .select("id")
-      .eq("user_id", existingUser.id)
-      .eq("program_id", program_id)
-      .maybeSingle();
-
-    if (existingUserResponse) {
-      return NextResponse.json(
-        { error: "An application with this email has already been submitted for this program" },
-        { status: 409 }
-      );
-    }
   }
 
   // Validate required questions
@@ -106,17 +75,74 @@ export async function POST(request: Request) {
     }
   }
 
-  // Insert the application
-  const enrichedInfo = files && Array.isArray(files) && files.length > 0
-    ? { ...applicant_info, files }
-    : applicant_info;
+  // Try to extract email from answers (look for email-type question first, then label match)
+  const email = findAnswerByType(answers, questions ?? [], "email")
+    ?? findAnswerByLabel(answers, ["email"]);
+
+  // Try to extract name from answers
+  const firstName = findAnswerByLabel(answers, ["first name", "first_name"])
+    ?? findAnswerByLabel(answers, ["name"]);
+
+  // Check for duplicate if we have an email
+  if (email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { error: "Please provide a valid email address" },
+        { status: 400 }
+      );
+    }
+
+    const { data: existing } = await getResponseByEmailAndProgram(
+      supabase,
+      email,
+      program_id
+    );
+
+    if (existing) {
+      return NextResponse.json(
+        { error: "An application with this email has already been submitted for this program" },
+        { status: 409 }
+      );
+    }
+
+    const { data: existingUser } = await supabase
+      .from("users")
+      .select("id")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (existingUser) {
+      const { data: existingUserResponse } = await supabase
+        .from("application_responses")
+        .select("id")
+        .eq("user_id", existingUser.id)
+        .eq("program_id", program_id)
+        .maybeSingle();
+
+      if (existingUserResponse) {
+        return NextResponse.json(
+          { error: "An application with this email has already been submitted for this program" },
+          { status: 409 }
+        );
+      }
+    }
+  }
+
+  // Build applicant_info from answers
+  const applicantInfo: Record<string, unknown> = {};
+  if (email) applicantInfo.email = email;
+  if (firstName) applicantInfo.first_name = firstName;
+  if (files && Array.isArray(files) && files.length > 0) {
+    applicantInfo.files = files;
+  }
 
   const { data: response, error: insertError } = await createPublicResponse(
     supabase,
     {
       program_id,
-      applicant_email: email,
-      applicant_info: enrichedInfo,
+      applicant_email: email || "unknown@applicant.local",
+      applicant_info: applicantInfo,
       answers,
     }
   );
@@ -128,17 +154,19 @@ export async function POST(request: Request) {
     );
   }
 
-  // Send confirmation email
+  // Send confirmation email if we have one
   const fromEmail = process.env.RESEND_FROM_EMAIL || "noreply@ffsahub.com";
-  await resend.emails.send({
-    from: `Fire & Fragrance SA <${fromEmail}>`,
-    to: email,
-    subject: `Application Received — ${program.name}`,
-    html: applicationConfirmationEmailHtml({
-      firstName: first_name,
-      programName: program.name,
-    }),
-  });
+  if (email) {
+    await resend.emails.send({
+      from: `Fire & Fragrance SA <${fromEmail}>`,
+      to: email,
+      subject: `Application Received — ${program.name}`,
+      html: applicationConfirmationEmailHtml({
+        firstName: firstName || "Applicant",
+        programName: program.name,
+      }),
+    });
+  }
 
   // Create reference requests and send emails to referees
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://ffsahub.com";
@@ -147,6 +175,7 @@ export async function POST(request: Request) {
   if (references && Array.isArray(references) && references.length > 0) {
     const { data: slots } = await getReferenceSlotsByProgram(supabase, program_id);
     const slotMap = new Map<string, any>((slots ?? []).map((s: any) => [s.id, s]));
+    const applicantName = firstName || "An applicant";
 
     for (const ref of references) {
       if (!ref.slot_id || !ref.referee_name || !ref.referee_email) continue;
@@ -173,7 +202,7 @@ export async function POST(request: Request) {
           subject: `Reference Request — ${program.name}`,
           html: referenceRequestEmailHtml({
             refereeName: ref.referee_name,
-            applicantName: `${first_name} ${last_name}`,
+            applicantName,
             programName: program.name,
             slotLabel: slot?.label ?? "Reference",
             referenceUrl,
