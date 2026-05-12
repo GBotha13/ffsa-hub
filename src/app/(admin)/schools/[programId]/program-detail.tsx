@@ -192,6 +192,45 @@ export function ProgramDetail({
   referenceSlots: ReferenceSlot[];
   refRequestSummaries: RefRequestSummary[];
 }) {
+  const router = useRouter();
+  const [editingProgram, setEditingProgram] = useState(false);
+  const [progName, setProgName] = useState(program.name);
+  const [progCode, setProgCode] = useState(program.code);
+  const [progDescription, setProgDescription] = useState(program.description ?? "");
+  const [progCreditHours, setProgCreditHours] = useState(String(program.credit_hours));
+  const [progSaving, setProgSaving] = useState(false);
+  const [progError, setProgError] = useState<string | null>(null);
+
+  async function handleSaveProgram(e: React.FormEvent) {
+    e.preventDefault();
+    setProgSaving(true);
+    setProgError(null);
+    try {
+      const res = await fetch("/api/schools/programs", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: program.id,
+          name: progName,
+          code: progCode,
+          description: progDescription || null,
+          credit_hours: parseInt(progCreditHours) || 0,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setProgError(data.error || "Failed to update program");
+        return;
+      }
+      setEditingProgram(false);
+      router.refresh();
+    } catch {
+      setProgError("Network error");
+    } finally {
+      setProgSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -221,9 +260,46 @@ export function ProgramDetail({
           <Badge variant={program.status === "active" ? "default" : "secondary"}>
             {program.status}
           </Badge>
+          <Button variant="outline" size="sm" onClick={() => setEditingProgram(true)}>
+            <Edit2 className="mr-1 h-3 w-3" /> Edit
+          </Button>
           <ProgramActions program={program} variant="button" redirectAfterDelete />
         </div>
       </div>
+
+      {/* Edit Program Dialog */}
+      <Dialog open={editingProgram} onOpenChange={setEditingProgram}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Program Details</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSaveProgram} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Program Name *</Label>
+              <Input required value={progName} onChange={(e) => setProgName(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Code *</Label>
+                <Input required value={progCode} onChange={(e) => setProgCode(e.target.value)} className="uppercase" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Credit Hours</Label>
+                <Input type="number" min="0" value={progCreditHours} onChange={(e) => setProgCreditHours(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Description</Label>
+              <Textarea value={progDescription} onChange={(e) => setProgDescription(e.target.value)} rows={3} placeholder="Optional program description" />
+            </div>
+            {progError && <p className="text-sm text-destructive">{progError}</p>}
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setEditingProgram(false)}>Cancel</Button>
+              <Button type="submit" size="sm" disabled={progSaving}>{progSaving ? "Saving..." : "Save Changes"}</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Tabs */}
       <Tabs defaultValue="courses">
@@ -295,6 +371,51 @@ function CoursesTab({
   const [code, setCode] = useState("");
   const [creditHours, setCreditHours] = useState("3");
   const [deleting, setDeleting] = useState<string | null>(null);
+
+  const [editingCourse, setEditingCourse] = useState<Course | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editCode, setEditCode] = useState("");
+  const [editCreditHours, setEditCreditHours] = useState("3");
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  function startEditCourse(course: Course) {
+    setEditingCourse(course);
+    setEditName(course.name);
+    setEditCode(course.code);
+    setEditCreditHours(String(course.credit_hours));
+    setEditError(null);
+  }
+
+  async function handleEditCourse(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingCourse) return;
+    setEditLoading(true);
+    setEditError(null);
+    try {
+      const res = await fetch("/api/schools/courses", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editingCourse.id,
+          name: editName,
+          code: editCode.toUpperCase(),
+          credit_hours: parseInt(editCreditHours) || 0,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setEditError(data.error || "Failed to update course");
+        return;
+      }
+      setEditingCourse(null);
+      router.refresh();
+    } catch {
+      setEditError("Network error");
+    } finally {
+      setEditLoading(false);
+    }
+  }
 
   async function handleAddCourse(e: React.FormEvent) {
     e.preventDefault();
@@ -420,7 +541,7 @@ function CoursesTab({
               <TableHead>Code</TableHead>
               <TableHead>Course Name</TableHead>
               <TableHead>Credit Hours</TableHead>
-              <TableHead className="w-[60px]" />
+              <TableHead className="w-[90px]" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -445,15 +566,25 @@ function CoursesTab({
                   <TableCell className="font-medium">{course.name}</TableCell>
                   <TableCell>{course.credit_hours}</TableCell>
                   <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground hover:text-destructive"
-                      onClick={() => handleDelete(course.id)}
-                      disabled={deleting === course.id}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground"
+                        onClick={() => startEditCourse(course)}
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => handleDelete(course.id)}
+                        disabled={deleting === course.id}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -461,6 +592,36 @@ function CoursesTab({
           </TableBody>
         </Table>
       </div>
+
+      {/* Edit Course Dialog */}
+      <Dialog open={editingCourse !== null} onOpenChange={(open) => { if (!open) setEditingCourse(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Course</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditCourse} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Course Name *</Label>
+              <Input required value={editName} onChange={(e) => setEditName(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Code *</Label>
+                <Input required value={editCode} onChange={(e) => setEditCode(e.target.value)} className="uppercase" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Credit Hours</Label>
+                <Input type="number" min="0" value={editCreditHours} onChange={(e) => setEditCreditHours(e.target.value)} />
+              </div>
+            </div>
+            {editError && <p className="text-sm text-destructive">{editError}</p>}
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setEditingCourse(null)}>Cancel</Button>
+              <Button type="submit" size="sm" disabled={editLoading}>{editLoading ? "Saving..." : "Save Changes"}</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
