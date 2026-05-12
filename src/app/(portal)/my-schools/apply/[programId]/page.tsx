@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   getQuestionsByProgram,
   getResponseByUserAndProgram,
+  getReferenceSlotsByProgram,
 } from "@/services/schools";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -89,8 +90,9 @@ export default async function ApplyPage({
     );
   }
 
-  // Fetch questions
+  // Fetch questions and reference slots
   const { data: questions } = await getQuestionsByProgram(supabase, programId);
+  const { data: referenceSlots } = await getReferenceSlotsByProgram(supabase, programId);
 
   if (!questions || questions.length === 0) {
     return (
@@ -127,7 +129,7 @@ export default async function ApplyPage({
         </p>
       </div>
 
-      <ApplicationForm programId={programId} questions={questions} />
+      <ApplicationForm programId={programId} questions={questions} referenceSlots={referenceSlots ?? []} />
     </div>
   );
 }

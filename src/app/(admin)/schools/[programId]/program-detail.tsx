@@ -102,6 +102,29 @@ type AppQuestion = {
   is_required: boolean;
 };
 
+type ReferenceSlot = {
+  id: string;
+  program_id: string;
+  label: string;
+  description: string | null;
+  sort_order: number;
+  is_required: boolean;
+};
+
+type ReferenceRequest = {
+  id: string;
+  application_id: string;
+  slot_id: string;
+  referee_name: string;
+  referee_email: string;
+  status: string;
+  relationship: string | null;
+  known_duration: string | null;
+  reference_text: string | null;
+  submitted_at: string | null;
+  reference_slots: { label: string; description: string | null } | null;
+};
+
 type ApplicantInfo = {
   first_name: string;
   last_name: string;
@@ -150,6 +173,7 @@ export function ProgramDetail({
   allUsers,
   questions,
   responses,
+  referenceSlots,
 }: {
   program: Program;
   enrollments: Enrollment[];
@@ -157,6 +181,7 @@ export function ProgramDetail({
   allUsers: UserOption[];
   questions: AppQuestion[];
   responses: AppResponse[];
+  referenceSlots: ReferenceSlot[];
 }) {
   return (
     <div className="space-y-6">
@@ -233,6 +258,7 @@ export function ProgramDetail({
             applicationOpen={program.application_open}
             questions={questions}
             responses={responses}
+            referenceSlots={referenceSlots}
           />
         </TabsContent>
       </Tabs>
@@ -881,11 +907,13 @@ function ApplicationTab({
   applicationOpen,
   questions,
   responses,
+  referenceSlots,
 }: {
   programId: string;
   applicationOpen: boolean;
   questions: AppQuestion[];
   responses: AppResponse[];
+  referenceSlots: ReferenceSlot[];
 }) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(applicationOpen);
@@ -893,6 +921,19 @@ function ApplicationTab({
   const [showAddQuestion, setShowAddQuestion] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<AppQuestion | null>(null);
   const [reviewingResponse, setReviewingResponse] = useState<AppResponse | null>(null);
+
+  // Reference slot state
+  const [showAddSlot, setShowAddSlot] = useState(false);
+  const [editingSlot, setEditingSlot] = useState<ReferenceSlot | null>(null);
+  const [slotLabel, setSlotLabel] = useState("");
+  const [slotDescription, setSlotDescription] = useState("");
+  const [slotRequired, setSlotRequired] = useState(true);
+  const [slotLoading, setSlotLoading] = useState(false);
+  const [slotError, setSlotError] = useState<string | null>(null);
+
+  // Reference display in review dialog
+  const [reviewReferences, setReviewReferences] = useState<ReferenceRequest[]>([]);
+  const [refsLoading, setRefsLoading] = useState(false);
 
   const [copied, setCopied] = useState(false);
 
@@ -1041,6 +1082,113 @@ function ApplicationTab({
       });
     }
     router.refresh();
+  }
+
+  // ── Reference Slot Helpers ──
+
+  function resetSlotForm() {
+    setSlotLabel("");
+    setSlotDescription("");
+    setSlotRequired(true);
+    setSlotError(null);
+    setEditingSlot(null);
+    setShowAddSlot(false);
+  }
+
+  function startEditSlot(slot: ReferenceSlot) {
+    setEditingSlot(slot);
+    setSlotLabel(slot.label);
+    setSlotDescription(slot.description ?? "");
+    setSlotRequired(slot.is_required);
+    setShowAddSlot(true);
+  }
+
+  async function handleSaveSlot(e: React.FormEvent) {
+    e.preventDefault();
+    setSlotLoading(true);
+    setSlotError(null);
+
+    try {
+      if (editingSlot) {
+        const res = await fetch("/api/schools/applications/reference-slots", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: editingSlot.id,
+            label: slotLabel,
+            description: slotDescription || null,
+            is_required: slotRequired,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) { setSlotError(data.error || "Failed to update"); return; }
+      } else {
+        const res = await fetch("/api/schools/applications/reference-slots", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            program_id: programId,
+            label: slotLabel,
+            description: slotDescription || null,
+            is_required: slotRequired,
+            sort_order: referenceSlots.length,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) { setSlotError(data.error || "Failed to add"); return; }
+      }
+
+      resetSlotForm();
+      router.refresh();
+    } catch {
+      setSlotError("Network error");
+    } finally {
+      setSlotLoading(false);
+    }
+  }
+
+  async function handleDeleteSlot(id: string) {
+    if (!confirm("Delete this reference slot?")) return;
+    try {
+      const res = await fetch(`/api/schools/applications/reference-slots?id=${id}`, { method: "DELETE" });
+      if (res.ok) router.refresh();
+    } catch {
+      alert("Failed to delete reference slot");
+    }
+  }
+
+  async function handleMoveSlot(slotId: string, direction: "up" | "down") {
+    const idx = referenceSlots.findIndex((s) => s.id === slotId);
+    if (idx < 0) return;
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= referenceSlots.length) return;
+
+    const updates = [
+      { id: referenceSlots[idx].id, sort_order: referenceSlots[swapIdx].sort_order },
+      { id: referenceSlots[swapIdx].id, sort_order: referenceSlots[idx].sort_order },
+    ];
+
+    for (const u of updates) {
+      await fetch("/api/schools/applications/reference-slots", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(u),
+      });
+    }
+    router.refresh();
+  }
+
+  async function fetchReferences(applicationId: string) {
+    setRefsLoading(true);
+    try {
+      const res = await fetch(`/api/schools/applications/references?application_id=${applicationId}`);
+      const data = await res.json();
+      if (res.ok) setReviewReferences(data.references ?? []);
+    } catch {
+      // ignore
+    } finally {
+      setRefsLoading(false);
+    }
   }
 
   async function handleReviewSave() {
@@ -1361,6 +1509,126 @@ function ApplicationTab({
         )}
       </div>
 
+      {/* ─── REFERENCE SLOTS ─── */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-medium">Reference Slots ({referenceSlots.length})</h3>
+          {!showAddSlot && !editingSlot && (
+            <Button size="sm" variant="outline" onClick={() => setShowAddSlot(true)}>
+              <Plus className="mr-1 h-3 w-3" /> Add Reference Slot
+            </Button>
+          )}
+        </div>
+
+        {(showAddSlot || editingSlot) && (
+          <form onSubmit={handleSaveSlot} className="space-y-3 rounded-lg border bg-card p-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="slot-label">Label *</Label>
+                <Input
+                  id="slot-label"
+                  placeholder="e.g. Friend Reference"
+                  value={slotLabel}
+                  onChange={(e) => setSlotLabel(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="slot-desc">Description</Label>
+                <Input
+                  id="slot-desc"
+                  placeholder="Optional instructions for the referee"
+                  value={slotDescription}
+                  onChange={(e) => setSlotDescription(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="slot-required"
+                checked={slotRequired}
+                onChange={(e) => setSlotRequired(e.target.checked)}
+                className="rounded"
+              />
+              <Label htmlFor="slot-required" className="mb-0">Required</Label>
+            </div>
+            {slotError && <p className="text-sm text-destructive">{slotError}</p>}
+            <div className="flex gap-2">
+              <Button type="submit" size="sm" disabled={slotLoading}>
+                {slotLoading ? "Saving..." : editingSlot ? "Update Slot" : "Add Slot"}
+              </Button>
+              <Button type="button" size="sm" variant="ghost" onClick={resetSlotForm}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        )}
+
+        {referenceSlots.length === 0 && !showAddSlot ? (
+          <p className="text-sm text-muted-foreground text-center py-6">
+            No reference slots configured. Add one to require references from applicants.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {referenceSlots.map((slot, idx) => (
+              <div
+                key={slot.id}
+                className="flex items-center justify-between rounded-lg border bg-card px-4 py-3"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">
+                    {slot.label}
+                    {slot.is_required && (
+                      <span className="ml-2 text-xs text-muted-foreground">Required</span>
+                    )}
+                  </p>
+                  {slot.description && (
+                    <p className="text-xs text-muted-foreground truncate">{slot.description}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-1 ml-2 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground"
+                    disabled={idx === 0}
+                    onClick={() => handleMoveSlot(slot.id, "up")}
+                  >
+                    <ChevronUp className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground"
+                    disabled={idx === referenceSlots.length - 1}
+                    onClick={() => handleMoveSlot(slot.id, "down")}
+                  >
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground"
+                    onClick={() => startEditSlot(slot)}
+                  >
+                    <Edit2 className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                    onClick={() => handleDeleteSlot(slot.id)}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* ─── APPLICATION REVIEW ─── */}
       <div className="space-y-4">
         <h3 className="font-medium">Submitted Applications ({responses.length})</h3>
@@ -1408,6 +1676,7 @@ function ApplicationTab({
                         onClick={() => {
                           setReviewingResponse(resp);
                           setReviewStatus(resp.status);
+                          fetchReferences(resp.id);
                         }}
                       >
                         Review
@@ -1482,6 +1751,60 @@ function ApplicationTab({
                   </div>
                 ))}
               </div>
+
+              {/* References */}
+              {referenceSlots.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium">References</h4>
+                  {refsLoading ? (
+                    <p className="text-sm text-muted-foreground">Loading references…</p>
+                  ) : reviewReferences.length === 0 ? (
+                    <p className="text-sm text-muted-foreground italic">No references requested for this application.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {reviewReferences.map((ref) => (
+                        <div key={ref.id} className="rounded-lg border bg-muted/50 p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium">
+                                {ref.reference_slots?.label ?? "Reference"}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {ref.referee_name} · {ref.referee_email}
+                              </p>
+                            </div>
+                            <Badge variant={ref.status === "submitted" ? "default" : "secondary"}>
+                              {ref.status === "submitted" ? "Submitted" : "Pending"}
+                            </Badge>
+                          </div>
+                          {ref.status === "submitted" && (
+                            <div className="space-y-2 pt-1 border-t text-sm">
+                              {ref.relationship && (
+                                <div>
+                                  <p className="text-xs font-medium text-muted-foreground">Relationship</p>
+                                  <p>{ref.relationship}</p>
+                                </div>
+                              )}
+                              {ref.known_duration && (
+                                <div>
+                                  <p className="text-xs font-medium text-muted-foreground">Known Duration</p>
+                                  <p>{ref.known_duration}</p>
+                                </div>
+                              )}
+                              {ref.reference_text && (
+                                <div>
+                                  <p className="text-xs font-medium text-muted-foreground">Reference</p>
+                                  <p className="whitespace-pre-wrap">{ref.reference_text}</p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Status Update */}
               <div className="flex items-center gap-4 border-t pt-4">

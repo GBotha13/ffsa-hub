@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { getProgramById, getEnrollmentsByProgram, getGradesByProgram, getQuestionsByProgram, getResponsesByProgram } from "@/services/schools";
+import { getProgramById, getEnrollmentsByProgram, getGradesByProgram, getQuestionsByProgram, getResponsesByProgram, getReferenceSlotsByProgram } from "@/services/schools";
 import { ProgramDetail } from "./program-detail";
 
 export default async function ProgramDetailPage({
@@ -29,6 +29,7 @@ export default async function ProgramDetailPage({
 
   const { data: questions } = await getQuestionsByProgram(supabase, programId);
   const { data: responses } = await getResponsesByProgram(supabase, programId);
+  const { data: referenceSlots } = await getReferenceSlotsByProgram(supabase, programId);
 
   // Fetch all users for the enrollment selector
   const { data: allUsers } = await supabase
@@ -46,6 +47,7 @@ export default async function ProgramDetailPage({
         allUsers={allUsers ?? []}
         questions={questions ?? []}
         responses={responses ?? []}
+        referenceSlots={referenceSlots ?? []}
       />
     </div>
   );

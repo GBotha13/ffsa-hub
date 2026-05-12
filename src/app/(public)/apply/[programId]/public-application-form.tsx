@@ -22,14 +22,23 @@ type Question = {
   is_required: boolean;
 };
 
+type ReferenceSlot = {
+  id: string;
+  label: string;
+  description: string | null;
+  is_required: boolean;
+};
+
 export function PublicApplicationForm({
   programId,
   programName,
   questions,
+  referenceSlots = [],
 }: {
   programId: string;
   programName: string;
   questions: Question[];
+  referenceSlots?: ReferenceSlot[];
 }) {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -49,6 +58,10 @@ export function PublicApplicationForm({
   // Question answers
   const [answers, setAnswers] = useState<Record<string, string>>({});
 
+  // References
+  const [refNames, setRefNames] = useState<Record<string, string>>({});
+  const [refEmails, setRefEmails] = useState<Record<string, string>>({});
+
   function setAnswer(questionId: string, value: string) {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
   }
@@ -62,6 +75,15 @@ export function PublicApplicationForm({
     for (const q of questions) {
       if (q.is_required && !answers[q.id]?.trim()) {
         setError(`Please answer the required question: "${q.label}"`);
+        setLoading(false);
+        return;
+      }
+    }
+
+    // Validate required reference slots
+    for (const slot of referenceSlots) {
+      if (slot.is_required && (!refNames[slot.id]?.trim() || !refEmails[slot.id]?.trim())) {
+        setError(`Please provide referee details for: "${slot.label}"`);
         setLoading(false);
         return;
       }
@@ -89,6 +111,13 @@ export function PublicApplicationForm({
             question_label: q.label,
             answer: answers[q.id] ?? "",
           })),
+          references: referenceSlots
+            .filter((slot) => refNames[slot.id]?.trim() && refEmails[slot.id]?.trim())
+            .map((slot) => ({
+              slot_id: slot.id,
+              referee_name: refNames[slot.id].trim(),
+              referee_email: refEmails[slot.id].trim(),
+            })),
         }),
       });
 
@@ -259,6 +288,51 @@ export function PublicApplicationForm({
                   placeholder="Your answer..."
                 />
               )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* References */}
+      {referenceSlots.length > 0 && (
+        <div className="rounded-lg border bg-card p-6 space-y-4">
+          <h2 className="font-semibold text-foreground">References</h2>
+          <p className="text-sm text-muted-foreground">
+            Please provide contact details for the following references. They will receive an email with a link to submit their reference.
+          </p>
+
+          {referenceSlots.map((slot) => (
+            <div key={slot.id} className="space-y-3 rounded-md border p-4">
+              <div>
+                <p className="text-sm font-medium">
+                  {slot.label}
+                  {slot.is_required && <span className="text-destructive"> *</span>}
+                </p>
+                {slot.description && (
+                  <p className="text-xs text-muted-foreground">{slot.description}</p>
+                )}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <Label>Referee Name {slot.is_required && <span className="text-destructive">*</span>}</Label>
+                  <Input
+                    placeholder="Full name"
+                    value={refNames[slot.id] ?? ""}
+                    onChange={(e) => setRefNames((prev) => ({ ...prev, [slot.id]: e.target.value }))}
+                    required={slot.is_required}
+                  />
+                </div>
+                <div>
+                  <Label>Referee Email {slot.is_required && <span className="text-destructive">*</span>}</Label>
+                  <Input
+                    type="email"
+                    placeholder="referee@email.com"
+                    value={refEmails[slot.id] ?? ""}
+                    onChange={(e) => setRefEmails((prev) => ({ ...prev, [slot.id]: e.target.value }))}
+                    required={slot.is_required}
+                  />
+                </div>
+              </div>
             </div>
           ))}
         </div>

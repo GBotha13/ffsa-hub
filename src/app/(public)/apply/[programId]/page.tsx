@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getProgramPublicInfo, getQuestionsByProgram } from "@/services/schools";
+import { getProgramPublicInfo, getQuestionsByProgram, getReferenceSlotsByProgram } from "@/services/schools";
 import { PublicApplicationForm } from "./public-application-form";
 
 export default async function PublicApplyPage({
@@ -38,6 +38,7 @@ export default async function PublicApplyPage({
   }
 
   const { data: questions } = await getQuestionsByProgram(supabase, programId);
+  const { data: referenceSlots } = await getReferenceSlotsByProgram(supabase, programId);
 
   return (
     <div className="space-y-8">
@@ -66,6 +67,7 @@ export default async function PublicApplyPage({
         programId={programId}
         programName={program.name}
         questions={questions ?? []}
+        referenceSlots={referenceSlots ?? []}
       />
     </div>
   );

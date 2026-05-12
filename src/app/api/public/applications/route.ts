@@ -5,15 +5,18 @@ import {
   getQuestionsByProgram,
   getResponseByEmailAndProgram,
   createPublicResponse,
+  getReferenceSlotsByProgram,
+  createReferenceRequest,
 } from "@/services/schools";
 import { Resend } from "resend";
 import { applicationConfirmationEmailHtml } from "@/lib/email/templates/application-confirmation";
+import { referenceRequestEmailHtml } from "@/lib/email/templates/reference-request";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const { program_id, applicant_info, answers } = body;
+  const { program_id, applicant_info, answers, references } = body;
 
   if (!program_id || !applicant_info || !answers) {
     return NextResponse.json(
@@ -132,6 +135,47 @@ export async function POST(request: Request) {
       programName: program.name,
     }),
   });
+
+  // Create reference requests and send emails to referees
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://ffsahub.com";
+  if (references && Array.isArray(references) && references.length > 0) {
+    const { data: slots } = await getReferenceSlotsByProgram(supabase, program_id);
+    const slotMap = new Map<string, any>((slots ?? []).map((s: any) => [s.id, s]));
+
+    for (const ref of references) {
+      if (!ref.slot_id || !ref.referee_name || !ref.referee_email) continue;
+
+      const { data: refRequest } = await createReferenceRequest(supabase, {
+        application_id: response.id,
+        slot_id: ref.slot_id,
+        referee_name: ref.referee_name,
+        referee_email: ref.referee_email,
+      });
+
+      if (refRequest) {
+        const slot = slotMap.get(ref.slot_id);
+        const referenceUrl = `${siteUrl}/reference/${refRequest.token}`;
+
+        await resend.emails.send({
+          from: `Fire & Fragrance SA <${fromEmail}>`,
+          to: ref.referee_email,
+          subject: `Reference Request — ${program.name}`,
+          html: referenceRequestEmailHtml({
+            refereeName: ref.referee_name,
+            applicantName: `${first_name} ${last_name}`,
+            programName: program.name,
+            slotLabel: slot?.label ?? "Reference",
+            referenceUrl,
+          }),
+        });
+
+        await (supabase as any)
+          .from("reference_requests")
+          .update({ email_sent_at: new Date().toISOString() })
+          .eq("id", refRequest.id);
+      }
+    }
+  }
 
   return NextResponse.json({ success: true, id: response.id });
 }

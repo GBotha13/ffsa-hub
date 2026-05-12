@@ -17,18 +17,29 @@ type Question = {
   is_required: boolean;
 };
 
+type ReferenceSlot = {
+  id: string;
+  label: string;
+  description: string | null;
+  is_required: boolean;
+};
+
 export function ApplicationForm({
   programId,
   questions,
+  referenceSlots = [],
 }: {
   programId: string;
   questions: Question[];
+  referenceSlots?: ReferenceSlot[];
 }) {
   const router = useRouter();
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [refNames, setRefNames] = useState<Record<string, string>>({});
+  const [refEmails, setRefEmails] = useState<Record<string, string>>({});
 
   function setAnswer(questionId: string, value: string) {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
@@ -42,6 +53,13 @@ export function ApplicationForm({
     for (const q of questions) {
       if (q.is_required && !answers[q.id]?.trim()) {
         setError(`Please answer: "${q.label}"`);
+        return;
+      }
+    }
+
+    for (const slot of referenceSlots) {
+      if (slot.is_required && (!refNames[slot.id]?.trim() || !refEmails[slot.id]?.trim())) {
+        setError(`Please provide referee details for: "${slot.label}"`);
         return;
       }
     }
@@ -61,6 +79,13 @@ export function ApplicationForm({
         body: JSON.stringify({
           program_id: programId,
           answers: formattedAnswers,
+          references: referenceSlots
+            .filter((slot) => refNames[slot.id]?.trim() && refEmails[slot.id]?.trim())
+            .map((slot) => ({
+              slot_id: slot.id,
+              referee_name: refNames[slot.id].trim(),
+              referee_email: refEmails[slot.id].trim(),
+            })),
         }),
       });
 
@@ -126,6 +151,50 @@ export function ApplicationForm({
           )}
         </div>
       ))}
+
+      {/* References */}
+      {referenceSlots.length > 0 && (
+        <div className="space-y-4 rounded-lg border bg-card p-5">
+          <div>
+            <h3 className="text-sm font-semibold">References</h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              Your referees will receive an email with a link to submit their reference.
+            </p>
+          </div>
+          {referenceSlots.map((slot) => (
+            <div key={slot.id} className="space-y-3 rounded-md border p-4">
+              <p className="text-sm font-medium">
+                {slot.label}
+                {slot.is_required && <span className="text-destructive ml-1">*</span>}
+              </p>
+              {slot.description && (
+                <p className="text-xs text-muted-foreground">{slot.description}</p>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <Label>Referee Name {slot.is_required && <span className="text-destructive">*</span>}</Label>
+                  <Input
+                    placeholder="Full name"
+                    value={refNames[slot.id] ?? ""}
+                    onChange={(e) => setRefNames((prev) => ({ ...prev, [slot.id]: e.target.value }))}
+                    required={slot.is_required}
+                  />
+                </div>
+                <div>
+                  <Label>Referee Email {slot.is_required && <span className="text-destructive">*</span>}</Label>
+                  <Input
+                    type="email"
+                    placeholder="referee@email.com"
+                    value={refEmails[slot.id] ?? ""}
+                    onChange={(e) => setRefEmails((prev) => ({ ...prev, [slot.id]: e.target.value }))}
+                    required={slot.is_required}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {error && (
         <p className="text-sm text-destructive">{error}</p>

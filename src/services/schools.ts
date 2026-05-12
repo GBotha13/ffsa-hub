@@ -508,3 +508,89 @@ export async function updateResponseStatus(
     .select()
     .single();
 }
+
+// ────────────────────────────────────────────────────────────
+// REFERENCE SLOTS
+// ────────────────────────────────────────────────────────────
+
+export async function getReferenceSlotsByProgram(supabase: Client, programId: string) {
+  return supabase
+    .from("reference_slots")
+    .select("*")
+    .eq("program_id", programId)
+    .order("sort_order", { ascending: true });
+}
+
+export async function createReferenceSlot(supabase: Client, data: {
+  program_id: string;
+  label: string;
+  description?: string | null;
+  sort_order?: number;
+  is_required?: boolean;
+}) {
+  return supabase.from("reference_slots").insert(data).select().single();
+}
+
+export async function updateReferenceSlot(
+  supabase: Client,
+  id: string,
+  data: {
+    label?: string;
+    description?: string | null;
+    sort_order?: number;
+    is_required?: boolean;
+  }
+) {
+  return supabase.from("reference_slots").update(data).eq("id", id).select().single();
+}
+
+export async function deleteReferenceSlot(supabase: Client, id: string) {
+  return supabase.from("reference_slots").delete().eq("id", id);
+}
+
+// ────────────────────────────────────────────────────────────
+// REFERENCE REQUESTS
+// ────────────────────────────────────────────────────────────
+
+export async function createReferenceRequest(supabase: Client, data: {
+  application_id: string;
+  slot_id: string;
+  referee_name: string;
+  referee_email: string;
+}) {
+  return supabase.from("reference_requests").insert(data).select().single();
+}
+
+export async function getReferenceRequestsByApplication(supabase: Client, applicationId: string) {
+  return supabase
+    .from("reference_requests")
+    .select("*, reference_slots(label, description)")
+    .eq("application_id", applicationId)
+    .order("created_at", { ascending: true });
+}
+
+export async function getReferenceRequestByToken(supabase: Client, token: string) {
+  return supabase
+    .from("reference_requests")
+    .select("*, reference_slots(label, description), application_responses(id, program_id, user_id, applicant_email, applicant_info, programs(name, code))")
+    .eq("token", token)
+    .single();
+}
+
+export async function submitReference(
+  supabase: Client,
+  token: string,
+  data: { relationship: string; known_duration: string; reference_text: string }
+) {
+  return supabase
+    .from("reference_requests")
+    .update({
+      ...data,
+      status: "submitted",
+      submitted_at: new Date().toISOString(),
+    })
+    .eq("token", token)
+    .eq("status", "pending")
+    .select()
+    .single();
+}
