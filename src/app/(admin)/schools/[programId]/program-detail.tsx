@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -160,6 +160,74 @@ type AppResponse = {
     email: string | null;
   } | null;
 };
+
+// ────────────────────────────────────────────────────────────
+// STORAGE IMAGE COMPONENT
+// ────────────────────────────────────────────────────────────
+
+function StorageImage({ storagePath }: { storagePath: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    async function fetchUrl() {
+      try {
+        const res = await fetch(
+          `/api/upload/view?path=${encodeURIComponent(storagePath)}`
+        );
+        if (!res.ok) throw new Error("Failed");
+        const data = await res.json();
+        setUrl(data.url);
+      } catch {
+        setError(true);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchUrl();
+  }, [storagePath]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading photo…
+      </div>
+    );
+  }
+
+  if (error || !url) {
+    return (
+      <p className="text-sm text-muted-foreground italic">
+        Unable to load photo
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={url}
+        alt="Applicant photo"
+        className="max-w-[200px] max-h-[250px] rounded-lg border object-cover"
+      />
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1 text-xs text-blue-400 hover:underline"
+      >
+        <Download className="h-3 w-3" /> View full size
+      </a>
+    </div>
+  );
+}
+
+function isStoragePath(value: string): boolean {
+  return value.startsWith("applications/") && value.length > 20;
+}
 
 const LETTER_GRADES = [
   "A", "A-", "B+", "B", "B-", "C+", "C", "C-",
@@ -2527,16 +2595,25 @@ function ApplicationTab({
 
               {/* Answers */}
               <div className="space-y-4">
-                {reviewingResponse.answers.map((a, idx) => (
-                  <div key={idx} className="space-y-1">
-                    <Label className="text-sm font-medium">
-                      {a.question_label}
-                    </Label>
-                    <div className="rounded-md bg-muted p-3 text-sm whitespace-pre-wrap">
-                      {a.answer || <span className="text-muted-foreground italic">No answer provided</span>}
+                {reviewingResponse.answers.map((a, idx) => {
+                  const isPhoto = isStoragePath(a.answer ?? "");
+                  return (
+                    <div key={idx} className="space-y-1">
+                      <Label className="text-sm font-medium">
+                        {a.question_label}
+                      </Label>
+                      <div className="rounded-md bg-muted p-3 text-sm whitespace-pre-wrap">
+                        {!a.answer ? (
+                          <span className="text-muted-foreground italic">No answer provided</span>
+                        ) : isPhoto ? (
+                          <StorageImage storagePath={a.answer} />
+                        ) : (
+                          a.answer
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* References */}

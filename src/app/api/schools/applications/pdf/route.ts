@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 function escapeHtml(text: string): string {
   return text
@@ -142,14 +143,38 @@ export async function GET(request: Request) {
     waitlisted: "background:#fef3c7;color:#92400e;",
   };
 
+  // Generate signed URLs for any photo/file answers
+  const adminSupabase = createAdminClient();
+  const photoUrls = new Map<string, string>();
+  for (const q of allQuestions) {
+    const answer = answersMap.get(q.id) ?? "";
+    if (answer.startsWith("applications/") && answer.length > 20) {
+      const { data: signedData } = await adminSupabase.storage
+        .from("application-uploads")
+        .createSignedUrl(answer, 3600);
+      if (signedData?.signedUrl) {
+        photoUrls.set(q.id, signedData.signedUrl);
+      }
+    }
+  }
+
   // Build Q&A HTML
   let questionsHtml = "";
   for (const q of allQuestions) {
     const answer = answersMap.get(q.id) ?? "";
+    const photoUrl = photoUrls.get(q.id);
+    let answerHtml: string;
+    if (photoUrl) {
+      answerHtml = `<img src="${photoUrl}" alt="Applicant photo" style="max-width:200px;max-height:250px;border-radius:8px;border:1px solid #ddd;" />`;
+    } else if (answer) {
+      answerHtml = escapeHtml(answer);
+    } else {
+      answerHtml = '<span class="empty">No answer provided</span>';
+    }
     questionsHtml += `
       <div class="qa-block">
         <div class="question">${escapeHtml(q.label)}</div>
-        <div class="answer">${answer ? escapeHtml(answer) : '<span class="empty">No answer provided</span>'}</div>
+        <div class="answer">${answerHtml}</div>
       </div>`;
   }
 
