@@ -88,9 +88,9 @@ export async function GET(request: Request) {
     }
   }
 
-  // Fetch all reference requests for these applications
+  // Fetch all reference requests for these applications (including full form_data)
   const applicationIds = allResponses.map((r) => r.id);
-  let referencesMap = new Map<string, Array<{ slotLabel: string; refereeName: string; status: string }>>();
+  let referencesMap = new Map<string, any[]>();
 
   if (applicationIds.length > 0) {
     const { data: refRequests } = await (supabase as any)
@@ -103,12 +103,7 @@ export async function GET(request: Request) {
       if (!referencesMap.has(appId)) {
         referencesMap.set(appId, []);
       }
-      const slotLabel = ref.reference_slots?.label ?? "Reference";
-      referencesMap.get(appId)!.push({
-        slotLabel,
-        refereeName: ref.referee_name as string,
-        status: ref.status as string,
-      });
+      referencesMap.get(appId)!.push(ref);
     }
   }
 
@@ -119,9 +114,38 @@ export async function GET(request: Request) {
     "Status",
     "Submitted Date",
     ...allQuestions.map((q) => q.label),
-    "References",
+    "References Summary",
     "Admin Notes",
   ];
+
+  // Add per-reference columns for each reference slot
+  // Find max reference count
+  let maxRefs = 0;
+  for (const refs of referencesMap.values()) {
+    if (refs.length > maxRefs) maxRefs = refs.length;
+  }
+
+  for (let i = 0; i < maxRefs; i++) {
+    const n = i + 1;
+    headers.push(
+      `Ref ${n} — Type`,
+      `Ref ${n} — Referee`,
+      `Ref ${n} — Email`,
+      `Ref ${n} — Status`,
+      `Ref ${n} — Relationship`,
+      `Ref ${n} — Known Duration`,
+      `Ref ${n} — Growth/Discipleship`,
+      `Ref ${n} — Character Ratings`,
+      `Ref ${n} — Character Comments`,
+      `Ref ${n} — Christian History`,
+      `Ref ${n} — Strengths & Weaknesses`,
+      `Ref ${n} — Seeking Growth`,
+      `Ref ${n} — Missions/Ministry`,
+      `Ref ${n} — Recommendation`,
+      `Ref ${n} — Recommendation Explanation`,
+      `Ref ${n} — Other Comments`,
+    );
+  }
 
   // Build CSV rows
   const rows: string[][] = [];
@@ -132,7 +156,6 @@ export async function GET(request: Request) {
       ? usersMap.get(response.user_id)
       : null;
 
-    // Name: prefer users table, fall back to applicant_info
     let name = "";
     if (userRecord?.first_name || userRecord?.last_name) {
       name = `${userRecord.first_name ?? ""} ${userRecord.last_name ?? ""}`.trim();
@@ -140,7 +163,6 @@ export async function GET(request: Request) {
       name = `${applicantInfo.first_name ?? ""} ${applicantInfo.last_name ?? ""}`.trim();
     }
 
-    // Email: prefer users table, fall back to applicant_email, then applicant_info
     let email = "";
     if (userRecord?.email) {
       email = userRecord.email;
@@ -155,7 +177,6 @@ export async function GET(request: Request) {
       ? new Date(response.submitted_at).toLocaleDateString("en-ZA")
       : "";
 
-    // Map answers by question_id
     const answersArray = (response.answers as Array<{
       question_id: string;
       question_label?: string;
@@ -170,15 +191,15 @@ export async function GET(request: Request) {
       (q) => answersMap.get(q.id) ?? ""
     );
 
-    // Build references string
+    // Build references summary
     const refs = referencesMap.get(response.id) ?? [];
     const referencesStr = refs
-      .map((r) => `${r.slotLabel}: ${r.refereeName} (${r.status})`)
-      .join(", ");
+      .map((r: any) => `${r.reference_slots?.label ?? "Ref"}: ${r.referee_name} (${r.status})`)
+      .join("; ");
 
     const adminNotes = (response as any).admin_notes ?? "";
 
-    rows.push([
+    const row: string[] = [
       name,
       email,
       status,
@@ -186,7 +207,43 @@ export async function GET(request: Request) {
       ...questionValues,
       referencesStr,
       adminNotes,
-    ]);
+    ];
+
+    // Add per-reference detailed columns
+    for (let i = 0; i < maxRefs; i++) {
+      const ref = refs[i] as any | undefined;
+      if (ref) {
+        const fd = ref.form_data as Record<string, any> | null;
+        const ratings = fd?.character_ratings as Record<string, string> | undefined;
+        const ratingsStr = ratings
+          ? Object.entries(ratings).map(([trait, rating]) => `${trait}: ${rating}`).join("; ")
+          : "";
+
+        row.push(
+          ref.reference_slots?.label ?? "",
+          ref.referee_name ?? "",
+          ref.referee_email ?? "",
+          ref.status ?? "",
+          ref.relationship ?? "",
+          ref.known_duration ?? "",
+          fd?.growth_context ?? "",
+          ratingsStr,
+          fd?.additional_comments ?? "",
+          fd?.christian_history ? `${fd.christian_history}${fd.christian_history_why ? ` — ${fd.christian_history_why}` : ""}` : "",
+          fd?.strengths_weaknesses ?? "",
+          fd?.seeking_growth ?? "",
+          fd?.missions_ministry ?? "",
+          fd?.recommendation ?? "",
+          fd?.recommendation_explanation ?? "",
+          fd?.other_comments ?? "",
+        );
+      } else {
+        // Pad empty columns
+        row.push(...Array(16).fill(""));
+      }
+    }
+
+    rows.push(row);
   }
 
   // Build CSV content
