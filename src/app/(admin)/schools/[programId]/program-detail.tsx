@@ -1544,6 +1544,8 @@ function ApplicationTab({
 
   const responseStatusColors: Record<string, "default" | "secondary" | "destructive"> = {
     submitted: "secondary",
+    references_received: "secondary",
+    interview_scheduled: "secondary",
     accepted: "default",
     rejected: "destructive",
     waitlisted: "secondary",
@@ -2097,7 +2099,7 @@ function ApplicationTab({
                         }
                         return (
                           <Badge variant={responseStatusColors[resp.status] ?? "secondary"}>
-                            {resp.status}
+                            {resp.status.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}
                           </Badge>
                         );
                       })()}
@@ -2355,6 +2357,8 @@ function ApplicationTab({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="submitted">Submitted</SelectItem>
+                    <SelectItem value="references_received">References Received</SelectItem>
+                    <SelectItem value="interview_scheduled">Interview Scheduled</SelectItem>
                     <SelectItem value="accepted">Accepted</SelectItem>
                     <SelectItem value="rejected">Rejected</SelectItem>
                     <SelectItem value="waitlisted">Waitlisted</SelectItem>
