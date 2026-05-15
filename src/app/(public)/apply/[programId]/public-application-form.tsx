@@ -137,6 +137,7 @@ export function PublicApplicationForm({
   const defaultValues = useMemo(() => {
     const defaults: Record<string, unknown> = {};
     for (const q of allQuestions) {
+      if (q.type === "section_header") continue;
       if (q.type === "checkbox_group") {
         defaults[q.id] = [];
       } else if (q.type === "consent") {
@@ -176,6 +177,7 @@ export function PublicApplicationForm({
     }> = [];
 
     for (const q of allQuestions) {
+      if (q.type === "section_header") continue;
       const value = data[q.id];
       if (q.type === "file" && value && typeof value === "object") {
         const fv = value as FileValue;

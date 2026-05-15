@@ -12,6 +12,7 @@ import { PhoneInput } from "./phone-input";
 import { CountrySelect } from "./country-select";
 import { CheckboxGroup } from "./checkbox-group";
 import { FileUpload } from "./file-upload";
+import { SectionHeader } from "./section-header";
 import {
   Select,
   SelectContent,
@@ -97,6 +98,8 @@ export function FormField({
       );
     case "select":
       return <GenericSelect question={question} control={control} />;
+    case "section_header":
+      return <SectionHeader question={question} />;
     default:
       return <ShortText question={question} control={control} />;
   }

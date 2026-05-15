@@ -10,7 +10,8 @@ export type FormFieldType =
   | "radio"
   | "checkbox_group"
   | "file"
-  | "consent";
+  | "consent"
+  | "section_header";
 
 export type FormQuestion = {
   id: string;
@@ -96,6 +97,9 @@ export function mapDbQuestion(q: DbQuestion): FormQuestion {
       break;
     case "select":
       type = "select";
+      break;
+    case "section_header":
+      type = "section_header";
       break;
     default:
       type = "short_text";

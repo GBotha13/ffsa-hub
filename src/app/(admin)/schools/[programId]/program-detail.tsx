@@ -1753,20 +1753,20 @@ function ApplicationTab({
           <div className="rounded-lg border p-4">
             <form onSubmit={handleSaveQuestion} className="space-y-3">
               <div>
-                <Label>Question Label *</Label>
+                <Label>{qType === "section_header" ? "Header Title *" : "Question Label *"}</Label>
                 <Input
                   required
                   value={qLabel}
                   onChange={(e) => setQLabel(e.target.value)}
-                  placeholder="e.g. Tell us about your faith journey"
+                  placeholder={qType === "section_header" ? "e.g. Passport Information" : "e.g. Tell us about your faith journey"}
                 />
               </div>
               <div>
-                <Label>Help Text / Description</Label>
+                <Label>{qType === "section_header" ? "Description Text" : "Help Text / Description"}</Label>
                 <Input
                   value={qDescription}
                   onChange={(e) => setQDescription(e.target.value)}
-                  placeholder="Optional instructions for the applicant"
+                  placeholder={qType === "section_header" ? "Optional text shown below the header" : "Optional instructions for the applicant"}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -1788,19 +1788,22 @@ function ApplicationTab({
                       <SelectItem value="email">Email</SelectItem>
                       <SelectItem value="file">Photo Upload</SelectItem>
                       <SelectItem value="consent">Consent Checkbox</SelectItem>
+                      <SelectItem value="section_header">Section Header</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex items-center gap-2 pt-6">
-                  <input
-                    type="checkbox"
-                    id="q-required"
-                    checked={qRequired}
-                    onChange={(e) => setQRequired(e.target.checked)}
-                    className="rounded"
-                  />
-                  <Label htmlFor="q-required" className="mb-0">Required</Label>
-                </div>
+                {qType !== "section_header" && (
+                  <div className="flex items-center gap-2 pt-6">
+                    <input
+                      type="checkbox"
+                      id="q-required"
+                      checked={qRequired}
+                      onChange={(e) => setQRequired(e.target.checked)}
+                      className="rounded"
+                    />
+                    <Label htmlFor="q-required" className="mb-0">Required</Label>
+                  </div>
+                )}
               </div>
               {(qType === "multiple_choice" || qType === "checkbox_group") && (
                 <div>
@@ -1884,6 +1887,7 @@ function ApplicationTab({
                         email: "Email",
                         file: "Photo",
                         consent: "Consent",
+                        section_header: "Header",
                       } as Record<string, string>)[q.type] ?? q.type}
                     </Badge>
                     {q.is_required && (

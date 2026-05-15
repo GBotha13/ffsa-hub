@@ -24,6 +24,8 @@ export function buildFormSchema(questions: FormQuestion[]) {
   const shape: Record<string, z.ZodType> = {};
 
   for (const q of questions) {
+    if (q.type === "section_header") continue;
+
     let field: z.ZodType;
 
     switch (q.type) {
