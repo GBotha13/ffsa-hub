@@ -31,7 +31,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, Download, ChevronUp, ChevronDown, Edit2, ClipboardList, Copy, Check, Link as LinkIcon, Archive, BookTemplate, Upload, Loader2, FileText, Send, BarChart3, Calendar, RefreshCw, CheckSquare } from "lucide-react";
+import { Plus, Trash2, Download, ChevronUp, ChevronDown, Edit2, ClipboardList, Copy, Check, Link as LinkIcon, Archive, BookTemplate, Upload, Loader2, FileText, Send, BarChart3, Calendar, RefreshCw, CheckSquare, Search, Users } from "lucide-react";
 import { ProgramActions } from "../program-actions";
 
 // ────────────────────────────────────────────────────────────
@@ -406,7 +406,10 @@ export function ProgramDetail({
           </TabsTrigger>
           <TabsTrigger value="grades">Grades</TabsTrigger>
           <TabsTrigger value="application">
-            Application ({responses.length})
+            Application
+          </TabsTrigger>
+          <TabsTrigger value="applicants">
+            Applicants ({responses.length})
           </TabsTrigger>
         </TabsList>
 
@@ -438,9 +441,18 @@ export function ProgramDetail({
             applicationOpen={program.application_open}
             applicationDeadline={program.application_deadline}
             questions={questions}
+            referenceSlots={referenceSlots}
+          />
+        </TabsContent>
+
+        <TabsContent value="applicants" className="mt-4">
+          <ApplicantsTab
+            programId={program.id}
+            programCode={program.code}
             responses={responses}
             referenceSlots={referenceSlots}
             refRequestSummaries={refRequestSummaries}
+            questions={questions}
           />
         </TabsContent>
       </Tabs>
@@ -1166,7 +1178,7 @@ function GradesTab({
 }
 
 // ────────────────────────────────────────────────────────────
-// APPLICATION TAB
+// APPLICANTS TAB
 // ────────────────────────────────────────────────────────────
 
 type AnalyticsData = {
@@ -1179,31 +1191,873 @@ type AnalyticsData = {
   weeklyData: Array<{ week: string; count: number }>;
 };
 
+const ALL_STATUSES = [
+  { key: "all", label: "All" },
+  { key: "submitted", label: "Submitted" },
+  { key: "references_received", label: "Refs Received" },
+  { key: "interview_scheduled", label: "Interview" },
+  { key: "accepted", label: "Accepted" },
+  { key: "waitlisted", label: "Waitlisted" },
+  { key: "rejected", label: "Rejected" },
+] as const;
+
+function ApplicantsTab({
+  programId,
+  programCode,
+  responses,
+  referenceSlots,
+  refRequestSummaries,
+  questions,
+}: {
+  programId: string;
+  programCode: string;
+  responses: AppResponse[];
+  referenceSlots: ReferenceSlot[];
+  refRequestSummaries: RefRequestSummary[];
+  questions: AppQuestion[];
+}) {
+  const router = useRouter();
+  const [reviewingResponse, setReviewingResponse] = useState<AppResponse | null>(null);
+
+  // Reference display in review dialog
+  const [reviewReferences, setReviewReferences] = useState<ReferenceRequest[]>([]);
+  const [refsLoading, setRefsLoading] = useState(false);
+
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkStatus, setBulkStatus] = useState("");
+  const [bulkLoading, setBulkLoading] = useState(false);
+
+  // Analytics state
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  // Reference reminder state
+  const [sendingReminder, setSendingReminder] = useState<string | null>(null);
+
+  // Review state
+  const [reviewStatus, setReviewStatus] = useState("");
+  const [reviewNotes, setReviewNotes] = useState("");
+  const [reviewLoading, setReviewLoading] = useState(false);
+
+  // Pipeline filter & search
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  function respName(resp: AppResponse) {
+    if (resp.users) {
+      const u = resp.users;
+      if (u.first_name) return `${u.preferred_name ?? u.first_name} ${u.last_name ?? ""}`.trim();
+      return u.email ?? "Unknown";
+    }
+    if (resp.applicant_info) {
+      return `${resp.applicant_info.first_name} ${resp.applicant_info.last_name}`.trim();
+    }
+    return resp.applicant_email ?? "Unknown";
+  }
+
+  function respEmail(resp: AppResponse) {
+    return resp.users?.email ?? resp.applicant_email ?? resp.applicant_info?.email ?? "—";
+  }
+
+  const responseStatusColors: Record<string, "default" | "secondary" | "destructive"> = {
+    submitted: "secondary",
+    references_received: "secondary",
+    interview_scheduled: "secondary",
+    accepted: "default",
+    rejected: "destructive",
+    waitlisted: "secondary",
+  };
+
+  // Compute status counts for pipeline chips
+  const statusCounts: Record<string, number> = {};
+  for (const resp of responses) {
+    statusCounts[resp.status] = (statusCounts[resp.status] ?? 0) + 1;
+  }
+
+  // Filter responses by status and search
+  const filteredResponses = responses.filter((resp) => {
+    if (statusFilter !== "all" && resp.status !== statusFilter) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const name = respName(resp).toLowerCase();
+      const email = respEmail(resp).toLowerCase();
+      if (!name.includes(q) && !email.includes(q)) return false;
+    }
+    return true;
+  });
+
+  async function fetchReferences(applicationId: string) {
+    setRefsLoading(true);
+    try {
+      const res = await fetch(`/api/schools/applications/references?application_id=${applicationId}`);
+      const data = await res.json();
+      if (res.ok) setReviewReferences(data.references ?? []);
+    } catch {
+      // ignore
+    } finally {
+      setRefsLoading(false);
+    }
+  }
+
+  // ── Bulk Actions ──
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === filteredResponses.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredResponses.map((r) => r.id)));
+    }
+  }
+
+  async function handleBulkStatusUpdate() {
+    if (selectedIds.size === 0 || !bulkStatus) return;
+    setBulkLoading(true);
+    try {
+      const res = await fetch("/api/schools/applications/responses", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: Array.from(selectedIds),
+          status: bulkStatus,
+          send_email: true,
+        }),
+      });
+      if (res.ok) {
+        setSelectedIds(new Set());
+        setBulkStatus("");
+        router.refresh();
+      }
+    } catch {
+      alert("Failed to update statuses");
+    } finally {
+      setBulkLoading(false);
+    }
+  }
+
+  // ── Analytics ──
+  async function loadAnalytics() {
+    setAnalyticsLoading(true);
+    try {
+      const res = await fetch(`/api/schools/applications/analytics?program_id=${programId}`);
+      const data = await res.json();
+      if (res.ok) setAnalytics(data);
+    } catch { /* ignore */ }
+    setAnalyticsLoading(false);
+  }
+
+  // ── Reference Reminder ──
+  async function handleSendReminder(refRequestId: string) {
+    setSendingReminder(refRequestId);
+    try {
+      const res = await fetch("/api/schools/applications/responses", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "send_reference_reminder",
+          reference_request_id: refRequestId,
+        }),
+      });
+      if (res.ok) {
+        alert("Reminder sent!");
+        fetchReferences(reviewingResponse!.id);
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to send reminder");
+      }
+    } catch {
+      alert("Failed to send reminder");
+    } finally {
+      setSendingReminder(null);
+    }
+  }
+
+  async function handleReviewSave() {
+    if (!reviewingResponse || !reviewStatus) return;
+    setReviewLoading(true);
+
+    try {
+      // Public applicant being accepted — use the accept-application pipeline
+      if (reviewStatus === "accepted" && !reviewingResponse.user_id) {
+        const shouldAccept = confirm(
+          "Accept this application? This will create a user account, enroll the student, and send them an invite email."
+        );
+        if (!shouldAccept) {
+          setReviewLoading(false);
+          return;
+        }
+
+        const res = await fetch("/api/admin/accept-application", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ response_id: reviewingResponse.id }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          alert(data.error || "Failed to accept application");
+          return;
+        }
+
+        setReviewingResponse(null);
+        router.refresh();
+        return;
+      }
+
+      // Standard status update (for authenticated applicants or non-accept statuses)
+      const res = await fetch("/api/schools/applications/responses", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: reviewingResponse.id,
+          status: reviewStatus,
+          admin_notes: reviewNotes.trim() || null,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || "Failed to update status");
+        return;
+      }
+
+      // If accepted (authenticated user), offer to auto-enroll
+      if (reviewStatus === "accepted" && reviewingResponse.user_id) {
+        const shouldEnroll = confirm(
+          "Application accepted! Would you like to automatically enroll this student in the program?"
+        );
+        if (shouldEnroll) {
+          await fetch("/api/schools/enrollments", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              user_id: reviewingResponse.user_id,
+              program_id: programId,
+            }),
+          });
+        }
+      }
+
+      setReviewingResponse(null);
+      router.refresh();
+    } catch {
+      alert("Failed to update status");
+    } finally {
+      setReviewLoading(false);
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Pipeline Filter Chips & Search */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-muted-foreground" />
+            <h3 className="font-medium">Applicant Pipeline</h3>
+          </div>
+          {responses.length > 0 && (
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => { setShowAnalytics(!showAnalytics); if (!analytics) loadAnalytics(); }}
+              >
+                <BarChart3 className="mr-1 h-3 w-3" />
+                Analytics
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => window.open(`/api/schools/applications/export?program_id=${programId}`, "_blank")}
+              >
+                <Download className="mr-1 h-3 w-3" />
+                Export CSV
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Status filter chips */}
+        <div className="flex flex-wrap gap-2">
+          {ALL_STATUSES.map(({ key, label }) => {
+            const count = key === "all" ? responses.length : (statusCounts[key] ?? 0);
+            const isActive = statusFilter === key;
+            return (
+              <button
+                key={key}
+                onClick={() => setStatusFilter(key)}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                  isActive
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                }`}
+              >
+                {label}
+                <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                  isActive ? "bg-primary-foreground/20 text-primary-foreground" : "bg-background/50"
+                }`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Search bar */}
+        <div className="relative max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by name or email..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+      </div>
+
+      {/* Analytics Dashboard */}
+      {showAnalytics && (
+        <div className="rounded-lg border bg-card p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-medium flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Application Analytics
+            </h4>
+            <Button variant="ghost" size="sm" onClick={loadAnalytics} disabled={analyticsLoading}>
+              <RefreshCw className={`h-3 w-3 ${analyticsLoading ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
+          {analyticsLoading ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : analytics ? (
+            <div className="space-y-4">
+              {/* Stat Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="rounded-lg border p-3 text-center">
+                  <p className="text-2xl font-bold">{analytics.total}</p>
+                  <p className="text-xs text-muted-foreground">Total Applications</p>
+                </div>
+                <div className="rounded-lg border p-3 text-center">
+                  <p className="text-2xl font-bold">
+                    {analytics.avgDaysToDecision !== null ? `${analytics.avgDaysToDecision}d` : "—"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Avg. Time to Decision</p>
+                </div>
+                <div className="rounded-lg border p-3 text-center">
+                  <p className="text-2xl font-bold">
+                    {analytics.refCompletionRate !== null ? `${analytics.refCompletionRate}%` : "—"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Reference Completion</p>
+                </div>
+                <div className="rounded-lg border p-3 text-center">
+                  <p className="text-2xl font-bold">
+                    {analytics.statusCounts.accepted ?? 0}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Accepted</p>
+                </div>
+              </div>
+
+              {/* Status Breakdown */}
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Status Breakdown</p>
+                <div className="flex gap-2 flex-wrap">
+                  {Object.entries(analytics.statusCounts).map(([status, count]) => (
+                    <Badge key={status} variant={responseStatusColors[status] ?? "secondary"} className="gap-1">
+                      {status.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}
+                      <span className="font-bold">{count}</span>
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              {/* Weekly Bar Chart */}
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Applications per Week</p>
+                <div className="flex items-end gap-1 h-20">
+                  {analytics.weeklyData.map((w, i) => {
+                    const maxCount = Math.max(...analytics.weeklyData.map((d) => d.count), 1);
+                    const height = (w.count / maxCount) * 100;
+                    return (
+                      <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                        <span className="text-[10px] text-muted-foreground">{w.count || ""}</span>
+                        <div
+                          className="w-full rounded-t bg-primary/60 min-h-[2px]"
+                          style={{ height: `${Math.max(height, 3)}%` }}
+                        />
+                        <span className="text-[9px] text-muted-foreground truncate w-full text-center">{w.week}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {/* Bulk Actions Bar */}
+      {selectedIds.size > 0 && (
+        <div className="rounded-lg border bg-primary/5 border-primary/30 p-3 flex items-center gap-3">
+          <span className="text-sm font-medium">
+            {selectedIds.size} selected
+          </span>
+          <Select value={bulkStatus} onValueChange={setBulkStatus}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Set status..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="references_received">References Received</SelectItem>
+              <SelectItem value="interview_scheduled">Interview Scheduled</SelectItem>
+              <SelectItem value="accepted">Accepted</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
+              <SelectItem value="waitlisted">Waitlisted</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            size="sm"
+            disabled={!bulkStatus || bulkLoading}
+            onClick={handleBulkStatusUpdate}
+          >
+            {bulkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply"}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => { setSelectedIds(new Set()); setBulkStatus(""); }}>
+            Clear
+          </Button>
+        </div>
+      )}
+
+      {filteredResponses.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-6">
+          {responses.length === 0 ? "No applications submitted yet." : "No applicants match your filters."}
+        </p>
+      ) : (
+        <div className="rounded-lg border bg-card">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[40px]">
+                  <input
+                    type="checkbox"
+                    className="rounded"
+                    checked={selectedIds.size === filteredResponses.length && filteredResponses.length > 0}
+                    onChange={toggleSelectAll}
+                  />
+                </TableHead>
+                <TableHead>Student</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Submitted</TableHead>
+                <TableHead>Status</TableHead>
+                {referenceSlots.length > 0 && <TableHead>References</TableHead>}
+                <TableHead className="w-[120px]" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredResponses.map((resp) => (
+                <TableRow key={resp.id} className={selectedIds.has(resp.id) ? "bg-primary/5" : ""}>
+                  <TableCell>
+                    <input
+                      type="checkbox"
+                      className="rounded"
+                      checked={selectedIds.has(resp.id)}
+                      onChange={() => toggleSelect(resp.id)}
+                    />
+                  </TableCell>
+                  <TableCell className="font-medium">
+                    {respName(resp)}
+                    {!resp.user_id && (
+                      <Badge variant="secondary" className="ml-2 text-xs">Public</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {respEmail(resp)}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {new Date(resp.submitted_at).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell>
+                    {(() => {
+                      const refs = refRequestSummaries.filter((r) => r.application_id === resp.id);
+                      const totalRefs = refs.length;
+                      const submittedRefs = refs.filter((r) => r.status === "submitted").length;
+                      const allRefsIn = totalRefs > 0 && submittedRefs === totalRefs;
+                      const isComplete = allRefsIn && resp.status === "submitted";
+
+                      if (isComplete) {
+                        return (
+                          <Badge style={{ background: "hsl(142 55% 25%)", color: "hsl(142 55% 75%)", border: "1px solid hsl(142 55% 35%)" }}>
+                            Complete
+                          </Badge>
+                        );
+                      }
+                      return (
+                        <Badge variant={responseStatusColors[resp.status] ?? "secondary"}>
+                          {resp.status.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}
+                        </Badge>
+                      );
+                    })()}
+                  </TableCell>
+                  {referenceSlots.length > 0 && (
+                    <TableCell>
+                      {(() => {
+                        const refs = refRequestSummaries.filter((r) => r.application_id === resp.id);
+                        const totalRefs = refs.length;
+                        const submittedRefs = refs.filter((r) => r.status === "submitted").length;
+                        if (totalRefs === 0) return <span className="text-xs text-muted-foreground">—</span>;
+                        return (
+                          <span className={`text-xs font-medium ${submittedRefs === totalRefs ? "text-green-500" : "text-yellow-500"}`}>
+                            {submittedRefs === totalRefs ? "✓" : "⚠"} {submittedRefs}/{totalRefs}
+                          </span>
+                        );
+                      })()}
+                    </TableCell>
+                  )}
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setReviewingResponse(resp);
+                          setReviewStatus(resp.status);
+                          setReviewNotes(resp.admin_notes ?? "");
+                          fetchReferences(resp.id);
+                        }}
+                      >
+                        Review
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground"
+                        title="Print application"
+                        onClick={() => window.open(`/api/schools/applications/pdf?response_id=${resp.id}`, "_blank")}
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      {/* Review Dialog */}
+      <Dialog
+        open={reviewingResponse !== null}
+        onOpenChange={(open) => {
+          if (!open) setReviewingResponse(null);
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Application Review — {reviewingResponse && respName(reviewingResponse)}
+            </DialogTitle>
+          </DialogHeader>
+
+          {reviewingResponse && (
+            <div className="space-y-6">
+              {/* Applicant Info */}
+              <div className="text-sm text-muted-foreground space-y-1">
+                <p>Email: {respEmail(reviewingResponse)}</p>
+                <p>
+                  Submitted:{" "}
+                  {new Date(reviewingResponse.submitted_at).toLocaleDateString()}
+                </p>
+                {!reviewingResponse.user_id && reviewingResponse.applicant_info && (
+                  <div className="mt-3 rounded-md bg-muted p-3 space-y-1">
+                    <p className="text-xs font-medium text-foreground uppercase tracking-wider mb-2">Applicant Details</p>
+                    {reviewingResponse.applicant_info.phone && (
+                      <p>Phone: {reviewingResponse.applicant_info.phone}</p>
+                    )}
+                    {reviewingResponse.applicant_info.date_of_birth && (
+                      <p>Date of Birth: {reviewingResponse.applicant_info.date_of_birth}</p>
+                    )}
+                    {reviewingResponse.applicant_info.gender && (
+                      <p>Gender: {reviewingResponse.applicant_info.gender}</p>
+                    )}
+                    {reviewingResponse.applicant_info.nationality && (
+                      <p>Nationality: {reviewingResponse.applicant_info.nationality}</p>
+                    )}
+                    {reviewingResponse.applicant_info.country && (
+                      <p>Country: {reviewingResponse.applicant_info.country}</p>
+                    )}
+                    {reviewingResponse.applicant_info.city && (
+                      <p>City: {reviewingResponse.applicant_info.city}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Answers */}
+              <div className="space-y-4">
+                {reviewingResponse.answers.map((a, idx) => {
+                  const isPhoto = isStoragePath(a.answer ?? "");
+                  return (
+                    <div key={idx} className="space-y-1">
+                      <Label className="text-sm font-medium">
+                        {a.question_label}
+                      </Label>
+                      <div className="rounded-md bg-muted p-3 text-sm whitespace-pre-wrap">
+                        {!a.answer ? (
+                          <span className="text-muted-foreground italic">No answer provided</span>
+                        ) : isPhoto ? (
+                          <StorageImage storagePath={a.answer} />
+                        ) : (
+                          a.answer
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* References */}
+              {referenceSlots.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium">References</h4>
+                  {refsLoading ? (
+                    <p className="text-sm text-muted-foreground">Loading references...</p>
+                  ) : reviewReferences.length === 0 ? (
+                    <p className="text-sm text-muted-foreground italic">No references requested for this application.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {reviewReferences.map((ref) => (
+                        <div key={ref.id} className="rounded-lg border bg-muted/50 p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium">
+                                {ref.reference_slots?.label ?? "Reference"}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {ref.referee_name} · {ref.referee_email}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {ref.status !== "submitted" && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-xs gap-1"
+                                  disabled={sendingReminder === ref.id}
+                                  onClick={() => handleSendReminder(ref.id)}
+                                  title="Send reminder email"
+                                >
+                                  {sendingReminder === ref.id ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <Send className="h-3 w-3" />
+                                  )}
+                                  Remind
+                                </Button>
+                              )}
+                              <Badge variant={ref.status === "submitted" ? "default" : "secondary"}>
+                                {ref.status === "submitted" ? "Submitted" : "Pending"}
+                              </Badge>
+                            </div>
+                          </div>
+                          {ref.status === "submitted" && (
+                            <div className="space-y-3 pt-2 border-t text-sm">
+                              {/* Basic info */}
+                              <div className="grid grid-cols-2 gap-2">
+                                {ref.relationship && (
+                                  <div>
+                                    <p className="text-xs font-medium text-muted-foreground">Relationship</p>
+                                    <p>{ref.relationship}</p>
+                                  </div>
+                                )}
+                                {ref.known_duration && (
+                                  <div>
+                                    <p className="text-xs font-medium text-muted-foreground">Known Duration</p>
+                                    <p>{ref.known_duration}</p>
+                                  </div>
+                                )}
+                                {ref.form_data?.whatsapp_number && (
+                                  <div>
+                                    <p className="text-xs font-medium text-muted-foreground">WhatsApp</p>
+                                    <p>{ref.form_data.whatsapp_number}</p>
+                                  </div>
+                                )}
+                              </div>
+                              {ref.form_data?.growth_context && (
+                                <div>
+                                  <p className="text-xs font-medium text-muted-foreground">Growth/Discipleship Context</p>
+                                  <p className="whitespace-pre-wrap">{ref.form_data.growth_context}</p>
+                                </div>
+                              )}
+
+                              {/* Character ratings */}
+                              {ref.form_data?.character_ratings && Object.keys(ref.form_data.character_ratings).length > 0 && (
+                                <div>
+                                  <p className="text-xs font-medium text-muted-foreground mb-1">Character Assessment</p>
+                                  <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
+                                    {Object.entries(ref.form_data.character_ratings).map(([trait, rating]) => (
+                                      <div key={trait} className="flex justify-between">
+                                        <span className="text-muted-foreground">{trait}</span>
+                                        <span className={
+                                          rating === "Excellent" ? "text-green-500" :
+                                          rating === "Good" ? "text-blue-400" :
+                                          rating === "Fair" ? "text-yellow-500" :
+                                          "text-red-400"
+                                        }>{rating as string}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {ref.form_data?.additional_comments && (
+                                <div>
+                                  <p className="text-xs font-medium text-muted-foreground">Additional Comments on Character</p>
+                                  <p className="whitespace-pre-wrap">{ref.form_data.additional_comments}</p>
+                                </div>
+                              )}
+
+                              {/* Short answers */}
+                              {ref.form_data?.christian_history && (
+                                <div>
+                                  <p className="text-xs font-medium text-muted-foreground">Christian History</p>
+                                  <p><strong>{ref.form_data.christian_history}</strong> — {ref.form_data.christian_history_why}</p>
+                                </div>
+                              )}
+                              {ref.form_data?.strengths_weaknesses && (
+                                <div>
+                                  <p className="text-xs font-medium text-muted-foreground">Strengths & Weaknesses</p>
+                                  <p className="whitespace-pre-wrap">{ref.form_data.strengths_weaknesses}</p>
+                                </div>
+                              )}
+                              {ref.form_data?.seeking_growth && (
+                                <div>
+                                  <p className="text-xs font-medium text-muted-foreground">Actively Seeking Growth?</p>
+                                  <p className="whitespace-pre-wrap">{ref.form_data.seeking_growth}</p>
+                                </div>
+                              )}
+                              {ref.form_data?.missions_ministry && (
+                                <div>
+                                  <p className="text-xs font-medium text-muted-foreground">Missions/Ministry Area</p>
+                                  <p className="whitespace-pre-wrap">{ref.form_data.missions_ministry}</p>
+                                </div>
+                              )}
+                              {ref.form_data?.recommendation && (
+                                <div>
+                                  <p className="text-xs font-medium text-muted-foreground">Recommendation</p>
+                                  <p>
+                                    <Badge variant={
+                                      ref.form_data.recommendation === "Yes" ? "default" :
+                                      ref.form_data.recommendation === "No" ? "destructive" :
+                                      "secondary"
+                                    }>
+                                      {ref.form_data.recommendation}
+                                    </Badge>
+                                  </p>
+                                  {ref.form_data.recommendation_explanation && (
+                                    <p className="whitespace-pre-wrap mt-1 text-muted-foreground">{ref.form_data.recommendation_explanation}</p>
+                                  )}
+                                </div>
+                              )}
+                              {ref.form_data?.other_comments && (
+                                <div>
+                                  <p className="text-xs font-medium text-muted-foreground">Other Comments</p>
+                                  <p className="whitespace-pre-wrap">{ref.form_data.other_comments}</p>
+                                </div>
+                              )}
+
+                              {/* Fallback for old-style references without form_data */}
+                              {!ref.form_data && ref.reference_text && (
+                                <div>
+                                  <p className="text-xs font-medium text-muted-foreground">Reference</p>
+                                  <p className="whitespace-pre-wrap">{ref.reference_text}</p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Admin Notes */}
+              <div className="border-t pt-4 space-y-2">
+                <Label>Notes</Label>
+                <Textarea
+                  value={reviewNotes}
+                  onChange={(e) => setReviewNotes(e.target.value)}
+                  placeholder="Internal notes about this applicant (not visible to the applicant)"
+                  rows={3}
+                />
+              </div>
+
+              {/* Status Update */}
+              <div className="flex items-center gap-4 pt-2">
+                <Label>Decision:</Label>
+                <Select value={reviewStatus} onValueChange={setReviewStatus}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="submitted">Submitted</SelectItem>
+                    <SelectItem value="references_received">References Received</SelectItem>
+                    <SelectItem value="interview_scheduled">Interview Scheduled</SelectItem>
+                    <SelectItem value="accepted">Accepted</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                    <SelectItem value="waitlisted">Waitlisted</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  onClick={handleReviewSave}
+                  disabled={reviewLoading || (reviewStatus === reviewingResponse.status && (reviewNotes.trim() || "") === (reviewingResponse.admin_notes || ""))}
+                  size="sm"
+                >
+                  {reviewLoading ? "Saving..." : "Save Decision"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// APPLICATION TAB
+// ────────────────────────────────────────────────────────────
+
 function ApplicationTab({
   programId,
   programCode,
   applicationOpen,
   applicationDeadline,
   questions,
-  responses,
   referenceSlots,
-  refRequestSummaries,
 }: {
   programId: string;
   programCode: string;
   applicationOpen: boolean;
   applicationDeadline: string | null;
   questions: AppQuestion[];
-  responses: AppResponse[];
   referenceSlots: ReferenceSlot[];
-  refRequestSummaries: RefRequestSummary[];
 }) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(applicationOpen);
   const [toggling, setToggling] = useState(false);
   const [showAddQuestion, setShowAddQuestion] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<AppQuestion | null>(null);
-  const [reviewingResponse, setReviewingResponse] = useState<AppResponse | null>(null);
 
   // Reference slot state
   const [showAddSlot, setShowAddSlot] = useState(false);
@@ -1214,28 +2068,11 @@ function ApplicationTab({
   const [slotLoading, setSlotLoading] = useState(false);
   const [slotError, setSlotError] = useState<string | null>(null);
 
-  // Reference display in review dialog
-  const [reviewReferences, setReviewReferences] = useState<ReferenceRequest[]>([]);
-  const [refsLoading, setRefsLoading] = useState(false);
-
   const [copied, setCopied] = useState(false);
-
-  // Bulk selection state
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkStatus, setBulkStatus] = useState("");
-  const [bulkLoading, setBulkLoading] = useState(false);
 
   // Deadline state
   const [deadline, setDeadline] = useState(applicationDeadline ?? "");
   const [deadlineSaving, setDeadlineSaving] = useState(false);
-
-  // Analytics state
-  const [showAnalytics, setShowAnalytics] = useState(false);
-  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
-  const [analyticsLoading, setAnalyticsLoading] = useState(false);
-
-  // Reference reminder state
-  const [sendingReminder, setSendingReminder] = useState<string | null>(null);
 
   function copyPublicLink() {
     const link = `${window.location.origin}/apply/${programId}`;
@@ -1334,11 +2171,6 @@ function ApplicationTab({
       if (res.ok) loadTemplates();
     } catch { /* ignore */ }
   }
-
-  // Review state
-  const [reviewStatus, setReviewStatus] = useState("");
-  const [reviewNotes, setReviewNotes] = useState("");
-  const [reviewLoading, setReviewLoading] = useState(false);
 
   async function handleToggleOpen() {
     setToggling(true);
@@ -1566,62 +2398,6 @@ function ApplicationTab({
     router.refresh();
   }
 
-  async function fetchReferences(applicationId: string) {
-    setRefsLoading(true);
-    try {
-      const res = await fetch(`/api/schools/applications/references?application_id=${applicationId}`);
-      const data = await res.json();
-      if (res.ok) setReviewReferences(data.references ?? []);
-    } catch {
-      // ignore
-    } finally {
-      setRefsLoading(false);
-    }
-  }
-
-  // ── Bulk Actions ──
-  function toggleSelect(id: string) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  function toggleSelectAll() {
-    if (selectedIds.size === responses.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(responses.map((r) => r.id)));
-    }
-  }
-
-  async function handleBulkStatusUpdate() {
-    if (selectedIds.size === 0 || !bulkStatus) return;
-    setBulkLoading(true);
-    try {
-      const res = await fetch("/api/schools/applications/responses", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ids: Array.from(selectedIds),
-          status: bulkStatus,
-          send_email: true,
-        }),
-      });
-      if (res.ok) {
-        setSelectedIds(new Set());
-        setBulkStatus("");
-        router.refresh();
-      }
-    } catch {
-      alert("Failed to update statuses");
-    } finally {
-      setBulkLoading(false);
-    }
-  }
-
   // ── Deadline ──
   async function handleSaveDeadline() {
     setDeadlineSaving(true);
@@ -1638,143 +2414,6 @@ function ApplicationTab({
     } catch { /* ignore */ }
     setDeadlineSaving(false);
   }
-
-  // ── Analytics ──
-  async function loadAnalytics() {
-    setAnalyticsLoading(true);
-    try {
-      const res = await fetch(`/api/schools/applications/analytics?program_id=${programId}`);
-      const data = await res.json();
-      if (res.ok) setAnalytics(data);
-    } catch { /* ignore */ }
-    setAnalyticsLoading(false);
-  }
-
-  // ── Reference Reminder ──
-  async function handleSendReminder(refRequestId: string) {
-    setSendingReminder(refRequestId);
-    try {
-      const res = await fetch("/api/schools/applications/responses", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "send_reference_reminder",
-          reference_request_id: refRequestId,
-        }),
-      });
-      if (res.ok) {
-        alert("Reminder sent!");
-        fetchReferences(reviewingResponse!.id);
-      } else {
-        const data = await res.json();
-        alert(data.error || "Failed to send reminder");
-      }
-    } catch {
-      alert("Failed to send reminder");
-    } finally {
-      setSendingReminder(null);
-    }
-  }
-
-  async function handleReviewSave() {
-    if (!reviewingResponse || !reviewStatus) return;
-    setReviewLoading(true);
-
-    try {
-      // Public applicant being accepted — use the accept-application pipeline
-      if (reviewStatus === "accepted" && !reviewingResponse.user_id) {
-        const shouldAccept = confirm(
-          "Accept this application? This will create a user account, enroll the student, and send them an invite email."
-        );
-        if (!shouldAccept) {
-          setReviewLoading(false);
-          return;
-        }
-
-        const res = await fetch("/api/admin/accept-application", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ response_id: reviewingResponse.id }),
-        });
-
-        if (!res.ok) {
-          const data = await res.json();
-          alert(data.error || "Failed to accept application");
-          return;
-        }
-
-        setReviewingResponse(null);
-        router.refresh();
-        return;
-      }
-
-      // Standard status update (for authenticated applicants or non-accept statuses)
-      const res = await fetch("/api/schools/applications/responses", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: reviewingResponse.id,
-          status: reviewStatus,
-          admin_notes: reviewNotes.trim() || null,
-        }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        alert(data.error || "Failed to update status");
-        return;
-      }
-
-      // If accepted (authenticated user), offer to auto-enroll
-      if (reviewStatus === "accepted" && reviewingResponse.user_id) {
-        const shouldEnroll = confirm(
-          "Application accepted! Would you like to automatically enroll this student in the program?"
-        );
-        if (shouldEnroll) {
-          await fetch("/api/schools/enrollments", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              user_id: reviewingResponse.user_id,
-              program_id: programId,
-            }),
-          });
-        }
-      }
-
-      setReviewingResponse(null);
-      router.refresh();
-    } catch {
-      alert("Failed to update status");
-    } finally {
-      setReviewLoading(false);
-    }
-  }
-
-  function respName(resp: AppResponse) {
-    if (resp.users) {
-      const u = resp.users;
-      if (u.first_name) return `${u.preferred_name ?? u.first_name} ${u.last_name ?? ""}`.trim();
-      return u.email ?? "Unknown";
-    }
-    if (resp.applicant_info) {
-      return `${resp.applicant_info.first_name} ${resp.applicant_info.last_name}`.trim();
-    }
-    return resp.applicant_email ?? "Unknown";
-  }
-
-  function respEmail(resp: AppResponse) {
-    return resp.users?.email ?? resp.applicant_email ?? resp.applicant_info?.email ?? "—";
-  }
-
-  const responseStatusColors: Record<string, "default" | "secondary" | "destructive"> = {
-    submitted: "secondary",
-    references_received: "secondary",
-    interview_scheduled: "secondary",
-    accepted: "default",
-    rejected: "destructive",
-    waitlisted: "secondary",
-  };
 
   return (
     <div className="space-y-6">
@@ -2311,538 +2950,6 @@ function ApplicationTab({
         )}
       </div>
 
-      {/* ─── APPLICATION REVIEW ─── */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="font-medium">Submitted Applications ({responses.length})</h3>
-          {responses.length > 0 && (
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => { setShowAnalytics(!showAnalytics); if (!analytics) loadAnalytics(); }}
-              >
-                <BarChart3 className="mr-1 h-3 w-3" />
-                Analytics
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => window.open(`/api/schools/applications/export?program_id=${programId}`, "_blank")}
-              >
-                <Download className="mr-1 h-3 w-3" />
-                Export CSV
-              </Button>
-            </div>
-          )}
-        </div>
-
-        {/* Analytics Dashboard */}
-        {showAnalytics && (
-          <div className="rounded-lg border bg-card p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <h4 className="text-sm font-medium flex items-center gap-2">
-                <BarChart3 className="h-4 w-4" />
-                Application Analytics
-              </h4>
-              <Button variant="ghost" size="sm" onClick={loadAnalytics} disabled={analyticsLoading}>
-                <RefreshCw className={`h-3 w-3 ${analyticsLoading ? "animate-spin" : ""}`} />
-              </Button>
-            </div>
-            {analyticsLoading ? (
-              <div className="flex items-center justify-center py-6">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              </div>
-            ) : analytics ? (
-              <div className="space-y-4">
-                {/* Stat Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="rounded-lg border p-3 text-center">
-                    <p className="text-2xl font-bold">{analytics.total}</p>
-                    <p className="text-xs text-muted-foreground">Total Applications</p>
-                  </div>
-                  <div className="rounded-lg border p-3 text-center">
-                    <p className="text-2xl font-bold">
-                      {analytics.avgDaysToDecision !== null ? `${analytics.avgDaysToDecision}d` : "—"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">Avg. Time to Decision</p>
-                  </div>
-                  <div className="rounded-lg border p-3 text-center">
-                    <p className="text-2xl font-bold">
-                      {analytics.refCompletionRate !== null ? `${analytics.refCompletionRate}%` : "—"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">Reference Completion</p>
-                  </div>
-                  <div className="rounded-lg border p-3 text-center">
-                    <p className="text-2xl font-bold">
-                      {analytics.statusCounts.accepted ?? 0}
-                    </p>
-                    <p className="text-xs text-muted-foreground">Accepted</p>
-                  </div>
-                </div>
-
-                {/* Status Breakdown */}
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Status Breakdown</p>
-                  <div className="flex gap-2 flex-wrap">
-                    {Object.entries(analytics.statusCounts).map(([status, count]) => (
-                      <Badge key={status} variant={responseStatusColors[status] ?? "secondary"} className="gap-1">
-                        {status.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}
-                        <span className="font-bold">{count}</span>
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Weekly Bar Chart */}
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Applications per Week</p>
-                  <div className="flex items-end gap-1 h-20">
-                    {analytics.weeklyData.map((w, i) => {
-                      const maxCount = Math.max(...analytics.weeklyData.map((d) => d.count), 1);
-                      const height = (w.count / maxCount) * 100;
-                      return (
-                        <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                          <span className="text-[10px] text-muted-foreground">{w.count || ""}</span>
-                          <div
-                            className="w-full rounded-t bg-primary/60 min-h-[2px]"
-                            style={{ height: `${Math.max(height, 3)}%` }}
-                          />
-                          <span className="text-[9px] text-muted-foreground truncate w-full text-center">{w.week}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        )}
-
-        {/* Bulk Actions Bar */}
-        {selectedIds.size > 0 && (
-          <div className="rounded-lg border bg-primary/5 border-primary/30 p-3 flex items-center gap-3">
-            <span className="text-sm font-medium">
-              {selectedIds.size} selected
-            </span>
-            <Select value={bulkStatus} onValueChange={setBulkStatus}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Set status..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="references_received">References Received</SelectItem>
-                <SelectItem value="interview_scheduled">Interview Scheduled</SelectItem>
-                <SelectItem value="accepted">Accepted</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-                <SelectItem value="waitlisted">Waitlisted</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button
-              size="sm"
-              disabled={!bulkStatus || bulkLoading}
-              onClick={handleBulkStatusUpdate}
-            >
-              {bulkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply"}
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => { setSelectedIds(new Set()); setBulkStatus(""); }}>
-              Clear
-            </Button>
-          </div>
-        )}
-
-        {responses.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-6">
-            No applications submitted yet.
-          </p>
-        ) : (
-          <div className="rounded-lg border bg-card">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[40px]">
-                    <input
-                      type="checkbox"
-                      className="rounded"
-                      checked={selectedIds.size === responses.length && responses.length > 0}
-                      onChange={toggleSelectAll}
-                    />
-                  </TableHead>
-                  <TableHead>Student</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Submitted</TableHead>
-                  <TableHead>Status</TableHead>
-                  {referenceSlots.length > 0 && <TableHead>References</TableHead>}
-                  <TableHead className="w-[120px]" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {responses.map((resp) => (
-                  <TableRow key={resp.id} className={selectedIds.has(resp.id) ? "bg-primary/5" : ""}>
-                    <TableCell>
-                      <input
-                        type="checkbox"
-                        className="rounded"
-                        checked={selectedIds.has(resp.id)}
-                        onChange={() => toggleSelect(resp.id)}
-                      />
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {respName(resp)}
-                      {!resp.user_id && (
-                        <Badge variant="secondary" className="ml-2 text-xs">Public</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {respEmail(resp)}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {new Date(resp.submitted_at).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      {(() => {
-                        const refs = refRequestSummaries.filter((r) => r.application_id === resp.id);
-                        const totalRefs = refs.length;
-                        const submittedRefs = refs.filter((r) => r.status === "submitted").length;
-                        const allRefsIn = totalRefs > 0 && submittedRefs === totalRefs;
-                        const isComplete = allRefsIn && resp.status === "submitted";
-
-                        if (isComplete) {
-                          return (
-                            <Badge style={{ background: "hsl(142 55% 25%)", color: "hsl(142 55% 75%)", border: "1px solid hsl(142 55% 35%)" }}>
-                              Complete
-                            </Badge>
-                          );
-                        }
-                        return (
-                          <Badge variant={responseStatusColors[resp.status] ?? "secondary"}>
-                            {resp.status.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}
-                          </Badge>
-                        );
-                      })()}
-                    </TableCell>
-                    {referenceSlots.length > 0 && (
-                      <TableCell>
-                        {(() => {
-                          const refs = refRequestSummaries.filter((r) => r.application_id === resp.id);
-                          const totalRefs = refs.length;
-                          const submittedRefs = refs.filter((r) => r.status === "submitted").length;
-                          if (totalRefs === 0) return <span className="text-xs text-muted-foreground">—</span>;
-                          return (
-                            <span className={`text-xs font-medium ${submittedRefs === totalRefs ? "text-green-500" : "text-yellow-500"}`}>
-                              {submittedRefs === totalRefs ? "✓" : "⚠"} {submittedRefs}/{totalRefs}
-                            </span>
-                          );
-                        })()}
-                      </TableCell>
-                    )}
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setReviewingResponse(resp);
-                            setReviewStatus(resp.status);
-                            setReviewNotes(resp.admin_notes ?? "");
-                            fetchReferences(resp.id);
-                          }}
-                        >
-                          Review
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground"
-                          title="Print application"
-                          onClick={() => window.open(`/api/schools/applications/pdf?response_id=${resp.id}`, "_blank")}
-                        >
-                          <FileText className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </div>
-
-      {/* Review Dialog */}
-      <Dialog
-        open={reviewingResponse !== null}
-        onOpenChange={(open) => {
-          if (!open) setReviewingResponse(null);
-        }}
-      >
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              Application Review — {reviewingResponse && respName(reviewingResponse)}
-            </DialogTitle>
-          </DialogHeader>
-
-          {reviewingResponse && (
-            <div className="space-y-6">
-              {/* Applicant Info */}
-              <div className="text-sm text-muted-foreground space-y-1">
-                <p>Email: {respEmail(reviewingResponse)}</p>
-                <p>
-                  Submitted:{" "}
-                  {new Date(reviewingResponse.submitted_at).toLocaleDateString()}
-                </p>
-                {!reviewingResponse.user_id && reviewingResponse.applicant_info && (
-                  <div className="mt-3 rounded-md bg-muted p-3 space-y-1">
-                    <p className="text-xs font-medium text-foreground uppercase tracking-wider mb-2">Applicant Details</p>
-                    {reviewingResponse.applicant_info.phone && (
-                      <p>Phone: {reviewingResponse.applicant_info.phone}</p>
-                    )}
-                    {reviewingResponse.applicant_info.date_of_birth && (
-                      <p>Date of Birth: {reviewingResponse.applicant_info.date_of_birth}</p>
-                    )}
-                    {reviewingResponse.applicant_info.gender && (
-                      <p>Gender: {reviewingResponse.applicant_info.gender}</p>
-                    )}
-                    {reviewingResponse.applicant_info.nationality && (
-                      <p>Nationality: {reviewingResponse.applicant_info.nationality}</p>
-                    )}
-                    {reviewingResponse.applicant_info.country && (
-                      <p>Country: {reviewingResponse.applicant_info.country}</p>
-                    )}
-                    {reviewingResponse.applicant_info.city && (
-                      <p>City: {reviewingResponse.applicant_info.city}</p>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Answers */}
-              <div className="space-y-4">
-                {reviewingResponse.answers.map((a, idx) => {
-                  const isPhoto = isStoragePath(a.answer ?? "");
-                  return (
-                    <div key={idx} className="space-y-1">
-                      <Label className="text-sm font-medium">
-                        {a.question_label}
-                      </Label>
-                      <div className="rounded-md bg-muted p-3 text-sm whitespace-pre-wrap">
-                        {!a.answer ? (
-                          <span className="text-muted-foreground italic">No answer provided</span>
-                        ) : isPhoto ? (
-                          <StorageImage storagePath={a.answer} />
-                        ) : (
-                          a.answer
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* References */}
-              {referenceSlots.length > 0 && (
-                <div className="space-y-3">
-                  <h4 className="text-sm font-medium">References</h4>
-                  {refsLoading ? (
-                    <p className="text-sm text-muted-foreground">Loading references…</p>
-                  ) : reviewReferences.length === 0 ? (
-                    <p className="text-sm text-muted-foreground italic">No references requested for this application.</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {reviewReferences.map((ref) => (
-                        <div key={ref.id} className="rounded-lg border bg-muted/50 p-3 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-medium">
-                                {ref.reference_slots?.label ?? "Reference"}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {ref.referee_name} · {ref.referee_email}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {ref.status !== "submitted" && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="text-xs gap-1"
-                                  disabled={sendingReminder === ref.id}
-                                  onClick={() => handleSendReminder(ref.id)}
-                                  title="Send reminder email"
-                                >
-                                  {sendingReminder === ref.id ? (
-                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                  ) : (
-                                    <Send className="h-3 w-3" />
-                                  )}
-                                  Remind
-                                </Button>
-                              )}
-                              <Badge variant={ref.status === "submitted" ? "default" : "secondary"}>
-                                {ref.status === "submitted" ? "Submitted" : "Pending"}
-                              </Badge>
-                            </div>
-                          </div>
-                          {ref.status === "submitted" && (
-                            <div className="space-y-3 pt-2 border-t text-sm">
-                              {/* Basic info */}
-                              <div className="grid grid-cols-2 gap-2">
-                                {ref.relationship && (
-                                  <div>
-                                    <p className="text-xs font-medium text-muted-foreground">Relationship</p>
-                                    <p>{ref.relationship}</p>
-                                  </div>
-                                )}
-                                {ref.known_duration && (
-                                  <div>
-                                    <p className="text-xs font-medium text-muted-foreground">Known Duration</p>
-                                    <p>{ref.known_duration}</p>
-                                  </div>
-                                )}
-                                {ref.form_data?.whatsapp_number && (
-                                  <div>
-                                    <p className="text-xs font-medium text-muted-foreground">WhatsApp</p>
-                                    <p>{ref.form_data.whatsapp_number}</p>
-                                  </div>
-                                )}
-                              </div>
-                              {ref.form_data?.growth_context && (
-                                <div>
-                                  <p className="text-xs font-medium text-muted-foreground">Growth/Discipleship Context</p>
-                                  <p className="whitespace-pre-wrap">{ref.form_data.growth_context}</p>
-                                </div>
-                              )}
-
-                              {/* Character ratings */}
-                              {ref.form_data?.character_ratings && Object.keys(ref.form_data.character_ratings).length > 0 && (
-                                <div>
-                                  <p className="text-xs font-medium text-muted-foreground mb-1">Character Assessment</p>
-                                  <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
-                                    {Object.entries(ref.form_data.character_ratings).map(([trait, rating]) => (
-                                      <div key={trait} className="flex justify-between">
-                                        <span className="text-muted-foreground">{trait}</span>
-                                        <span className={
-                                          rating === "Excellent" ? "text-green-500" :
-                                          rating === "Good" ? "text-blue-400" :
-                                          rating === "Fair" ? "text-yellow-500" :
-                                          "text-red-400"
-                                        }>{rating as string}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                              {ref.form_data?.additional_comments && (
-                                <div>
-                                  <p className="text-xs font-medium text-muted-foreground">Additional Comments on Character</p>
-                                  <p className="whitespace-pre-wrap">{ref.form_data.additional_comments}</p>
-                                </div>
-                              )}
-
-                              {/* Short answers */}
-                              {ref.form_data?.christian_history && (
-                                <div>
-                                  <p className="text-xs font-medium text-muted-foreground">Christian History</p>
-                                  <p><strong>{ref.form_data.christian_history}</strong> — {ref.form_data.christian_history_why}</p>
-                                </div>
-                              )}
-                              {ref.form_data?.strengths_weaknesses && (
-                                <div>
-                                  <p className="text-xs font-medium text-muted-foreground">Strengths & Weaknesses</p>
-                                  <p className="whitespace-pre-wrap">{ref.form_data.strengths_weaknesses}</p>
-                                </div>
-                              )}
-                              {ref.form_data?.seeking_growth && (
-                                <div>
-                                  <p className="text-xs font-medium text-muted-foreground">Actively Seeking Growth?</p>
-                                  <p className="whitespace-pre-wrap">{ref.form_data.seeking_growth}</p>
-                                </div>
-                              )}
-                              {ref.form_data?.missions_ministry && (
-                                <div>
-                                  <p className="text-xs font-medium text-muted-foreground">Missions/Ministry Area</p>
-                                  <p className="whitespace-pre-wrap">{ref.form_data.missions_ministry}</p>
-                                </div>
-                              )}
-                              {ref.form_data?.recommendation && (
-                                <div>
-                                  <p className="text-xs font-medium text-muted-foreground">Recommendation</p>
-                                  <p>
-                                    <Badge variant={
-                                      ref.form_data.recommendation === "Yes" ? "default" :
-                                      ref.form_data.recommendation === "No" ? "destructive" :
-                                      "secondary"
-                                    }>
-                                      {ref.form_data.recommendation}
-                                    </Badge>
-                                  </p>
-                                  {ref.form_data.recommendation_explanation && (
-                                    <p className="whitespace-pre-wrap mt-1 text-muted-foreground">{ref.form_data.recommendation_explanation}</p>
-                                  )}
-                                </div>
-                              )}
-                              {ref.form_data?.other_comments && (
-                                <div>
-                                  <p className="text-xs font-medium text-muted-foreground">Other Comments</p>
-                                  <p className="whitespace-pre-wrap">{ref.form_data.other_comments}</p>
-                                </div>
-                              )}
-
-                              {/* Fallback for old-style references without form_data */}
-                              {!ref.form_data && ref.reference_text && (
-                                <div>
-                                  <p className="text-xs font-medium text-muted-foreground">Reference</p>
-                                  <p className="whitespace-pre-wrap">{ref.reference_text}</p>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Admin Notes */}
-              <div className="border-t pt-4 space-y-2">
-                <Label>Notes</Label>
-                <Textarea
-                  value={reviewNotes}
-                  onChange={(e) => setReviewNotes(e.target.value)}
-                  placeholder="Internal notes about this applicant (not visible to the applicant)"
-                  rows={3}
-                />
-              </div>
-
-              {/* Status Update */}
-              <div className="flex items-center gap-4 pt-2">
-                <Label>Decision:</Label>
-                <Select value={reviewStatus} onValueChange={setReviewStatus}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="submitted">Submitted</SelectItem>
-                    <SelectItem value="references_received">References Received</SelectItem>
-                    <SelectItem value="interview_scheduled">Interview Scheduled</SelectItem>
-                    <SelectItem value="accepted">Accepted</SelectItem>
-                    <SelectItem value="rejected">Rejected</SelectItem>
-                    <SelectItem value="waitlisted">Waitlisted</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button
-                  onClick={handleReviewSave}
-                  disabled={reviewLoading || (reviewStatus === reviewingResponse.status && (reviewNotes.trim() || "") === (reviewingResponse.admin_notes || ""))}
-                  size="sm"
-                >
-                  {reviewLoading ? "Saving..." : "Save Decision"}
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
