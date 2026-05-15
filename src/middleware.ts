@@ -33,7 +33,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Public routes that don't require auth
-  const publicRoutes = ["/login", "/auth/callback", "/auth/confirm", "/apply"];
+  const publicRoutes = ["/login", "/auth/callback", "/auth/confirm", "/apply", "/reference"];
   const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
 
   // Onboarding requires auth but should not redirect to login if unauthenticated
