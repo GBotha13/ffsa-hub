@@ -21,9 +21,30 @@ export async function GET(request: Request) {
   }
 
   const adminSupabase = createAdminClient();
+
+  // Check if file is HEIC/HEIF — browsers can't display these natively
+  const isHeic = /\.heic$/i.test(path) || /\.heif$/i.test(path);
+
+  if (isHeic) {
+    // Try to get a transformed (JPEG) version first
+    const { data: transformedData } = await adminSupabase.storage
+      .from("application-uploads")
+      .createSignedUrl(path, 3600, {
+        transform: { format: "origin", width: 800, quality: 80 },
+      });
+
+    if (transformedData?.signedUrl) {
+      return NextResponse.json({
+        url: transformedData.signedUrl,
+        isHeic: true,
+      });
+    }
+  }
+
+  // Standard signed URL (works for JPEG, PNG, WebP, etc.)
   const { data, error } = await adminSupabase.storage
     .from("application-uploads")
-    .createSignedUrl(path, 3600); // 1 hour expiry
+    .createSignedUrl(path, 3600);
 
   if (error || !data?.signedUrl) {
     return NextResponse.json(
@@ -32,5 +53,5 @@ export async function GET(request: Request) {
     );
   }
 
-  return NextResponse.json({ url: data.signedUrl });
+  return NextResponse.json({ url: data.signedUrl, isHeic });
 }

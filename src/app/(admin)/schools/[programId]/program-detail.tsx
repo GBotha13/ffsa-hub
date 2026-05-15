@@ -168,7 +168,9 @@ type AppResponse = {
 function StorageImage({ storagePath }: { storagePath: string }) {
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
+  const [imgError, setImgError] = useState(false);
+  const [isHeic, setIsHeic] = useState(false);
 
   useEffect(() => {
     async function fetchUrl() {
@@ -179,8 +181,9 @@ function StorageImage({ storagePath }: { storagePath: string }) {
         if (!res.ok) throw new Error("Failed");
         const data = await res.json();
         setUrl(data.url);
+        setIsHeic(data.isHeic ?? false);
       } catch {
-        setError(true);
+        setFetchError(true);
       } finally {
         setLoading(false);
       }
@@ -197,11 +200,30 @@ function StorageImage({ storagePath }: { storagePath: string }) {
     );
   }
 
-  if (error || !url) {
+  if (fetchError || !url) {
     return (
       <p className="text-sm text-muted-foreground italic">
         Unable to load photo
       </p>
+    );
+  }
+
+  // If the image failed to render (e.g. HEIC not supported), show download link
+  if (imgError) {
+    return (
+      <div className="space-y-2 rounded-lg border border-dashed border-muted-foreground/30 p-4">
+        <p className="text-sm text-muted-foreground">
+          This photo is in HEIC format and cannot be previewed in the browser.
+        </p>
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+        >
+          <Download className="h-3.5 w-3.5" /> Download Photo
+        </a>
+      </div>
     );
   }
 
@@ -212,6 +234,7 @@ function StorageImage({ storagePath }: { storagePath: string }) {
         src={url}
         alt="Applicant photo"
         className="max-w-[200px] max-h-[250px] rounded-lg border object-cover"
+        onError={() => setImgError(true)}
       />
       <a
         href={url}
