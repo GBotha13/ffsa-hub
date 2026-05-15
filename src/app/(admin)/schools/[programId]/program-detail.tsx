@@ -31,7 +31,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, Download, ChevronUp, ChevronDown, Edit2, ClipboardList, Copy, Check, Link as LinkIcon, Archive, BookTemplate, Upload, Loader2 } from "lucide-react";
+import { Plus, Trash2, Download, ChevronUp, ChevronDown, Edit2, ClipboardList, Copy, Check, Link as LinkIcon, Archive, BookTemplate, Upload, Loader2, FileText, Send, BarChart3, Calendar, RefreshCw, CheckSquare } from "lucide-react";
 import { ProgramActions } from "../program-actions";
 
 // ────────────────────────────────────────────────────────────
@@ -89,6 +89,7 @@ type Program = {
   status: string;
   description: string | null;
   application_open: boolean;
+  application_deadline: string | null;
   courses: Course[];
 };
 
@@ -342,7 +343,9 @@ export function ProgramDetail({
         <TabsContent value="application" className="mt-4">
           <ApplicationTab
             programId={program.id}
+            programCode={program.code}
             applicationOpen={program.application_open}
+            applicationDeadline={program.application_deadline}
             questions={questions}
             responses={responses}
             referenceSlots={referenceSlots}
@@ -1075,16 +1078,30 @@ function GradesTab({
 // APPLICATION TAB
 // ────────────────────────────────────────────────────────────
 
+type AnalyticsData = {
+  total: number;
+  statusCounts: Record<string, number>;
+  avgDaysToDecision: number | null;
+  refCompletionRate: number | null;
+  totalRefs: number;
+  submittedRefs: number;
+  weeklyData: Array<{ week: string; count: number }>;
+};
+
 function ApplicationTab({
   programId,
+  programCode,
   applicationOpen,
+  applicationDeadline,
   questions,
   responses,
   referenceSlots,
   refRequestSummaries,
 }: {
   programId: string;
+  programCode: string;
   applicationOpen: boolean;
+  applicationDeadline: string | null;
   questions: AppQuestion[];
   responses: AppResponse[];
   referenceSlots: ReferenceSlot[];
@@ -1111,6 +1128,23 @@ function ApplicationTab({
   const [refsLoading, setRefsLoading] = useState(false);
 
   const [copied, setCopied] = useState(false);
+
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkStatus, setBulkStatus] = useState("");
+  const [bulkLoading, setBulkLoading] = useState(false);
+
+  // Deadline state
+  const [deadline, setDeadline] = useState(applicationDeadline ?? "");
+  const [deadlineSaving, setDeadlineSaving] = useState(false);
+
+  // Analytics state
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  // Reference reminder state
+  const [sendingReminder, setSendingReminder] = useState<string | null>(null);
 
   function copyPublicLink() {
     const link = `${window.location.origin}/apply/${programId}`;
@@ -1454,6 +1488,103 @@ function ApplicationTab({
     }
   }
 
+  // ── Bulk Actions ──
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === responses.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(responses.map((r) => r.id)));
+    }
+  }
+
+  async function handleBulkStatusUpdate() {
+    if (selectedIds.size === 0 || !bulkStatus) return;
+    setBulkLoading(true);
+    try {
+      const res = await fetch("/api/schools/applications/responses", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: Array.from(selectedIds),
+          status: bulkStatus,
+          send_email: true,
+        }),
+      });
+      if (res.ok) {
+        setSelectedIds(new Set());
+        setBulkStatus("");
+        router.refresh();
+      }
+    } catch {
+      alert("Failed to update statuses");
+    } finally {
+      setBulkLoading(false);
+    }
+  }
+
+  // ── Deadline ──
+  async function handleSaveDeadline() {
+    setDeadlineSaving(true);
+    try {
+      await fetch("/api/schools/programs", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: programId,
+          application_deadline: deadline || null,
+        }),
+      });
+      router.refresh();
+    } catch { /* ignore */ }
+    setDeadlineSaving(false);
+  }
+
+  // ── Analytics ──
+  async function loadAnalytics() {
+    setAnalyticsLoading(true);
+    try {
+      const res = await fetch(`/api/schools/applications/analytics?program_id=${programId}`);
+      const data = await res.json();
+      if (res.ok) setAnalytics(data);
+    } catch { /* ignore */ }
+    setAnalyticsLoading(false);
+  }
+
+  // ── Reference Reminder ──
+  async function handleSendReminder(refRequestId: string) {
+    setSendingReminder(refRequestId);
+    try {
+      const res = await fetch("/api/schools/applications/responses", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "send_reference_reminder",
+          reference_request_id: refRequestId,
+        }),
+      });
+      if (res.ok) {
+        alert("Reminder sent!");
+        fetchReferences(reviewingResponse!.id);
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to send reminder");
+      }
+    } catch {
+      alert("Failed to send reminder");
+    } finally {
+      setSendingReminder(null);
+    }
+  }
+
   async function handleReviewSave() {
     if (!reviewingResponse || !reviewStatus) return;
     setReviewLoading(true);
@@ -1582,36 +1713,76 @@ function ApplicationTab({
         </div>
 
         {isOpen && (
-          <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
-            <div className="flex items-center gap-2 text-sm font-medium text-primary">
-              <LinkIcon className="h-4 w-4" />
-              Public Application Link
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Share this link with prospective students. They can apply without needing an account.
-            </p>
-            <div className="flex items-center gap-2">
-              <div className="flex-1 rounded-md border bg-background px-3 py-2 text-sm font-mono select-all truncate">
-                {`${window.location.origin}/apply/${programId}`}
+          <div className="space-y-3">
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-primary">
+                <LinkIcon className="h-4 w-4" />
+                Public Application Link
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="shrink-0 gap-2"
-                onClick={copyPublicLink}
-              >
-                {copied ? (
-                  <>
-                    <Check className="h-4 w-4 text-green-500" />
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-4 w-4" />
-                    Copy Link
-                  </>
+              <p className="text-xs text-muted-foreground">
+                Share this link with prospective students. They can apply without needing an account.
+              </p>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 rounded-md border bg-background px-3 py-2 text-sm font-mono select-all truncate">
+                  {`${window.location.origin}/apply/${programId}`}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 gap-2"
+                  onClick={copyPublicLink}
+                >
+                  {copied ? (
+                    <>
+                      <Check className="h-4 w-4 text-green-500" />
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-4 w-4" />
+                      Copy Link
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* Application Deadline */}
+            <div className="rounded-lg border p-4 space-y-3">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Calendar className="h-4 w-4" />
+                Application Deadline
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="datetime-local"
+                  value={deadline ? new Date(deadline).toISOString().slice(0, 16) : ""}
+                  onChange={(e) => setDeadline(e.target.value ? new Date(e.target.value).toISOString() : "")}
+                  className="max-w-[240px]"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSaveDeadline}
+                  disabled={deadlineSaving}
+                >
+                  {deadlineSaving ? "Saving..." : "Save"}
+                </Button>
+                {deadline && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setDeadline(""); handleSaveDeadline(); }}
+                  >
+                    Clear
+                  </Button>
                 )}
-              </Button>
+              </div>
+              {deadline && (
+                <p className="text-xs text-muted-foreground">
+                  Applications close: {new Date(deadline).toLocaleDateString("en-ZA", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                </p>
+              )}
             </div>
           </div>
         )}
@@ -2051,7 +2222,142 @@ function ApplicationTab({
 
       {/* ─── APPLICATION REVIEW ─── */}
       <div className="space-y-4">
-        <h3 className="font-medium">Submitted Applications ({responses.length})</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="font-medium">Submitted Applications ({responses.length})</h3>
+          {responses.length > 0 && (
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => { setShowAnalytics(!showAnalytics); if (!analytics) loadAnalytics(); }}
+              >
+                <BarChart3 className="mr-1 h-3 w-3" />
+                Analytics
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => window.open(`/api/schools/applications/export?program_id=${programId}`, "_blank")}
+              >
+                <Download className="mr-1 h-3 w-3" />
+                Export CSV
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Analytics Dashboard */}
+        {showAnalytics && (
+          <div className="rounded-lg border bg-card p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-medium flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                Application Analytics
+              </h4>
+              <Button variant="ghost" size="sm" onClick={loadAnalytics} disabled={analyticsLoading}>
+                <RefreshCw className={`h-3 w-3 ${analyticsLoading ? "animate-spin" : ""}`} />
+              </Button>
+            </div>
+            {analyticsLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : analytics ? (
+              <div className="space-y-4">
+                {/* Stat Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="rounded-lg border p-3 text-center">
+                    <p className="text-2xl font-bold">{analytics.total}</p>
+                    <p className="text-xs text-muted-foreground">Total Applications</p>
+                  </div>
+                  <div className="rounded-lg border p-3 text-center">
+                    <p className="text-2xl font-bold">
+                      {analytics.avgDaysToDecision !== null ? `${analytics.avgDaysToDecision}d` : "—"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Avg. Time to Decision</p>
+                  </div>
+                  <div className="rounded-lg border p-3 text-center">
+                    <p className="text-2xl font-bold">
+                      {analytics.refCompletionRate !== null ? `${analytics.refCompletionRate}%` : "—"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Reference Completion</p>
+                  </div>
+                  <div className="rounded-lg border p-3 text-center">
+                    <p className="text-2xl font-bold">
+                      {analytics.statusCounts.accepted ?? 0}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Accepted</p>
+                  </div>
+                </div>
+
+                {/* Status Breakdown */}
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Status Breakdown</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {Object.entries(analytics.statusCounts).map(([status, count]) => (
+                      <Badge key={status} variant={responseStatusColors[status] ?? "secondary"} className="gap-1">
+                        {status.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}
+                        <span className="font-bold">{count}</span>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Weekly Bar Chart */}
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Applications per Week</p>
+                  <div className="flex items-end gap-1 h-20">
+                    {analytics.weeklyData.map((w, i) => {
+                      const maxCount = Math.max(...analytics.weeklyData.map((d) => d.count), 1);
+                      const height = (w.count / maxCount) * 100;
+                      return (
+                        <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                          <span className="text-[10px] text-muted-foreground">{w.count || ""}</span>
+                          <div
+                            className="w-full rounded-t bg-primary/60 min-h-[2px]"
+                            style={{ height: `${Math.max(height, 3)}%` }}
+                          />
+                          <span className="text-[9px] text-muted-foreground truncate w-full text-center">{w.week}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {/* Bulk Actions Bar */}
+        {selectedIds.size > 0 && (
+          <div className="rounded-lg border bg-primary/5 border-primary/30 p-3 flex items-center gap-3">
+            <span className="text-sm font-medium">
+              {selectedIds.size} selected
+            </span>
+            <Select value={bulkStatus} onValueChange={setBulkStatus}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Set status..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="references_received">References Received</SelectItem>
+                <SelectItem value="interview_scheduled">Interview Scheduled</SelectItem>
+                <SelectItem value="accepted">Accepted</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+                <SelectItem value="waitlisted">Waitlisted</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              size="sm"
+              disabled={!bulkStatus || bulkLoading}
+              onClick={handleBulkStatusUpdate}
+            >
+              {bulkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply"}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => { setSelectedIds(new Set()); setBulkStatus(""); }}>
+              Clear
+            </Button>
+          </div>
+        )}
 
         {responses.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-6">
@@ -2062,17 +2368,33 @@ function ApplicationTab({
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[40px]">
+                    <input
+                      type="checkbox"
+                      className="rounded"
+                      checked={selectedIds.size === responses.length && responses.length > 0}
+                      onChange={toggleSelectAll}
+                    />
+                  </TableHead>
                   <TableHead>Student</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Submitted</TableHead>
                   <TableHead>Status</TableHead>
                   {referenceSlots.length > 0 && <TableHead>References</TableHead>}
-                  <TableHead className="w-[80px]" />
+                  <TableHead className="w-[120px]" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {responses.map((resp) => (
-                  <TableRow key={resp.id}>
+                  <TableRow key={resp.id} className={selectedIds.has(resp.id) ? "bg-primary/5" : ""}>
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        className="rounded"
+                        checked={selectedIds.has(resp.id)}
+                        onChange={() => toggleSelect(resp.id)}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">
                       {respName(resp)}
                       {!resp.user_id && (
@@ -2116,25 +2438,36 @@ function ApplicationTab({
                           if (totalRefs === 0) return <span className="text-xs text-muted-foreground">—</span>;
                           return (
                             <span className={`text-xs font-medium ${submittedRefs === totalRefs ? "text-green-500" : "text-yellow-500"}`}>
-                              {submittedRefs}/{totalRefs}
+                              {submittedRefs === totalRefs ? "✓" : "⚠"} {submittedRefs}/{totalRefs}
                             </span>
                           );
                         })()}
                       </TableCell>
                     )}
                     <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setReviewingResponse(resp);
-                          setReviewStatus(resp.status);
-                          setReviewNotes(resp.admin_notes ?? "");
-                          fetchReferences(resp.id);
-                        }}
-                      >
-                        Review
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setReviewingResponse(resp);
+                            setReviewStatus(resp.status);
+                            setReviewNotes(resp.admin_notes ?? "");
+                            fetchReferences(resp.id);
+                          }}
+                        >
+                          Review
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground"
+                          title="Print application"
+                          onClick={() => window.open(`/api/schools/applications/pdf?response_id=${resp.id}`, "_blank")}
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -2227,9 +2560,28 @@ function ApplicationTab({
                                 {ref.referee_name} · {ref.referee_email}
                               </p>
                             </div>
-                            <Badge variant={ref.status === "submitted" ? "default" : "secondary"}>
-                              {ref.status === "submitted" ? "Submitted" : "Pending"}
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              {ref.status !== "submitted" && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-xs gap-1"
+                                  disabled={sendingReminder === ref.id}
+                                  onClick={() => handleSendReminder(ref.id)}
+                                  title="Send reminder email"
+                                >
+                                  {sendingReminder === ref.id ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <Send className="h-3 w-3" />
+                                  )}
+                                  Remind
+                                </Button>
+                              )}
+                              <Badge variant={ref.status === "submitted" ? "default" : "secondary"}>
+                                {ref.status === "submitted" ? "Submitted" : "Pending"}
+                              </Badge>
+                            </div>
                           </div>
                           {ref.status === "submitted" && (
                             <div className="space-y-3 pt-2 border-t text-sm">

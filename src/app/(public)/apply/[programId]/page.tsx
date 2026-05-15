@@ -12,7 +12,12 @@ export default async function PublicApplyPage({
 
   const { data: program } = await getProgramPublicInfo(supabase, programId);
 
-  if (!program || program.status !== "active" || !program.application_open) {
+  // Check if deadline has passed
+  const deadlinePassed = program?.application_deadline
+    ? new Date(program.application_deadline) < new Date()
+    : false;
+
+  if (!program || program.status !== "active" || !program.application_open || deadlinePassed) {
     return (
       <div className="text-center space-y-4 py-16">
         <div className="space-y-2">
@@ -28,9 +33,11 @@ export default async function PublicApplyPage({
             Applications Closed
           </h1>
           <p className="text-sm text-muted-foreground mt-2">
-            {program
-              ? `Applications for ${program.name} are currently closed. Please check back later.`
-              : "This program was not found or is no longer available."}
+            {deadlinePassed
+              ? `The application deadline for ${program.name} has passed.`
+              : program
+                ? `Applications for ${program.name} are currently closed. Please check back later.`
+                : "This program was not found or is no longer available."}
           </p>
         </div>
       </div>

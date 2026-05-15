@@ -156,8 +156,15 @@ export async function POST(request: Request) {
     );
   }
 
-  // Send confirmation email if we have one
+  // Create reference requests and send emails to referees
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://ffsahub.com";
   const fromEmail = process.env.RESEND_FROM_EMAIL || "noreply@ffsahub.com";
+
+  // Send confirmation email if we have one (include status tracker link)
+  const statusTrackerUrl = response.status_token
+    ? `${siteUrl}/apply/status/${response.status_token}`
+    : null;
+
   if (email) {
     await resend.emails.send({
       from: `Fire & Fragrance SA <${fromEmail}>`,
@@ -166,12 +173,10 @@ export async function POST(request: Request) {
       html: applicationConfirmationEmailHtml({
         firstName: firstName || "Applicant",
         programName: program.name,
+        statusUrl: statusTrackerUrl,
       }),
     });
   }
-
-  // Create reference requests and send emails to referees
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://ffsahub.com";
   const referenceLinks: Array<{ label: string; url: string }> = [];
 
   if (references && Array.isArray(references) && references.length > 0) {

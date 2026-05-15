@@ -9,6 +9,10 @@ import {
 } from "@/services/schools";
 import { Resend } from "resend";
 import { referenceRequestEmailHtml } from "@/lib/email/templates/reference-request";
+import { referenceReminderEmailHtml } from "@/lib/email/templates/reference-reminder";
+import { applicationRejectedEmailHtml } from "@/lib/email/templates/application-rejected";
+import { applicationWaitlistedEmailHtml } from "@/lib/email/templates/application-waitlisted";
+import { interviewScheduledEmailHtml } from "@/lib/email/templates/interview-scheduled";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -111,6 +115,20 @@ export async function POST(request: Request) {
   return NextResponse.json({ success: true, response: data });
 }
 
+// Helper: get applicant email and name from a response
+function getApplicantDetails(response: any) {
+  const email =
+    response.users?.email ??
+    response.applicant_email ??
+    response.applicant_info?.email ??
+    null;
+  const firstName =
+    response.users?.first_name ??
+    response.applicant_info?.first_name ??
+    null;
+  return { email, firstName: firstName || "there" };
+}
+
 export async function PUT(request: Request) {
   const supabase = await createClient();
   const {
@@ -122,8 +140,48 @@ export async function PUT(request: Request) {
   }
 
   const body = await request.json();
-  const { id, status, admin_notes } = body;
+  const { id, ids, status, admin_notes, send_email = true } = body;
 
+  // ── Bulk status update ──
+  if (ids && Array.isArray(ids) && ids.length > 0 && status) {
+    const adminSupabase = createAdminClient();
+    const fromEmail = process.env.RESEND_FROM_EMAIL || "noreply@ffsahub.com";
+    let updated = 0;
+
+    for (const responseId of ids) {
+      const { data: resp, error } = await updateResponseStatus(
+        supabase,
+        responseId,
+        status,
+        user.id,
+        admin_notes
+      );
+      if (!error && resp) {
+        updated++;
+
+        // Send notification email for bulk updates too
+        if (send_email) {
+          const { data: fullResp } = await adminSupabase
+            .from("application_responses")
+            .select("*, users!application_responses_user_id_fkey(first_name, email), programs(name)")
+            .eq("id", responseId)
+            .single();
+
+          if (fullResp) {
+            const { email, firstName } = getApplicantDetails(fullResp);
+            const programName = fullResp.programs?.name ?? "School Program";
+            if (email) {
+              await sendStatusEmail(fromEmail, email, firstName, programName, status, admin_notes);
+            }
+          }
+        }
+      }
+    }
+
+    return NextResponse.json({ success: true, updated });
+  }
+
+  // ── Single status update ──
   if (!id || !status) {
     return NextResponse.json(
       { error: "id and status are required" },
@@ -131,11 +189,157 @@ export async function PUT(request: Request) {
     );
   }
 
+  // Get the current response to check previous status
+  const adminSupabase = createAdminClient();
+  const { data: prevResponse } = await adminSupabase
+    .from("application_responses")
+    .select("status")
+    .eq("id", id)
+    .single();
+
+  const previousStatus = prevResponse?.status;
+
   const { data, error } = await updateResponseStatus(supabase, id, status, user.id, admin_notes);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Send notification email if status actually changed
+  if (send_email && status !== previousStatus && status !== "submitted") {
+    const { data: fullResp } = await adminSupabase
+      .from("application_responses")
+      .select("*, users!application_responses_user_id_fkey(first_name, email), programs(name)")
+      .eq("id", id)
+      .single();
+
+    if (fullResp) {
+      const { email, firstName } = getApplicantDetails(fullResp);
+      const programName = fullResp.programs?.name ?? "School Program";
+      if (email) {
+        await sendStatusEmail(
+          process.env.RESEND_FROM_EMAIL || "noreply@ffsahub.com",
+          email,
+          firstName,
+          programName,
+          status,
+          admin_notes
+        );
+      }
+    }
+  }
+
   return NextResponse.json({ success: true, response: data });
+}
+
+async function sendStatusEmail(
+  fromEmail: string,
+  toEmail: string,
+  firstName: string,
+  programName: string,
+  status: string,
+  notes?: string | null
+) {
+  try {
+    switch (status) {
+      case "rejected":
+        await resend.emails.send({
+          from: `Fire & Fragrance SA <${fromEmail}>`,
+          to: toEmail,
+          subject: `Application Update — ${programName}`,
+          html: applicationRejectedEmailHtml({ firstName, programName }),
+        });
+        break;
+      case "waitlisted":
+        await resend.emails.send({
+          from: `Fire & Fragrance SA <${fromEmail}>`,
+          to: toEmail,
+          subject: `Application Update — ${programName}`,
+          html: applicationWaitlistedEmailHtml({ firstName, programName }),
+        });
+        break;
+      case "interview_scheduled":
+        await resend.emails.send({
+          from: `Fire & Fragrance SA <${fromEmail}>`,
+          to: toEmail,
+          subject: `Interview Scheduled — ${programName}`,
+          html: interviewScheduledEmailHtml({
+            firstName,
+            programName,
+            interviewDate: undefined,
+            interviewNotes: notes || undefined,
+          }),
+        });
+        break;
+      // "accepted" is handled by accept-application route
+      // "references_received" and "submitted" don't need emails
+    }
+  } catch {
+    // Don't fail the status update if email fails
+    console.error(`Failed to send status email to ${toEmail}`);
+  }
+}
+
+// ── PATCH: Reference reminder ──
+export async function PATCH(request: Request) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
+  const body = await request.json();
+  const { action, reference_request_id } = body;
+
+  if (action === "send_reference_reminder" && reference_request_id) {
+    const adminSupabase = createAdminClient();
+    const fromEmail = process.env.RESEND_FROM_EMAIL || "noreply@ffsahub.com";
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://ffsahub.com";
+
+    const { data: refReq } = await (adminSupabase as any)
+      .from("reference_requests")
+      .select("*, reference_slots(label), application_responses(applicant_info, applicant_email, user_id, program_id, users!application_responses_user_id_fkey(first_name, last_name), programs(name))")
+      .eq("id", reference_request_id)
+      .single();
+
+    if (!refReq || refReq.status === "submitted") {
+      return NextResponse.json(
+        { error: refReq ? "Reference already submitted" : "Reference request not found" },
+        { status: 400 }
+      );
+    }
+
+    const app = refReq.application_responses;
+    const applicantName = app?.users
+      ? [app.users.first_name, app.users.last_name].filter(Boolean).join(" ")
+      : [app?.applicant_info?.first_name, app?.applicant_info?.last_name].filter(Boolean).join(" ") || "An applicant";
+
+    const referenceUrl = `${siteUrl}/reference/${refReq.token}`;
+
+    await resend.emails.send({
+      from: `Fire & Fragrance SA <${fromEmail}>`,
+      to: refReq.referee_email,
+      subject: `Reference Reminder — ${app?.programs?.name ?? "School Program"}`,
+      html: referenceReminderEmailHtml({
+        refereeName: refReq.referee_name,
+        applicantName,
+        programName: app?.programs?.name ?? "School Program",
+        slotLabel: refReq.reference_slots?.label ?? "Reference",
+        referenceUrl,
+      }),
+    });
+
+    // Update reminder_sent_at
+    await (adminSupabase as any)
+      .from("reference_requests")
+      .update({ reminder_sent_at: new Date().toISOString() })
+      .eq("id", reference_request_id);
+
+    return NextResponse.json({ success: true });
+  }
+
+  return NextResponse.json({ error: "Invalid action" }, { status: 400 });
 }

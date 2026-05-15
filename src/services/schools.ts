@@ -48,7 +48,7 @@ export async function createProgram(supabase: Client, data: {
 export async function updateProgram(
   supabase: Client,
   id: string,
-  data: { name?: string; code?: string; description?: string | null; credit_hours?: number; status?: string }
+  data: { name?: string; code?: string; description?: string | null; credit_hours?: number; status?: string; application_open?: boolean; application_deadline?: string | null }
 ) {
   return supabase.from("programs").update(data).eq("id", id).select().single();
 }
@@ -487,7 +487,7 @@ export async function getResponseByEmailAndProgram(
 export async function getProgramPublicInfo(supabase: Client, programId: string) {
   return supabase
     .from("programs")
-    .select("id, name, code, description, application_open, status")
+    .select("id, name, code, description, application_open, application_deadline, status")
     .eq("id", programId)
     .single();
 }

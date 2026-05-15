@@ -1,9 +1,11 @@
 export function applicationConfirmationEmailHtml({
   firstName,
   programName,
+  statusUrl,
 }: {
   firstName: string;
   programName: string;
+  statusUrl?: string | null;
 }): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -63,9 +65,26 @@ export function applicationConfirmationEmailHtml({
                 Our team will review your application and get back to you as soon as possible. You'll receive an email once a decision has been made.
               </p>
 
-              <p style="margin:0;font-size:15px;color:#B8A898;line-height:1.65;">
+              <p style="margin:0 0 12px;font-size:15px;color:#B8A898;line-height:1.65;">
                 If you have any questions in the meantime, feel free to reach out to us.
               </p>
+
+              ${statusUrl ? `
+              <!-- Status Tracker Button -->
+              <table cellpadding="0" cellspacing="0" style="margin:24px auto 0;">
+                <tr>
+                  <td align="center" style="background:#F5C518;border-radius:8px;">
+                    <a href="${statusUrl}" target="_blank" style="display:inline-block;padding:14px 32px;font-size:14px;font-weight:700;color:#0D0B09;text-decoration:none;letter-spacing:0.04em;text-transform:uppercase;">
+                      Track Your Application
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:16px 0 0;font-size:13px;color:#5a4e42;line-height:1.5;">
+                You can check your application status anytime using the link above.
+              </p>
+              ` : ''}
 
             </td>
           </tr>
