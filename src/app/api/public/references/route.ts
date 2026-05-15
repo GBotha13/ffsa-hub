@@ -22,7 +22,7 @@ export async function GET(request: Request) {
 
   const app = data.application_responses as any;
   const applicantName = app?.applicant_info
-    ? `${app.applicant_info.first_name} ${app.applicant_info.last_name}`
+    ? [app.applicant_info.first_name, app.applicant_info.last_name].filter(Boolean).join(" ") || "the applicant"
     : "the applicant";
 
   return NextResponse.json({

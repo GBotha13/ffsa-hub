@@ -82,6 +82,7 @@ export async function POST(request: Request) {
   // Try to extract name from answers
   const firstName = findAnswerByLabel(answers, ["first name", "first_name"])
     ?? findAnswerByLabel(answers, ["name"]);
+  const lastName = findAnswerByLabel(answers, ["last name", "last_name", "surname"]);
 
   // Check for duplicate if we have an email
   if (email) {
@@ -133,6 +134,7 @@ export async function POST(request: Request) {
   const applicantInfo: Record<string, unknown> = {};
   if (email) applicantInfo.email = email;
   if (firstName) applicantInfo.first_name = firstName;
+  if (lastName) applicantInfo.last_name = lastName;
   if (files && Array.isArray(files) && files.length > 0) {
     applicantInfo.files = files;
   }
@@ -175,7 +177,7 @@ export async function POST(request: Request) {
   if (references && Array.isArray(references) && references.length > 0) {
     const { data: slots } = await getReferenceSlotsByProgram(supabase, program_id);
     const slotMap = new Map<string, any>((slots ?? []).map((s: any) => [s.id, s]));
-    const applicantName = firstName || "An applicant";
+    const applicantName = [firstName, lastName].filter(Boolean).join(" ") || "An applicant";
 
     for (const ref of references) {
       if (!ref.slot_id || !ref.referee_name || !ref.referee_email) continue;

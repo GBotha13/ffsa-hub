@@ -49,7 +49,7 @@ export default async function ReferencePage({
   const slot = refRequest.reference_slots as any;
 
   const applicantName = app?.applicant_info
-    ? `${app.applicant_info.first_name} ${app.applicant_info.last_name}`
+    ? [app.applicant_info.first_name, app.applicant_info.last_name].filter(Boolean).join(" ") || "the applicant"
     : "the applicant";
 
   const programName = app?.programs?.name ?? "the program";
