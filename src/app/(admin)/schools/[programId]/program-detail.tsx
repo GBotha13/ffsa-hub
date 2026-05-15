@@ -149,6 +149,7 @@ type AppResponse = {
   status: string;
   reviewed_by: string | null;
   reviewed_at: string | null;
+  admin_notes: string | null;
   submitted_at: string;
   users: {
     id: string;
@@ -1211,6 +1212,7 @@ function ApplicationTab({
 
   // Review state
   const [reviewStatus, setReviewStatus] = useState("");
+  const [reviewNotes, setReviewNotes] = useState("");
   const [reviewLoading, setReviewLoading] = useState(false);
 
   async function handleToggleOpen() {
@@ -1491,6 +1493,7 @@ function ApplicationTab({
         body: JSON.stringify({
           id: reviewingResponse.id,
           status: reviewStatus,
+          admin_notes: reviewNotes.trim() || null,
         }),
       });
 
@@ -2126,6 +2129,7 @@ function ApplicationTab({
                         onClick={() => {
                           setReviewingResponse(resp);
                           setReviewStatus(resp.status);
+                          setReviewNotes(resp.admin_notes ?? "");
                           fetchReferences(resp.id);
                         }}
                       >
@@ -2348,8 +2352,19 @@ function ApplicationTab({
                 </div>
               )}
 
+              {/* Admin Notes */}
+              <div className="border-t pt-4 space-y-2">
+                <Label>Notes</Label>
+                <Textarea
+                  value={reviewNotes}
+                  onChange={(e) => setReviewNotes(e.target.value)}
+                  placeholder="Internal notes about this applicant (not visible to the applicant)"
+                  rows={3}
+                />
+              </div>
+
               {/* Status Update */}
-              <div className="flex items-center gap-4 border-t pt-4">
+              <div className="flex items-center gap-4 pt-2">
                 <Label>Decision:</Label>
                 <Select value={reviewStatus} onValueChange={setReviewStatus}>
                   <SelectTrigger className="w-[180px]">
@@ -2366,7 +2381,7 @@ function ApplicationTab({
                 </Select>
                 <Button
                   onClick={handleReviewSave}
-                  disabled={reviewLoading || reviewStatus === reviewingResponse.status}
+                  disabled={reviewLoading || (reviewStatus === reviewingResponse.status && (reviewNotes.trim() || "") === (reviewingResponse.admin_notes || ""))}
                   size="sm"
                 >
                   {reviewLoading ? "Saving..." : "Save Decision"}

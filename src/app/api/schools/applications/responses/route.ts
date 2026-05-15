@@ -122,7 +122,7 @@ export async function PUT(request: Request) {
   }
 
   const body = await request.json();
-  const { id, status } = body;
+  const { id, status, admin_notes } = body;
 
   if (!id || !status) {
     return NextResponse.json(
@@ -131,7 +131,7 @@ export async function PUT(request: Request) {
     );
   }
 
-  const { data, error } = await updateResponseStatus(supabase, id, status, user.id);
+  const { data, error } = await updateResponseStatus(supabase, id, status, user.id, admin_notes);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

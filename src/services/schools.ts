@@ -496,15 +496,19 @@ export async function updateResponseStatus(
   supabase: Client,
   id: string,
   status: string,
-  reviewedBy: string
+  reviewedBy: string,
+  adminNotes?: string | null
 ) {
+  const updateData: Record<string, unknown> = {
+    status,
+    reviewed_by: reviewedBy,
+    reviewed_at: new Date().toISOString(),
+  };
+  if (adminNotes !== undefined) updateData.admin_notes = adminNotes;
+
   return supabase
     .from("application_responses")
-    .update({
-      status,
-      reviewed_by: reviewedBy,
-      reviewed_at: new Date().toISOString(),
-    })
+    .update(updateData)
     .eq("id", id)
     .select()
     .single();
