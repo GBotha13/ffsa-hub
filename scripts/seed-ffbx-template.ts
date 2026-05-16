@@ -27,7 +27,7 @@ const TEMPLATE_DESC = "Standard application form for Fire & Fragrance Bible Expe
 
 const QUESTIONS = [
   { label: "First Name", type: "short_answer", is_required: true, options: [] },
-  { label: "Preferred Name", type: "short_answer", is_required: true, options: [] },
+  { label: "Preferred Name", type: "short_answer", is_required: false, options: [] },
   { label: "Last Name / Surname", type: "short_answer", is_required: true, options: [] },
   { label: "Whatsapp Number", type: "phone", is_required: true, options: [] },
   { label: "Email", type: "email", is_required: true, options: [] },
@@ -40,11 +40,17 @@ const QUESTIONS = [
   },
   { label: "Street Address", type: "short_answer", is_required: true, options: [] },
   { label: "City", type: "short_answer", is_required: true, options: [] },
-  { label: "Province/State", type: "short_answer", is_required: true, options: [] },
+  { label: "Province/State", type: "short_answer", is_required: false, options: [] },
   { label: "Country", type: "country", is_required: true, options: [] },
   { label: "Where did you do your DTS?", type: "long_answer", is_required: true, options: [] },
   { label: "Nationality/Passport Country", type: "country", is_required: true, options: [] },
   { label: "Do you have a valid passport?", type: "yes_no", is_required: true, options: [] },
+  {
+    label: "Are you currently on any medication? If yes, please list your medication.",
+    type: "long_answer",
+    is_required: false,
+    options: [],
+  },
   { label: "Emergency Contact Name", type: "short_answer", is_required: true, options: [] },
   {
     label: "Emergency Contact Relationship",
