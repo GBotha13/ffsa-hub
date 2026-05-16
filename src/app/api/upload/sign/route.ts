@@ -1,23 +1,53 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+const IMAGE_EXTENSIONS = [
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".webp",
+  ".gif",
+  ".heic",
+  ".heif",
+];
+
+function isImageByExtension(path: string): boolean {
+  const lower = path.toLowerCase();
+  return IMAGE_EXTENSIONS.some((ext) => lower.endsWith(ext));
+}
+
 export async function POST(request: Request) {
-  const body = await request.json();
+  let body: { bucket?: string; path?: string; contentType?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { error: "Invalid request body" },
+      { status: 400 }
+    );
+  }
+
   const { bucket, path, contentType } = body;
 
   if (bucket !== "application-uploads") {
     return NextResponse.json({ error: "Invalid bucket" }, { status: 400 });
   }
 
-  if (!contentType || !contentType.startsWith("image/")) {
-    return NextResponse.json(
-      { error: "Only image files are accepted" },
-      { status: 400 }
-    );
-  }
-
   if (!path || !path.startsWith("applications/")) {
     return NextResponse.json({ error: "Invalid path" }, { status: 400 });
+  }
+
+  // Accept if EITHER contentType starts with image/ OR the file extension matches
+  // an image type. Mobile browsers sometimes send empty/odd contentType.
+  const contentTypeOk =
+    contentType && contentType.startsWith("image/");
+  const extensionOk = isImageByExtension(path);
+
+  if (!contentTypeOk && !extensionOk) {
+    return NextResponse.json(
+      { error: "Please choose an image file (JPG, PNG, or HEIC)" },
+      { status: 400 }
+    );
   }
 
   const supabase = createAdminClient();
@@ -27,8 +57,9 @@ export async function POST(request: Request) {
     .createSignedUploadUrl(path);
 
   if (error) {
+    console.error("Supabase signed upload URL error:", error);
     return NextResponse.json(
-      { error: "Failed to create upload URL" },
+      { error: `Storage error: ${error.message}` },
       { status: 500 }
     );
   }
