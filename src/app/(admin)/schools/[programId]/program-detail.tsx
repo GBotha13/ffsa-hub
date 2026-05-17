@@ -3,6 +3,23 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,7 +48,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, Download, ChevronUp, ChevronDown, Edit2, ClipboardList, Copy, Check, Link as LinkIcon, Archive, BookTemplate, Upload, Loader2, FileText, Send, BarChart3, Calendar, RefreshCw, CheckSquare, Search, Users, CornerDownRight } from "lucide-react";
+import { Plus, Trash2, Download, ChevronUp, ChevronDown, Edit2, ClipboardList, Copy, Check, Link as LinkIcon, Archive, BookTemplate, Upload, Loader2, FileText, Send, BarChart3, Calendar, RefreshCw, CheckSquare, Search, Users, CornerDownRight, GripVertical } from "lucide-react";
 import { ProgramActions } from "../program-actions";
 
 // ────────────────────────────────────────────────────────────
@@ -2443,25 +2460,13 @@ function ApplicationTab({
     }
   }
 
-  async function handleMoveQuestion(questionId: string, direction: "up" | "down") {
-    const idx = questions.findIndex((q) => q.id === questionId);
-    if (idx < 0) return;
-    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-    if (swapIdx < 0 || swapIdx >= questions.length) return;
-
-    // Swap sort orders
-    const updates = [
-      { id: questions[idx].id, sort_order: questions[swapIdx].sort_order },
-      { id: questions[swapIdx].id, sort_order: questions[idx].sort_order },
-    ];
-
-    for (const u of updates) {
-      await fetch("/api/schools/applications/questions", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(u),
-      });
-    }
+  async function handleReorderSiblings(orderedIds: string[]) {
+    const items = orderedIds.map((id, idx) => ({ id, sort_order: idx }));
+    await fetch("/api/schools/applications/questions/reorder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    });
     router.refresh();
   }
 
@@ -2975,7 +2980,7 @@ function ApplicationTab({
               questions={questions}
               onEdit={startEdit}
               onDelete={handleDeleteQuestion}
-              onMove={handleMoveQuestion}
+              onReorder={handleReorderSiblings}
               onAddFollowUp={startAddFollowUp}
             />
           </div>
@@ -3207,13 +3212,13 @@ function QuestionTree({
   questions,
   onEdit,
   onDelete,
-  onMove,
+  onReorder,
   onAddFollowUp,
 }: {
   questions: AppQuestion[];
   onEdit: (q: AppQuestion) => void;
   onDelete: (id: string) => void;
-  onMove: (id: string, direction: "up" | "down") => void;
+  onReorder: (orderedIds: string[]) => void;
   onAddFollowUp: (parent: AppQuestion) => void;
 }) {
   // Build child lookup keyed by parent_question_id.
@@ -3232,47 +3237,94 @@ function QuestionTree({
     .filter((q) => !q.parent_question_id)
     .sort((a, b) => a.sort_order - b.sort_order);
 
+  const questionById = new Map(questions.map((q) => [q.id, q]));
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const activeQ = questionById.get(String(active.id));
+    const overQ = questionById.get(String(over.id));
+    if (!activeQ || !overQ) return;
+
+    // Only allow reordering within the same parent group.
+    const activeParent = activeQ.parent_question_id ?? null;
+    const overParent = overQ.parent_question_id ?? null;
+    if (activeParent !== overParent) return;
+
+    const siblings = activeParent
+      ? (childrenByParent.get(activeParent) ?? [])
+      : topLevel;
+    const oldIdx = siblings.findIndex((q) => q.id === active.id);
+    const newIdx = siblings.findIndex((q) => q.id === over.id);
+    if (oldIdx === -1 || newIdx === -1) return;
+
+    const newOrder = arrayMove(siblings, oldIdx, newIdx);
+    onReorder(newOrder.map((q) => q.id));
+  }
+
   return (
-    <>
-      {topLevel.map((q, idx) => (
-        <QuestionTreeNode
-          key={q.id}
-          question={q}
-          depth={0}
-          siblings={topLevel}
-          siblingIndex={idx}
-          childrenByParent={childrenByParent}
-          onEdit={onEdit}
-          onDelete={onDelete}
-          onMove={onMove}
-          onAddFollowUp={onAddFollowUp}
-        />
-      ))}
-    </>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+    >
+      <SortableContext
+        items={topLevel.map((q) => q.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        {topLevel.map((q) => (
+          <QuestionTreeNode
+            key={q.id}
+            question={q}
+            depth={0}
+            childrenByParent={childrenByParent}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onAddFollowUp={onAddFollowUp}
+          />
+        ))}
+      </SortableContext>
+    </DndContext>
   );
 }
 
 function QuestionTreeNode({
   question,
   depth,
-  siblings,
-  siblingIndex,
   childrenByParent,
   onEdit,
   onDelete,
-  onMove,
   onAddFollowUp,
 }: {
   question: AppQuestion;
   depth: number;
-  siblings: AppQuestion[];
-  siblingIndex: number;
   childrenByParent: Map<string, AppQuestion[]>;
   onEdit: (q: AppQuestion) => void;
   onDelete: (id: string) => void;
-  onMove: (id: string, direction: "up" | "down") => void;
   onAddFollowUp: (parent: AppQuestion) => void;
 }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: question.id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    marginLeft: depth > 0 ? 24 : 0,
+  };
+
   const children = childrenByParent.get(question.id) ?? [];
   const canHaveFollowUps =
     question.type === "yes_no" || question.type === "multiple_choice";
@@ -3281,32 +3333,20 @@ function QuestionTreeNode({
     showWhen === "yes" ? "Yes" : showWhen === "no" ? "No" : showWhen;
 
   return (
-    <div className="space-y-2" style={{ marginLeft: depth > 0 ? 24 : 0 }}>
-      <div className="flex items-center gap-3 rounded-lg border p-3">
+    <div ref={setNodeRef} style={style} className="space-y-2">
+      <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="flex h-6 w-6 cursor-grab items-center justify-center text-muted-foreground hover:text-foreground active:cursor-grabbing"
+          aria-label="Drag to reorder"
+          title="Drag to reorder"
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
         {depth > 0 && (
           <CornerDownRight className="h-4 w-4 text-muted-foreground shrink-0" />
-        )}
-        {depth === 0 && (
-          <div className="flex flex-col gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              disabled={siblingIndex === 0}
-              onClick={() => onMove(question.id, "up")}
-            >
-              <ChevronUp className="h-3 w-3" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              disabled={siblingIndex === siblings.length - 1}
-              onClick={() => onMove(question.id, "down")}
-            >
-              <ChevronDown className="h-3 w-3" />
-            </Button>
-          </div>
         )}
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -3359,20 +3399,24 @@ function QuestionTreeNode({
           </Button>
         </div>
       </div>
-      {children.map((child, idx) => (
-        <QuestionTreeNode
-          key={child.id}
-          question={child}
-          depth={depth + 1}
-          siblings={children}
-          siblingIndex={idx}
-          childrenByParent={childrenByParent}
-          onEdit={onEdit}
-          onDelete={onDelete}
-          onMove={onMove}
-          onAddFollowUp={onAddFollowUp}
-        />
-      ))}
+      {children.length > 0 && (
+        <SortableContext
+          items={children.map((c) => c.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          {children.map((child) => (
+            <QuestionTreeNode
+              key={child.id}
+              question={child}
+              depth={depth + 1}
+              childrenByParent={childrenByParent}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onAddFollowUp={onAddFollowUp}
+            />
+          ))}
+        </SortableContext>
+      )}
     </div>
   );
 }
