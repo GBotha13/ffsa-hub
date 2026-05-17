@@ -39,6 +39,7 @@ export async function middleware(request: NextRequest) {
     "/auth/confirm",
     "/apply",
     "/reference",
+    "/legal", // public privacy / consent agreement
     "/api/upload/sign", // public applicants upload photos from /apply
     "/api/public", // public application submission
   ];
