@@ -10,6 +10,7 @@ const STATUS_STEPS = [
 
 const STATUS_ORDER: Record<string, number> = {
   submitted: 0,
+  waiting_for_references: 1,
   references_received: 1,
   interview_scheduled: 2,
   accepted: 3,
@@ -20,6 +21,7 @@ const STATUS_ORDER: Record<string, number> = {
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
     submitted: "bg-yellow-900/40 text-yellow-400 border-yellow-700/50",
+    waiting_for_references: "bg-yellow-900/40 text-yellow-400 border-yellow-700/50",
     references_received: "bg-blue-900/40 text-blue-400 border-blue-700/50",
     interview_scheduled: "bg-purple-900/40 text-purple-400 border-purple-700/50",
     accepted: "bg-green-900/40 text-green-400 border-green-700/50",

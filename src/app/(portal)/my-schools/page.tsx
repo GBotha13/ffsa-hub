@@ -42,6 +42,11 @@ export default async function MySchoolsPage() {
   }
 
   const statusColors: Record<string, "default" | "secondary" | "destructive"> = {
+    arrived: "default",
+    graduated: "secondary",
+    dismissed: "destructive",
+    decided_to_leave: "secondary",
+    // legacy fallbacks
     active: "default",
     completed: "secondary",
     withdrawn: "destructive",

@@ -818,10 +818,22 @@ function EnrollmentsTab({
   }
 
   const statusColors: Record<string, "default" | "secondary" | "destructive"> = {
+    arrived: "default",
+    graduated: "secondary",
+    dismissed: "destructive",
+    decided_to_leave: "secondary",
+    // legacy fallbacks (pre-migration data, just in case)
     active: "default",
     completed: "secondary",
     withdrawn: "destructive",
     on_hold: "secondary",
+  };
+
+  const statusLabels: Record<string, string> = {
+    arrived: "Arrived",
+    dismissed: "Dismissed",
+    decided_to_leave: "Decided to Leave",
+    graduated: "Graduated",
   };
 
   return (
@@ -921,16 +933,16 @@ function EnrollmentsTab({
                       }
                       disabled={updatingStatus === enrollment.id}
                     >
-                      <SelectTrigger className="w-[130px]">
+                      <SelectTrigger className="w-[170px]">
                         <Badge variant={statusColors[enrollment.status] ?? "secondary"}>
-                          {enrollment.status}
+                          {statusLabels[enrollment.status] ?? enrollment.status}
                         </Badge>
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
-                        <SelectItem value="withdrawn">Withdrawn</SelectItem>
-                        <SelectItem value="on_hold">On Hold</SelectItem>
+                        <SelectItem value="arrived">Arrived</SelectItem>
+                        <SelectItem value="dismissed">Dismissed</SelectItem>
+                        <SelectItem value="decided_to_leave">Decided to Leave</SelectItem>
+                        <SelectItem value="graduated">Graduated</SelectItem>
                       </SelectContent>
                     </Select>
                   </TableCell>
@@ -1194,6 +1206,7 @@ type AnalyticsData = {
 const ALL_STATUSES = [
   { key: "all", label: "All" },
   { key: "submitted", label: "Submitted" },
+  { key: "waiting_for_references", label: "Waiting for Refs" },
   { key: "references_received", label: "Refs Received" },
   { key: "interview_scheduled", label: "Interview" },
   { key: "accepted", label: "Accepted" },
@@ -1291,6 +1304,7 @@ function ApplicantsTab({
 
   const responseStatusColors: Record<string, "default" | "secondary" | "destructive"> = {
     submitted: "secondary",
+    waiting_for_references: "secondary",
     references_received: "secondary",
     interview_scheduled: "secondary",
     accepted: "default",
@@ -1646,6 +1660,7 @@ function ApplicantsTab({
               <SelectValue placeholder="Set status..." />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="waiting_for_references">Waiting for References</SelectItem>
               <SelectItem value="references_received">References Received</SelectItem>
               <SelectItem value="interview_scheduled">Interview Scheduled</SelectItem>
               <SelectItem value="accepted">Accepted</SelectItem>
@@ -2056,6 +2071,7 @@ function ApplicantsTab({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="submitted">Submitted</SelectItem>
+                    <SelectItem value="waiting_for_references">Waiting for References</SelectItem>
                     <SelectItem value="references_received">References Received</SelectItem>
                     <SelectItem value="interview_scheduled">Interview Scheduled</SelectItem>
                     <SelectItem value="accepted">Accepted</SelectItem>

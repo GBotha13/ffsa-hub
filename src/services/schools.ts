@@ -154,7 +154,7 @@ export async function updateEnrollmentStatus(
   completedAt?: string | null
 ) {
   const data: Record<string, unknown> = { status };
-  if (status === "completed") {
+  if (status === "graduated" || status === "completed") {
     data.completed_at = completedAt ?? new Date().toISOString();
   }
   return supabase.from("enrollments").update(data).eq("id", id).select().single();
