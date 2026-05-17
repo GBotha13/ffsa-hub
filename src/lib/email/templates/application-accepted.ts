@@ -2,11 +2,18 @@ export function applicationAcceptedEmailHtml({
   firstName,
   programName,
   inviteUrl,
+  customBodyHtml,
 }: {
   firstName: string;
   programName: string;
   inviteUrl: string;
+  customBodyHtml?: string | null;
 }): string {
+  const bodyHtml = customBodyHtml
+    ? customBodyHtml
+    : `<p style="margin:0 0 12px;font-size:15px;color:#B8A898;line-height:1.65;">Hi ${firstName},</p>
+              <p style="margin:0 0 12px;font-size:15px;color:#B8A898;line-height:1.65;">We're excited to let you know that your application to <strong style="color:#F0EBE3;">${programName}</strong> has been accepted!</p>
+              <p style="margin:0 0 32px;font-size:15px;color:#B8A898;line-height:1.65;">Click the button below to set up your account on FFSA Hub and get started.</p>`;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -57,17 +64,7 @@ export function applicationAcceptedEmailHtml({
                 You&rsquo;ve Been<br/>Accepted!
               </h1>
 
-              <p style="margin:0 0 12px;font-size:15px;color:#B8A898;line-height:1.65;">
-                Hi ${firstName},
-              </p>
-
-              <p style="margin:0 0 12px;font-size:15px;color:#B8A898;line-height:1.65;">
-                We're excited to let you know that your application to <strong style="color:#F0EBE3;">${programName}</strong> has been accepted!
-              </p>
-
-              <p style="margin:0 0 32px;font-size:15px;color:#B8A898;line-height:1.65;">
-                Click the button below to set up your account on FFSA Hub and get started.
-              </p>
+              ${bodyHtml}
 
               <!-- CTA Button -->
               <table cellpadding="0" cellspacing="0" style="margin-bottom:32px;">

@@ -2,12 +2,17 @@ export function enrollmentConfirmationEmailHtml({
   firstName,
   programName,
   siteUrl,
+  customBodyHtml,
 }: {
   firstName: string;
   programName: string;
   siteUrl: string;
+  customBodyHtml?: string | null;
 }): string {
   const programsUrl = `${siteUrl}/my-schools`;
+  const bodyHtml = customBodyHtml
+    ? customBodyHtml
+    : `<p style="margin:0 0 12px;font-size:15px;color:#B8A898;line-height:1.65;">Hi ${firstName}, your application to <strong style="color:#F0EBE3;">${programName}</strong> has been accepted. You're enrolled and can access your program right away.</p>`;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -58,9 +63,7 @@ export function enrollmentConfirmationEmailHtml({
                 Welcome Back!
               </h1>
 
-              <p style="margin:0 0 12px;font-size:15px;color:#B8A898;line-height:1.65;">
-                Hi ${firstName}, your application to <strong style="color:#F0EBE3;">${programName}</strong> has been accepted. You're enrolled and can access your program right away.
-              </p>
+              ${bodyHtml}
 
               <!-- CTA Button -->
               <table cellpadding="0" cellspacing="0" style="margin-top:24px;margin-bottom:32px;">

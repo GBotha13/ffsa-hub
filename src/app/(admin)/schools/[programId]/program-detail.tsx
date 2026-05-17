@@ -90,6 +90,8 @@ type Program = {
   description: string | null;
   application_open: boolean;
   application_deadline: string | null;
+  acceptance_email_subject: string | null;
+  acceptance_email_body: string | null;
   courses: Course[];
 };
 
@@ -442,6 +444,8 @@ export function ProgramDetail({
             programCode={program.code}
             applicationOpen={program.application_open}
             applicationDeadline={program.application_deadline}
+            acceptanceEmailSubject={program.acceptance_email_subject}
+            acceptanceEmailBody={program.acceptance_email_body}
             questions={questions}
             referenceSlots={referenceSlots}
           />
@@ -2109,6 +2113,8 @@ function ApplicationTab({
   programCode,
   applicationOpen,
   applicationDeadline,
+  acceptanceEmailSubject,
+  acceptanceEmailBody,
   questions,
   referenceSlots,
 }: {
@@ -2116,6 +2122,8 @@ function ApplicationTab({
   programCode: string;
   applicationOpen: boolean;
   applicationDeadline: string | null;
+  acceptanceEmailSubject: string | null;
+  acceptanceEmailBody: string | null;
   questions: AppQuestion[];
   referenceSlots: ReferenceSlot[];
 }) {
@@ -2139,6 +2147,47 @@ function ApplicationTab({
   // Deadline state
   const [deadline, setDeadline] = useState(applicationDeadline ?? "");
   const [deadlineSaving, setDeadlineSaving] = useState(false);
+
+  // Acceptance email state
+  const [emailSubject, setEmailSubject] = useState(acceptanceEmailSubject ?? "");
+  const [emailBody, setEmailBody] = useState(acceptanceEmailBody ?? "");
+  const [emailSaving, setEmailSaving] = useState(false);
+  const [emailSaved, setEmailSaved] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+
+  async function handleSaveAcceptanceEmail() {
+    setEmailSaving(true);
+    setEmailError(null);
+    setEmailSaved(false);
+    try {
+      const res = await fetch("/api/schools/programs", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: programId,
+          acceptance_email_subject: emailSubject.trim() || null,
+          acceptance_email_body: emailBody.trim() || null,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setEmailError(data.error || "Failed to save acceptance email");
+        return;
+      }
+      setEmailSaved(true);
+      setTimeout(() => setEmailSaved(false), 2500);
+      router.refresh();
+    } catch {
+      setEmailError("Network error");
+    } finally {
+      setEmailSaving(false);
+    }
+  }
+
+  function handleResetAcceptanceEmail() {
+    setEmailSubject("");
+    setEmailBody("");
+  }
 
   function copyPublicLink() {
     const link = `${window.location.origin}/apply/${programId}`;
@@ -3051,6 +3100,84 @@ function ApplicationTab({
             ))}
           </div>
         )}
+      </div>
+
+      {/* ─── ACCEPTANCE EMAIL ─── */}
+      <div className="space-y-4">
+        <div>
+          <h3 className="font-medium">Acceptance Email</h3>
+          <p className="text-xs text-muted-foreground mt-1">
+            The message applicants receive when you accept them into this
+            program. Leave blank to use the default. You can use{" "}
+            <code className="font-mono">{"{{first_name}}"}</code> and{" "}
+            <code className="font-mono">{"{{program_name}}"}</code> as
+            placeholders &mdash; they&apos;ll be replaced with the applicant&apos;s
+            name and this program&apos;s name when the email is sent.
+          </p>
+        </div>
+
+        <div className="space-y-3 rounded-lg border bg-card p-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="acceptance-subject">Subject Line</Label>
+            <Input
+              id="acceptance-subject"
+              value={emailSubject}
+              onChange={(e) => setEmailSubject(e.target.value)}
+              placeholder={`You've been accepted to {{program_name}}`}
+            />
+            <p className="text-xs text-muted-foreground">
+              Default if blank:{" "}
+              <span className="font-mono">
+                You&apos;ve been accepted to {programCode}
+              </span>
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="acceptance-body">Message</Label>
+            <Textarea
+              id="acceptance-body"
+              value={emailBody}
+              onChange={(e) => setEmailBody(e.target.value)}
+              rows={10}
+              placeholder={`Hi {{first_name}},\n\nWe're thrilled to welcome you to {{program_name}}! Your application has been accepted and we can't wait to journey with you.\n\nLook out for a follow-up email with arrival details and a packing list.\n\nBlessings,\nThe FFSA Team`}
+            />
+            <p className="text-xs text-muted-foreground">
+              Plain text. Blank lines become paragraph breaks. The FFSA branded
+              header, footer, and the &ldquo;set up your account&rdquo; button
+              are added automatically.
+            </p>
+          </div>
+
+          {emailError && (
+            <p className="text-sm text-destructive">{emailError}</p>
+          )}
+
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleSaveAcceptanceEmail}
+              disabled={emailSaving}
+            >
+              {emailSaving ? "Saving..." : "Save Email"}
+            </Button>
+            {(emailSubject || emailBody) && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={handleResetAcceptanceEmail}
+                disabled={emailSaving}
+              >
+                Reset to default
+              </Button>
+            )}
+            {emailSaved && (
+              <span className="text-xs text-muted-foreground">Saved.</span>
+            )}
+          </div>
+        </div>
       </div>
 
     </div>

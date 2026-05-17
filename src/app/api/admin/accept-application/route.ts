@@ -5,6 +5,10 @@ import { Resend } from "resend";
 import { applicationAcceptedEmailHtml } from "@/lib/email/templates/application-accepted";
 import { enrollmentConfirmationEmailHtml } from "@/lib/email/templates/enrollment-confirmation";
 import { userCanManageApplications } from "@/lib/auth/check-schools-access";
+import {
+  substitutePlaceholders,
+  plainTextToEmailHtml,
+} from "@/lib/email/placeholders";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -40,7 +44,9 @@ export async function POST(request: Request) {
   // The select includes columns added by migration 018 that may not be in auto-generated types yet
   const { data: rawResponse, error: fetchError } = await adminSupabase
     .from("application_responses")
-    .select("*, programs(id, name, code)")
+    .select(
+      "*, programs(id, name, code, acceptance_email_subject, acceptance_email_body)"
+    )
     .eq("id", response_id)
     .single();
 
@@ -54,7 +60,13 @@ export async function POST(request: Request) {
   const appResponse = rawResponse as typeof rawResponse & {
     applicant_email: string | null;
     applicant_info: Record<string, string> | null;
-    programs: { id: string; name: string; code: string };
+    programs: {
+      id: string;
+      name: string;
+      code: string;
+      acceptance_email_subject: string | null;
+      acceptance_email_body: string | null;
+    };
   };
 
   if (appResponse.status === "accepted") {
@@ -126,14 +138,34 @@ export async function POST(request: Request) {
         applicantInfo?.first_name ||
         "there";
 
+      const placeholders = {
+        first_name: firstName,
+        program_name: appResponse.programs.name,
+      };
+      const customSubject = appResponse.programs.acceptance_email_subject
+        ? substitutePlaceholders(
+            appResponse.programs.acceptance_email_subject,
+            placeholders
+          )
+        : null;
+      const customBodyHtml = appResponse.programs.acceptance_email_body
+        ? plainTextToEmailHtml(
+            substitutePlaceholders(
+              appResponse.programs.acceptance_email_body,
+              placeholders
+            )
+          )
+        : null;
+
       await resend.emails.send({
         from: `Fire & Fragrance SA <${fromEmail}>`,
         to: applicantEmail,
-        subject: `You're enrolled in ${appResponse.programs.name}`,
+        subject: customSubject ?? `You're enrolled in ${appResponse.programs.name}`,
         html: enrollmentConfirmationEmailHtml({
           firstName,
           programName: appResponse.programs.name,
           siteUrl,
+          customBodyHtml,
         }),
       });
     } else {
@@ -212,14 +244,36 @@ export async function POST(request: Request) {
       }
 
       // Send acceptance email with invite link
+      const newApplicantFirstName = applicantInfo?.first_name || "there";
+      const placeholders = {
+        first_name: newApplicantFirstName,
+        program_name: appResponse.programs.name,
+      };
+      const customSubject = appResponse.programs.acceptance_email_subject
+        ? substitutePlaceholders(
+            appResponse.programs.acceptance_email_subject,
+            placeholders
+          )
+        : null;
+      const customBodyHtml = appResponse.programs.acceptance_email_body
+        ? plainTextToEmailHtml(
+            substitutePlaceholders(
+              appResponse.programs.acceptance_email_body,
+              placeholders
+            )
+          )
+        : null;
+
       await resend.emails.send({
         from: `Fire & Fragrance SA <${fromEmail}>`,
         to: applicantEmail,
-        subject: `You've been accepted to ${appResponse.programs.name}`,
+        subject:
+          customSubject ?? `You've been accepted to ${appResponse.programs.name}`,
         html: applicationAcceptedEmailHtml({
-          firstName: applicantInfo?.first_name || "there",
+          firstName: newApplicantFirstName,
           programName: appResponse.programs.name,
           inviteUrl,
+          customBodyHtml,
         }),
       });
     }
