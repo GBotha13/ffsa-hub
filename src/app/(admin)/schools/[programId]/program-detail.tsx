@@ -818,6 +818,7 @@ function EnrollmentsTab({
   }
 
   const statusColors: Record<string, "default" | "secondary" | "destructive"> = {
+    waiting_for_arrival: "secondary",
     arrived: "default",
     graduated: "secondary",
     dismissed: "destructive",
@@ -830,6 +831,7 @@ function EnrollmentsTab({
   };
 
   const statusLabels: Record<string, string> = {
+    waiting_for_arrival: "Waiting for Arrival",
     arrived: "Arrived",
     dismissed: "Dismissed",
     decided_to_leave: "Decided to Leave",
@@ -939,6 +941,7 @@ function EnrollmentsTab({
                         </Badge>
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="waiting_for_arrival">Waiting for Arrival</SelectItem>
                         <SelectItem value="arrived">Arrived</SelectItem>
                         <SelectItem value="dismissed">Dismissed</SelectItem>
                         <SelectItem value="decided_to_leave">Decided to Leave</SelectItem>

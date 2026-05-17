@@ -42,6 +42,7 @@ export default async function MySchoolsPage() {
   }
 
   const statusColors: Record<string, "default" | "secondary" | "destructive"> = {
+    waiting_for_arrival: "secondary",
     arrived: "default",
     graduated: "secondary",
     dismissed: "destructive",
