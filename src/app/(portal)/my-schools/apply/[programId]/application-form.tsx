@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,27 @@ type Question = {
   type: string;
   is_required: boolean;
   options: string[] | null;
+  parent_question_id?: string | null;
+  show_when_answer?: string | null;
 };
+
+function isVisible(
+  question: Question,
+  questionsById: Map<string, Question>,
+  answers: Record<string, string>
+): boolean {
+  let current = question;
+  const seen = new Set<string>();
+  while (current.parent_question_id) {
+    if (seen.has(current.id)) return false;
+    seen.add(current.id);
+    const parent = questionsById.get(current.parent_question_id);
+    if (!parent) return false;
+    if ((answers[parent.id] ?? "") !== current.show_when_answer) return false;
+    current = parent;
+  }
+  return true;
+}
 
 type ReferenceSlot = {
   id: string;
@@ -42,6 +62,16 @@ export function ApplicationForm({
   const [refNames, setRefNames] = useState<Record<string, string>>({});
   const [refEmails, setRefEmails] = useState<Record<string, string>>({});
 
+  const questionsById = useMemo(
+    () => new Map(questions.map((q) => [q.id, q])),
+    [questions]
+  );
+
+  const visibleQuestions = questions.filter((q) =>
+    isVisible(q, questionsById, answers)
+  );
+  const visibleIds = new Set(visibleQuestions.map((q) => q.id));
+
   function setAnswer(questionId: string, value: string) {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
   }
@@ -50,8 +80,8 @@ export function ApplicationForm({
     e.preventDefault();
     setError(null);
 
-    // Validate required fields
-    for (const q of questions) {
+    // Validate required fields (only those currently visible).
+    for (const q of visibleQuestions) {
       if (q.is_required && !answers[q.id]?.trim()) {
         setError(`Please answer: "${q.label}"`);
         return;
@@ -67,11 +97,13 @@ export function ApplicationForm({
 
     setLoading(true);
 
-    const formattedAnswers = questions.map((q) => ({
-      question_id: q.id,
-      question_label: q.label,
-      answer: answers[q.id]?.trim() ?? "",
-    }));
+    const formattedAnswers = questions
+      .filter((q) => visibleIds.has(q.id))
+      .map((q) => ({
+        question_id: q.id,
+        question_label: q.label,
+        answer: answers[q.id]?.trim() ?? "",
+      }));
 
     try {
       const res = await fetch("/api/schools/applications/responses", {
@@ -125,7 +157,7 @@ export function ApplicationForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {questions.map((q, idx) => (
+      {visibleQuestions.map((q, idx) => (
         <div key={q.id} className="space-y-2">
           <Label className="text-sm font-medium">
             {idx + 1}. {q.label}
@@ -146,6 +178,21 @@ export function ApplicationForm({
                     onChange={() => setAnswer(q.id, option)}
                   />
                   <span className="text-sm">{option}</span>
+                </label>
+              ))}
+            </div>
+          ) : q.type === "yes_no" ? (
+            <div className="flex gap-4 pt-1">
+              {["yes", "no"].map((option) => (
+                <label key={option} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name={`q-${q.id}`}
+                    value={option}
+                    checked={answers[q.id] === option}
+                    onChange={() => setAnswer(q.id, option)}
+                  />
+                  <span className="text-sm capitalize">{option}</span>
                 </label>
               ))}
             </div>

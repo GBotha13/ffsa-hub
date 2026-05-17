@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { isValidPhoneNumber } from "libphonenumber-js";
-import type { FormQuestion } from "./form-types";
+import { isQuestionVisible, type FormQuestion } from "./form-types";
 
 function isRealDate(value: string): boolean {
   const d = new Date(value);
@@ -20,29 +20,70 @@ function isAtLeast16(value: string): boolean {
   return age >= 16;
 }
 
+// For a follow-up question to be answered correctly, its value must be present
+// and non-empty in a type-appropriate way.
+function isAnswerEmpty(q: FormQuestion, value: unknown): boolean {
+  if (q.type === "checkbox_group") {
+    return !Array.isArray(value) || value.length === 0;
+  }
+  if (q.type === "consent") {
+    return value !== true;
+  }
+  if (q.type === "file") {
+    return !value || typeof value !== "object";
+  }
+  return value === undefined || value === null || value === "";
+}
+
+function requiredMessageFor(q: FormQuestion): string {
+  switch (q.type) {
+    case "yes_no":
+    case "radio":
+    case "select":
+      return "Please select an option";
+    case "country":
+      return "Please select a country";
+    case "checkbox_group":
+      return "Please select at least one option";
+    case "file":
+      return "Please upload a file";
+    case "consent":
+      return "You must accept to continue";
+    default:
+      return "This field is required";
+  }
+}
+
 export function buildFormSchema(questions: FormQuestion[]) {
   const shape: Record<string, z.ZodType> = {};
+  const questionsById = new Map(questions.map((q) => [q.id, q]));
 
   for (const q of questions) {
     if (q.type === "section_header") continue;
+
+    // Follow-up questions are conditionally required — handled in superRefine.
+    // At the type-level, treat them as optional so the form passes static
+    // validation when the parent answer hides them.
+    const isFollowUp = !!q.parentQuestionId;
+    const required = q.required && !isFollowUp;
 
     let field: z.ZodType;
 
     switch (q.type) {
       case "short_text":
-        field = q.required
+        field = required
           ? z.string().min(1, "This field is required")
           : z.string().optional().or(z.literal(""));
         break;
 
       case "email":
-        field = q.required
+        field = required
           ? z.string().min(1, "This field is required").email("Please enter a valid email")
           : z.string().email("Please enter a valid email").optional().or(z.literal(""));
         break;
 
       case "phone":
-        if (q.required) {
+        if (required) {
           field = z
             .string()
             .min(1, "This field is required")
@@ -60,7 +101,7 @@ export function buildFormSchema(questions: FormQuestion[]) {
         break;
 
       case "date":
-        if (q.required) {
+        if (required) {
           field = z
             .string()
             .min(1, "This field is required")
@@ -83,38 +124,38 @@ export function buildFormSchema(questions: FormQuestion[]) {
         break;
 
       case "country":
-        field = q.required
+        field = required
           ? z.string().min(1, "Please select a country")
           : z.string().optional().or(z.literal(""));
         break;
 
       case "yes_no":
-        field = q.required
+        field = required
           ? z.string().min(1, "Please select an option")
           : z.string().optional().or(z.literal(""));
         break;
 
       case "select":
       case "radio":
-        field = q.required
+        field = required
           ? z.string().min(1, "Please select an option")
           : z.string().optional().or(z.literal(""));
         break;
 
       case "checkbox_group":
-        field = q.required
+        field = required
           ? z.array(z.string()).min(1, "Please select at least one option")
           : z.array(z.string()).optional();
         break;
 
       case "long_text":
-        field = q.required
+        field = required
           ? z.string().min(1, "This field is required")
           : z.string().optional().or(z.literal(""));
         break;
 
       case "file":
-        if (q.required) {
+        if (required) {
           field = z.object(
             {
               storagePath: z.string(),
@@ -138,13 +179,14 @@ export function buildFormSchema(questions: FormQuestion[]) {
         break;
 
       case "consent":
-        field = z.literal(true, {
-          message: "You must accept to continue",
-        });
+        // Follow-up consents: required only if visible — checked in superRefine.
+        field = isFollowUp
+          ? z.boolean().optional()
+          : z.literal(true, { message: "You must accept to continue" });
         break;
 
       default:
-        field = q.required
+        field = required
           ? z.string().min(1, "This field is required")
           : z.string().optional().or(z.literal(""));
     }
@@ -152,5 +194,19 @@ export function buildFormSchema(questions: FormQuestion[]) {
     shape[q.id] = field;
   }
 
-  return z.object(shape);
+  return z.object(shape).superRefine((data, ctx) => {
+    const values = data as Record<string, unknown>;
+    for (const q of questions) {
+      if (q.type === "section_header") continue;
+      if (!q.required || !q.parentQuestionId) continue;
+      if (!isQuestionVisible(q, questionsById, values)) continue;
+      if (isAnswerEmpty(q, values[q.id])) {
+        ctx.addIssue({
+          path: [q.id],
+          code: z.ZodIssueCode.custom,
+          message: requiredMessageFor(q),
+        });
+      }
+    }
+  });
 }

@@ -31,7 +31,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, Download, ChevronUp, ChevronDown, Edit2, ClipboardList, Copy, Check, Link as LinkIcon, Archive, BookTemplate, Upload, Loader2, FileText, Send, BarChart3, Calendar, RefreshCw, CheckSquare, Search, Users } from "lucide-react";
+import { Plus, Trash2, Download, ChevronUp, ChevronDown, Edit2, ClipboardList, Copy, Check, Link as LinkIcon, Archive, BookTemplate, Upload, Loader2, FileText, Send, BarChart3, Calendar, RefreshCw, CheckSquare, Search, Users, CornerDownRight } from "lucide-react";
 import { ProgramActions } from "../program-actions";
 
 // ────────────────────────────────────────────────────────────
@@ -102,6 +102,8 @@ type AppQuestion = {
   sort_order: number;
   is_required: boolean;
   options: string[] | null;
+  parent_question_id: string | null;
+  show_when_answer: string | null;
 };
 
 type ReferenceSlot = {
@@ -2151,8 +2153,24 @@ function ApplicationTab({
   const [qType, setQType] = useState("short_answer");
   const [qOptions, setQOptions] = useState("");
   const [qRequired, setQRequired] = useState(true);
+  const [qParentId, setQParentId] = useState<string>("");
+  const [qShowWhenAnswer, setQShowWhenAnswer] = useState<string>("");
   const [qLoading, setQLoading] = useState(false);
   const [qError, setQError] = useState<string | null>(null);
+
+  // Parent candidates: questions that can trigger follow-ups (yes_no / multiple_choice).
+  // Exclude the question being edited to prevent self-reference.
+  const parentCandidates = questions.filter(
+    (q) =>
+      (q.type === "yes_no" || q.type === "multiple_choice") &&
+      q.id !== editingQuestion?.id
+  );
+  const selectedParent = parentCandidates.find((q) => q.id === qParentId) ?? null;
+  const parentAnswerOptions: string[] = selectedParent
+    ? selectedParent.type === "yes_no"
+      ? ["yes", "no"]
+      : selectedParent.options ?? []
+    : [];
 
   // Template state
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
@@ -2263,6 +2281,8 @@ function ApplicationTab({
     setQType("short_answer");
     setQOptions("");
     setQRequired(true);
+    setQParentId("");
+    setQShowWhenAnswer("");
     setQError(null);
     setEditingQuestion(null);
     setShowAddQuestion(false);
@@ -2275,6 +2295,21 @@ function ApplicationTab({
     setQType(q.type);
     setQOptions(q.options?.join("\n") ?? "");
     setQRequired(q.is_required);
+    setQParentId(q.parent_question_id ?? "");
+    setQShowWhenAnswer(q.show_when_answer ?? "");
+    setShowAddQuestion(true);
+  }
+
+  function startAddFollowUp(parent: AppQuestion) {
+    setEditingQuestion(null);
+    setQLabel("");
+    setQDescription("");
+    setQType("short_answer");
+    setQOptions("");
+    setQRequired(true);
+    setQParentId(parent.id);
+    setQShowWhenAnswer(parent.type === "yes_no" ? "yes" : parent.options?.[0] ?? "");
+    setQError(null);
     setShowAddQuestion(true);
   }
 
@@ -2282,6 +2317,17 @@ function ApplicationTab({
     e.preventDefault();
     setQLoading(true);
     setQError(null);
+
+    const hasParent = !!qParentId;
+    if (hasParent && !qShowWhenAnswer) {
+      setQError("Please choose which answer should trigger this follow-up question.");
+      setQLoading(false);
+      return;
+    }
+
+    const followUpPayload = hasParent
+      ? { parent_question_id: qParentId, show_when_answer: qShowWhenAnswer }
+      : { parent_question_id: null, show_when_answer: null };
 
     try {
       if (editingQuestion) {
@@ -2296,6 +2342,7 @@ function ApplicationTab({
             type: qType,
             is_required: qRequired,
             options: (qType === "multiple_choice" || qType === "checkbox_group") ? qOptions.split("\n").map((o: string) => o.trim()).filter(Boolean) : [],
+            ...followUpPayload,
           }),
         });
         const data = await res.json();
@@ -2316,6 +2363,7 @@ function ApplicationTab({
             is_required: qRequired,
             sort_order: questions.length,
             options: (qType === "multiple_choice" || qType === "checkbox_group") ? qOptions.split("\n").map((o: string) => o.trim()).filter(Boolean) : [],
+            ...followUpPayload,
           }),
         });
         const data = await res.json();
@@ -2787,6 +2835,64 @@ function ApplicationTab({
                   <p className="text-xs text-muted-foreground mt-1">Enter each choice on a new line.</p>
                 </div>
               )}
+              {qType !== "section_header" && (
+                <div className="rounded-md border bg-muted/30 p-3 space-y-3">
+                  <div>
+                    <Label>Show this question only as a follow-up to…</Label>
+                    <Select
+                      value={qParentId || "none"}
+                      onValueChange={(v) => {
+                        const nextId = v === "none" ? "" : v;
+                        setQParentId(nextId);
+                        if (!nextId) {
+                          setQShowWhenAnswer("");
+                          return;
+                        }
+                        const parent = parentCandidates.find((q) => q.id === nextId);
+                        if (parent) {
+                          setQShowWhenAnswer(
+                            parent.type === "yes_no"
+                              ? "yes"
+                              : parent.options?.[0] ?? ""
+                          );
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="No — show this question always" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No — show this question always</SelectItem>
+                        {parentCandidates.map((q) => (
+                          <SelectItem key={q.id} value={q.id}>
+                            {q.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Optional. Only yes/no and multiple-choice questions can trigger follow-ups.
+                    </p>
+                  </div>
+                  {qParentId && parentAnswerOptions.length > 0 && (
+                    <div>
+                      <Label>Show when answer is</Label>
+                      <Select value={qShowWhenAnswer} onValueChange={setQShowWhenAnswer}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select an answer" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {parentAnswerOptions.map((opt) => (
+                            <SelectItem key={opt} value={opt}>
+                              {opt === "yes" ? "Yes" : opt === "no" ? "No" : opt}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              )}
               {qError && <p className="text-sm text-destructive">{qError}</p>}
               <div className="flex gap-2">
                 <Button type="submit" size="sm" disabled={qLoading}>
@@ -2816,80 +2922,13 @@ function ApplicationTab({
           </p>
         ) : (
           <div className="space-y-2">
-            {questions.map((q, idx) => (
-              <div
-                key={q.id}
-                className="flex items-center gap-3 rounded-lg border p-3"
-              >
-                <div className="flex flex-col gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    disabled={idx === 0}
-                    onClick={() => handleMoveQuestion(q.id, "up")}
-                  >
-                    <ChevronUp className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    disabled={idx === questions.length - 1}
-                    onClick={() => handleMoveQuestion(q.id, "down")}
-                  >
-                    <ChevronDown className="h-3 w-3" />
-                  </Button>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm">{q.label}</span>
-                    <Badge variant="secondary" className="text-xs">
-                      {({
-                        short_answer: "Short",
-                        long_answer: "Essay",
-                        multiple_choice: "Multiple Choice",
-                        yes_no: "Yes/No",
-                        checkbox_group: "Checkboxes",
-                        country: "Country",
-                        phone: "Phone",
-                        date: "Date",
-                        email: "Email",
-                        file: "Photo",
-                        consent: "Consent",
-                        section_header: "Header",
-                      } as Record<string, string>)[q.type] ?? q.type}
-                    </Badge>
-                    {q.is_required && (
-                      <Badge variant="secondary" className="text-xs">Required</Badge>
-                    )}
-                  </div>
-                  {q.description && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {q.description}
-                    </p>
-                  )}
-                </div>
-                <div className="flex gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground"
-                    onClick={() => startEdit(q)}
-                  >
-                    <Edit2 className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                    onClick={() => handleDeleteQuestion(q.id)}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-            ))}
+            <QuestionTree
+              questions={questions}
+              onEdit={startEdit}
+              onDelete={handleDeleteQuestion}
+              onMove={handleMoveQuestion}
+              onAddFollowUp={startAddFollowUp}
+            />
           </div>
         )}
       </div>
@@ -3014,6 +3053,199 @@ function ApplicationTab({
         )}
       </div>
 
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// QUESTION TREE — nests follow-ups under their parent
+// ────────────────────────────────────────────────────────────
+
+const QUESTION_TYPE_LABELS: Record<string, string> = {
+  short_answer: "Short",
+  long_answer: "Essay",
+  multiple_choice: "Multiple Choice",
+  yes_no: "Yes/No",
+  checkbox_group: "Checkboxes",
+  country: "Country",
+  phone: "Phone",
+  date: "Date",
+  email: "Email",
+  file: "Photo",
+  consent: "Consent",
+  section_header: "Header",
+};
+
+function QuestionTree({
+  questions,
+  onEdit,
+  onDelete,
+  onMove,
+  onAddFollowUp,
+}: {
+  questions: AppQuestion[];
+  onEdit: (q: AppQuestion) => void;
+  onDelete: (id: string) => void;
+  onMove: (id: string, direction: "up" | "down") => void;
+  onAddFollowUp: (parent: AppQuestion) => void;
+}) {
+  // Build child lookup keyed by parent_question_id.
+  const childrenByParent = new Map<string, AppQuestion[]>();
+  for (const q of questions) {
+    if (!q.parent_question_id) continue;
+    const list = childrenByParent.get(q.parent_question_id) ?? [];
+    list.push(q);
+    childrenByParent.set(q.parent_question_id, list);
+  }
+  for (const list of childrenByParent.values()) {
+    list.sort((a, b) => a.sort_order - b.sort_order);
+  }
+
+  const topLevel = questions
+    .filter((q) => !q.parent_question_id)
+    .sort((a, b) => a.sort_order - b.sort_order);
+
+  return (
+    <>
+      {topLevel.map((q, idx) => (
+        <QuestionTreeNode
+          key={q.id}
+          question={q}
+          depth={0}
+          siblings={topLevel}
+          siblingIndex={idx}
+          childrenByParent={childrenByParent}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          onMove={onMove}
+          onAddFollowUp={onAddFollowUp}
+        />
+      ))}
+    </>
+  );
+}
+
+function QuestionTreeNode({
+  question,
+  depth,
+  siblings,
+  siblingIndex,
+  childrenByParent,
+  onEdit,
+  onDelete,
+  onMove,
+  onAddFollowUp,
+}: {
+  question: AppQuestion;
+  depth: number;
+  siblings: AppQuestion[];
+  siblingIndex: number;
+  childrenByParent: Map<string, AppQuestion[]>;
+  onEdit: (q: AppQuestion) => void;
+  onDelete: (id: string) => void;
+  onMove: (id: string, direction: "up" | "down") => void;
+  onAddFollowUp: (parent: AppQuestion) => void;
+}) {
+  const children = childrenByParent.get(question.id) ?? [];
+  const canHaveFollowUps =
+    question.type === "yes_no" || question.type === "multiple_choice";
+  const showWhen = question.show_when_answer;
+  const showWhenLabel =
+    showWhen === "yes" ? "Yes" : showWhen === "no" ? "No" : showWhen;
+
+  return (
+    <div className="space-y-2" style={{ marginLeft: depth > 0 ? 24 : 0 }}>
+      <div className="flex items-center gap-3 rounded-lg border p-3">
+        {depth > 0 && (
+          <CornerDownRight className="h-4 w-4 text-muted-foreground shrink-0" />
+        )}
+        {depth === 0 && (
+          <div className="flex flex-col gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              disabled={siblingIndex === 0}
+              onClick={() => onMove(question.id, "up")}
+            >
+              <ChevronUp className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              disabled={siblingIndex === siblings.length - 1}
+              onClick={() => onMove(question.id, "down")}
+            >
+              <ChevronDown className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-medium text-sm">{question.label}</span>
+            <Badge variant="secondary" className="text-xs">
+              {QUESTION_TYPE_LABELS[question.type] ?? question.type}
+            </Badge>
+            {question.is_required && (
+              <Badge variant="secondary" className="text-xs">Required</Badge>
+            )}
+            {depth > 0 && showWhenLabel && (
+              <Badge variant="outline" className="text-xs">
+                Shown when answer is &ldquo;{showWhenLabel}&rdquo;
+              </Badge>
+            )}
+          </div>
+          {question.description && (
+            <p className="text-xs text-muted-foreground mt-1">
+              {question.description}
+            </p>
+          )}
+        </div>
+        <div className="flex gap-1">
+          {canHaveFollowUps && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-xs text-muted-foreground"
+              onClick={() => onAddFollowUp(question)}
+              title="Add a follow-up question that appears based on this answer"
+            >
+              <Plus className="h-3 w-3 mr-1" /> Follow-up
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground"
+            onClick={() => onEdit(question)}
+          >
+            <Edit2 className="h-3 w-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+            onClick={() => onDelete(question.id)}
+          >
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </div>
+      </div>
+      {children.map((child, idx) => (
+        <QuestionTreeNode
+          key={child.id}
+          question={child}
+          depth={depth + 1}
+          siblings={children}
+          siblingIndex={idx}
+          childrenByParent={childrenByParent}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          onMove={onMove}
+          onAddFollowUp={onAddFollowUp}
+        />
+      ))}
     </div>
   );
 }

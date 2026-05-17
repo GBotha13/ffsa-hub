@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { ErrorSummary } from "@/components/form/error-summary";
 import { buildFormSchema } from "@/lib/build-form-schema";
 import {
   mapDbQuestion,
+  isQuestionVisible,
   type FormQuestion,
   type FileValue,
 } from "@/lib/form-types";
@@ -23,6 +24,8 @@ type DbQuestion = {
   type: string;
   is_required: boolean;
   options: string[] | null;
+  parent_question_id?: string | null;
+  show_when_answer?: string | null;
 };
 
 type ReferenceSlot = {
@@ -129,6 +132,19 @@ export function PublicApplicationForm({
     [questions]
   );
 
+  const questionsById = useMemo(
+    () => new Map(allQuestions.map((q) => [q.id, q])),
+    [allQuestions]
+  );
+
+  const parentIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const q of allQuestions) {
+      if (q.parentQuestionId) ids.add(q.parentQuestionId);
+    }
+    return Array.from(ids);
+  }, [allQuestions]);
+
   const schema = useMemo(
     () => buildFormSchema(allQuestions),
     [allQuestions]
@@ -161,6 +177,31 @@ export function PublicApplicationForm({
     mode: "onBlur",
   });
 
+  // Watch parent answers so follow-up visibility updates live.
+  const watchedParentValues = useWatch({
+    control,
+    name: parentIds,
+  });
+
+  const visibleQuestionIds = useMemo(() => {
+    const parentValueMap: Record<string, unknown> = {};
+    if (parentIds.length > 0 && Array.isArray(watchedParentValues)) {
+      parentIds.forEach((id, idx) => {
+        parentValueMap[id] = watchedParentValues[idx];
+      });
+    }
+    const ids = new Set<string>();
+    for (const q of allQuestions) {
+      if (isQuestionVisible(q, questionsById, parentValueMap)) ids.add(q.id);
+    }
+    return ids;
+  }, [allQuestions, questionsById, parentIds, watchedParentValues]);
+
+  const visibleQuestions = useMemo(
+    () => allQuestions.filter((q) => visibleQuestionIds.has(q.id)),
+    [allQuestions, visibleQuestionIds]
+  );
+
   async function onSubmit(data: Record<string, unknown>) {
     setServerError(null);
 
@@ -178,6 +219,7 @@ export function PublicApplicationForm({
 
     for (const q of allQuestions) {
       if (q.type === "section_header") continue;
+      if (!visibleQuestionIds.has(q.id)) continue;
       const value = data[q.id];
       if (q.type === "file" && value && typeof value === "object") {
         const fv = value as FileValue;
@@ -285,9 +327,9 @@ export function PublicApplicationForm({
       )}
 
       {/* Application Questions */}
-      {allQuestions.length > 0 && (
+      {visibleQuestions.length > 0 && (
         <div className="rounded-lg border bg-card p-6 space-y-4">
-          {allQuestions.map((q) => (
+          {visibleQuestions.map((q) => (
             <FormField
               key={q.id}
               question={q}

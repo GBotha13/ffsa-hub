@@ -2,6 +2,18 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createQuestion, updateQuestion, deleteQuestion } from "@/services/schools";
 
+function validateFollowUpFields(
+  parent_question_id: unknown,
+  show_when_answer: unknown
+): string | null {
+  const hasParent = !!parent_question_id;
+  const hasAnswer = !!show_when_answer;
+  if (hasParent !== hasAnswer) {
+    return "parent_question_id and show_when_answer must be set together";
+  }
+  return null;
+}
+
 export async function POST(request: Request) {
   const supabase = await createClient();
   const {
@@ -13,13 +25,18 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { program_id, label, description, type, sort_order, is_required, options } = body;
+  const { program_id, label, description, type, sort_order, is_required, options, parent_question_id, show_when_answer } = body;
 
   if (!program_id || !label) {
     return NextResponse.json(
       { error: "program_id and label are required" },
       { status: 400 }
     );
+  }
+
+  const followUpValidation = validateFollowUpFields(parent_question_id, show_when_answer);
+  if (followUpValidation) {
+    return NextResponse.json({ error: followUpValidation }, { status: 400 });
   }
 
   const { data, error } = await createQuestion(supabase, {
@@ -30,6 +47,8 @@ export async function POST(request: Request) {
     sort_order: sort_order ?? 0,
     is_required: is_required ?? true,
     options: options ?? [],
+    parent_question_id: parent_question_id || null,
+    show_when_answer: show_when_answer || null,
   });
 
   if (error) {
@@ -50,10 +69,26 @@ export async function PUT(request: Request) {
   }
 
   const body = await request.json();
-  const { id, label, description, type, sort_order, is_required, options } = body;
+  const { id, label, description, type, sort_order, is_required, options, parent_question_id, show_when_answer } = body;
 
   if (!id) {
     return NextResponse.json({ error: "id is required" }, { status: 400 });
+  }
+
+  if (parent_question_id !== undefined || show_when_answer !== undefined) {
+    const followUpValidation = validateFollowUpFields(
+      parent_question_id ?? null,
+      show_when_answer ?? null
+    );
+    if (followUpValidation) {
+      return NextResponse.json({ error: followUpValidation }, { status: 400 });
+    }
+    if (parent_question_id && parent_question_id === id) {
+      return NextResponse.json(
+        { error: "A question cannot be its own follow-up parent" },
+        { status: 400 }
+      );
+    }
   }
 
   const updateData: Record<string, unknown> = {};
@@ -63,6 +98,8 @@ export async function PUT(request: Request) {
   if (sort_order !== undefined) updateData.sort_order = sort_order;
   if (is_required !== undefined) updateData.is_required = is_required;
   if (options !== undefined) updateData.options = options;
+  if (parent_question_id !== undefined) updateData.parent_question_id = parent_question_id || null;
+  if (show_when_answer !== undefined) updateData.show_when_answer = show_when_answer || null;
 
   const { data, error } = await updateQuestion(supabase, id, updateData);
 

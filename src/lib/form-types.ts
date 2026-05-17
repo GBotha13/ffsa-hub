@@ -22,6 +22,8 @@ export type FormQuestion = {
   required: boolean;
   options?: { value: string; label: string }[];
   validation?: Record<string, unknown>;
+  parentQuestionId?: string | null;
+  showWhenAnswer?: string | null;
 };
 
 export type FileValue = {
@@ -60,6 +62,8 @@ type DbQuestion = {
   type: string;
   is_required: boolean;
   options: string[] | null;
+  parent_question_id?: string | null;
+  show_when_answer?: string | null;
 };
 
 export function mapDbQuestion(q: DbQuestion): FormQuestion {
@@ -117,5 +121,30 @@ export function mapDbQuestion(q: DbQuestion): FormQuestion {
       const seen = q.options!.slice(0, i).filter((prev) => prev === o).length;
       return { value: seen > 0 ? `${o}__${i}` : o, label: o };
     }),
+    parentQuestionId: q.parent_question_id ?? null,
+    showWhenAnswer: q.show_when_answer ?? null,
   };
+}
+
+// Returns true if `question` should be shown given the current form values.
+// A question is shown when its parent chain is fully satisfied — every
+// ancestor's current answer must match its `showWhenAnswer`.
+export function isQuestionVisible(
+  question: FormQuestion,
+  questionsById: Map<string, FormQuestion>,
+  values: Record<string, unknown>
+): boolean {
+  let current = question;
+  const seen = new Set<string>();
+  while (current.parentQuestionId) {
+    if (seen.has(current.id)) return false; // cycle guard
+    seen.add(current.id);
+    const parent = questionsById.get(current.parentQuestionId);
+    if (!parent) return false;
+    const parentValue = values[parent.id];
+    const parentAnswer = typeof parentValue === "string" ? parentValue : "";
+    if (parentAnswer !== current.showWhenAnswer) return false;
+    current = parent;
+  }
+  return true;
 }

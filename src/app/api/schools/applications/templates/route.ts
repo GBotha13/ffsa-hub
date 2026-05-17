@@ -4,7 +4,7 @@ import {
   getApplicationTemplates,
   getApplicationTemplate,
   createApplicationTemplate,
-  createTemplateQuestions,
+  createTemplateQuestion,
   deleteApplicationTemplate,
   getQuestionsByProgram,
   createQuestion,
@@ -47,18 +47,60 @@ export async function POST(request: Request) {
     });
     if (tErr) return NextResponse.json({ error: tErr.message }, { status: 500 });
 
-    const templateQuestions = questions.map((q: any, i: number) => ({
-      template_id: template.id,
-      label: q.label,
-      description: q.description || null,
-      type: q.type,
-      sort_order: q.sort_order ?? i,
-      is_required: q.is_required,
-      options: q.options ?? [],
-    }));
+    // Templates have their own question IDs, so we have to insert parents first,
+    // capture the new IDs, then insert follow-ups with remapped parent IDs.
+    const programIdToTemplateId = new Map<string, string>();
+    const topLevel = (questions as any[]).filter((q) => !q.parent_question_id);
+    const followUps = (questions as any[]).filter((q) => q.parent_question_id);
 
-    const { error: qErr } = await createTemplateQuestions(supabase, templateQuestions);
-    if (qErr) return NextResponse.json({ error: qErr.message }, { status: 500 });
+    for (let i = 0; i < topLevel.length; i++) {
+      const q = topLevel[i];
+      const { data: inserted, error } = await createTemplateQuestion(supabase, {
+        template_id: template.id,
+        label: q.label,
+        description: q.description || null,
+        type: q.type,
+        sort_order: q.sort_order ?? i,
+        is_required: q.is_required,
+        options: q.options ?? [],
+      });
+      if (error || !inserted) return NextResponse.json({ error: error?.message ?? "Failed to save template question" }, { status: 500 });
+      programIdToTemplateId.set(q.id, inserted.id);
+    }
+
+    // Follow-ups may themselves be parents of other follow-ups (nesting).
+    // Insert in passes until every question's parent has a mapped ID.
+    let remaining = [...followUps];
+    while (remaining.length > 0) {
+      const nextPass: any[] = [];
+      let inserted = 0;
+      for (const q of remaining) {
+        const mappedParent = programIdToTemplateId.get(q.parent_question_id);
+        if (!mappedParent) {
+          nextPass.push(q);
+          continue;
+        }
+        const { data: row, error } = await createTemplateQuestion(supabase, {
+          template_id: template.id,
+          label: q.label,
+          description: q.description || null,
+          type: q.type,
+          sort_order: q.sort_order ?? 0,
+          is_required: q.is_required,
+          options: q.options ?? [],
+          parent_question_id: mappedParent,
+          show_when_answer: q.show_when_answer,
+        });
+        if (error || !row) return NextResponse.json({ error: error?.message ?? "Failed to save template question" }, { status: 500 });
+        programIdToTemplateId.set(q.id, row.id);
+        inserted++;
+      }
+      if (inserted === 0 && nextPass.length > 0) {
+        // Parents missing — orphaned follow-ups. Skip them rather than infinite loop.
+        break;
+      }
+      remaining = nextPass;
+    }
 
     return NextResponse.json({ success: true, template });
   }
@@ -78,9 +120,14 @@ export async function POST(request: Request) {
     const startOrder = existing?.length ?? 0;
 
     const tQuestions = template.application_template_questions ?? [];
-    for (let i = 0; i < tQuestions.length; i++) {
-      const q = tQuestions[i];
-      await createQuestion(supabase, {
+    const templateIdToProgramId = new Map<string, string>();
+
+    const topLevel = tQuestions.filter((q: any) => !q.parent_question_id);
+    const followUps = tQuestions.filter((q: any) => q.parent_question_id);
+
+    for (let i = 0; i < topLevel.length; i++) {
+      const q = topLevel[i];
+      const { data: row, error } = await createQuestion(supabase, {
         program_id,
         label: q.label,
         description: q.description || null,
@@ -89,6 +136,37 @@ export async function POST(request: Request) {
         is_required: q.is_required,
         options: q.options ?? [],
       });
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      templateIdToProgramId.set(q.id, row.id);
+    }
+
+    let remaining = [...followUps];
+    while (remaining.length > 0) {
+      const nextPass: any[] = [];
+      let inserted = 0;
+      for (const q of remaining) {
+        const mappedParent = templateIdToProgramId.get(q.parent_question_id);
+        if (!mappedParent) {
+          nextPass.push(q);
+          continue;
+        }
+        const { data: row, error } = await createQuestion(supabase, {
+          program_id,
+          label: q.label,
+          description: q.description || null,
+          type: q.type,
+          sort_order: q.sort_order ?? 0,
+          is_required: q.is_required,
+          options: q.options ?? [],
+          parent_question_id: mappedParent,
+          show_when_answer: q.show_when_answer,
+        });
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+        templateIdToProgramId.set(q.id, row.id);
+        inserted++;
+      }
+      if (inserted === 0 && nextPass.length > 0) break;
+      remaining = nextPass;
     }
 
     return NextResponse.json({ success: true, imported: tQuestions.length });

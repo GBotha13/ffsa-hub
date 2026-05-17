@@ -387,6 +387,8 @@ export async function createQuestion(supabase: Client, data: {
   sort_order?: number;
   is_required?: boolean;
   options?: string[];
+  parent_question_id?: string | null;
+  show_when_answer?: string | null;
 }) {
   return supabase.from("application_questions").insert(data).select().single();
 }
@@ -400,6 +402,9 @@ export async function updateQuestion(
     type?: string;
     sort_order?: number;
     is_required?: boolean;
+    options?: string[];
+    parent_question_id?: string | null;
+    show_when_answer?: string | null;
   }
 ) {
   return supabase.from("application_questions").update(data).eq("id", id).select().single();
@@ -653,7 +658,30 @@ export async function createTemplateQuestions(
     sort_order: number;
     is_required: boolean;
     options?: unknown;
+    parent_question_id?: string | null;
+    show_when_answer?: string | null;
   }>
 ) {
   return supabase.from("application_template_questions").insert(questions);
+}
+
+export async function createTemplateQuestion(
+  supabase: Client,
+  question: {
+    template_id: string;
+    label: string;
+    description?: string | null;
+    type: string;
+    sort_order: number;
+    is_required: boolean;
+    options?: unknown;
+    parent_question_id?: string | null;
+    show_when_answer?: string | null;
+  }
+) {
+  return supabase
+    .from("application_template_questions")
+    .insert(question)
+    .select("id")
+    .single();
 }
