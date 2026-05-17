@@ -3148,9 +3148,12 @@ function ApplicationTab({
               placeholder={`Hi {{first_name}},\n\nWe're thrilled to welcome you to {{program_name}}! Your application has been accepted and we can't wait to journey with you.\n\nLook out for a follow-up email with arrival details and a packing list.\n\nBlessings,\nThe FFSA Team`}
             />
             <p className="text-xs text-muted-foreground">
-              Plain text. Blank lines become paragraph breaks. The FFSA branded
-              header, footer, and the &ldquo;set up your account&rdquo; button
-              are added automatically.
+              Plain text. Blank lines become paragraph breaks. Paste any{" "}
+              <span className="font-mono">https://</span> URL and it&apos;ll
+              become clickable; for custom anchor text use{" "}
+              <code className="font-mono">[click here](https://example.com)</code>
+              . The FFSA branded header, footer, and the &ldquo;set up your
+              account&rdquo; button are added automatically.
             </p>
           </div>
 
