@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProgramPublicInfo, getQuestionsByProgram, getReferenceSlotsByProgram } from "@/services/schools";
+import { getCurrentConsentAgreement } from "@/services/consent";
 import { PublicApplicationForm } from "./public-application-form";
 
 export default async function PublicApplyPage({
@@ -46,6 +47,7 @@ export default async function PublicApplyPage({
 
   const { data: questions } = await getQuestionsByProgram(supabase, programId);
   const { data: referenceSlots } = await getReferenceSlotsByProgram(supabase, programId);
+  const { data: agreement } = await getCurrentConsentAgreement(supabase);
 
   return (
     <div className="space-y-8">
@@ -75,6 +77,7 @@ export default async function PublicApplyPage({
         programName={program.name}
         questions={questions ?? []}
         referenceSlots={referenceSlots ?? []}
+        consentAgreementVersion={agreement?.version ?? null}
       />
     </div>
   );

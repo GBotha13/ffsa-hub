@@ -8,6 +8,10 @@ import {
   getReferenceSlotsByProgram,
   createReferenceRequest,
 } from "@/services/schools";
+import {
+  getCurrentConsentAgreement,
+  recordConsent,
+} from "@/services/consent";
 import { Resend } from "resend";
 import { applicationConfirmationEmailHtml } from "@/lib/email/templates/application-confirmation";
 import { referenceRequestEmailHtml } from "@/lib/email/templates/reference-request";
@@ -39,7 +43,7 @@ function findAnswerByLabel(
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const { program_id, answers, references, files } = body;
+  const { program_id, answers, references, files, consent_version } = body;
 
   if (!program_id || !answers) {
     return NextResponse.json(
@@ -49,6 +53,21 @@ export async function POST(request: Request) {
   }
 
   const supabase = createAdminClient();
+
+  // Consent must match the current published agreement version.
+  const { data: currentAgreement } = await getCurrentConsentAgreement(supabase);
+  if (!currentAgreement) {
+    return NextResponse.json(
+      { error: "Consent agreement is not configured. Please contact support." },
+      { status: 500 }
+    );
+  }
+  if (!consent_version || consent_version !== currentAgreement.version) {
+    return NextResponse.json(
+      { error: "You must accept the current Privacy & Data Processing Agreement to submit your application." },
+      { status: 400 }
+    );
+  }
 
   // Verify program exists, is active, and open for applications
   const { data: program } = await getProgramPublicInfo(supabase, program_id);
@@ -155,6 +174,21 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+
+  // Record the consent acceptance. We deliberately don't fail the submission
+  // on this insert — the agreement version was already validated above, and
+  // losing the audit row is less harmful than losing the application.
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  const ipAddress = forwardedFor ? forwardedFor.split(",")[0].trim() : null;
+  const userAgent = request.headers.get("user-agent");
+  await recordConsent(supabase, {
+    agreement_version: consent_version,
+    source: "application",
+    applicant_email: email ?? response.applicant_email ?? null,
+    application_id: response.id,
+    ip_address: ipAddress,
+    user_agent: userAgent,
+  });
 
   // Create reference requests and send emails to referees
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://ffsahub.com";

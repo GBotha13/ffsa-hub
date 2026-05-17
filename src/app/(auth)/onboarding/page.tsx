@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Image from "next/image";
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 6;
 
 const STEP_LABELS = [
   "Password",
@@ -17,6 +17,7 @@ const STEP_LABELS = [
   "Address",
   "Passport",
   "Emergency",
+  "Consent",
 ];
 
 interface FormData {
@@ -74,6 +75,8 @@ export default function OnboardingPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordSet, setPasswordSet] = useState(false);
+  const [consentAccepted, setConsentAccepted] = useState(false);
+  const [agreementVersion, setAgreementVersion] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadUser() {
@@ -116,6 +119,18 @@ export default function OnboardingPage() {
         health_insurance_expiry_date: appUser.health_insurance_expiry_date ?? "",
       });
 
+      // Fetch the current consent agreement version so we know what the user
+      // is accepting at the moment they tick the box.
+      try {
+        const agreementRes = await fetch("/api/consent");
+        if (agreementRes.ok) {
+          const { agreement } = await agreementRes.json();
+          setAgreementVersion(agreement?.version ?? null);
+        }
+      } catch {
+        // Non-fatal; the consent step will display an error if no version is available.
+      }
+
       setLoading(false);
     }
     loadUser();
@@ -128,8 +143,29 @@ export default function OnboardingPage() {
 
   async function handleFinish() {
     if (!userId) return;
+    if (!consentAccepted) {
+      setError("You must accept the Privacy & Data Processing Agreement to complete onboarding.");
+      return;
+    }
+    if (!agreementVersion) {
+      setError("Unable to load the privacy agreement. Please refresh and try again.");
+      return;
+    }
     setSaving(true); setError(null);
     try {
+      const consentRes = await fetch("/api/consent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agreement_version: agreementVersion,
+          source: "onboarding",
+        }),
+      });
+      if (!consentRes.ok) {
+        const result = await consentRes.json().catch(() => ({}));
+        throw new Error(result.error ?? "Failed to record consent");
+      }
+
       const { error: profileError } = await updateUserProfile(supabase, userId, {
         first_name: form.first_name.trim(), last_name: form.last_name.trim(),
         preferred_name: nullify(form.preferred_name), date_of_birth: nullify(form.date_of_birth),
@@ -286,6 +322,13 @@ export default function OnboardingPage() {
                   Emergency &amp; Health
                 </h2>
                 <p style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "4px" }}>Emergency contact and health insurance details.</p>
+              </>}
+              {step === 6 && <>
+                <p className="page-eyebrow" style={{ marginBottom: "6px" }}>Step 6 of {TOTAL_STEPS}</p>
+                <h2 style={{ fontFamily: "var(--font-bebas,'Arial Black',sans-serif)", fontSize: "2rem", letterSpacing: "0.04em", color: "#F0EBE3", lineHeight: 1 }}>
+                  Privacy &amp; Consent
+                </h2>
+                <p style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "4px" }}>Please review and accept our data processing agreement.</p>
               </>}
             </div>
 
@@ -517,6 +560,62 @@ export default function OnboardingPage() {
                       </div>
                     </div>
                   </div>
+                </>
+              )}
+
+              {/* ── Step 6: Consent ── */}
+              {step === 6 && (
+                <>
+                  <p style={{ fontSize: "13px", color: "var(--text-secondary)", lineHeight: 1.55 }}>
+                    Before you join FFSA Hub, we need your consent to collect and use your
+                    personal information for program administration, communications, and
+                    legal compliance.
+                  </p>
+                  <p style={{ fontSize: "13px", color: "var(--text-secondary)", lineHeight: 1.55 }}>
+                    Please open and read the agreement, then tick the box below to confirm.
+                  </p>
+                  <a
+                    href="/legal/consent"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "inline-block",
+                      fontSize: "12px",
+                      letterSpacing: "0.12em",
+                      textTransform: "uppercase",
+                      fontWeight: 700,
+                      color: "var(--yellow)",
+                      textDecoration: "underline",
+                    }}
+                  >
+                    Open Privacy &amp; Data Processing Agreement →
+                  </a>
+                  <label
+                    className="flex items-start gap-3 cursor-pointer rounded-xl p-4"
+                    style={{
+                      border: `1px solid ${consentAccepted ? "var(--yellow-border)" : "var(--surface-4)"}`,
+                      background: consentAccepted ? "var(--yellow-dim)" : "var(--surface-1)",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={consentAccepted}
+                      onChange={(e) => setConsentAccepted(e.target.checked)}
+                      className="mt-1 h-4 w-4"
+                    />
+                    <span style={{ fontSize: "13px", color: "var(--text-primary)", lineHeight: 1.5 }}>
+                      I have read and agree to the FFSA Privacy &amp; Data Processing
+                      Agreement. I consent to FFSA collecting, storing, and using my
+                      personal information for the purposes described in the agreement,
+                      and to receiving communications from FFSA related to my account
+                      and programs.
+                    </span>
+                  </label>
+                  {agreementVersion && (
+                    <p style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
+                      Agreement version: <span style={{ fontFamily: "monospace" }}>{agreementVersion}</span>
+                    </p>
+                  )}
                 </>
               )}
 

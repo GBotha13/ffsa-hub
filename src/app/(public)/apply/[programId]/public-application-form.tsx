@@ -113,11 +113,13 @@ export function PublicApplicationForm({
   programName,
   questions,
   referenceSlots = [],
+  consentAgreementVersion,
 }: {
   programId: string;
   programName: string;
   questions: DbQuestion[];
   referenceSlots?: ReferenceSlot[];
+  consentAgreementVersion: string | null;
 }) {
   const [submitted, setSubmitted] = useState(false);
   const [applicationId, setApplicationId] = useState("");
@@ -126,6 +128,8 @@ export function PublicApplicationForm({
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const [refNames, setRefNames] = useState<Record<string, string>>({});
   const [refEmails, setRefEmails] = useState<Record<string, string>>({});
+  const [consentAccepted, setConsentAccepted] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
 
   const allQuestions: FormQuestion[] = useMemo(
     () => questions.map(mapDbQuestion),
@@ -266,6 +270,13 @@ export function PublicApplicationForm({
         referee_email: refEmails[slot.id].trim(),
       }));
 
+    if (!consentAccepted) {
+      setConsentError("Please accept the Privacy & Data Processing Agreement to submit your application.");
+      window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+      return;
+    }
+    setConsentError(null);
+
     try {
       const res = await fetch("/api/public/applications", {
         method: "POST",
@@ -275,6 +286,7 @@ export function PublicApplicationForm({
           answers,
           references,
           files: files.length > 0 ? files : undefined,
+          consent_version: consentAgreementVersion,
         }),
       });
 
@@ -411,6 +423,42 @@ export function PublicApplicationForm({
           ))}
         </div>
       )}
+
+      {/* Consent */}
+      <div className="rounded-lg border bg-card p-6 space-y-3">
+        <h2 className="font-semibold text-foreground">Privacy & Data Processing</h2>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={consentAccepted}
+            onChange={(e) => {
+              setConsentAccepted(e.target.checked);
+              if (e.target.checked) setConsentError(null);
+            }}
+            className="mt-1 h-4 w-4 shrink-0"
+            required
+          />
+          <span className="text-sm text-foreground/90">
+            I have read and agree to the{" "}
+            <a
+              href="/legal/consent"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline text-primary"
+            >
+              FFSA Privacy & Data Processing Agreement
+            </a>
+            . I consent to FFSA collecting, storing, and using my personal
+            information for the purposes described in the agreement, including
+            contacting the references I have listed, and to receiving
+            communications from FFSA related to my application and programs.
+            <span className="text-destructive ml-0.5">*</span>
+          </span>
+        </label>
+        {consentError && (
+          <p className="text-sm text-destructive">{consentError}</p>
+        )}
+      </div>
 
       <Button
         type="submit"
