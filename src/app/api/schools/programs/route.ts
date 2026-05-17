@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createProgram, updateProgram, deleteProgram } from "@/services/schools";
+import {
+  createProgram,
+  updateProgram,
+  deleteProgram,
+  seedDefaultReferenceQuestions,
+} from "@/services/schools";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -32,6 +37,12 @@ export async function POST(request: Request) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Drop the default reference question set onto the new program so the
+  // referee form has something to render. Admins can edit/remove afterwards.
+  if (data?.id) {
+    await seedDefaultReferenceQuestions(supabase, data.id);
   }
 
   return NextResponse.json({ success: true, program: data });

@@ -695,3 +695,70 @@ export async function createTemplateQuestion(
     .select("id")
     .single();
 }
+
+// ────────────────────────────────────────────────────────────
+// REFERENCE QUESTIONS
+// ────────────────────────────────────────────────────────────
+
+export async function getReferenceQuestionsByProgram(
+  supabase: Client,
+  programId: string
+) {
+  return supabase
+    .from("reference_questions")
+    .select("*")
+    .eq("program_id", programId)
+    .order("sort_order", { ascending: true });
+}
+
+export async function createReferenceQuestion(
+  supabase: Client,
+  data: {
+    program_id: string;
+    label: string;
+    description?: string | null;
+    type?: string;
+    sort_order?: number;
+    is_required?: boolean;
+    options?: string[];
+    parent_question_id?: string | null;
+    show_when_answer?: string | null;
+  }
+) {
+  return supabase.from("reference_questions").insert(data).select().single();
+}
+
+export async function updateReferenceQuestion(
+  supabase: Client,
+  id: string,
+  data: {
+    label?: string;
+    description?: string | null;
+    type?: string;
+    sort_order?: number;
+    is_required?: boolean;
+    options?: string[];
+    parent_question_id?: string | null;
+    show_when_answer?: string | null;
+  }
+) {
+  return supabase
+    .from("reference_questions")
+    .update(data)
+    .eq("id", id)
+    .select()
+    .single();
+}
+
+export async function deleteReferenceQuestion(supabase: Client, id: string) {
+  return supabase.from("reference_questions").delete().eq("id", id);
+}
+
+export async function seedDefaultReferenceQuestions(
+  supabase: Client,
+  programId: string
+) {
+  return supabase.rpc("seed_default_reference_questions", {
+    p_program_id: programId,
+  });
+}

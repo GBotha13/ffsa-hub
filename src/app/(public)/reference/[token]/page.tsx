@@ -1,5 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getReferenceRequestByToken } from "@/services/schools";
+import {
+  getReferenceRequestByToken,
+  getReferenceQuestionsByProgram,
+} from "@/services/schools";
 import { ReferenceForm } from "./reference-form";
 
 export default async function ReferencePage({
@@ -54,6 +57,10 @@ export default async function ReferencePage({
 
   const programName = app?.programs?.name ?? "the program";
 
+  const { data: referenceQuestions } = app?.program_id
+    ? await getReferenceQuestionsByProgram(supabase, app.program_id)
+    : { data: [] };
+
   return (
     <ReferenceForm
       token={token}
@@ -62,6 +69,7 @@ export default async function ReferencePage({
       programName={programName}
       slotLabel={slot?.label ?? "Reference"}
       slotDescription={slot?.description ?? null}
+      questions={referenceQuestions ?? []}
     />
   );
 }

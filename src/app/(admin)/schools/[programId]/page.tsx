@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { getProgramById, getEnrollmentsByProgram, getGradesByProgram, getQuestionsByProgram, getResponsesByProgram, getReferenceSlotsByProgram, getReferenceRequestSummaries } from "@/services/schools";
+import { getProgramById, getEnrollmentsByProgram, getGradesByProgram, getQuestionsByProgram, getResponsesByProgram, getReferenceSlotsByProgram, getReferenceRequestSummaries, getReferenceQuestionsByProgram } from "@/services/schools";
 import { ProgramDetail } from "./program-detail";
 
 export default async function ProgramDetailPage({
@@ -30,6 +30,7 @@ export default async function ProgramDetailPage({
   const { data: questions } = await getQuestionsByProgram(supabase, programId);
   const { data: responses } = await getResponsesByProgram(supabase, programId);
   const { data: referenceSlots } = await getReferenceSlotsByProgram(supabase, programId);
+  const { data: referenceQuestions } = await getReferenceQuestionsByProgram(supabase, programId);
 
   const applicationIds = (responses ?? []).map((r: any) => r.id);
   const { data: refRequests } = await getReferenceRequestSummaries(supabase, applicationIds);
@@ -51,6 +52,7 @@ export default async function ProgramDetailPage({
         questions={questions ?? []}
         responses={responses ?? []}
         referenceSlots={referenceSlots ?? []}
+        referenceQuestions={referenceQuestions ?? []}
         refRequestSummaries={refRequests ?? []}
       />
     </div>

@@ -3,23 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  arrayMove,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { QuestionTree, type TreeQuestion } from "@/components/admin/question-tree";
+import { ReferenceQuestionsBuilder } from "./reference-questions-builder";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,7 +33,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, Download, ChevronUp, ChevronDown, Edit2, ClipboardList, Copy, Check, Link as LinkIcon, Archive, BookTemplate, Upload, Loader2, FileText, Send, BarChart3, Calendar, RefreshCw, CheckSquare, Search, Users, CornerDownRight, GripVertical } from "lucide-react";
+import { Plus, Trash2, Download, ChevronUp, ChevronDown, Edit2, ClipboardList, Copy, Check, Link as LinkIcon, Archive, BookTemplate, Upload, Loader2, FileText, Send, BarChart3, Calendar, RefreshCw, CheckSquare, Search, Users } from "lucide-react";
 import { ProgramActions } from "../program-actions";
 
 // ────────────────────────────────────────────────────────────
@@ -296,6 +281,7 @@ export function ProgramDetail({
   questions,
   responses,
   referenceSlots,
+  referenceQuestions,
   refRequestSummaries,
 }: {
   program: Program;
@@ -305,6 +291,7 @@ export function ProgramDetail({
   questions: AppQuestion[];
   responses: AppResponse[];
   referenceSlots: ReferenceSlot[];
+  referenceQuestions: TreeQuestion[];
   refRequestSummaries: RefRequestSummary[];
 }) {
   const router = useRouter();
@@ -465,6 +452,7 @@ export function ProgramDetail({
             acceptanceEmailBody={program.acceptance_email_body}
             questions={questions}
             referenceSlots={referenceSlots}
+            referenceQuestions={referenceQuestions}
           />
         </TabsContent>
 
@@ -1957,6 +1945,26 @@ function ApplicantsTab({
                             </div>
                           </div>
                           {ref.status === "submitted" && (
+                            Array.isArray(ref.form_data?.answers) && ref.form_data.answers.length > 0 ? (
+                              <div className="space-y-3 pt-2 border-t text-sm">
+                                {(ref.form_data.answers as Array<{ question_id: string; question_label: string; answer: string }>).map((a) => {
+                                  const trimmed = (a.answer ?? "").trim();
+                                  if (!trimmed) return null;
+                                  // Highlight standalone rating answers (Excellent/Good/Fair/Poor) since they're common.
+                                  const ratingColor =
+                                    trimmed === "Excellent" ? "text-green-500" :
+                                    trimmed === "Good" ? "text-blue-400" :
+                                    trimmed === "Fair" ? "text-yellow-500" :
+                                    trimmed === "Poor" ? "text-red-400" : null;
+                                  return (
+                                    <div key={a.question_id}>
+                                      <p className="text-xs font-medium text-muted-foreground">{a.question_label}</p>
+                                      <p className={`whitespace-pre-wrap ${ratingColor ?? ""}`}>{trimmed}</p>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
                             <div className="space-y-3 pt-2 border-t text-sm">
                               {/* Basic info */}
                               <div className="grid grid-cols-2 gap-2">
@@ -2069,6 +2077,7 @@ function ApplicantsTab({
                                 </div>
                               )}
                             </div>
+                            )
                           )}
                         </div>
                       ))}
@@ -2134,6 +2143,7 @@ function ApplicationTab({
   acceptanceEmailBody,
   questions,
   referenceSlots,
+  referenceQuestions,
 }: {
   programId: string;
   programCode: string;
@@ -2143,12 +2153,13 @@ function ApplicationTab({
   acceptanceEmailBody: string | null;
   questions: AppQuestion[];
   referenceSlots: ReferenceSlot[];
+  referenceQuestions: TreeQuestion[];
 }) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(applicationOpen);
   const [toggling, setToggling] = useState(false);
   const [showAddQuestion, setShowAddQuestion] = useState(false);
-  const [editingQuestion, setEditingQuestion] = useState<AppQuestion | null>(null);
+  const [editingQuestion, setEditingQuestion] = useState<TreeQuestion | null>(null);
 
   // Reference slot state
   const [showAddSlot, setShowAddSlot] = useState(false);
@@ -2354,7 +2365,7 @@ function ApplicationTab({
     setShowAddQuestion(false);
   }
 
-  function startEdit(q: AppQuestion) {
+  function startEdit(q: TreeQuestion) {
     setEditingQuestion(q);
     setQLabel(q.label);
     setQDescription(q.description ?? "");
@@ -2366,7 +2377,7 @@ function ApplicationTab({
     setShowAddQuestion(true);
   }
 
-  function startAddFollowUp(parent: AppQuestion) {
+  function startAddFollowUp(parent: TreeQuestion) {
     setEditingQuestion(null);
     setQLabel("");
     setQDescription("");
@@ -3107,6 +3118,12 @@ function ApplicationTab({
         )}
       </div>
 
+      {/* ─── REFERENCE QUESTIONS ─── */}
+      <ReferenceQuestionsBuilder
+        programId={programId}
+        questions={referenceQuestions}
+      />
+
       {/* ─── ACCEPTANCE EMAIL ─── */}
       <div className="space-y-4">
         <div>
@@ -3192,234 +3209,3 @@ function ApplicationTab({
   );
 }
 
-// ────────────────────────────────────────────────────────────
-// QUESTION TREE — nests follow-ups under their parent
-// ────────────────────────────────────────────────────────────
-
-const QUESTION_TYPE_LABELS: Record<string, string> = {
-  short_answer: "Short",
-  long_answer: "Essay",
-  multiple_choice: "Multiple Choice",
-  yes_no: "Yes/No",
-  checkbox_group: "Checkboxes",
-  country: "Country",
-  phone: "Phone",
-  date: "Date",
-  email: "Email",
-  file: "Photo",
-  consent: "Consent",
-  section_header: "Header",
-};
-
-function QuestionTree({
-  questions,
-  onEdit,
-  onDelete,
-  onReorder,
-  onAddFollowUp,
-}: {
-  questions: AppQuestion[];
-  onEdit: (q: AppQuestion) => void;
-  onDelete: (id: string) => void;
-  onReorder: (orderedIds: string[]) => void;
-  onAddFollowUp: (parent: AppQuestion) => void;
-}) {
-  // Build child lookup keyed by parent_question_id.
-  const childrenByParent = new Map<string, AppQuestion[]>();
-  for (const q of questions) {
-    if (!q.parent_question_id) continue;
-    const list = childrenByParent.get(q.parent_question_id) ?? [];
-    list.push(q);
-    childrenByParent.set(q.parent_question_id, list);
-  }
-  for (const list of childrenByParent.values()) {
-    list.sort((a, b) => a.sort_order - b.sort_order);
-  }
-
-  const topLevel = questions
-    .filter((q) => !q.parent_question_id)
-    .sort((a, b) => a.sort_order - b.sort_order);
-
-  const questionById = new Map(questions.map((q) => [q.id, q]));
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  );
-
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
-    const activeQ = questionById.get(String(active.id));
-    const overQ = questionById.get(String(over.id));
-    if (!activeQ || !overQ) return;
-
-    // Only allow reordering within the same parent group.
-    const activeParent = activeQ.parent_question_id ?? null;
-    const overParent = overQ.parent_question_id ?? null;
-    if (activeParent !== overParent) return;
-
-    const siblings = activeParent
-      ? (childrenByParent.get(activeParent) ?? [])
-      : topLevel;
-    const oldIdx = siblings.findIndex((q) => q.id === active.id);
-    const newIdx = siblings.findIndex((q) => q.id === over.id);
-    if (oldIdx === -1 || newIdx === -1) return;
-
-    const newOrder = arrayMove(siblings, oldIdx, newIdx);
-    onReorder(newOrder.map((q) => q.id));
-  }
-
-  return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragEnd={handleDragEnd}
-    >
-      <SortableContext
-        items={topLevel.map((q) => q.id)}
-        strategy={verticalListSortingStrategy}
-      >
-        {topLevel.map((q) => (
-          <QuestionTreeNode
-            key={q.id}
-            question={q}
-            depth={0}
-            childrenByParent={childrenByParent}
-            onEdit={onEdit}
-            onDelete={onDelete}
-            onAddFollowUp={onAddFollowUp}
-          />
-        ))}
-      </SortableContext>
-    </DndContext>
-  );
-}
-
-function QuestionTreeNode({
-  question,
-  depth,
-  childrenByParent,
-  onEdit,
-  onDelete,
-  onAddFollowUp,
-}: {
-  question: AppQuestion;
-  depth: number;
-  childrenByParent: Map<string, AppQuestion[]>;
-  onEdit: (q: AppQuestion) => void;
-  onDelete: (id: string) => void;
-  onAddFollowUp: (parent: AppQuestion) => void;
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: question.id });
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-    marginLeft: depth > 0 ? 24 : 0,
-  };
-
-  const children = childrenByParent.get(question.id) ?? [];
-  const canHaveFollowUps =
-    question.type === "yes_no" || question.type === "multiple_choice";
-  const showWhen = question.show_when_answer;
-  const showWhenLabel =
-    showWhen === "yes" ? "Yes" : showWhen === "no" ? "No" : showWhen;
-
-  return (
-    <div ref={setNodeRef} style={style} className="space-y-2">
-      <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          className="flex h-6 w-6 cursor-grab items-center justify-center text-muted-foreground hover:text-foreground active:cursor-grabbing"
-          aria-label="Drag to reorder"
-          title="Drag to reorder"
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
-        {depth > 0 && (
-          <CornerDownRight className="h-4 w-4 text-muted-foreground shrink-0" />
-        )}
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium text-sm">{question.label}</span>
-            <Badge variant="secondary" className="text-xs">
-              {QUESTION_TYPE_LABELS[question.type] ?? question.type}
-            </Badge>
-            {question.is_required && (
-              <Badge variant="secondary" className="text-xs">Required</Badge>
-            )}
-            {depth > 0 && showWhenLabel && (
-              <Badge variant="outline" className="text-xs">
-                Shown when answer is &ldquo;{showWhenLabel}&rdquo;
-              </Badge>
-            )}
-          </div>
-          {question.description && (
-            <p className="text-xs text-muted-foreground mt-1">
-              {question.description}
-            </p>
-          )}
-        </div>
-        <div className="flex gap-1">
-          {canHaveFollowUps && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 px-2 text-xs text-muted-foreground"
-              onClick={() => onAddFollowUp(question)}
-              title="Add a follow-up question that appears based on this answer"
-            >
-              <Plus className="h-3 w-3 mr-1" /> Follow-up
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-muted-foreground"
-            onClick={() => onEdit(question)}
-          >
-            <Edit2 className="h-3 w-3" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-            onClick={() => onDelete(question.id)}
-          >
-            <Trash2 className="h-3 w-3" />
-          </Button>
-        </div>
-      </div>
-      {children.length > 0 && (
-        <SortableContext
-          items={children.map((c) => c.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          {children.map((child) => (
-            <QuestionTreeNode
-              key={child.id}
-              question={child}
-              depth={depth + 1}
-              childrenByParent={childrenByParent}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              onAddFollowUp={onAddFollowUp}
-            />
-          ))}
-        </SortableContext>
-      )}
-    </div>
-  );
-}

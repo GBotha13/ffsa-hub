@@ -37,7 +37,14 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const { token, relationship, known_duration, reference_text, form_data } = body;
+  const {
+    token,
+    relationship,
+    known_duration,
+    reference_text,
+    form_data,
+    answers,
+  } = body;
 
   if (!token) {
     return NextResponse.json(
@@ -62,11 +69,52 @@ export async function POST(request: Request) {
     );
   }
 
+  // Two payload shapes are accepted:
+  //   - Legacy:  { relationship, known_duration, reference_text, form_data: {...flat keys} }
+  //   - Current: { answers: [{question_id, question_label, answer}, ...] }
+  // The dynamic referee form always sends the second; the first stays for any
+  // unmigrated client. We persist current submissions as form_data.answers so
+  // the admin display can render labels from the question snapshot.
+  let payloadFormData: Record<string, unknown>;
+  let payloadRelationship = relationship || "";
+  let payloadKnownDuration = known_duration || "";
+  let payloadReferenceText = reference_text || "";
+
+  if (Array.isArray(answers) && answers.length > 0) {
+    payloadFormData = { answers };
+
+    // Best-effort fill of the legacy columns so admin lists / analytics that
+    // still query them keep working until they're migrated.
+    const findAnswerByLabel = (patterns: string[]) => {
+      for (const pattern of patterns) {
+        const match = (answers as Array<{ question_label: string; answer: string }>).find(
+          (a) => a.question_label?.toLowerCase().includes(pattern) && a.answer?.trim()
+        );
+        if (match) return match.answer.trim();
+      }
+      return "";
+    };
+    if (!payloadRelationship) {
+      payloadRelationship = findAnswerByLabel(["relationship"]);
+    }
+    if (!payloadKnownDuration) {
+      payloadKnownDuration = findAnswerByLabel(["how long", "known the applicant"]);
+    }
+    if (!payloadReferenceText) {
+      payloadReferenceText = findAnswerByLabel([
+        "strengths and weaknesses",
+        "strengths",
+      ]);
+    }
+  } else {
+    payloadFormData = form_data || {};
+  }
+
   const { data, error } = await submitReference(supabase, token, {
-    relationship: relationship || "",
-    known_duration: known_duration || "",
-    reference_text: reference_text || "",
-    form_data: form_data || {},
+    relationship: payloadRelationship,
+    known_duration: payloadKnownDuration,
+    reference_text: payloadReferenceText,
+    form_data: payloadFormData,
   });
 
   if (error) {
