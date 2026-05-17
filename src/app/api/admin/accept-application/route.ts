@@ -3,11 +3,13 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Resend } from "resend";
 import { applicationAcceptedEmailHtml } from "@/lib/email/templates/application-accepted";
+import { enrollmentConfirmationEmailHtml } from "@/lib/email/templates/enrollment-confirmation";
+import { userCanManageApplications } from "@/lib/auth/check-schools-access";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request: Request) {
-  // Verify the calling user is an admin
+  // Verify the calling user has schools-management access
   const supabase = await createClient();
   const {
     data: { user: authUser },
@@ -17,14 +19,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const { data: adminCheck } = await supabase
-    .from("user_roles")
-    .select("roles!inner(name)")
-    .eq("user_id", authUser.id)
-    .in("roles.name", ["super_admin", "admin"])
-    .limit(1);
-
-  if (!adminCheck || adminCheck.length === 0) {
+  const hasAccess = await userCanManageApplications(supabase, authUser.id);
+  if (!hasAccess) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
@@ -103,10 +99,15 @@ export async function POST(request: Request) {
 
   // If this is a public application (no user_id), create the user account
   if (!userId) {
+    const siteUrl =
+      process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "noreply@ffsahub.com";
+
     // Check if a user with this email already exists
     const { data: existingUser } = await adminSupabase
       .from("users")
-      .select("id")
+      .select("id, first_name")
       .eq("email", applicantEmail)
       .maybeSingle();
 
@@ -118,11 +119,25 @@ export async function POST(request: Request) {
         .from("application_responses")
         .update({ user_id: userId })
         .eq("id", response_id);
+
+      // Send enrollment confirmation email (no invite link - user already has an account)
+      const firstName =
+        (existingUser as { first_name?: string | null }).first_name ||
+        applicantInfo?.first_name ||
+        "there";
+
+      await resend.emails.send({
+        from: `Fire & Fragrance SA <${fromEmail}>`,
+        to: applicantEmail,
+        subject: `You're enrolled in ${appResponse.programs.name}`,
+        html: enrollmentConfirmationEmailHtml({
+          firstName,
+          programName: appResponse.programs.name,
+          siteUrl,
+        }),
+      });
     } else {
       // Create new user via Supabase Auth invite
-      const siteUrl =
-        process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-
       const { data: linkData, error: linkError } =
         await adminSupabase.auth.admin.generateLink({
           type: "invite",
@@ -197,8 +212,6 @@ export async function POST(request: Request) {
       }
 
       // Send acceptance email with invite link
-      const fromEmail =
-        process.env.RESEND_FROM_EMAIL || "noreply@ffsahub.com";
       await resend.emails.send({
         from: `Fire & Fragrance SA <${fromEmail}>`,
         to: applicantEmail,

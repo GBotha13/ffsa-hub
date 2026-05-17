@@ -153,13 +153,7 @@ export default function OnboardingPage() {
       });
       if (profileError) throw new Error(profileError.message);
       await completeOnboarding(supabase, userId);
-      const { data: roles } = await (supabase as any)
-        .from("user_roles").select("roles(name)").eq("user_id", userId);
-      const adminRoles = ["super_admin","admin","events_admin","program_leader","team_leader","staff","finance_admin","comms_admin","mission_leader"];
-      const roleNames = (roles ?? []).flatMap((r: any) =>
-        Array.isArray(r.roles) ? r.roles.map((x: any) => x.name) : r.roles ? [r.roles.name] : []
-      );
-      router.push(roleNames.some((r: string) => adminRoles.includes(r)) ? "/dashboard" : "/profile");
+      router.push("/dashboard");
     } catch (err: any) {
       setError(err.message ?? "Something went wrong. Please try again.");
       setSaving(false);

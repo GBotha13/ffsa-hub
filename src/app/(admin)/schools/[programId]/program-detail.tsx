@@ -1236,6 +1236,34 @@ function ApplicantsTab({
   // Reference reminder state
   const [sendingReminder, setSendingReminder] = useState<string | null>(null);
 
+  // Resend invite state
+  const [resendingInviteId, setResendingInviteId] = useState<string | null>(null);
+
+  async function handleResendInvite(responseId: string) {
+    setResendingInviteId(responseId);
+    try {
+      const res = await fetch("/api/admin/resend-invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ response_id: responseId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "Failed to resend invite");
+        return;
+      }
+      if (data.alreadyActive) {
+        alert("User has already activated their account");
+        return;
+      }
+      alert("Invite resent");
+    } catch (err) {
+      alert("Failed to resend invite");
+    } finally {
+      setResendingInviteId(null);
+    }
+  }
+
   // Review state
   const [reviewStatus, setReviewStatus] = useState("");
   const [reviewNotes, setReviewNotes] = useState("");
@@ -1746,6 +1774,23 @@ function ApplicantsTab({
                       >
                         <FileText className="h-3.5 w-3.5" />
                       </Button>
+                      {resp.status === "accepted" && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground"
+                          title="Resend invite email"
+                          aria-label="Resend invite email"
+                          disabled={resendingInviteId === resp.id}
+                          onClick={() => handleResendInvite(resp.id)}
+                        >
+                          {resendingInviteId === resp.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Send className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
