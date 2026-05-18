@@ -38,12 +38,20 @@ export default async function ContactsPage({
           <h1 className="page-title">Contacts</h1>
           <p className="text-sm text-muted-foreground mt-1">{count ?? 0} contacts</p>
         </div>
-        <a
-          href="/contacts/import"
-          className="inline-flex items-center px-3 py-1.5 rounded border text-sm hover:bg-gray-50"
-        >
-          Import CSV
-        </a>
+        <div className="flex gap-2">
+          <a
+            href="/contacts/dedup-review"
+            className="inline-flex items-center px-3 py-1.5 rounded border text-sm hover:bg-gray-50"
+          >
+            Dedup review
+          </a>
+          <a
+            href="/contacts/import"
+            className="inline-flex items-center px-3 py-1.5 rounded border text-sm hover:bg-gray-50"
+          >
+            Import CSV
+          </a>
+        </div>
       </div>
 
       <ContactsList
