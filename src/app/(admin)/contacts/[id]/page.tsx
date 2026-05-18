@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getContactById } from "@/services/contacts";
+import { getContactLabels, getLabels } from "@/services/labels";
+import { getContactActivity } from "@/services/activity-events";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -9,6 +11,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import Link from "next/link";
+import { LabelsCard } from "./labels-card";
+import { Timeline } from "./timeline";
 
 export default async function ContactDetailPage({
   params,
@@ -21,22 +25,30 @@ export default async function ContactDetailPage({
   const { data: contact, error } = await getContactById(supabase, id);
   if (error || !contact) notFound();
 
+  const [contactLabelsRes, allLabelsRes, activityRes] = await Promise.all([
+    getContactLabels(supabase, id),
+    getLabels(supabase, { active: true }),
+    getContactActivity(supabase, id, { limit: 100 }),
+  ]);
+
+  const contactLabels = contactLabelsRes.data ?? [];
+  const allLabels = allLabelsRes.data ?? [];
+  const events = activityRes.data ?? [];
+
   const personTypes =
     contact.person_type_assignments?.map(
       (pta: { person_types: { name: string; id: string } | null }) =>
         pta.person_types
     ) ?? [];
 
-  const tags =
-    contact.person_tags?.map(
-      (pt: { tags: { name: string; id: string; category: string | null } | null }) =>
-        pt.tags
-    ) ?? [];
-
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/contacts" className="text-xs text-muted-foreground hover:text-foreground uppercase tracking-widest" style={{ letterSpacing: "0.15em" }}>
+        <Link
+          href="/contacts"
+          className="text-xs text-muted-foreground hover:text-foreground uppercase tracking-widest"
+          style={{ letterSpacing: "0.15em" }}
+        >
           ← Contacts
         </Link>
       </div>
@@ -52,48 +64,34 @@ export default async function ContactDetailPage({
             </p>
           )}
         </div>
-        <Badge
-          variant={contact.status === "active" ? "default" : "outline"}
-          className="capitalize"
-        >
-          {contact.status}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <MarketingStatusBadge status={contact.marketing_status} />
+          <Badge variant={contact.status === "active" ? "default" : "outline"} className="capitalize">
+            {contact.status}
+          </Badge>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Contact Information</CardTitle>
+              <CardTitle className="text-base">Contact information</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Email
-                  </p>
-                  <p className="text-sm">{contact.email ?? "Not provided"}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Phone
-                  </p>
-                  <p className="text-sm">{contact.phone ?? "Not provided"}</p>
-                </div>
+                <Field label="Email" value={contact.email} />
+                <Field label="Phone" value={contact.phone} />
               </div>
 
               {(contact.address_line_1 || contact.city || contact.country) && (
                 <div className="mt-4">
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Address
-                  </p>
+                  <p className="text-sm font-medium text-muted-foreground">Address</p>
                   <p className="text-sm whitespace-pre-line">
                     {[
                       contact.address_line_1,
                       contact.address_line_2,
-                      [contact.city, contact.province]
-                        .filter(Boolean)
-                        .join(", "),
+                      [contact.city, contact.province].filter(Boolean).join(", "),
                       contact.postal_code,
                       contact.country,
                     ]
@@ -102,6 +100,44 @@ export default async function ContactDetailPage({
                   </p>
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Demographics</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <Field
+                label="Date of birth"
+                value={contact.date_of_birth ? new Date(contact.date_of_birth).toLocaleDateString() : null}
+              />
+              <Field label="Gender" value={contact.gender} />
+              <Field label="Marital status" value={contact.marital_status} />
+              <Field label="Nationality" value={contact.nationality} />
+              <Field label="Preferred language" value={contact.preferred_language} />
+              <Field label="Preferred channel" value={contact.preferred_channel} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">CRM metadata</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <Field label="Source" value={contact.source} />
+              <Field
+                label="Last interaction"
+                value={
+                  contact.last_interaction_at
+                    ? new Date(contact.last_interaction_at).toLocaleString()
+                    : null
+                }
+              />
+              <Field
+                label="Created"
+                value={contact.created_at ? new Date(contact.created_at).toLocaleDateString() : null}
+              />
             </CardContent>
           </Card>
 
@@ -115,66 +151,64 @@ export default async function ContactDetailPage({
               </CardContent>
             </Card>
           )}
+
+          <Timeline contactId={id} events={events} />
         </div>
 
         <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Types</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {personTypes.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No types assigned
-                </p>
-              ) : (
+          <LabelsCard
+            contactId={id}
+            contactLabels={contactLabels}
+            allLabels={allLabels}
+          />
+
+          {personTypes.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Types</CardTitle>
+              </CardHeader>
+              <CardContent>
                 <div className="flex flex-wrap gap-1">
                   {personTypes.map(
                     (pt: { id: string; name: string } | null) =>
                       pt && (
-                        <Badge
-                          key={pt.id}
-                          variant="secondary"
-                          className="capitalize"
-                        >
+                        <Badge key={pt.id} variant="secondary" className="capitalize">
                           {pt.name}
                         </Badge>
                       )
                   )}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Tags</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {tags.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No tags</p>
-              ) : (
-                <div className="flex flex-wrap gap-1">
-                  {tags.map(
-                    (
-                      tag: {
-                        id: string;
-                        name: string;
-                        category: string | null;
-                      } | null
-                    ) =>
-                      tag && (
-                        <Badge key={tag.id} variant="outline">
-                          {tag.name}
-                        </Badge>
-                      )
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>
+  );
+}
+
+function Field({ label, value }: { label: string; value: string | null | undefined }) {
+  return (
+    <div>
+      <p className="text-sm font-medium text-muted-foreground">{label}</p>
+      <p className="text-sm">{value ?? "—"}</p>
+    </div>
+  );
+}
+
+function MarketingStatusBadge({ status }: { status: string | null }) {
+  if (!status) return null;
+  const cls =
+    status === "subscribed"
+      ? "bg-green-100 text-green-800"
+      : status === "unsubscribed_all"
+      ? "bg-red-100 text-red-800"
+      : status === "bounced"
+      ? "bg-orange-100 text-orange-800"
+      : "bg-gray-100 text-gray-800";
+  return (
+    <span className={`inline-block px-2 py-0.5 rounded text-xs ${cls}`}>
+      {status.replace("_", " ")}
+    </span>
   );
 }
