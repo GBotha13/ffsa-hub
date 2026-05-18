@@ -32,10 +32,18 @@ export default async function ContactsPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="page-eyebrow">PEOPLE &amp; RELATIONSHIPS</p>
-        <h1 className="page-title">Contacts</h1>
-        <p className="text-sm text-muted-foreground mt-1">{count ?? 0} contacts</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="page-eyebrow">PEOPLE &amp; RELATIONSHIPS</p>
+          <h1 className="page-title">Contacts</h1>
+          <p className="text-sm text-muted-foreground mt-1">{count ?? 0} contacts</p>
+        </div>
+        <a
+          href="/contacts/import"
+          className="inline-flex items-center px-3 py-1.5 rounded border text-sm hover:bg-gray-50"
+        >
+          Import CSV
+        </a>
       </div>
 
       <ContactsList
