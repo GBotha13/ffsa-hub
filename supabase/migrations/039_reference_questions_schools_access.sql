@@ -11,9 +11,14 @@
 -- `.single()` then throws on an empty result set.
 -- ============================================================
 
+-- Drop both old and new policy names so this migration is idempotent
+-- and safe to re-run against a database in any partially-applied state.
 DROP POLICY IF EXISTS "Admins can insert reference questions" ON public.reference_questions;
 DROP POLICY IF EXISTS "Admins can update reference questions" ON public.reference_questions;
 DROP POLICY IF EXISTS "Admins can delete reference questions" ON public.reference_questions;
+DROP POLICY IF EXISTS "Schools managers can insert reference questions" ON public.reference_questions;
+DROP POLICY IF EXISTS "Schools managers can update reference questions" ON public.reference_questions;
+DROP POLICY IF EXISTS "Schools managers can delete reference questions" ON public.reference_questions;
 
 CREATE POLICY "Schools managers can insert reference questions"
   ON public.reference_questions FOR INSERT
