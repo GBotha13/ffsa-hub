@@ -93,6 +93,61 @@ export async function findDuplicates(
   return query.limit(10);
 }
 
+// ────────────────────────────────────────────────────────────
+// CRM dedup: match by email_normalized OR phone_normalized
+// ------------------------------------------------------------
+// Returns up to two contacts: one matched by email, one by phone.
+// When both keys hit the SAME contact, only that contact comes
+// back. Caller uses the result to decide: create new, merge, or
+// queue for manual review (the email-A / phone-B conflict).
+// ────────────────────────────────────────────────────────────
+
+export type DedupMatch = {
+  contact: {
+    id: string;
+    first_name: string | null;
+    last_name: string | null;
+    email: string | null;
+    phone: string | null;
+    email_normalized: string | null;
+    phone_normalized: string | null;
+  };
+  matched_on: ("email" | "phone")[];
+};
+
+export async function findDedupMatches(
+  supabase: Client,
+  keys: { emailNormalized: string | null; phoneNormalized: string | null }
+): Promise<{ data: DedupMatch[] | null; error: unknown }> {
+  const { emailNormalized, phoneNormalized } = keys;
+  if (!emailNormalized && !phoneNormalized) {
+    return { data: [], error: null };
+  }
+
+  const orClauses: string[] = [];
+  if (emailNormalized) orClauses.push(`email_normalized.eq.${emailNormalized}`);
+  if (phoneNormalized) orClauses.push(`phone_normalized.eq.${phoneNormalized}`);
+
+  const { data, error } = await supabase
+    .from("contacts")
+    .select(
+      "id, first_name, last_name, email, phone, email_normalized, phone_normalized"
+    )
+    .or(orClauses.join(","))
+    .limit(2);
+
+  if (error || !data) return { data: null, error };
+
+  const matches: DedupMatch[] = data.map((row: DedupMatch["contact"]) => {
+    const matchedOn: ("email" | "phone")[] = [];
+    if (emailNormalized && row.email_normalized === emailNormalized) matchedOn.push("email");
+    if (phoneNormalized && row.phone_normalized === phoneNormalized) matchedOn.push("phone");
+    return { contact: row, matched_on: matchedOn };
+  });
+
+  return { data: matches, error: null };
+}
+
 export async function assignPersonType(
   supabase: Client,
   contactId: string,
