@@ -27,8 +27,12 @@ interface ContactsListProps {
     email: string | null;
     phone: string | null;
     status: string;
+    marketing_status?: string | null;
     person_type_assignments?: Array<{
       person_types: { name: string } | null;
+    }>;
+    contact_labels?: Array<{
+      labels: { id: string; slug: string; name: string; color: string | null } | null;
     }>;
   }>;
   personTypes: PersonType[];
@@ -126,7 +130,7 @@ export function ContactsList({
               <TableHead>Name</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Phone</TableHead>
-              <TableHead>Types</TableHead>
+              <TableHead>Labels</TableHead>
               <TableHead>Status</TableHead>
             </TableRow>
           </TableHeader>
@@ -161,16 +165,21 @@ export function ContactsList({
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1 flex-wrap">
-                      {contact.person_type_assignments?.map((pta) =>
-                        pta.person_types ? (
+                      {contact.contact_labels?.slice(0, 4).map((cl) =>
+                        cl.labels ? (
                           <Badge
-                            key={pta.person_types.name}
-                            variant="secondary"
-                            className="text-xs capitalize"
+                            key={cl.labels.id}
+                            variant="outline"
+                            className="text-xs"
                           >
-                            {pta.person_types.name}
+                            {cl.labels.name}
                           </Badge>
                         ) : null
+                      )}
+                      {(contact.contact_labels?.length ?? 0) > 4 && (
+                        <span className="text-xs text-muted-foreground">
+                          +{(contact.contact_labels?.length ?? 0) - 4}
+                        </span>
                       )}
                     </div>
                   </TableCell>

@@ -10,17 +10,26 @@ export async function getContacts(
   options?: {
     status?: string;
     search?: string;
+    labelId?: string;
+    marketingStatus?: string;
     limit?: number;
     offset?: number;
   }
 ) {
   let query = supabase
     .from("contacts")
-    .select("*, person_type_assignments(person_types(*))", { count: "exact" })
+    .select(
+      "*, person_type_assignments(person_types(*)), contact_labels(labels(id, slug, name, color))",
+      { count: "exact" }
+    )
     .order("created_at", { ascending: false });
 
   if (options?.status) {
     query = query.eq("status", options.status);
+  }
+
+  if (options?.marketingStatus) {
+    query = query.eq("marketing_status", options.marketingStatus);
   }
 
   if (options?.search) {
@@ -28,6 +37,11 @@ export async function getContacts(
     query = query.or(
       `first_name.ilike.${term},last_name.ilike.${term},email.ilike.${term},preferred_name.ilike.${term}`
     );
+  }
+
+  if (options?.labelId) {
+    // Filter to contacts that hold this label.
+    query = query.eq("contact_labels.label_id", options.labelId);
   }
 
   if (options?.limit) {
