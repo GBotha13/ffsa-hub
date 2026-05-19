@@ -1442,20 +1442,17 @@ function ApplicantsTab({
     setReviewLoading(true);
 
     try {
-      // Public applicant being accepted — use the accept-application pipeline
-      if (reviewStatus === "accepted" && !reviewingResponse.user_id) {
-        const shouldAccept = confirm(
-          "Accept this application? This will create a user account, enroll the student, and send them an invite email."
-        );
-        if (!shouldAccept) {
-          setReviewLoading(false);
-          return;
-        }
-
+      // Accept flow — always route through the accept-application pipeline so the
+      // student is automatically enrolled (and, for public applicants, a user
+      // account is created and an invite email is sent).
+      if (reviewStatus === "accepted") {
         const res = await fetch("/api/admin/accept-application", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ response_id: reviewingResponse.id }),
+          body: JSON.stringify({
+            response_id: reviewingResponse.id,
+            admin_notes: reviewNotes.trim() || null,
+          }),
         });
 
         if (!res.ok) {
@@ -1469,7 +1466,7 @@ function ApplicantsTab({
         return;
       }
 
-      // Standard status update (for authenticated applicants or non-accept statuses)
+      // Standard status update for non-accept statuses (rejected, waitlisted, etc.)
       const res = await fetch("/api/schools/applications/responses", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -1484,23 +1481,6 @@ function ApplicantsTab({
         const data = await res.json();
         alert(data.error || "Failed to update status");
         return;
-      }
-
-      // If accepted (authenticated user), offer to auto-enroll
-      if (reviewStatus === "accepted" && reviewingResponse.user_id) {
-        const shouldEnroll = confirm(
-          "Application accepted! Would you like to automatically enroll this student in the program?"
-        );
-        if (shouldEnroll) {
-          await fetch("/api/schools/enrollments", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              user_id: reviewingResponse.user_id,
-              program_id: programId,
-            }),
-          });
-        }
       }
 
       setReviewingResponse(null);

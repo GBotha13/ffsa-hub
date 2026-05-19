@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { response_id } = body;
+  const { response_id, admin_notes } = body;
 
   if (!response_id) {
     return NextResponse.json(
@@ -104,6 +104,7 @@ export async function POST(request: Request) {
       status: "accepted",
       reviewed_by: authUser.id,
       reviewed_at: new Date().toISOString(),
+      ...(admin_notes !== undefined ? { admin_notes } : {}),
     })
     .eq("id", response_id);
 
