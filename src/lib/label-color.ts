@@ -13,7 +13,7 @@
 
 // 16 hues interleaved warm/cool/contrast so consecutive indices look
 // distinct. Pastel bg + saturated text for legibility on light & dark.
-const PALETTE: ReadonlyArray<{ bg: string; text: string; border: string }> = [
+export const LABEL_PALETTE: ReadonlyArray<{ bg: string; text: string; border: string }> = [
   { bg: "#fee2e2", text: "#991b1b", border: "#fca5a5" }, // 0  red
   { bg: "#dbeafe", text: "#1e40af", border: "#93c5fd" }, // 1  blue
   { bg: "#dcfce7", text: "#166534", border: "#86efac" }, // 2  green
@@ -49,10 +49,15 @@ export function getLabelColors(label: {
   slug?: string | null;
   color?: string | null;
 }): LabelColors {
-  // Custom hex override: use as bg, default-dark text.
   if (label.color && /^#[0-9a-fA-F]{6}$/.test(label.color)) {
+    // If the stored color matches a palette bg, return the full triplet
+    // (bg + text + border) for nicer rendering. Otherwise treat as custom.
+    const match = LABEL_PALETTE.find(
+      (p) => p.bg.toLowerCase() === label.color!.toLowerCase()
+    );
+    if (match) return match;
     return { bg: label.color, text: "#1f2937", border: label.color };
   }
   const key = label.slug ?? "";
-  return PALETTE[hash(key) % PALETTE.length];
+  return LABEL_PALETTE[hash(key) % LABEL_PALETTE.length];
 }

@@ -1,4 +1,5 @@
 import type { TablesInsert, TablesUpdate } from "@/types/database";
+import { LABEL_PALETTE } from "@/lib/label-color";
 
 type LabelInsert = TablesInsert<"labels">;
 type LabelUpdate = TablesUpdate<"labels">;
@@ -132,12 +133,42 @@ export async function findOrCreateLabel(
   const existing = await getLabelBySlug(supabase, args.slug);
   if (existing.data) return existing;
 
+  const color = await pickLeastUsedLabelColor(supabase);
+
   return createLabel(supabase, {
     slug: args.slug,
     name: args.name,
     category: args.category ?? null,
+    color,
     is_preset: false,
     is_active: true,
     created_by: args.createdBy ?? null,
   });
+}
+
+// ────────────────────────────────────────────────────────────
+// Color assignment: pick the palette hex used by the fewest
+// existing labels. Ties broken by palette index order, so the
+// rotation is stable.
+// ────────────────────────────────────────────────────────────
+
+export async function pickLeastUsedLabelColor(supabase: Client): Promise<string> {
+  const { data } = await supabase.from("labels").select("color");
+  const counts = new Map<string, number>();
+  for (const p of LABEL_PALETTE) counts.set(p.bg.toLowerCase(), 0);
+  for (const row of (data ?? []) as Array<{ color: string | null }>) {
+    if (!row.color) continue;
+    const c = row.color.toLowerCase();
+    if (counts.has(c)) counts.set(c, (counts.get(c) ?? 0) + 1);
+  }
+  let bestHex = LABEL_PALETTE[0].bg;
+  let bestCount = Infinity;
+  for (const p of LABEL_PALETTE) {
+    const c = counts.get(p.bg.toLowerCase()) ?? 0;
+    if (c < bestCount) {
+      bestCount = c;
+      bestHex = p.bg;
+    }
+  }
+  return bestHex;
 }
