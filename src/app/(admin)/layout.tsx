@@ -42,15 +42,20 @@ export default async function AdminLayout({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: permRows } = await (supabase as any)
           .from("user_permissions")
-          .select("permissions(module)")
+          .select("permissions(module, key)")
           .eq("user_id", user.id);
 
         if (permRows) {
-          for (const row of permRows as Array<{ permissions: { module: string } | { module: string }[] }>) {
+          for (const row of permRows as Array<{
+            permissions: { module: string; key: string } | { module: string; key: string }[];
+          }>) {
             const perm = Array.isArray(row.permissions)
               ? row.permissions[0]
               : row.permissions;
             if (perm?.module) permittedModules.add(perm.module);
+            // Users with schools.manage can delegate the assignable-contact
+            // permission, so they need access to the Users page.
+            if (perm?.key === "schools.manage") permittedModules.add("users");
           }
         }
       }

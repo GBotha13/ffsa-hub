@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getProgramById, getEnrollmentsByProgram, getGradesByProgram, getQuestionsByProgram, getResponsesByProgram, getReferenceSlotsByProgram, getReferenceRequestSummaries, getReferenceQuestionsByProgram } from "@/services/schools";
+import { fetchAssignableContacts } from "@/lib/auth/assignable-contacts";
 import { ProgramDetail } from "./program-detail";
 
 export default async function ProgramDetailPage({
@@ -42,39 +44,12 @@ export default async function ProgramDetailPage({
     .eq("is_active", true)
     .order("last_name", { ascending: true });
 
-  // Fetch staff pool — anyone a super admin has flagged as
-  // `is_assignable_contact` on their user record. Migration 053
-  // backfilled this to true for existing admin/staff/program_leader roles.
-  const { data: assignableContacts } = await (
-    supabase as unknown as {
-      from: (t: string) => {
-        select: (cols: string) => {
-          eq: (col: string, val: unknown) => {
-            eq: (col: string, val: unknown) => {
-              order: (col: string) => Promise<{
-                data:
-                  | Array<{
-                      id: string;
-                      first_name: string | null;
-                      last_name: string | null;
-                      preferred_name: string | null;
-                      email: string | null;
-                    }>
-                  | null;
-              }>;
-            };
-          };
-        };
-      };
-    }
-  )
-    .from("users")
-    .select("id, first_name, last_name, preferred_name, email")
-    .eq("is_assignable_contact", true)
-    .eq("is_active", true)
-    .order("last_name");
-
-  const staffOptions = assignableContacts ?? [];
+  // Fetch staff pool — anyone with a schools.* permission for this
+  // specific program (or any schools.* permission granted globally).
+  // Includes the dedicated schools.assignable_as_contact key plus the
+  // broader admin/manage permissions, which already imply the user is
+  // trusted with this program.
+  const staffOptions = await fetchAssignableContacts(createAdminClient(), programId);
 
   return (
     <div className="space-y-6">

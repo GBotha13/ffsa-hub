@@ -2,10 +2,15 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { userCanManageApplications } from "@/lib/auth/check-schools-access";
+import { fetchAssignableContacts } from "@/lib/auth/assignable-contacts";
 
-// Returns users that a super admin has explicitly flagged as available
-// to be assigned as a point of contact (users.is_assignable_contact = true).
-export async function GET() {
+// Returns users eligible to be the point-of-contact for the given
+// program. Eligibility = any schools.* permission (global OR scoped
+// to this program). The new schools.assignable_as_contact key is the
+// minimal grant for this purpose; broader schools permissions also
+// confer eligibility because those users are already trusted with
+// the program.
+export async function GET(request: Request) {
   const supabase = await createClient();
   const {
     data: { user: authUser },
@@ -20,32 +25,12 @@ export async function GET() {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
-  const adminSupabase = createAdminClient();
-
-  // Cast around the auto-generated types until they're regenerated to
-  // include the is_assignable_contact column added in migration 053.
-  const sb = adminSupabase as unknown as {
-    from: (t: string) => {
-      select: (cols: string) => {
-        eq: (col: string, val: unknown) => {
-          eq: (col: string, val: unknown) => {
-            order: (col: string) => Promise<{ data: unknown; error: { message: string } | null }>;
-          };
-        };
-      };
-    };
-  };
-
-  const { data, error } = await sb
-    .from("users")
-    .select("id, first_name, last_name, preferred_name, email")
-    .eq("is_assignable_contact", true)
-    .eq("is_active", true)
-    .order("last_name");
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  const url = new URL(request.url);
+  const programId = url.searchParams.get("program_id");
+  if (!programId) {
+    return NextResponse.json({ error: "program_id is required" }, { status: 400 });
   }
 
-  return NextResponse.json({ staff: data ?? [] });
+  const staff = await fetchAssignableContacts(createAdminClient(), programId);
+  return NextResponse.json({ staff });
 }

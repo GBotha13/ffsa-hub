@@ -174,12 +174,14 @@ function ModuleSection({
   granted,
   scopeOptions,
   onToggle,
+  hideGlobal = false,
 }: {
   moduleId: string;
   permissions: Permission[];
   granted: Set<GrantedKey>;
   scopeOptions: ScopeOption[];
   onToggle: (permId: string, scopeType: string | null, scopeId: string | null, checked: boolean) => void;
+  hideGlobal?: boolean;
 }) {
   const label = MODULE_LABELS[moduleId] ?? moduleId;
 
@@ -231,75 +233,79 @@ function ModuleSection({
           {label}
         </p>
 
-        {/* Select-all global */}
-        <button
-          onClick={toggleGlobalAll}
-          className="flex items-center gap-1.5 text-xs"
-          style={{ color: "hsl(30 8% 45%)", cursor: "pointer" }}
-        >
-          <div
-            style={{
-              width: "16px",
-              height: "16px",
-              borderRadius: "3px",
-              border: "1px solid hsl(22 8% 28%)",
-              background: globalAllChecked
-                ? "hsl(42 95% 55%)"
-                : globalSomeChecked
-                ? "hsl(42 95% 55% / 0.3)"
-                : "transparent",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
+        {/* Select-all global — hidden in restricted (per-program-only) mode */}
+        {!hideGlobal && (
+          <button
+            onClick={toggleGlobalAll}
+            className="flex items-center gap-1.5 text-xs"
+            style={{ color: "hsl(30 8% 45%)", cursor: "pointer" }}
           >
-            {globalAllChecked ? (
-              <Check className="h-2.5 w-2.5 text-black" />
-            ) : globalSomeChecked ? (
-              <Minus className="h-2.5 w-2.5" style={{ color: "hsl(42 95% 55%)" }} />
-            ) : null}
-          </div>
-          Select all
-        </button>
+            <div
+              style={{
+                width: "16px",
+                height: "16px",
+                borderRadius: "3px",
+                border: "1px solid hsl(22 8% 28%)",
+                background: globalAllChecked
+                  ? "hsl(42 95% 55%)"
+                  : globalSomeChecked
+                  ? "hsl(42 95% 55% / 0.3)"
+                  : "transparent",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {globalAllChecked ? (
+                <Check className="h-2.5 w-2.5 text-black" />
+              ) : globalSomeChecked ? (
+                <Minus className="h-2.5 w-2.5" style={{ color: "hsl(42 95% 55%)" }} />
+              ) : null}
+            </div>
+            Select all
+          </button>
+        )}
       </div>
 
       <div className="px-5 py-4 space-y-4">
-        {/* Global permission checkboxes */}
-        <div
-          className="grid gap-x-6 gap-y-2"
-          style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}
-        >
-          {permissions.map((p) => {
-            const key = grantedKey(p.id, null, null);
-            const checked = granted.has(key);
-            return (
-              <label
-                key={p.id}
-                className="flex items-center gap-2 cursor-pointer"
-                style={{ fontSize: "13px", color: "hsl(30 8% 65%)" }}
-              >
-                <button
-                  onClick={() => onToggle(p.id, null, null, !checked)}
-                  style={{
-                    width: "16px",
-                    height: "16px",
-                    borderRadius: "3px",
-                    border: "1px solid hsl(22 8% 28%)",
-                    background: checked ? "hsl(42 95% 55%)" : "transparent",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                    cursor: "pointer",
-                  }}
+        {/* Global permission checkboxes — hidden in restricted mode */}
+        {!hideGlobal && (
+          <div
+            className="grid gap-x-6 gap-y-2"
+            style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}
+          >
+            {permissions.map((p) => {
+              const key = grantedKey(p.id, null, null);
+              const checked = granted.has(key);
+              return (
+                <label
+                  key={p.id}
+                  className="flex items-center gap-2 cursor-pointer"
+                  style={{ fontSize: "13px", color: "hsl(30 8% 65%)" }}
                 >
-                  {checked && <Check className="h-2.5 w-2.5 text-black" />}
-                </button>
-                {p.display_name}
-              </label>
-            );
-          })}
-        </div>
+                  <button
+                    onClick={() => onToggle(p.id, null, null, !checked)}
+                    style={{
+                      width: "16px",
+                      height: "16px",
+                      borderRadius: "3px",
+                      border: "1px solid hsl(22 8% 28%)",
+                      background: checked ? "hsl(42 95% 55%)" : "transparent",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {checked && <Check className="h-2.5 w-2.5 text-black" />}
+                  </button>
+                  {p.display_name}
+                </label>
+              );
+            })}
+          </div>
+        )}
 
         {/* Scoped sections (existing programs/teams/events only) */}
         {relevantScopes.length > 0 && (
@@ -335,25 +341,48 @@ export function PermissionManager({
   userId,
   currentStatus,
   currentJobTitle,
-  currentIsAssignableContact,
   permissionsByModule,
   userPermissions,
   scopeOptions,
+  isSuperAdmin = true,
+  // When the caller is not a super_admin, this controls what they can edit:
+  //   null  → can manage assignable-contact for every program (global schools.manage)
+  //   array → can manage only these specific program ids
+  managedProgramIds = null,
 }: {
   userId: string;
   currentStatus: string;
   currentJobTitle: string;
-  currentIsAssignableContact: boolean;
   permissionsByModule: PermissionsByModule;
   userPermissions: UserPermission[];
   scopeOptions: ScopeOption[];
+  isSuperAdmin?: boolean;
+  managedProgramIds?: string[] | null;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [saving, setSaving] = useState(false);
   const [jobTitle, setJobTitle] = useState(currentJobTitle);
   const [status, setStatus] = useState(currentStatus);
-  const [isAssignableContact, setIsAssignableContact] = useState(currentIsAssignableContact);
+
+  // For non-super-admin granters we narrow the editor to only the
+  // `schools.assignable_as_contact` permission, scoped to programs they
+  // themselves have `schools.manage` on.
+  const effectivePermissionsByModule: PermissionsByModule = isSuperAdmin
+    ? permissionsByModule
+    : {
+        schools: (permissionsByModule.schools ?? []).filter(
+          (p) => p.key === "schools.assignable_as_contact"
+        ),
+      };
+
+  const effectiveScopeOptions: ScopeOption[] = isSuperAdmin
+    ? scopeOptions
+    : managedProgramIds === null
+    ? scopeOptions.filter((s) => s.scope_type === "program")
+    : scopeOptions.filter(
+        (s) => s.scope_type === "program" && managedProgramIds.includes(s.id)
+      );
 
   // Build the initial granted set from DB
   const initialGranted = new Set<GrantedKey>(
@@ -403,12 +432,16 @@ export function PermissionManager({
       const toGrant: Array<{ permission_id: string; scope_type: string | null; scope_id: string | null }> = [];
       const toRevoke: Array<{ permission_id: string; scope_type: string | null; scope_id: string | null }> = [];
 
-      // Collect all possible keys from permissionsByModule + scopeOptions
+      // Collect all possible keys we *could* have toggled. Using the
+      // filtered (effective) maps means non-super-admin grants never emit
+      // changes to permissions/scopes they shouldn't be touching.
       const allKeys = new Map<GrantedKey, { permission_id: string; scope_type: string | null; scope_id: string | null }>();
-      for (const perms of Object.values(permissionsByModule)) {
+      for (const perms of Object.values(effectivePermissionsByModule)) {
         for (const p of perms) {
-          allKeys.set(grantedKey(p.id, null, null), { permission_id: p.id, scope_type: null, scope_id: null });
-          for (const s of scopeOptions) {
+          if (isSuperAdmin) {
+            allKeys.set(grantedKey(p.id, null, null), { permission_id: p.id, scope_type: null, scope_id: null });
+          }
+          for (const s of effectiveScopeOptions) {
             allKeys.set(grantedKey(p.id, s.scope_type, s.id), {
               permission_id: p.id,
               scope_type: s.scope_type,
@@ -457,32 +490,22 @@ export function PermissionManager({
         )
       );
 
-      // If user is pending approval, approve them
-      if (status === "pending_approval") {
-        const res = await fetch("/api/admin/approve-user", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            user_id: userId,
-            job_title: jobTitle,
-            is_assignable_contact: isAssignableContact,
-          }),
-        });
-        if (res.ok) setStatus("active");
-      } else if (
-        jobTitle !== currentJobTitle ||
-        isAssignableContact !== currentIsAssignableContact
-      ) {
-        // Update job title and/or assignable-contact flag without status change
-        await fetch("/api/admin/approve-user", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            user_id: userId,
-            job_title: jobTitle,
-            is_assignable_contact: isAssignableContact,
-          }),
-        });
+      // Job-title / approve flow is super-admin-only.
+      if (isSuperAdmin) {
+        if (status === "pending_approval") {
+          const res = await fetch("/api/admin/approve-user", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user_id: userId, job_title: jobTitle }),
+          });
+          if (res.ok) setStatus("active");
+        } else if (jobTitle !== currentJobTitle) {
+          await fetch("/api/admin/approve-user", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user_id: userId, job_title: jobTitle }),
+          });
+        }
       }
 
       startTransition(() => router.refresh());
@@ -506,112 +529,123 @@ export function PermissionManager({
 
   return (
     <div className="space-y-6">
-      {/* Job title + approve section */}
-      <div
-        style={{
-          background: "hsl(22 10% 8%)",
-          border: "1px solid hsl(22 8% 14%)",
-          borderRadius: "12px",
-          padding: "1.25rem 1.5rem",
-        }}
-      >
-        <div className="flex flex-col sm:flex-row sm:items-end gap-4">
-          <div className="flex-1">
-            <Label
-              htmlFor="job-title"
-              style={{ fontSize: "9px", letterSpacing: "0.2em", color: "hsl(30 8% 42%)", textTransform: "uppercase" }}
-            >
-              Job Title
-            </Label>
-            <Input
-              id="job-title"
-              value={jobTitle}
-              onChange={(e) => setJobTitle(e.target.value)}
-              placeholder="e.g. DTS Program Leader"
-              className="mt-1"
-            />
-            <label
-              htmlFor="assignable-contact"
-              className="mt-3 flex items-center gap-2 cursor-pointer select-none"
-            >
-              <input
-                id="assignable-contact"
-                type="checkbox"
-                checked={isAssignableContact}
-                onChange={(e) => setIsAssignableContact(e.target.checked)}
-                style={{
-                  width: "16px",
-                  height: "16px",
-                  accentColor: "hsl(42 95% 55%)",
-                  cursor: "pointer",
-                }}
+      {/* Job title + approve section — super_admin only */}
+      {isSuperAdmin && (
+        <div
+          style={{
+            background: "hsl(22 10% 8%)",
+            border: "1px solid hsl(22 8% 14%)",
+            borderRadius: "12px",
+            padding: "1.25rem 1.5rem",
+          }}
+        >
+          <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+            <div className="flex-1">
+              <Label
+                htmlFor="job-title"
+                style={{ fontSize: "9px", letterSpacing: "0.2em", color: "hsl(30 8% 42%)", textTransform: "uppercase" }}
+              >
+                Job Title
+              </Label>
+              <Input
+                id="job-title"
+                value={jobTitle}
+                onChange={(e) => setJobTitle(e.target.value)}
+                placeholder="e.g. DTS Program Leader"
+                className="mt-1"
               />
-              <span style={{ fontSize: "12px", color: "#F0EBE3" }}>
-                Available as a student point of contact
-              </span>
-              <span
-                style={{
-                  fontSize: "10px",
-                  color: "hsl(30 8% 42%)",
-                  marginLeft: "4px",
-                }}
-              >
-                — appears in the assign-staff picker on schools applications &amp; enrollments
-              </span>
-            </label>
-          </div>
+            </div>
 
-          <div className="flex items-center gap-3">
-            {status === "pending_approval" && (
-              <span
+            <div className="flex items-center gap-3">
+              {status === "pending_approval" && (
+                <span
+                  style={{
+                    fontSize: "10px",
+                    letterSpacing: "0.1em",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    padding: "3px 8px",
+                    borderRadius: "4px",
+                    background: "hsl(42 80% 18%)",
+                    color: "hsl(42 95% 55%)",
+                  }}
+                >
+                  Pending Approval
+                </span>
+              )}
+              {status === "active" && (
+                <span
+                  style={{
+                    fontSize: "10px",
+                    letterSpacing: "0.1em",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    padding: "3px 8px",
+                    borderRadius: "4px",
+                    background: "hsl(142 60% 20%)",
+                    color: "hsl(142 60% 55%)",
+                  }}
+                >
+                  Active
+                </span>
+              )}
+              <Button
+                onClick={handleSave}
+                disabled={saving || isPending}
                 style={{
-                  fontSize: "10px",
-                  letterSpacing: "0.1em",
+                  background: "hsl(42 95% 55%)",
+                  color: "#0D0B09",
                   fontWeight: 700,
-                  textTransform: "uppercase",
-                  padding: "3px 8px",
-                  borderRadius: "4px",
-                  background: "hsl(42 80% 18%)",
-                  color: "hsl(42 95% 55%)",
                 }}
               >
-                Pending Approval
-              </span>
-            )}
-            {status === "active" && (
-              <span
-                style={{
-                  fontSize: "10px",
-                  letterSpacing: "0.1em",
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  padding: "3px 8px",
-                  borderRadius: "4px",
-                  background: "hsl(142 60% 20%)",
-                  color: "hsl(142 60% 55%)",
-                }}
-              >
-                Active
-              </span>
-            )}
-            <Button
-              onClick={handleSave}
-              disabled={saving || isPending}
-              style={{
-                background: "hsl(42 95% 55%)",
-                color: "#0D0B09",
-                fontWeight: 700,
-              }}
-            >
-              {saving
-                ? "Saving…"
-                : status === "pending_approval"
-                ? "Approve & Activate"
-                : "Save Changes"}
-            </Button>
+                {saving
+                  ? "Saving…"
+                  : status === "pending_approval"
+                  ? "Approve & Activate"
+                  : "Save Changes"}
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Restricted-mode banner + standalone save button */}
+      {!isSuperAdmin && (
+        <div
+          className="flex items-start justify-between gap-4"
+          style={{
+            background: "hsl(22 10% 8%)",
+            border: "1px solid hsl(22 8% 14%)",
+            borderRadius: "12px",
+            padding: "1.25rem 1.5rem",
+          }}
+        >
+          <div>
+            <p
+              style={{
+                fontSize: "9px",
+                letterSpacing: "0.2em",
+                fontWeight: 700,
+                color: "hsl(42 95% 55%)",
+                textTransform: "uppercase",
+              }}
+            >
+              Schools Manager View
+            </p>
+            <p style={{ fontSize: "13px", color: "#F0EBE3", marginTop: "4px" }}>
+              You can flag this user as available to be assigned as a point of
+              contact for programs you manage.
+            </p>
+          </div>
+          <Button
+            onClick={handleSave}
+            disabled={saving || isPending}
+            style={{ background: "hsl(42 95% 55%)", color: "#0D0B09", fontWeight: 700 }}
+          >
+            {saving ? "Saving…" : "Save Changes"}
+          </Button>
+        </div>
+      )}
 
       {/* Permission modules */}
       <div className="space-y-4">
@@ -628,7 +662,7 @@ export function PermissionManager({
         </p>
 
         {moduleOrder.map((moduleId) => {
-          const perms = permissionsByModule[moduleId];
+          const perms = effectivePermissionsByModule[moduleId];
           if (!perms || perms.length === 0) return null;
           return (
             <ModuleSection
@@ -636,8 +670,9 @@ export function PermissionManager({
               moduleId={moduleId}
               permissions={perms}
               granted={granted}
-              scopeOptions={scopeOptions}
+              scopeOptions={effectiveScopeOptions}
               onToggle={handleToggle}
+              hideGlobal={!isSuperAdmin}
             />
           );
         })}

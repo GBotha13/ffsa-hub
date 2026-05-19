@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { grantPermission } from "@/services/permissions";
+import { callerCanGrantPermission } from "@/lib/auth/check-permission-grant";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -12,18 +13,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  // Only super_admin can grant permissions
-  const { data: superCheck } = await supabase
-    .from("user_roles")
-    .select("roles!inner(name)")
-    .eq("user_id", authUser.id)
-    .eq("roles.name", "super_admin")
-    .limit(1);
-
-  if (!superCheck || superCheck.length === 0) {
-    return NextResponse.json({ error: "Not authorized" }, { status: 403 });
-  }
-
   const body = await request.json();
   const { user_id, permission_id, scope_type, scope_id } = body;
 
@@ -32,6 +21,19 @@ export async function POST(request: Request) {
       { error: "user_id and permission_id are required" },
       { status: 400 }
     );
+  }
+
+  // Authorization: super_admin can grant anything; a schools.manage holder
+  // can grant only `schools.assignable_as_contact` on a program they manage.
+  const allowed = await callerCanGrantPermission(
+    supabase,
+    authUser.id,
+    permission_id,
+    scope_type,
+    scope_id
+  );
+  if (!allowed) {
+    return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
   const { error } = await grantPermission(

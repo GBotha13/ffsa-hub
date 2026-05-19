@@ -6,6 +6,7 @@ import {
   getUserPermissions,
   getScopeOptions,
 } from "@/services/permissions";
+import { getSchoolsManageScopes } from "@/lib/auth/schools-manage-scopes";
 import { PermissionManager } from "./permission-manager";
 
 export default async function UserDetailPage({
@@ -16,21 +17,33 @@ export default async function UserDetailPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  // Only super_admin can access this page
   const {
     data: { user: authUser },
   } = await supabase.auth.getUser();
 
   if (!authUser) redirect("/login");
 
+  // Access tiers:
+  //   super_admin → full editor (status, job title, all modules, all scopes)
+  //   schools.manage holder → restricted editor (only `schools.assignable_as_contact`,
+  //     only on the programs they manage)
+  //   anyone else → kicked back to dashboard
   const { data: superCheck } = await supabase
     .from("user_roles")
     .select("roles!inner(name)")
     .eq("user_id", authUser.id)
     .eq("roles.name", "super_admin")
     .limit(1);
+  const isSuperAdmin = (superCheck?.length ?? 0) > 0;
 
-  if (!superCheck || superCheck.length === 0) redirect("/dashboard");
+  const manageScopes = isSuperAdmin
+    ? { hasGlobal: true, programIds: [] }
+    : await getSchoolsManageScopes(supabase, authUser.id);
+
+  const hasAnySchoolsManage =
+    manageScopes.hasGlobal || manageScopes.programIds.length > 0;
+
+  if (!isSuperAdmin && !hasAnySchoolsManage) redirect("/dashboard");
 
   // Load the target user
   const { data: targetUser, error } = await getUserById(supabase, id);
@@ -92,12 +105,15 @@ export default async function UserDetailPage({
         userId={id}
         currentStatus={targetUser.status ?? "invited"}
         currentJobTitle={targetUser.job_title ?? ""}
-        currentIsAssignableContact={
-          (targetUser as { is_assignable_contact?: boolean | null }).is_assignable_contact ?? false
-        }
         permissionsByModule={permissionsByModule}
         userPermissions={userPermissions}
         scopeOptions={scopeOptions}
+        isSuperAdmin={isSuperAdmin}
+        managedProgramIds={
+          manageScopes.hasGlobal
+            ? null // null sentinel = all programs
+            : manageScopes.programIds
+        }
       />
     </div>
   );
