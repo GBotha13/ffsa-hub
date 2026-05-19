@@ -49,6 +49,14 @@ export const ADMIN_MODULES: ModuleDefinition[] = [
     requiredRoles: ["super_admin", "admin", "staff"],
   },
   {
+    id: "communications",
+    label: "Communications",
+    href: "/communications",
+    icon: Mail,
+    description: "Announcements and partner updates",
+    requiredRoles: ["super_admin", "admin", "comms_admin"],
+  },
+  {
     id: "events",
     label: "Events",
     href: "/events",
@@ -87,14 +95,6 @@ export const ADMIN_MODULES: ModuleDefinition[] = [
     icon: Heart,
     description: "Devo set schedule, sign-ups, and team roster",
     requiredRoles: [], // visible to ALL authenticated users
-  },
-  {
-    id: "communications",
-    label: "Communications",
-    href: "/communications",
-    icon: Mail,
-    description: "Announcements and partner updates",
-    requiredRoles: ["super_admin", "admin", "comms_admin"],
   },
   {
     id: "mission",
