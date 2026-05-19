@@ -3110,11 +3110,15 @@ function ApplicationTab({
           <h3 className="font-medium">Acceptance Email</h3>
           <p className="text-xs text-muted-foreground mt-1">
             The message applicants receive when you accept them into this
-            program. Leave blank to use the default. You can use{" "}
-            <code className="font-mono">{"{{first_name}}"}</code> and{" "}
-            <code className="font-mono">{"{{program_name}}"}</code> as
-            placeholders &mdash; they&apos;ll be replaced with the applicant&apos;s
-            name and this program&apos;s name when the email is sent.
+            program. Leave blank to use the default. Use{" "}
+            <code className="font-mono">{"{{first_name}}"}</code> for the
+            applicant&apos;s name and{" "}
+            <code className="font-mono">{"{{program_name}}"}</code> for this
+            program&apos;s name &mdash; both get replaced when the email is
+            sent. Common variants (
+            <code className="font-mono">{"{{name}}"}</code>,{" "}
+            <code className="font-mono">[Your Name]</code>,{" "}
+            <code className="font-mono">{"{first_name}"}</code>) also work.
           </p>
         </div>
 
