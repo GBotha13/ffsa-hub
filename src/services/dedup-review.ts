@@ -146,9 +146,17 @@ export async function resolveKeepSeparate(
   if (review.error || !review.data) return review;
   const incoming = (review.data.incoming_data ?? {}) as Record<string, unknown>;
 
+  // Strip private _* fields (label routing, provenance) before insert —
+  // they aren't real contact columns.
+  const contactFields: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(incoming)) {
+    if (k.startsWith("_")) continue;
+    contactFields[k] = v;
+  }
+
   // Insert as a new contact, no dedup this time.
   const insertRow: ContactInsert = {
-    ...(incoming as Partial<ContactInsert>),
+    ...(contactFields as Partial<ContactInsert>),
     phone_normalized: incoming.phone ? normalizePhoneE164(String(incoming.phone)) : null,
   } as ContactInsert;
 

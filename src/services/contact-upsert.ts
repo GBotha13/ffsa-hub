@@ -160,10 +160,18 @@ export async function upsertContactWithDedup(
   const emailMatch = matched.find((m) => m.matched_on.includes("email"));
   const phoneMatch = matched.find((m) => m.matched_on.includes("phone"));
 
+  // Embed the pending labelId (and addedVia) inside incoming_data so the
+  // resolution step can re-apply them once a human picks a path.
+  const incomingPayload = {
+    ...input.contact,
+    _label_id: input.labelId,
+    _added_via: input.addedVia,
+  };
+
   const review = await supabase
     .from("dedup_review_queue")
     .insert({
-      incoming_data: input.contact as Record<string, unknown>,
+      incoming_data: incomingPayload as Record<string, unknown>,
       email_match_contact_id: emailMatch?.contact.id ?? null,
       phone_match_contact_id: phoneMatch?.contact.id ?? null,
       source_type: input.reviewSource.type,
