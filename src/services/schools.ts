@@ -127,7 +127,9 @@ export async function deleteCourse(supabase: Client, id: string) {
 export async function getEnrollmentsByProgram(supabase: Client, programId: string) {
   return supabase
     .from("enrollments")
-    .select("*, users!enrollments_user_id_fkey(id, first_name, last_name, preferred_name, email)")
+    .select(
+      "*, users!enrollments_user_id_fkey(id, first_name, last_name, preferred_name, email), assigned_staff:users!enrollments_assigned_staff_id_fkey(id, first_name, last_name, preferred_name, email)"
+    )
     .eq("program_id", programId)
     .order("enrolled_at", { ascending: false });
 }
@@ -135,7 +137,9 @@ export async function getEnrollmentsByProgram(supabase: Client, programId: strin
 export async function getEnrollmentsByUser(supabase: Client, userId: string) {
   return supabase
     .from("enrollments")
-    .select("*, programs(*)")
+    .select(
+      "*, programs(*), assigned_staff:users!enrollments_assigned_staff_id_fkey(id, first_name, last_name, preferred_name, email)"
+    )
     .eq("user_id", userId)
     .order("enrolled_at", { ascending: false });
 }
@@ -431,7 +435,9 @@ export async function deleteQuestion(supabase: Client, id: string) {
 export async function getResponsesByProgram(supabase: Client, programId: string) {
   return supabase
     .from("application_responses")
-    .select("*, users!application_responses_user_id_fkey(id, first_name, last_name, preferred_name, email)")
+    .select(
+      "*, users!application_responses_user_id_fkey(id, first_name, last_name, preferred_name, email), assigned_staff:users!application_responses_assigned_staff_id_fkey(id, first_name, last_name, preferred_name, email)"
+    )
     .eq("program_id", programId)
     .order("submitted_at", { ascending: false });
   // Note: nullable user_id FK join returns null for public applicants — PostgREST handles this automatically
@@ -453,7 +459,9 @@ export async function getResponseByUserAndProgram(
 export async function getResponsesByUser(supabase: Client, userId: string) {
   return supabase
     .from("application_responses")
-    .select("*, programs(id, name, code)")
+    .select(
+      "*, programs(id, name, code), assigned_staff:users!application_responses_assigned_staff_id_fkey(id, first_name, last_name, preferred_name, email)"
+    )
     .eq("user_id", userId)
     .order("submitted_at", { ascending: false });
 }

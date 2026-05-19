@@ -48,11 +48,21 @@ type Course = {
   sort_order: number;
 };
 
+type StaffUser = {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  preferred_name: string | null;
+  email: string | null;
+};
+
 type Enrollment = {
   id: string;
   user_id: string;
   status: string;
   enrolled_at: string;
+  assigned_staff_id: string | null;
+  assigned_staff: StaffUser | null;
   users: {
     id: string;
     first_name: string | null;
@@ -158,6 +168,8 @@ type AppResponse = {
   reviewed_at: string | null;
   admin_notes: string | null;
   submitted_at: string;
+  assigned_staff_id: string | null;
+  assigned_staff: StaffUser | null;
   users: {
     id: string;
     first_name: string | null;
@@ -278,6 +290,7 @@ export function ProgramDetail({
   enrollments,
   grades,
   allUsers,
+  staffOptions,
   questions,
   responses,
   referenceSlots,
@@ -288,6 +301,7 @@ export function ProgramDetail({
   enrollments: Enrollment[];
   grades: GradeRow[];
   allUsers: UserOption[];
+  staffOptions: StaffUser[];
   questions: AppQuestion[];
   responses: AppResponse[];
   referenceSlots: ReferenceSlot[];
@@ -430,6 +444,7 @@ export function ProgramDetail({
             programId={program.id}
             enrollments={enrollments}
             allUsers={allUsers}
+            staffOptions={staffOptions}
           />
         </TabsContent>
 
@@ -464,6 +479,7 @@ export function ProgramDetail({
             referenceSlots={referenceSlots}
             refRequestSummaries={refRequestSummaries}
             questions={questions}
+            staffOptions={staffOptions}
           />
         </TabsContent>
       </Tabs>
@@ -746,6 +762,70 @@ function CoursesTab({
 }
 
 // ────────────────────────────────────────────────────────────
+// STAFF ASSIGN SELECT
+// Shared inline picker used in both the applicants and enrollments
+// tables, plus the review dialog. Calls a parent-supplied onAssign
+// callback so each caller can hit the right API route.
+// ────────────────────────────────────────────────────────────
+
+function staffLabel(u: StaffUser | null | undefined) {
+  if (!u) return "";
+  const first = u.preferred_name || u.first_name || "";
+  const last = u.last_name || "";
+  const name = `${first} ${last}`.trim();
+  return name || u.email || "Unknown";
+}
+
+const UNASSIGNED_VALUE = "__none__";
+
+function StaffAssignSelect({
+  value,
+  staffOptions,
+  onAssign,
+  disabled,
+  placeholder = "Unassigned",
+  className,
+}: {
+  value: string | null;
+  staffOptions: StaffUser[];
+  onAssign: (newStaffId: string | null) => Promise<void> | void;
+  disabled?: boolean;
+  placeholder?: string;
+  className?: string;
+}) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <Select
+      value={value ?? UNASSIGNED_VALUE}
+      onValueChange={async (v) => {
+        const next = v === UNASSIGNED_VALUE ? null : v;
+        setBusy(true);
+        try {
+          await onAssign(next);
+        } finally {
+          setBusy(false);
+        }
+      }}
+      disabled={disabled || busy}
+    >
+      <SelectTrigger className={className ?? "h-8 w-[180px] text-xs"}>
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={UNASSIGNED_VALUE}>
+          <span className="text-muted-foreground">Unassigned</span>
+        </SelectItem>
+        {staffOptions.map((s) => (
+          <SelectItem key={s.id} value={s.id}>
+            {staffLabel(s)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
 // ENROLLMENTS TAB
 // ────────────────────────────────────────────────────────────
 
@@ -753,10 +833,12 @@ function EnrollmentsTab({
   programId,
   enrollments,
   allUsers,
+  staffOptions,
 }: {
   programId: string;
   enrollments: Enrollment[];
   allUsers: UserOption[];
+  staffOptions: StaffUser[];
 }) {
   const router = useRouter();
   const [enrollOpen, setEnrollOpen] = useState(false);
@@ -764,10 +846,30 @@ function EnrollmentsTab({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
+  const [unassignedOnly, setUnassignedOnly] = useState(false);
 
   // Filter out already-enrolled users
   const enrolledIds = new Set(enrollments.map((e) => e.user_id));
   const availableUsers = allUsers.filter((u) => !enrolledIds.has(u.id));
+
+  async function handleAssignStaff(enrollmentId: string, staffId: string | null) {
+    const res = await fetch("/api/schools/enrollments/assign-staff", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enrollment_id: enrollmentId, assigned_staff_id: staffId }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || "Failed to assign staff");
+      return;
+    }
+    router.refresh();
+  }
+
+  const visibleEnrollments = unassignedOnly
+    ? enrollments.filter((e) => !e.assigned_staff_id)
+    : enrollments;
+  const unassignedCount = enrollments.filter((e) => !e.assigned_staff_id).length;
 
   function userName(u: { first_name: string | null; last_name: string | null; preferred_name: string | null; email: string | null }) {
     if (u.first_name) {
@@ -851,7 +953,21 @@ function EnrollmentsTab({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => setUnassignedOnly((v) => !v)}
+          className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+            unassignedOnly
+              ? "border-primary bg-primary/15 text-primary"
+              : "border-border text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Unassigned
+          <span className="rounded-full bg-background/60 px-1.5 py-0.5 text-[10px] font-bold">
+            {unassignedCount}
+          </span>
+        </button>
         <Dialog open={enrollOpen} onOpenChange={setEnrollOpen}>
           <DialogTrigger asChild>
             <Button size="sm">
@@ -914,20 +1030,23 @@ function EnrollmentsTab({
               <TableHead>Email</TableHead>
               <TableHead>Enrolled</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Assigned Staff</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {enrollments.length === 0 ? (
+            {visibleEnrollments.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={4}
+                  colSpan={5}
                   className="text-center text-muted-foreground py-8"
                 >
-                  No students enrolled yet.
+                  {enrollments.length === 0
+                    ? "No students enrolled yet."
+                    : "No enrollments match the current filter."}
                 </TableCell>
               </TableRow>
             ) : (
-              enrollments.map((enrollment) => (
+              visibleEnrollments.map((enrollment) => (
                 <TableRow key={enrollment.id}>
                   <TableCell className="font-medium">
                     {userName(enrollment.users)}
@@ -959,6 +1078,15 @@ function EnrollmentsTab({
                         <SelectItem value="graduated">Graduated</SelectItem>
                       </SelectContent>
                     </Select>
+                  </TableCell>
+                  <TableCell>
+                    <StaffAssignSelect
+                      value={enrollment.assigned_staff_id}
+                      staffOptions={staffOptions}
+                      onAssign={(staffId) =>
+                        handleAssignStaff(enrollment.id, staffId)
+                      }
+                    />
                   </TableCell>
                 </TableRow>
               ))
@@ -1235,6 +1363,7 @@ function ApplicantsTab({
   referenceSlots,
   refRequestSummaries,
   questions,
+  staffOptions,
 }: {
   programId: string;
   programCode: string;
@@ -1242,6 +1371,7 @@ function ApplicantsTab({
   referenceSlots: ReferenceSlot[];
   refRequestSummaries: RefRequestSummary[];
   questions: AppQuestion[];
+  staffOptions: StaffUser[];
 }) {
   const router = useRouter();
   const [reviewingResponse, setReviewingResponse] = useState<AppResponse | null>(null);
@@ -1299,6 +1429,21 @@ function ApplicantsTab({
   // Pipeline filter & search
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [unassignedOnly, setUnassignedOnly] = useState(false);
+
+  async function handleAssignStaff(responseId: string, staffId: string | null) {
+    const res = await fetch("/api/schools/applications/responses/assign-staff", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ response_id: responseId, assigned_staff_id: staffId }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || "Failed to assign staff");
+      return;
+    }
+    router.refresh();
+  }
 
   function respName(resp: AppResponse) {
     if (resp.users) {
@@ -1332,9 +1477,12 @@ function ApplicantsTab({
     statusCounts[resp.status] = (statusCounts[resp.status] ?? 0) + 1;
   }
 
-  // Filter responses by status and search
+  const unassignedCount = responses.filter((r) => !r.assigned_staff_id).length;
+
+  // Filter responses by status, search, and unassigned-only toggle.
   const filteredResponses = responses.filter((resp) => {
     if (statusFilter !== "all" && resp.status !== statusFilter) return false;
+    if (unassignedOnly && resp.assigned_staff_id) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       const name = respName(resp).toLowerCase();
@@ -1547,6 +1695,22 @@ function ApplicantsTab({
               </button>
             );
           })}
+          <button
+            onClick={() => setUnassignedOnly((v) => !v)}
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+              unassignedOnly
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
+            }`}
+            title="Show only applicants with no staff assigned"
+          >
+            Unassigned
+            <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+              unassignedOnly ? "bg-primary-foreground/20 text-primary-foreground" : "bg-background/50"
+            }`}>
+              {unassignedCount}
+            </span>
+          </button>
         </div>
 
         {/* Search bar */}
@@ -1697,6 +1861,7 @@ function ApplicantsTab({
                 <TableHead>Submitted</TableHead>
                 <TableHead>Status</TableHead>
                 {referenceSlots.length > 0 && <TableHead>References</TableHead>}
+                <TableHead>Assigned</TableHead>
                 <TableHead className="w-[120px]" />
               </TableRow>
             </TableHeader>
@@ -1760,6 +1925,13 @@ function ApplicantsTab({
                       })()}
                     </TableCell>
                   )}
+                  <TableCell>
+                    <StaffAssignSelect
+                      value={resp.assigned_staff_id}
+                      staffOptions={staffOptions}
+                      onAssign={(staffId) => handleAssignStaff(resp.id, staffId)}
+                    />
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <Button
@@ -2066,8 +2238,21 @@ function ApplicantsTab({
                 </div>
               )}
 
+              {/* Assigned Staff */}
+              <div className="border-t pt-4 flex items-center gap-3">
+                <Label className="shrink-0">Assigned Staff:</Label>
+                <StaffAssignSelect
+                  value={reviewingResponse.assigned_staff_id}
+                  staffOptions={staffOptions}
+                  className="h-9 w-[220px] text-sm"
+                  onAssign={(staffId) =>
+                    handleAssignStaff(reviewingResponse.id, staffId)
+                  }
+                />
+              </div>
+
               {/* Admin Notes */}
-              <div className="border-t pt-4 space-y-2">
+              <div className="space-y-2">
                 <Label>Notes</Label>
                 <Textarea
                   value={reviewNotes}

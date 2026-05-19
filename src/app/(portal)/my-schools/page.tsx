@@ -2,8 +2,48 @@ import { createClient } from "@/lib/supabase/server";
 import { getEnrollmentsByUser, getResponsesByUser } from "@/services/schools";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { GraduationCap, FileText } from "lucide-react";
+import { GraduationCap, FileText, UserCircle2 } from "lucide-react";
 import Link from "next/link";
+
+type AssignedStaff = {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  preferred_name: string | null;
+  email: string | null;
+} | null;
+
+function staffLabel(s: AssignedStaff) {
+  if (!s) return null;
+  const f = s.preferred_name || s.first_name || "";
+  const l = s.last_name || "";
+  const n = `${f} ${l}`.trim();
+  return n || s.email;
+}
+
+function PointOfContact({ staff, label }: { staff: AssignedStaff; label: string }) {
+  const name = staffLabel(staff);
+  if (!name) return null;
+  return (
+    <div className="mt-2 flex items-start gap-2 rounded-md border border-primary/20 bg-primary/5 px-2.5 py-2 text-xs">
+      <UserCircle2 className="mt-0.5 h-3.5 w-3.5 text-primary shrink-0" />
+      <div className="leading-tight">
+        <p className="font-medium text-primary uppercase tracking-wider" style={{ fontSize: "9px", letterSpacing: "0.15em" }}>
+          {label}
+        </p>
+        <p className="text-foreground">{name}</p>
+        {staff?.email && (
+          <a
+            href={`mailto:${staff.email}`}
+            className="text-muted-foreground hover:underline"
+          >
+            {staff.email}
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default async function MySchoolsPage() {
   const supabase = await createClient();
@@ -34,11 +74,15 @@ export default async function MySchoolsPage() {
 
   // Build a map of programId -> response status
   const responseStatusMap = new Map<string, string>();
+  const responseStaffMap = new Map<string, AssignedStaff>();
   for (const r of myResponses ?? []) {
-    responseStatusMap.set(
-      (r as { program_id: string }).program_id,
-      (r as { status: string }).status
-    );
+    const row = r as {
+      program_id: string;
+      status: string;
+      assigned_staff: AssignedStaff;
+    };
+    responseStatusMap.set(row.program_id, row.status);
+    responseStaffMap.set(row.program_id, row.assigned_staff ?? null);
   }
 
   const statusColors: Record<string, "default" | "secondary" | "destructive"> = {
@@ -118,6 +162,12 @@ export default async function MySchoolsPage() {
                         </Link>
                       )}
                     </div>
+                    {applied && (
+                      <PointOfContact
+                        staff={responseStaffMap.get(program.id) ?? null}
+                        label="Your application contact"
+                      />
+                    )}
                   </CardContent>
                 </Card>
               );
@@ -148,6 +198,7 @@ export default async function MySchoolsPage() {
               status: string;
               enrolled_at: string;
               completed_at: string | null;
+              assigned_staff: AssignedStaff;
               programs: {
                 id: string;
                 name: string;
@@ -180,6 +231,10 @@ export default async function MySchoolsPage() {
                         {enrollment.programs.credit_hours} credit hours
                       </span>
                     </div>
+                    <PointOfContact
+                      staff={enrollment.assigned_staff}
+                      label="Your program contact"
+                    />
                   </CardContent>
                 </Card>
               </Link>

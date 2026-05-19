@@ -1,8 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
 import { Users, Calendar, UserCheck, ClipboardCheck, ArrowUpRight, Clock } from "lucide-react";
 import { getPendingApprovalCount } from "@/services/users";
+import { MyAssignmentsCard } from "./my-assignments-card";
+import { StaffWorkloadCard } from "./staff-workload-card";
 
 function StatCard({
   label,
@@ -209,6 +210,12 @@ export default async function DashboardPage() {
         <StatCard label="Active Users" value={usersResult.count ?? 0} icon={UserCheck} />
         <StatCard label="Recent Reg." value={recentRegistrations.data?.length ?? 0} icon={ClipboardCheck} />
       </div>
+
+      {/* Schools assignments (only renders for staff with assigned students) */}
+      <MyAssignmentsCard />
+
+      {/* Staff workload (only renders for admins/managers) */}
+      <StaffWorkloadCard />
 
       {/* Tables */}
       <div className="grid gap-6 lg:grid-cols-2">

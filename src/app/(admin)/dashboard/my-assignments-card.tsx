@@ -1,0 +1,304 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { ArrowUpRight, ClipboardList, GraduationCap } from "lucide-react";
+
+type StudentLite = {
+  first_name: string | null;
+  last_name: string | null;
+  preferred_name: string | null;
+  email: string | null;
+};
+
+type AssignedApplication = {
+  id: string;
+  program_id: string;
+  status: string;
+  applicant_info: { first_name?: string; last_name?: string } | null;
+  applicant_email: string | null;
+  staff_assigned_at: string | null;
+  staff_viewed_at: string | null;
+  users: StudentLite | null;
+  programs: { name: string; code: string } | null;
+};
+
+type AssignedEnrollment = {
+  id: string;
+  program_id: string;
+  status: string;
+  enrolled_at: string;
+  staff_assigned_at: string | null;
+  staff_viewed_at: string | null;
+  users: StudentLite | null;
+  programs: { name: string; code: string } | null;
+};
+
+type Payload = {
+  applications: AssignedApplication[];
+  enrollments: AssignedEnrollment[];
+  unread: { applications: number; enrollments: number };
+};
+
+function studentName(s: StudentLite | null, fallback: { first_name?: string; last_name?: string } | null, email: string | null) {
+  if (s) {
+    const f = s.preferred_name || s.first_name || "";
+    const l = s.last_name || "";
+    const n = `${f} ${l}`.trim();
+    if (n) return n;
+    if (s.email) return s.email;
+  }
+  if (fallback) {
+    const n = `${fallback.first_name ?? ""} ${fallback.last_name ?? ""}`.trim();
+    if (n) return n;
+  }
+  return email ?? "Unknown";
+}
+
+export function MyAssignmentsCard() {
+  const [data, setData] = useState<Payload | null>(null);
+  const [open, setOpen] = useState<"applications" | "enrollments" | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  async function refresh() {
+    try {
+      const res = await fetch("/api/schools/my-staff-assignments", { cache: "no-store" });
+      if (res.ok) {
+        const json = (await res.json()) as Payload;
+        setData(json);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  async function markViewed(kind: "applications" | "enrollments") {
+    const items = data?.[kind] ?? [];
+    const unreadIds = items.filter((i) => !i.staff_viewed_at).map((i) => i.id);
+    if (unreadIds.length === 0) return;
+    await fetch("/api/schools/my-staff-assignments/mark-viewed", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(
+        kind === "applications" ? { application_ids: unreadIds } : { enrollment_ids: unreadIds }
+      ),
+    });
+    refresh();
+  }
+
+  function togglePanel(kind: "applications" | "enrollments") {
+    const next = open === kind ? null : kind;
+    setOpen(next);
+    if (next) markViewed(next);
+  }
+
+  if (loading || !data) {
+    return (
+      <div
+        style={{
+          background: "hsl(22 10% 8%)",
+          border: "1px solid hsl(22 8% 14%)",
+          borderRadius: "14px",
+          padding: "1.25rem 1.5rem",
+        }}
+      >
+        <p style={{ fontSize: "12px", color: "hsl(30 8% 42%)" }}>Loading your assignments…</p>
+      </div>
+    );
+  }
+
+  const totalApps = data.applications.length;
+  const totalEnrollments = data.enrollments.length;
+  if (totalApps === 0 && totalEnrollments === 0) {
+    return null;
+  }
+
+  return (
+    <div
+      style={{
+        background: "hsl(22 10% 8%)",
+        border: "1px solid hsl(22 8% 14%)",
+        borderRadius: "14px",
+        overflow: "hidden",
+      }}
+    >
+      <div
+        className="flex items-center justify-between"
+        style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid hsl(22 8% 13%)" }}
+      >
+        <p
+          style={{
+            fontFamily: "var(--font-bebas, 'Arial Black', sans-serif)",
+            fontSize: "1.15rem",
+            letterSpacing: "0.07em",
+            color: "#F0EBE3",
+          }}
+        >
+          My Assignments
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2">
+        <AssignmentTile
+          label="Applications"
+          total={totalApps}
+          unread={data.unread.applications}
+          icon={ClipboardList}
+          isOpen={open === "applications"}
+          onToggle={() => togglePanel("applications")}
+        />
+        <AssignmentTile
+          label="Enrolled Students"
+          total={totalEnrollments}
+          unread={data.unread.enrollments}
+          icon={GraduationCap}
+          isOpen={open === "enrollments"}
+          onToggle={() => togglePanel("enrollments")}
+        />
+      </div>
+
+      {open === "applications" && (
+        <AssignmentList
+          items={data.applications.map((a) => ({
+            id: a.id,
+            name: studentName(a.users, a.applicant_info, a.applicant_email),
+            subtitle: `${a.programs?.name ?? "—"} · ${a.status.replace(/_/g, " ")}`,
+            assignedAt: a.staff_assigned_at,
+            href: `/schools/${a.program_id}`,
+            wasUnread: !a.staff_viewed_at,
+          }))}
+        />
+      )}
+      {open === "enrollments" && (
+        <AssignmentList
+          items={data.enrollments.map((e) => ({
+            id: e.id,
+            name: studentName(e.users, null, null),
+            subtitle: `${e.programs?.name ?? "—"} · ${e.status.replace(/_/g, " ")}`,
+            assignedAt: e.staff_assigned_at,
+            href: `/schools/${e.program_id}`,
+            wasUnread: !e.staff_viewed_at,
+          }))}
+        />
+      )}
+    </div>
+  );
+}
+
+function AssignmentTile({
+  label,
+  total,
+  unread,
+  icon: Icon,
+  isOpen,
+  onToggle,
+}: {
+  label: string;
+  total: number;
+  unread: number;
+  icon: React.ComponentType<{ className?: string }>;
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      onClick={onToggle}
+      className="flex items-center justify-between text-left transition-colors duration-150"
+      style={{
+        padding: "1.25rem 1.5rem",
+        background: isOpen ? "hsl(22 8% 11%)" : "transparent",
+        borderRight: "1px solid hsl(22 8% 13%)",
+      }}
+    >
+      <div className="flex items-center gap-3">
+        <div
+          style={{
+            width: "36px",
+            height: "36px",
+            borderRadius: "8px",
+            background: unread > 0 ? "hsl(42 95% 55% / 0.15)" : "hsl(22 8% 13%)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: unread > 0 ? "hsl(42 95% 55%)" : "hsl(30 8% 45%)",
+          }}
+        >
+          <Icon className="h-4 w-4" />
+        </div>
+        <div>
+          <p style={{ fontSize: "13px", fontWeight: 500, color: "#F0EBE3" }}>{label}</p>
+          <p style={{ fontSize: "11px", color: "hsl(30 8% 42%)", marginTop: "2px" }}>
+            {total} total {unread > 0 ? `· ${unread} new` : ""}
+          </p>
+        </div>
+      </div>
+      {unread > 0 && (
+        <span
+          style={{
+            fontSize: "10px",
+            letterSpacing: "0.1em",
+            fontWeight: 700,
+            textTransform: "uppercase",
+            padding: "3px 8px",
+            borderRadius: "999px",
+            background: "hsl(42 95% 55%)",
+            color: "#0D0B09",
+          }}
+        >
+          {unread} new
+        </span>
+      )}
+    </button>
+  );
+}
+
+function AssignmentList({
+  items,
+}: {
+  items: Array<{ id: string; name: string; subtitle: string; assignedAt: string | null; href: string; wasUnread: boolean }>;
+}) {
+  if (items.length === 0) {
+    return (
+      <p style={{ padding: "1.5rem", textAlign: "center", fontSize: "12px", color: "hsl(30 8% 35%)" }}>
+        Nothing here yet.
+      </p>
+    );
+  }
+  return (
+    <div style={{ borderTop: "1px solid hsl(22 8% 13%)" }}>
+      {items.map((it) => (
+        <Link
+          key={it.id}
+          href={it.href}
+          className="flex items-center justify-between transition-colors duration-150"
+          style={{ padding: "0.75rem 1.5rem", borderBottom: "1px solid hsl(22 8% 11%)" }}
+        >
+          <div className="flex items-center gap-2">
+            {it.wasUnread && (
+              <span
+                aria-hidden
+                style={{ width: 6, height: 6, borderRadius: 999, background: "hsl(42 95% 55%)", display: "inline-block" }}
+              />
+            )}
+            <div>
+              <p style={{ fontSize: "13px", fontWeight: 500, color: "#F0EBE3" }}>{it.name}</p>
+              <p style={{ fontSize: "11px", color: "hsl(30 8% 42%)", marginTop: "2px" }}>{it.subtitle}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {it.assignedAt && (
+              <span style={{ fontSize: "10px", color: "hsl(30 8% 42%)" }}>
+                {new Date(it.assignedAt).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}
+              </span>
+            )}
+            <ArrowUpRight className="h-3 w-3" style={{ color: "hsl(42 95% 55%)" }} />
+          </div>
+        </Link>
+      ))}
+    </div>
+  );
+}

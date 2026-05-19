@@ -42,6 +42,43 @@ export default async function ProgramDetailPage({
     .eq("is_active", true)
     .order("last_name", { ascending: true });
 
+  // Fetch staff pool (anyone with staff/program_leader/admin/super_admin role)
+  // to populate the point-of-contact pickers.
+  const { data: staffRoleRows } = await supabase
+    .from("user_roles")
+    .select("user_id, roles!inner(name), users!inner(id, first_name, last_name, preferred_name, email, is_active)")
+    .in("roles.name", ["super_admin", "admin", "program_leader", "staff"]);
+
+  const staffMap = new Map<
+    string,
+    { id: string; first_name: string | null; last_name: string | null; preferred_name: string | null; email: string | null }
+  >();
+  for (const row of (staffRoleRows ?? []) as Array<{
+    users: {
+      id: string;
+      first_name: string | null;
+      last_name: string | null;
+      preferred_name: string | null;
+      email: string | null;
+      is_active: boolean | null;
+    } | null;
+  }>) {
+    const u = row.users;
+    if (!u || u.is_active === false) continue;
+    if (!staffMap.has(u.id)) {
+      staffMap.set(u.id, {
+        id: u.id,
+        first_name: u.first_name,
+        last_name: u.last_name,
+        preferred_name: u.preferred_name,
+        email: u.email,
+      });
+    }
+  }
+  const staffOptions = Array.from(staffMap.values()).sort((a, b) =>
+    `${a.first_name ?? ""} ${a.last_name ?? ""}`.localeCompare(`${b.first_name ?? ""} ${b.last_name ?? ""}`)
+  );
+
   return (
     <div className="space-y-6">
       <ProgramDetail
@@ -49,6 +86,7 @@ export default async function ProgramDetailPage({
         enrollments={enrollments ?? []}
         grades={grades ?? []}
         allUsers={allUsers ?? []}
+        staffOptions={staffOptions}
         questions={questions ?? []}
         responses={responses ?? []}
         referenceSlots={referenceSlots ?? []}
