@@ -3,10 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { userCanManageApplications } from "@/lib/auth/check-schools-access";
 
-const STAFF_ROLE_NAMES = ["super_admin", "admin", "program_leader", "staff"];
-
-// Returns users eligible to be assigned as point-of-contact staff for
-// applications or enrollments. Caller must have schools management access.
+// Returns users that a super admin has explicitly flagged as available
+// to be assigned as a point of contact (users.is_assignable_contact = true).
 export async function GET() {
   const supabase = await createClient();
   const {
@@ -24,58 +22,30 @@ export async function GET() {
 
   const adminSupabase = createAdminClient();
 
-  const { data: rows, error } = await adminSupabase
-    .from("user_roles")
-    .select("user_id, roles!inner(name), users!inner(id, first_name, last_name, preferred_name, email, is_active)")
-    .in("roles.name", STAFF_ROLE_NAMES);
+  // Cast around the auto-generated types until they're regenerated to
+  // include the is_assignable_contact column added in migration 053.
+  const sb = adminSupabase as unknown as {
+    from: (t: string) => {
+      select: (cols: string) => {
+        eq: (col: string, val: unknown) => {
+          eq: (col: string, val: unknown) => {
+            order: (col: string) => Promise<{ data: unknown; error: { message: string } | null }>;
+          };
+        };
+      };
+    };
+  };
+
+  const { data, error } = await sb
+    .from("users")
+    .select("id, first_name, last_name, preferred_name, email")
+    .eq("is_assignable_contact", true)
+    .eq("is_active", true)
+    .order("last_name");
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Deduplicate (a user with multiple eligible roles appears once) and drop
-  // inactive accounts.
-  const seen = new Map<
-    string,
-    {
-      id: string;
-      first_name: string | null;
-      last_name: string | null;
-      preferred_name: string | null;
-      email: string | null;
-    }
-  >();
-  for (const row of (rows ?? []) as Array<{
-    user_id: string;
-    users:
-      | {
-          id: string;
-          first_name: string | null;
-          last_name: string | null;
-          preferred_name: string | null;
-          email: string | null;
-          is_active: boolean | null;
-        }
-      | null;
-  }>) {
-    const u = row.users;
-    if (!u || u.is_active === false) continue;
-    if (!seen.has(u.id)) {
-      seen.set(u.id, {
-        id: u.id,
-        first_name: u.first_name,
-        last_name: u.last_name,
-        preferred_name: u.preferred_name,
-        email: u.email,
-      });
-    }
-  }
-
-  const staff = Array.from(seen.values()).sort((a, b) => {
-    const an = `${a.first_name ?? ""} ${a.last_name ?? ""}`.trim().toLowerCase();
-    const bn = `${b.first_name ?? ""} ${b.last_name ?? ""}`.trim().toLowerCase();
-    return an.localeCompare(bn);
-  });
-
-  return NextResponse.json({ staff });
+  return NextResponse.json({ staff: data ?? [] });
 }

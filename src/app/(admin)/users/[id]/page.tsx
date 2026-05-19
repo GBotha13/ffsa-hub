@@ -92,6 +92,9 @@ export default async function UserDetailPage({
         userId={id}
         currentStatus={targetUser.status ?? "invited"}
         currentJobTitle={targetUser.job_title ?? ""}
+        currentIsAssignableContact={
+          (targetUser as { is_assignable_contact?: boolean | null }).is_assignable_contact ?? false
+        }
         permissionsByModule={permissionsByModule}
         userPermissions={userPermissions}
         scopeOptions={scopeOptions}

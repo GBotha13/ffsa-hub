@@ -335,6 +335,7 @@ export function PermissionManager({
   userId,
   currentStatus,
   currentJobTitle,
+  currentIsAssignableContact,
   permissionsByModule,
   userPermissions,
   scopeOptions,
@@ -342,6 +343,7 @@ export function PermissionManager({
   userId: string;
   currentStatus: string;
   currentJobTitle: string;
+  currentIsAssignableContact: boolean;
   permissionsByModule: PermissionsByModule;
   userPermissions: UserPermission[];
   scopeOptions: ScopeOption[];
@@ -351,6 +353,7 @@ export function PermissionManager({
   const [saving, setSaving] = useState(false);
   const [jobTitle, setJobTitle] = useState(currentJobTitle);
   const [status, setStatus] = useState(currentStatus);
+  const [isAssignableContact, setIsAssignableContact] = useState(currentIsAssignableContact);
 
   // Build the initial granted set from DB
   const initialGranted = new Set<GrantedKey>(
@@ -459,15 +462,26 @@ export function PermissionManager({
         const res = await fetch("/api/admin/approve-user", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: userId, job_title: jobTitle }),
+          body: JSON.stringify({
+            user_id: userId,
+            job_title: jobTitle,
+            is_assignable_contact: isAssignableContact,
+          }),
         });
         if (res.ok) setStatus("active");
-      } else if (jobTitle !== currentJobTitle) {
-        // Just update job title if no status change needed
+      } else if (
+        jobTitle !== currentJobTitle ||
+        isAssignableContact !== currentIsAssignableContact
+      ) {
+        // Update job title and/or assignable-contact flag without status change
         await fetch("/api/admin/approve-user", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: userId, job_title: jobTitle }),
+          body: JSON.stringify({
+            user_id: userId,
+            job_title: jobTitle,
+            is_assignable_contact: isAssignableContact,
+          }),
         });
       }
 
@@ -516,6 +530,35 @@ export function PermissionManager({
               placeholder="e.g. DTS Program Leader"
               className="mt-1"
             />
+            <label
+              htmlFor="assignable-contact"
+              className="mt-3 flex items-center gap-2 cursor-pointer select-none"
+            >
+              <input
+                id="assignable-contact"
+                type="checkbox"
+                checked={isAssignableContact}
+                onChange={(e) => setIsAssignableContact(e.target.checked)}
+                style={{
+                  width: "16px",
+                  height: "16px",
+                  accentColor: "hsl(42 95% 55%)",
+                  cursor: "pointer",
+                }}
+              />
+              <span style={{ fontSize: "12px", color: "#F0EBE3" }}>
+                Available as a student point of contact
+              </span>
+              <span
+                style={{
+                  fontSize: "10px",
+                  color: "hsl(30 8% 42%)",
+                  marginLeft: "4px",
+                }}
+              >
+                — appears in the assign-staff picker on schools applications &amp; enrollments
+              </span>
+            </label>
           </div>
 
           <div className="flex items-center gap-3">

@@ -25,13 +25,19 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { user_id, job_title } = body;
+  const { user_id, job_title, is_assignable_contact } = body;
 
   if (!user_id) {
     return NextResponse.json({ error: "user_id is required" }, { status: 400 });
   }
 
-  const { data, error } = await approveUser(supabase, user_id, authUser.id, job_title);
+  const { data, error } = await approveUser(
+    supabase,
+    user_id,
+    authUser.id,
+    job_title,
+    is_assignable_contact
+  );
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

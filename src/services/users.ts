@@ -113,10 +113,12 @@ export async function approveUser(
   supabase: Client,
   userId: string,
   approvedBy: string,
-  jobTitle?: string
+  jobTitle?: string,
+  isAssignableContact?: boolean
 ) {
   const update: Record<string, unknown> = { status: "active" };
   if (jobTitle !== undefined) update.job_title = jobTitle;
+  if (isAssignableContact !== undefined) update.is_assignable_contact = isAssignableContact;
   return supabase.from("users").update(update).eq("id", userId).select().single();
 }
 
