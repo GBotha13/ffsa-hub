@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/table";
 import { Plus, Search } from "lucide-react";
 import type { Tables } from "@/types/database";
+import { getLabelColors } from "@/lib/label-color";
 type PersonType = Tables<"person_types">;
 
 interface ContactsListProps {
@@ -28,6 +29,15 @@ interface ContactsListProps {
     phone: string | null;
     status: string;
     marketing_status?: string | null;
+    date_of_birth?: string | null;
+    marital_status?: string | null;
+    gender?: string | null;
+    nationality?: string | null;
+    city?: string | null;
+    country?: string | null;
+    preferred_language?: string | null;
+    source?: string | null;
+    last_interaction_at?: string | null;
     person_type_assignments?: Array<{
       person_types: { name: string } | null;
     }>;
@@ -123,28 +133,34 @@ export function ContactsList({
         </Link>
       </div>
 
-      <div className="rounded-lg border bg-card">
+      <div className="rounded-lg border bg-card overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Labels</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead className="whitespace-nowrap">Name</TableHead>
+              <TableHead className="whitespace-nowrap">Email</TableHead>
+              <TableHead className="whitespace-nowrap">Phone</TableHead>
+              <TableHead className="whitespace-nowrap">Labels</TableHead>
+              <TableHead className="whitespace-nowrap">DOB</TableHead>
+              <TableHead className="whitespace-nowrap">Marital</TableHead>
+              <TableHead className="whitespace-nowrap">City</TableHead>
+              <TableHead className="whitespace-nowrap">Country</TableHead>
+              <TableHead className="whitespace-nowrap">Nationality</TableHead>
+              <TableHead className="whitespace-nowrap">Marketing</TableHead>
+              <TableHead className="whitespace-nowrap">Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {contacts.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                   No contacts found
                 </TableCell>
               </TableRow>
             ) : (
               contacts.map((contact) => (
                 <TableRow key={contact.id}>
-                  <TableCell>
+                  <TableCell className="whitespace-nowrap">
                     <Link
                       href={`/contacts/${contact.id}`}
                       className="font-medium hover:underline"
@@ -157,25 +173,31 @@ export function ContactsList({
                       </span>
                     )}
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
+                  <TableCell className="text-muted-foreground whitespace-nowrap">
                     {contact.email ?? "—"}
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
+                  <TableCell className="text-muted-foreground whitespace-nowrap">
                     {contact.phone ?? "—"}
                   </TableCell>
                   <TableCell>
-                    <div className="flex gap-1 flex-wrap">
-                      {contact.contact_labels?.slice(0, 4).map((cl) =>
-                        cl.labels ? (
-                          <Badge
+                    <div className="flex gap-1 flex-wrap min-w-[140px]">
+                      {contact.contact_labels?.slice(0, 4).map((cl) => {
+                        if (!cl.labels) return null;
+                        const colors = getLabelColors(cl.labels);
+                        return (
+                          <span
                             key={cl.labels.id}
-                            variant="outline"
-                            className="text-xs"
+                            className="inline-flex items-center text-xs px-1.5 py-0.5 rounded-full border font-medium whitespace-nowrap"
+                            style={{
+                              backgroundColor: colors.bg,
+                              color: colors.text,
+                              borderColor: colors.border,
+                            }}
                           >
                             {cl.labels.name}
-                          </Badge>
-                        ) : null
-                      )}
+                          </span>
+                        );
+                      })}
                       {(contact.contact_labels?.length ?? 0) > 4 && (
                         <span className="text-xs text-muted-foreground">
                           +{(contact.contact_labels?.length ?? 0) - 4}
@@ -183,7 +205,27 @@ export function ContactsList({
                       )}
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-muted-foreground whitespace-nowrap">
+                    {contact.date_of_birth
+                      ? new Date(contact.date_of_birth).toLocaleDateString()
+                      : "—"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground capitalize whitespace-nowrap">
+                    {contact.marital_status ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground whitespace-nowrap">
+                    {contact.city ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground whitespace-nowrap">
+                    {contact.country ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground whitespace-nowrap">
+                    {contact.nationality ?? "—"}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    <MarketingChip status={contact.marketing_status} />
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
                     <Badge
                       variant={contact.status === "active" ? "default" : "outline"}
                       className="capitalize"
@@ -232,5 +274,22 @@ export function ContactsList({
         </div>
       )}
     </div>
+  );
+}
+
+function MarketingChip({ status }: { status: string | null | undefined }) {
+  if (!status) return <span className="text-muted-foreground">—</span>;
+  const cls =
+    status === "subscribed"
+      ? "bg-green-100 text-green-800 border-green-300"
+      : status === "unsubscribed_all"
+      ? "bg-red-100 text-red-800 border-red-300"
+      : status === "bounced"
+      ? "bg-orange-100 text-orange-800 border-orange-300"
+      : "bg-gray-100 text-gray-700 border-gray-300";
+  return (
+    <span className={`inline-block text-xs px-2 py-0.5 rounded-full border ${cls}`}>
+      {status.replace("_", " ")}
+    </span>
   );
 }

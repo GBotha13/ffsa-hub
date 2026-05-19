@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { getLabelColors } from "@/lib/label-color";
 
 type ContactLabel = {
   added_at: string;
@@ -115,12 +115,19 @@ export function LabelsCard({
         {contactLabels.length === 0 ? (
           <p className="text-sm text-muted-foreground mb-3">No labels assigned</p>
         ) : (
-          <div className="flex flex-wrap gap-1 mb-3">
-            {contactLabels.map((cl) =>
-              cl.labels ? (
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {contactLabels.map((cl) => {
+              if (!cl.labels) return null;
+              const colors = getLabelColors(cl.labels);
+              return (
                 <span
                   key={cl.labels.id}
-                  className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded border bg-gray-50"
+                  className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-medium"
+                  style={{
+                    backgroundColor: colors.bg,
+                    color: colors.text,
+                    borderColor: colors.border,
+                  }}
                   title={`Added ${new Date(cl.added_at).toLocaleString()} via ${cl.added_via}`}
                 >
                   {cl.labels.name}
@@ -128,14 +135,14 @@ export function LabelsCard({
                     type="button"
                     onClick={() => removeLabel(cl.labels!.id)}
                     disabled={busy}
-                    className="text-gray-400 hover:text-red-600"
+                    className="opacity-60 hover:opacity-100"
                     aria-label="Remove label"
                   >
                     ×
                   </button>
                 </span>
-              ) : null
-            )}
+              );
+            })}
           </div>
         )}
 
