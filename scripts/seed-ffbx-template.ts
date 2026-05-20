@@ -9,7 +9,11 @@ const envFile = readFileSync(resolve(__dirname, "../.env.local"), "utf-8");
 const env: Record<string, string> = {};
 for (const line of envFile.split("\n")) {
   const match = line.match(/^([^#=]+)=(.*)$/);
-  if (match) env[match[1].trim()] = match[2].trim().replace(/^["']|["']$/g, "");
+  if (match) {
+    let value = match[2].trim().replace(/^["']|["']$/g, "");
+    value = value.replace(/\\n$/, ""); // `vercel env pull` can append a literal \n inside the quotes
+    env[match[1].trim()] = value;
+  }
 }
 
 const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
