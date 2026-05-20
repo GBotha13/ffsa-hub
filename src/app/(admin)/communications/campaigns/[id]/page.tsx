@@ -1,0 +1,73 @@
+import { createClient } from "@/lib/supabase/server";
+import { redirect, notFound } from "next/navigation";
+import Link from "next/link";
+import {
+  getCampaignById,
+  getCampaignAudienceCount,
+  listSendingIdentities,
+} from "@/services/campaigns";
+import { getLabels } from "@/services/labels";
+import { emptyCampaignBody, type CampaignBody } from "@/lib/campaigns/blocks";
+import { CampaignComposer } from "./campaign-composer";
+
+export default async function CampaignComposerPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: campaign, error } = await getCampaignById(supabase, id);
+  if (error || !campaign) notFound();
+
+  const [{ data: labels }, { data: identities }, audienceCount] =
+    await Promise.all([
+      getLabels(supabase, { active: true }),
+      listSendingIdentities(supabase),
+      campaign.label_id
+        ? getCampaignAudienceCount(supabase, campaign.label_id)
+        : Promise.resolve(0),
+    ]);
+
+  const body: CampaignBody =
+    campaign.body_source &&
+    typeof campaign.body_source === "object" &&
+    "blocks" in campaign.body_source
+      ? (campaign.body_source as unknown as CampaignBody)
+      : emptyCampaignBody();
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <Link
+          href="/communications"
+          className="text-xs text-muted-foreground hover:text-foreground uppercase"
+          style={{ letterSpacing: "0.15em" }}
+        >
+          ← Communications
+        </Link>
+      </div>
+      <CampaignComposer
+        campaign={{
+          id: campaign.id,
+          name: campaign.name,
+          subject: campaign.subject ?? "",
+          preview_text: campaign.preview_text ?? "",
+          label_id: campaign.label_id,
+          sending_identity_id: campaign.sending_identity_id,
+          status: campaign.status,
+          scheduled_at: campaign.scheduled_at,
+        }}
+        initialBody={body}
+        labels={labels ?? []}
+        identities={identities ?? []}
+        audienceCount={audienceCount}
+      />
+    </div>
+  );
+}
