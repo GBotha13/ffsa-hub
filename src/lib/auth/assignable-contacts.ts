@@ -3,11 +3,11 @@
 // detail server component.
 //
 // Eligibility: the user must have been EXPLICITLY granted the dedicated
-// `schools.assignable_as_contact` permission — either globally (scope_id
-// IS NULL → assignable for every program) or scoped to this program.
+// `schools.assignable_as_contact` permission SCOPED TO THIS EXACT PROGRAM.
+// The permission is always program-scoped — a grant for program A makes
+// the user assignable for program A only, never for other programs.
 // Holding other schools permissions (manage, approve_applications, etc.)
-// does NOT make someone assignable; that's deliberate so the picker only
-// contains people a school admin has actively opted in.
+// does NOT make someone assignable.
 //
 // User must also be active.
 
@@ -35,7 +35,8 @@ export async function fetchAssignableContacts(
       "user_id, scope_id, scope_type, permissions!inner(key), users!user_permissions_user_id_fkey!inner(id, first_name, last_name, preferred_name, email, is_active)"
     )
     .eq("permissions.key", ASSIGNABLE_CONTACT_PERMISSION_KEY)
-    .or(`scope_id.is.null,scope_id.eq.${programId}`);
+    .eq("scope_type", "program")
+    .eq("scope_id", programId);
 
   const seen = new Map<string, AssignableContact>();
   for (const row of (rows ?? []) as Array<{

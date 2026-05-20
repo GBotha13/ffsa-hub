@@ -185,17 +185,26 @@ function ModuleSection({
 }) {
   const label = MODULE_LABELS[moduleId] ?? moduleId;
 
-  // Global (no scope) permissions
-  const globalAllChecked = permissions.every((p) =>
-    granted.has(grantedKey(p.id, null, null))
+  // Some permissions are scoped-only — they must always be tied to a
+  // specific program/team/event and can never be granted globally.
+  // `schools.assignable_as_contact` is one: it makes a user assignable
+  // as a point of contact for exactly the program it's scoped to.
+  const SCOPED_ONLY_KEYS = new Set(["schools.assignable_as_contact"]);
+  const globalPermissions = permissions.filter(
+    (p) => !SCOPED_ONLY_KEYS.has(p.key)
   );
-  const globalSomeChecked = permissions.some((p) =>
+
+  // Global (no scope) permissions
+  const globalAllChecked =
+    globalPermissions.length > 0 &&
+    globalPermissions.every((p) => granted.has(grantedKey(p.id, null, null)));
+  const globalSomeChecked = globalPermissions.some((p) =>
     granted.has(grantedKey(p.id, null, null))
   );
 
   function toggleGlobalAll() {
     const next = !globalAllChecked;
-    for (const p of permissions) {
+    for (const p of globalPermissions) {
       onToggle(p.id, null, null, next);
     }
   }
@@ -268,13 +277,15 @@ function ModuleSection({
       </div>
 
       <div className="px-5 py-4 space-y-4">
-        {/* Global permission checkboxes — hidden in restricted mode */}
-        {!hideGlobal && (
+        {/* Global permission checkboxes — hidden in restricted mode.
+            Scoped-only permissions are excluded; they appear only in the
+            per-scope sections below. */}
+        {!hideGlobal && globalPermissions.length > 0 && (
           <div
             className="grid gap-x-6 gap-y-2"
             style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}
           >
-            {permissions.map((p) => {
+            {globalPermissions.map((p) => {
               const key = grantedKey(p.id, null, null);
               const checked = granted.has(key);
               return (
