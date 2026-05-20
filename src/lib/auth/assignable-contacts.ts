@@ -2,21 +2,16 @@
 // for a given program. Used by the staff-pickable API and the program
 // detail server component.
 //
-// Eligibility (hybrid):
-//   - User has the dedicated `schools.assignable_as_contact` permission
-//     scoped to this program, OR
-//   - User has ANY schools.* permission that's either global (scope_id
-//     IS NULL) or scoped to this program.
+// Eligibility: the user must have been EXPLICITLY granted the dedicated
+// `schools.assignable_as_contact` permission — either globally (scope_id
+// IS NULL → assignable for every program) or scoped to this program.
+// Holding other schools permissions (manage, approve_applications, etc.)
+// does NOT make someone assignable; that's deliberate so the picker only
+// contains people a school admin has actively opted in.
 //
 // User must also be active.
 
-export const SCHOOLS_PERMISSION_KEYS = [
-  "schools.manage",
-  "schools.approve_applications",
-  "schools.manage_enrollments",
-  "schools.view_applications",
-  "schools.assignable_as_contact",
-] as const;
+export const ASSIGNABLE_CONTACT_PERMISSION_KEY = "schools.assignable_as_contact";
 
 type AdminClient = {
   from: (t: string) => any; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -37,10 +32,9 @@ export async function fetchAssignableContacts(
   const { data: rows } = await adminSupabase
     .from("user_permissions")
     .select(
-      "user_id, scope_id, scope_type, permissions!inner(module, key), users!user_permissions_user_id_fkey!inner(id, first_name, last_name, preferred_name, email, is_active)"
+      "user_id, scope_id, scope_type, permissions!inner(key), users!user_permissions_user_id_fkey!inner(id, first_name, last_name, preferred_name, email, is_active)"
     )
-    .eq("permissions.module", "schools")
-    .in("permissions.key", SCHOOLS_PERMISSION_KEYS as unknown as string[])
+    .eq("permissions.key", ASSIGNABLE_CONTACT_PERMISSION_KEY)
     .or(`scope_id.is.null,scope_id.eq.${programId}`);
 
   const seen = new Map<string, AssignableContact>();
