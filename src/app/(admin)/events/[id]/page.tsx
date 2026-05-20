@@ -21,6 +21,7 @@ import { OutcomesManager } from "./outcomes-manager";
 import { RolesRoster } from "./roles-roster";
 import { BaseLabelPicker } from "./base-label-picker";
 import { FormsTab } from "./forms-tab";
+import { EventLogo } from "./event-logo";
 
 const TABS = [
   { key: "details", label: "Details & Roles" },
@@ -188,6 +189,8 @@ function DetailsTab(props: any) {
         />
         <StatCard label="Capacity" value={event.max_capacity ?? "Unlimited"} />
       </div>
+
+      <EventLogo eventId={eventId} logoUrl={event.logo_url} />
 
       <BaseLabelPicker
         eventId={eventId}

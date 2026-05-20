@@ -32,5 +32,17 @@ export default async function PublicFormPage({
       ? (form.schema as unknown as FormSchema)
       : emptyFormSchema();
 
-  return <FormRuntime slug={slug} schema={schema} formName={form.name} />;
+  const eventLogoUrl =
+    form.events && typeof form.events === "object" && "logo_url" in form.events
+      ? ((form.events as { logo_url: string | null }).logo_url ?? null)
+      : null;
+
+  return (
+    <FormRuntime
+      slug={slug}
+      schema={schema}
+      formName={form.name}
+      eventLogoUrl={eventLogoUrl}
+    />
+  );
 }

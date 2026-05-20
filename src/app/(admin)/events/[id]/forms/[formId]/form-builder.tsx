@@ -254,18 +254,6 @@ export function FormBuilder({
             Submitting records event attendance
           </label>
           <label className="text-sm">
-            <span className="block text-muted-foreground mb-1">Logo URL (optional)</span>
-            <input
-              type="text"
-              value={schema.branding.logoUrl ?? ""}
-              onChange={(e) =>
-                update({ branding: { ...schema.branding, logoUrl: e.target.value || null } })
-              }
-              placeholder="https://…/logo.png"
-              className="w-full border rounded px-2 py-1.5 text-sm"
-            />
-          </label>
-          <label className="text-sm">
             <span className="block text-muted-foreground mb-1">Accent color</span>
             <input
               type="color"

@@ -9,12 +9,16 @@ export function FormRuntime({
   slug,
   schema,
   formName,
+  eventLogoUrl,
 }: {
   slug: string;
   schema: FormSchema;
   formName: string;
+  eventLogoUrl?: string | null;
 }) {
   const accent = schema.branding.accentColor || "#1d4ed8";
+  // Event logo (set per event) takes precedence over any form-level logo.
+  const logoUrl = eventLogoUrl || schema.branding.logoUrl || null;
   const steps = schema.steps;
   const [stepIdx, setStepIdx] = useState(0);
   const [values, setValues] = useState<Values>({});
@@ -163,13 +167,9 @@ export function FormRuntime({
         <div className="px-7 sm:px-9 pt-7 pb-8">
           {/* Brand */}
           <div className="flex items-center justify-between mb-7">
-            {schema.branding.logoUrl ? (
+            {logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={schema.branding.logoUrl}
-                alt=""
-                className="h-9 object-contain"
-              />
+              <img src={logoUrl} alt="" className="h-9 object-contain" />
             ) : (
               <span
                 className="text-[13px] font-semibold tracking-wide"
