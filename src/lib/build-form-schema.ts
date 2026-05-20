@@ -9,17 +9,6 @@ function isRealDate(value: string): boolean {
   return d.getFullYear() === y && d.getMonth() + 1 === m && d.getDate() === day;
 }
 
-function isAtLeast16(value: string): boolean {
-  const dob = new Date(value);
-  const today = new Date();
-  let age = today.getFullYear() - dob.getFullYear();
-  const monthDiff = today.getMonth() - dob.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
-    age--;
-  }
-  return age >= 16;
-}
-
 // For a follow-up question to be answered correctly, its value must be present
 // and non-empty in a type-appropriate way.
 function isAnswerEmpty(q: FormQuestion, value: unknown): boolean {
@@ -105,8 +94,7 @@ export function buildFormSchema(questions: FormQuestion[]) {
           field = z
             .string()
             .min(1, "This field is required")
-            .refine(isRealDate, "Please enter a valid date")
-            .refine(isAtLeast16, "Applicant must be at least 16 years old");
+            .refine(isRealDate, "Please enter a valid date");
         } else {
           field = z
             .string()
@@ -115,10 +103,6 @@ export function buildFormSchema(questions: FormQuestion[]) {
             .refine(
               (val) => !val || isRealDate(val),
               "Please enter a valid date"
-            )
-            .refine(
-              (val) => !val || isAtLeast16(val),
-              "Applicant must be at least 16 years old"
             );
         }
         break;
