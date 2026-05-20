@@ -101,10 +101,25 @@ export function FormRuntime({
   const isLastStep = stepIdx === steps.length - 1;
   const step = steps[stepIdx];
 
+  // The app's globals.css themes all inputs dark via CSS variables with
+  // !important. Redefining those variables to light values here makes the
+  // !important rules resolve light — no specificity fight needed.
+  const lightTheme = {
+    backgroundColor: "#f3f4f6",
+    colorScheme: "light",
+    "--surface-1": "#ffffff",
+    "--surface-2": "#f9fafb",
+    "--surface-3": "#f3f4f6",
+    "--surface-4": "#d1d5db",
+    "--text-primary": "#111827",
+    "--text-secondary": "#4b5563",
+    "--text-tertiary": "#6b7280",
+  } as React.CSSProperties;
+
   return (
     <div
       className="min-h-screen flex items-start justify-center p-4 sm:p-8"
-      style={{ backgroundColor: "#f3f4f6", colorScheme: "light" }}
+      style={lightTheme}
     >
       <div
         className="w-full max-w-xl rounded-xl shadow-sm border overflow-hidden"
