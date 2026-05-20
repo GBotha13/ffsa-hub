@@ -14,7 +14,7 @@ export function FormRuntime({
   schema: FormSchema;
   formName: string;
 }) {
-  const accent = schema.branding.accentColor || "#1e40af";
+  const accent = schema.branding.accentColor || "#1d4ed8";
   const steps = schema.steps;
   const [stepIdx, setStepIdx] = useState(0);
   const [values, setValues] = useState<Values>({});
@@ -101,73 +101,144 @@ export function FormRuntime({
   const isLastStep = stepIdx === steps.length - 1;
   const step = steps[stepIdx];
 
-  // The app's globals.css themes all inputs dark via CSS variables with
-  // !important. Redefining those variables to light values here makes the
-  // !important rules resolve light — no specificity fight needed.
-  const lightTheme = {
-    backgroundColor: "#f3f4f6",
-    colorScheme: "light",
-    "--surface-1": "#ffffff",
-    "--surface-2": "#f9fafb",
-    "--surface-3": "#f3f4f6",
-    "--surface-4": "#d1d5db",
-    "--text-primary": "#111827",
-    "--text-secondary": "#4b5563",
-    "--text-tertiary": "#6b7280",
-  } as React.CSSProperties;
+  // Scoped style block: out-specifies the app's global !important input
+  // rules so the public form renders with its own refined light styling.
+  const scopedCss = `
+.ffsa-pf input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.ffsa-pf textarea,
+.ffsa-pf select {
+  background:#ffffff !important;
+  color:#0f172a !important;
+  border:1px solid #e2e8f0 !important;
+  border-radius:10px !important;
+  font-size:16px !important;
+  padding:11px 14px !important;
+  width:100% !important;
+  transition:border-color .15s ease, box-shadow .15s ease !important;
+}
+.ffsa-pf input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
+.ffsa-pf textarea:focus,
+.ffsa-pf select:focus {
+  border-color:${accent} !important;
+  box-shadow:0 0 0 3.5px ${accent}26 !important;
+  outline:none !important;
+}
+.ffsa-pf input::placeholder,.ffsa-pf textarea::placeholder{color:#94a3b8 !important;}
+.ffsa-pf-btn-primary{transition:filter .15s ease, transform .04s ease;}
+.ffsa-pf-btn-primary:hover:not(:disabled){filter:brightness(1.08);}
+.ffsa-pf-btn-primary:active:not(:disabled){transform:translateY(1px);}
+.ffsa-pf-btn-ghost{transition:color .15s ease;}
+.ffsa-pf-btn-ghost:hover:not(:disabled){color:#0f172a;}
+.ffsa-pf-outcome{transition:border-color .15s ease, background-color .15s ease;}
+`;
 
   return (
     <div
-      className="min-h-screen flex items-start justify-center p-4 sm:p-8"
-      style={lightTheme}
+      className="ffsa-pf min-h-screen flex items-center justify-center px-4 py-10"
+      style={{
+        background: "linear-gradient(180deg,#f8fafc 0%,#eef1f5 100%)",
+        colorScheme: "light",
+      }}
     >
+      <style dangerouslySetInnerHTML={{ __html: scopedCss }} />
+
       <div
-        className="w-full max-w-xl rounded-xl shadow-sm border overflow-hidden"
-        style={{ backgroundColor: "#ffffff", color: "#111827" }}
+        className="w-full max-w-[480px] rounded-2xl overflow-hidden"
+        style={{
+          backgroundColor: "#ffffff",
+          color: "#0f172a",
+          boxShadow:
+            "0 1px 2px rgba(15,23,42,.04), 0 12px 32px -12px rgba(15,23,42,.18)",
+          border: "1px solid #eef1f5",
+        }}
       >
-        <div className="p-6 sm:p-8">
-          {/* Branding */}
-          {schema.branding.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={schema.branding.logoUrl}
-              alt=""
-              className="h-10 mb-6 object-contain"
-            />
-          ) : (
-            <p className="text-sm font-semibold mb-6" style={{ color: "#374151" }}>
-              {formName}
-            </p>
-          )}
+        {/* Accent strip */}
+        <div style={{ height: 5, backgroundColor: accent }} />
+
+        <div className="px-7 sm:px-9 pt-7 pb-8">
+          {/* Brand */}
+          <div className="flex items-center justify-between mb-7">
+            {schema.branding.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={schema.branding.logoUrl}
+                alt=""
+                className="h-9 object-contain"
+              />
+            ) : (
+              <span
+                className="text-[13px] font-semibold tracking-wide"
+                style={{ color: "#64748b" }}
+              >
+                {formName}
+              </span>
+            )}
+          </div>
 
           {done ? (
             <div className="py-10 text-center">
-              <h1 className="text-xl font-bold" style={{ color: "#111827" }}>
+              <div
+                className="mx-auto mb-5 flex items-center justify-center rounded-full"
+                style={{
+                  width: 56,
+                  height: 56,
+                  backgroundColor: `${accent}14`,
+                }}
+              >
+                <svg
+                  width="26"
+                  height="26"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={accent}
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M20 6L9 17l-5-5" />
+                </svg>
+              </div>
+              <h1
+                className="text-2xl font-bold tracking-tight"
+                style={{ color: "#0f172a" }}
+              >
                 {schema.thankYou.heading}
               </h1>
-              <p className="text-sm mt-2" style={{ color: "#4b5563" }}>
+              <p className="text-sm mt-2" style={{ color: "#64748b" }}>
                 {schema.thankYou.message}
               </p>
             </div>
           ) : (
             <>
-              <h1 className="text-lg font-bold mb-1" style={{ color: "#111827" }}>
+              {/* Step indicator + progress */}
+              <p
+                className="text-[11px] font-semibold uppercase mb-1.5"
+                style={{ color: accent, letterSpacing: "0.09em" }}
+              >
+                Step {stepIdx + 1} of {steps.length}
+              </p>
+              <h1
+                className="text-[22px] font-bold tracking-tight leading-tight"
+                style={{ color: "#0f172a" }}
+              >
                 {step.title}
               </h1>
-
-              {/* Progress */}
-              <div className="flex items-center gap-2 my-4">
-                <span className="text-xs text-gray-500 w-9">{progress}%</span>
-                <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{ width: `${progress}%`, backgroundColor: accent }}
-                  />
-                </div>
+              <div
+                className="mt-4 mb-7 h-1.5 rounded-full overflow-hidden"
+                style={{ backgroundColor: "#e9edf2" }}
+              >
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${progress}%`,
+                    backgroundColor: accent,
+                    transition: "width .3s ease",
+                  }}
+                />
               </div>
 
               {/* Fields */}
-              <div className="space-y-4">
+              <div className="space-y-5">
                 {step.fields.map((field) => (
                   <FieldInput
                     key={field.id}
@@ -181,41 +252,42 @@ export function FormRuntime({
               </div>
 
               {submitError && (
-                <p className="text-sm text-red-600 mt-4">{submitError}</p>
+                <p
+                  className="text-sm mt-5 rounded-lg px-3 py-2"
+                  style={{ color: "#b91c1c", backgroundColor: "#fef2f2" }}
+                >
+                  {submitError}
+                </p>
               )}
 
               {/* Nav */}
-              <div className="flex justify-between mt-6">
+              <div className="flex items-center justify-between mt-8">
                 <button
                   type="button"
                   onClick={prev}
                   disabled={stepIdx === 0 || submitting}
-                  className="px-4 py-2 rounded text-sm border disabled:opacity-40"
-                  style={{ borderColor: "#d1d5db", color: "#374151" }}
+                  className="ffsa-pf-btn-ghost text-sm font-medium px-1 disabled:opacity-0"
+                  style={{ color: "#64748b" }}
                 >
-                  Previous
+                  ← Back
                 </button>
-                {isLastStep ? (
-                  <button
-                    type="button"
-                    onClick={submit}
-                    disabled={submitting}
-                    className="px-5 py-2 rounded text-sm font-medium text-white disabled:opacity-50"
-                    style={{ backgroundColor: accent }}
-                  >
-                    {submitting ? "Submitting…" : "Submit"}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={next}
-                    disabled={submitting}
-                    className="px-5 py-2 rounded text-sm font-medium text-white"
-                    style={{ backgroundColor: accent }}
-                  >
-                    Next
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={isLastStep ? submit : next}
+                  disabled={submitting}
+                  className="ffsa-pf-btn-primary text-sm font-semibold text-white rounded-xl disabled:opacity-60"
+                  style={{
+                    backgroundColor: accent,
+                    padding: "12px 26px",
+                    boxShadow: `0 6px 16px -6px ${accent}80`,
+                  }}
+                >
+                  {submitting
+                    ? "Submitting…"
+                    : isLastStep
+                    ? "Submit"
+                    : "Continue"}
+                </button>
               </div>
             </>
           )}
@@ -238,20 +310,56 @@ function FieldInput({
   accent: string;
   onChange: (v: unknown) => void;
 }) {
-  const label = (
+  const labelEl = (
     <label
-      className="block text-sm font-medium mb-1"
-      style={{ color: "#1f2937" }}
+      className="block text-[13px] font-semibold mb-1.5"
+      style={{ color: "#334155" }}
     >
       {field.label}
-      {field.required && <span className="text-red-500"> *</span>}
+      {field.required && <span style={{ color: "#dc2626" }}> *</span>}
     </label>
   );
-  const inputCls = `w-full border rounded px-3 py-2 text-sm ${
-    error ? "border-red-400" : "border-gray-300"
-  }`;
-  const inputStyle = { backgroundColor: "#ffffff", color: "#111827" } as const;
   const str = typeof value === "string" ? value : "";
+  const errEl = error ? (
+    <p className="text-[12px] mt-1.5" style={{ color: "#dc2626" }}>
+      {error}
+    </p>
+  ) : null;
+
+  // ── checkbox / consent / outcome — selectable cards ──────────
+  if (field.type === "checkbox" || field.type === "consent" || field.type === "outcome") {
+    const checked = value === true;
+    const isOutcome = field.type === "outcome";
+    return (
+      <div>
+        <label
+          className="ffsa-pf-outcome flex items-start gap-3 cursor-pointer rounded-xl"
+          style={{
+            padding: isOutcome ? "14px 16px" : "12px 14px",
+            border: `1.5px solid ${
+              checked ? accent : error ? "#fca5a5" : "#e2e8f0"
+            }`,
+            backgroundColor: checked ? `${accent}0d` : "#ffffff",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={(e) => onChange(e.target.checked)}
+            style={{ marginTop: 2, width: 17, height: 17, accentColor: accent }}
+          />
+          <span
+            className="text-sm leading-snug"
+            style={{ color: "#1e293b", fontWeight: isOutcome ? 600 : 400 }}
+          >
+            {field.label}
+            {field.required && <span style={{ color: "#dc2626" }}> *</span>}
+          </span>
+        </label>
+        {errEl}
+      </div>
+    );
+  }
 
   let control: React.ReactNode = null;
 
@@ -277,8 +385,6 @@ function FieldInput({
         type={htmlType}
         value={str}
         onChange={(e) => onChange(e.target.value)}
-        className={inputCls}
-        style={inputStyle}
       />
     );
   } else if (field.type === "long_text") {
@@ -287,19 +393,13 @@ function FieldInput({
         value={str}
         onChange={(e) => onChange(e.target.value)}
         rows={4}
-        className={`${inputCls} resize-none`}
-        style={inputStyle}
+        className="resize-none"
       />
     );
   } else if (field.type === "dropdown") {
     control = (
-      <select
-        value={str}
-        onChange={(e) => onChange(e.target.value)}
-        className={inputCls}
-        style={inputStyle}
-      >
-        <option value="">— select —</option>
+      <select value={str} onChange={(e) => onChange(e.target.value)}>
+        <option value="">Select…</option>
         {(field.options ?? []).map((o) => (
           <option key={o} value={o}>
             {o}
@@ -309,82 +409,73 @@ function FieldInput({
     );
   } else if (field.type === "radio") {
     control = (
-      <div className="space-y-1">
-        {(field.options ?? []).map((o) => (
-          <label
-            key={o}
-            className="flex items-center gap-2 text-sm"
-            style={{ color: "#1f2937" }}
-          >
-            <input
-              type="radio"
-              name={field.id}
-              checked={value === o}
-              onChange={() => onChange(o)}
-            />
-            {o}
-          </label>
-        ))}
+      <div className="space-y-2">
+        {(field.options ?? []).map((o) => {
+          const sel = value === o;
+          return (
+            <label
+              key={o}
+              className="flex items-center gap-3 cursor-pointer rounded-xl text-sm"
+              style={{
+                padding: "11px 14px",
+                border: `1.5px solid ${sel ? accent : "#e2e8f0"}`,
+                backgroundColor: sel ? `${accent}0d` : "#ffffff",
+                color: "#1e293b",
+              }}
+            >
+              <input
+                type="radio"
+                name={field.id}
+                checked={sel}
+                onChange={() => onChange(o)}
+                style={{ accentColor: accent }}
+              />
+              {o}
+            </label>
+          );
+        })}
       </div>
     );
   } else if (field.type === "multiselect") {
     const arr = Array.isArray(value) ? (value as string[]) : [];
     control = (
-      <div className="space-y-1">
-        {(field.options ?? []).map((o) => (
-          <label
-            key={o}
-            className="flex items-center gap-2 text-sm"
-            style={{ color: "#1f2937" }}
-          >
-            <input
-              type="checkbox"
-              checked={arr.includes(o)}
-              onChange={(e) =>
-                onChange(
-                  e.target.checked ? [...arr, o] : arr.filter((x) => x !== o)
-                )
-              }
-            />
-            {o}
-          </label>
-        ))}
-      </div>
-    );
-  } else if (field.type === "checkbox" || field.type === "consent" || field.type === "outcome") {
-    return (
-      <div>
-        <label
-          className={`flex items-start gap-2 text-sm ${
-            field.type === "outcome" ? "p-3 rounded border" : ""
-          }`}
-          style={
-            field.type === "outcome"
-              ? { borderColor: accent, backgroundColor: `${accent}10`, color: "#1f2937" }
-              : { color: "#1f2937" }
-          }
-        >
-          <input
-            type="checkbox"
-            checked={value === true}
-            onChange={(e) => onChange(e.target.checked)}
-            className="mt-0.5"
-          />
-          <span>
-            {field.label}
-            {field.required && <span className="text-red-500"> *</span>}
-          </span>
-        </label>
-        {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
+      <div className="space-y-2">
+        {(field.options ?? []).map((o) => {
+          const sel = arr.includes(o);
+          return (
+            <label
+              key={o}
+              className="flex items-center gap-3 cursor-pointer rounded-xl text-sm"
+              style={{
+                padding: "11px 14px",
+                border: `1.5px solid ${sel ? accent : "#e2e8f0"}`,
+                backgroundColor: sel ? `${accent}0d` : "#ffffff",
+                color: "#1e293b",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={sel}
+                onChange={(e) =>
+                  onChange(
+                    e.target.checked ? [...arr, o] : arr.filter((x) => x !== o)
+                  )
+                }
+                style={{ accentColor: accent }}
+              />
+              {o}
+            </label>
+          );
+        })}
       </div>
     );
   }
 
   return (
     <div>
-      {label}
+      {labelEl}
       {control}
-      {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
+      {errEl}
     </div>
   );
 }
