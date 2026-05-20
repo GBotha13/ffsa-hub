@@ -134,14 +134,19 @@ export function FormRuntime({
 
   return (
     <div
-      className="ffsa-pf min-h-screen flex items-center justify-center px-4 py-10"
+      className="ffsa-pf"
       style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 50,
+        overflowY: "auto",
         background: "linear-gradient(180deg,#f8fafc 0%,#eef1f5 100%)",
         colorScheme: "light",
       }}
     >
       <style dangerouslySetInnerHTML={{ __html: scopedCss }} />
 
+      <div className="min-h-full flex items-center justify-center px-4 py-10">
       <div
         className="w-full max-w-[480px] rounded-2xl overflow-hidden"
         style={{
@@ -292,6 +297,7 @@ export function FormRuntime({
             </>
           )}
         </div>
+      </div>
       </div>
     </div>
   );
