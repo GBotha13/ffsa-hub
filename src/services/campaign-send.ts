@@ -1,6 +1,9 @@
 import { renderCampaignHtml, type CampaignBody } from "@/lib/campaigns/blocks";
 import { sendViaMailtrap } from "@/lib/email/mailtrap";
-import { signUnsubscribeToken } from "@/lib/tokens/unsubscribe";
+import {
+  signUnsubscribeToken,
+  signPreferencesToken,
+} from "@/lib/tokens/unsubscribe";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Client = any;
@@ -21,12 +24,16 @@ function footerHtml(args: {
   labelId: string | null;
   labelName: string;
 }): string {
-  const token = signUnsubscribeToken(args.contactId, args.labelId);
-  const url = `${APP_URL}/unsubscribe?t=${encodeURIComponent(token)}`;
+  const unsubToken = signUnsubscribeToken(args.contactId, args.labelId);
+  const prefsToken = signPreferencesToken(args.contactId);
+  const unsubUrl = `${APP_URL}/unsubscribe?t=${encodeURIComponent(unsubToken)}`;
+  const prefsUrl = `${APP_URL}/preferences?t=${encodeURIComponent(prefsToken)}`;
   return `<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
 <tr><td style="padding:18px 36px;font-size:12px;line-height:1.6;color:#94a3b8;text-align:center;">
 You're receiving this because you're subscribed to <strong>${args.labelName}</strong>.<br/>
-<a href="${url}" style="color:#94a3b8;text-decoration:underline;">Unsubscribe</a> &middot; Fire &amp; Fragrance South Africa
+<a href="${unsubUrl}" style="color:#94a3b8;text-decoration:underline;">Unsubscribe</a>
+&middot; <a href="${prefsUrl}" style="color:#94a3b8;text-decoration:underline;">Manage preferences</a>
+&middot; Fire &amp; Fragrance South Africa
 </td></tr></table>`;
 }
 

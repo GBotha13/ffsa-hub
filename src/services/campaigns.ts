@@ -91,6 +91,49 @@ export async function getCampaignRecipients(supabase: Client, campaignId: string
     .eq("campaign_id", campaignId);
 }
 
+export type CampaignStats = {
+  total: number;
+  sent: number;
+  delivered: number;
+  opened: number;
+  clicked: number;
+  bounced: number;
+  unsubscribed: number;
+};
+
+/** Aggregate delivery metrics for a campaign, via head-count queries. */
+export async function getCampaignStats(
+  supabase: Client,
+  campaignId: string
+): Promise<CampaignStats> {
+  const base = () =>
+    supabase
+      .from("campaign_recipients")
+      .select("id", { count: "exact", head: true })
+      .eq("campaign_id", campaignId);
+
+  const [total, sent, delivered, opened, clicked, bounced, unsubscribed] =
+    await Promise.all([
+      base(),
+      base().not("sent_at", "is", null),
+      base().not("delivered_at", "is", null),
+      base().not("opened_at", "is", null),
+      base().not("first_clicked_at", "is", null),
+      base().not("bounced_at", "is", null),
+      base().not("unsubscribed_at", "is", null),
+    ]);
+
+  return {
+    total: total.count ?? 0,
+    sent: sent.count ?? 0,
+    delivered: delivered.count ?? 0,
+    opened: opened.count ?? 0,
+    clicked: clicked.count ?? 0,
+    bounced: bounced.count ?? 0,
+    unsubscribed: unsubscribed.count ?? 0,
+  };
+}
+
 // ────────────────────────────────────────────────────────────
 // Sending identities
 // ────────────────────────────────────────────────────────────

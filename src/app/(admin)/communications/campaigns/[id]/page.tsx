@@ -4,11 +4,13 @@ import Link from "next/link";
 import {
   getCampaignById,
   getCampaignAudienceCount,
+  getCampaignStats,
   listSendingIdentities,
 } from "@/services/campaigns";
 import { getLabels } from "@/services/labels";
 import { emptyCampaignBody, type CampaignBody } from "@/lib/campaigns/blocks";
 import { CampaignComposer } from "./campaign-composer";
+import { CampaignAnalytics } from "./campaign-analytics";
 
 export default async function CampaignComposerPage({
   params,
@@ -41,6 +43,11 @@ export default async function CampaignComposerPage({
       ? (campaign.body_source as unknown as CampaignBody)
       : emptyCampaignBody();
 
+  // Sent / sending campaigns get a performance panel.
+  const showStats =
+    campaign.status === "sent" || campaign.status === "sending";
+  const stats = showStats ? await getCampaignStats(supabase, id) : null;
+
   return (
     <div className="space-y-4">
       <div>
@@ -52,6 +59,7 @@ export default async function CampaignComposerPage({
           ← Communications
         </Link>
       </div>
+      {stats && <CampaignAnalytics stats={stats} />}
       <CampaignComposer
         campaign={{
           id: campaign.id,

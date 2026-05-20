@@ -45,6 +45,36 @@ export function signUnsubscribeToken(
   return `${body}.${sig}`;
 }
 
+// ── Contact-scoped preferences token ────────────────────────
+// Identifies a contact for the public /preferences page. Same
+// HMAC scheme; the payload's `l` field carries the marker
+// "__prefs__" so it can't be mistaken for an unsubscribe token.
+const PREFS_MARKER = "__prefs__";
+
+export function signPreferencesToken(contactId: string): string {
+  const payload: Payload = {
+    c: contactId,
+    l: PREFS_MARKER,
+    exp: Math.floor(Date.now() / 1000) + THIRTY_DAYS,
+  };
+  const body = b64url(Buffer.from(JSON.stringify(payload)));
+  const sig = b64url(
+    crypto.createHmac("sha256", secret()).update(body).digest()
+  );
+  return `${body}.${sig}`;
+}
+
+export function verifyPreferencesToken(
+  token: string
+): { valid: boolean; contactId?: string; reason?: string } {
+  const v = verifyUnsubscribeToken(token);
+  if (!v.valid) return { valid: false, reason: v.reason };
+  if (v.labelId !== PREFS_MARKER) {
+    return { valid: false, reason: "not a preferences token" };
+  }
+  return { valid: true, contactId: v.contactId };
+}
+
 export function verifyUnsubscribeToken(
   token: string
 ): { valid: boolean; contactId?: string; labelId?: string | null; reason?: string } {
