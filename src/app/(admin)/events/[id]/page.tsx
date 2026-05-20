@@ -20,6 +20,7 @@ import {
 import { OutcomesManager } from "./outcomes-manager";
 import { RolesRoster } from "./roles-roster";
 import { BaseLabelPicker } from "./base-label-picker";
+import { FormsTab } from "./forms-tab";
 
 const TABS = [
   { key: "details", label: "Details & Roles" },
@@ -143,17 +144,7 @@ export default async function EventDetailPage({
         </Card>
       )}
 
-      {tab === "forms" && (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            <p className="font-medium">Forms</p>
-            <p className="text-sm mt-1">
-              The QR-code form builder lands in the next step. This event has{" "}
-              {forms?.length ?? 0} form{(forms?.length ?? 0) === 1 ? "" : "s"} so far.
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      {tab === "forms" && <FormsTab eventId={id} forms={forms ?? []} />}
     </div>
   );
 }
