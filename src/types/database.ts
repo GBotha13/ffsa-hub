@@ -1451,6 +1451,7 @@ export type Database = {
           id: string
           is_public: boolean
           location: string | null
+          logo_url: string | null
           max_capacity: number | null
           registration_required: boolean
           start_date: string
@@ -1469,6 +1470,7 @@ export type Database = {
           id?: string
           is_public?: boolean
           location?: string | null
+          logo_url?: string | null
           max_capacity?: number | null
           registration_required?: boolean
           start_date: string
@@ -1487,6 +1489,7 @@ export type Database = {
           id?: string
           is_public?: boolean
           location?: string | null
+          logo_url?: string | null
           max_capacity?: number | null
           registration_required?: boolean
           start_date?: string
