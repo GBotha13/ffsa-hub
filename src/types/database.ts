@@ -1594,7 +1594,7 @@ export type Database = {
           event_id: string | null
           id: string
           is_active: boolean
-          label_id: string
+          label_id: string | null
           name: string
           records_attendance: boolean
           redirect_url: string | null
@@ -1613,7 +1613,7 @@ export type Database = {
           event_id?: string | null
           id?: string
           is_active?: boolean
-          label_id: string
+          label_id?: string | null
           name: string
           records_attendance?: boolean
           redirect_url?: string | null
@@ -1632,7 +1632,7 @@ export type Database = {
           event_id?: string | null
           id?: string
           is_active?: boolean
-          label_id?: string
+          label_id?: string | null
           name?: string
           records_attendance?: boolean
           redirect_url?: string | null
