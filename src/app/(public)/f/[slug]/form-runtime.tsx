@@ -102,8 +102,14 @@ export function FormRuntime({
   const step = steps[stepIdx];
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-start justify-center p-4 sm:p-8">
-      <div className="w-full max-w-xl bg-white rounded-xl shadow-sm border overflow-hidden">
+    <div
+      className="min-h-screen flex items-start justify-center p-4 sm:p-8"
+      style={{ backgroundColor: "#f3f4f6", colorScheme: "light" }}
+    >
+      <div
+        className="w-full max-w-xl rounded-xl shadow-sm border overflow-hidden"
+        style={{ backgroundColor: "#ffffff", color: "#111827" }}
+      >
         <div className="p-6 sm:p-8">
           {/* Branding */}
           {schema.branding.logoUrl ? (
@@ -114,17 +120,25 @@ export function FormRuntime({
               className="h-10 mb-6 object-contain"
             />
           ) : (
-            <p className="text-sm font-semibold mb-6">{formName}</p>
+            <p className="text-sm font-semibold mb-6" style={{ color: "#374151" }}>
+              {formName}
+            </p>
           )}
 
           {done ? (
             <div className="py-10 text-center">
-              <h1 className="text-xl font-bold">{schema.thankYou.heading}</h1>
-              <p className="text-sm text-gray-600 mt-2">{schema.thankYou.message}</p>
+              <h1 className="text-xl font-bold" style={{ color: "#111827" }}>
+                {schema.thankYou.heading}
+              </h1>
+              <p className="text-sm mt-2" style={{ color: "#4b5563" }}>
+                {schema.thankYou.message}
+              </p>
             </div>
           ) : (
             <>
-              <h1 className="text-lg font-bold mb-1">{step.title}</h1>
+              <h1 className="text-lg font-bold mb-1" style={{ color: "#111827" }}>
+                {step.title}
+              </h1>
 
               {/* Progress */}
               <div className="flex items-center gap-2 my-4">
@@ -162,6 +176,7 @@ export function FormRuntime({
                   onClick={prev}
                   disabled={stepIdx === 0 || submitting}
                   className="px-4 py-2 rounded text-sm border disabled:opacity-40"
+                  style={{ borderColor: "#d1d5db", color: "#374151" }}
                 >
                   Previous
                 </button>
@@ -209,7 +224,10 @@ function FieldInput({
   onChange: (v: unknown) => void;
 }) {
   const label = (
-    <label className="block text-sm font-medium mb-1">
+    <label
+      className="block text-sm font-medium mb-1"
+      style={{ color: "#1f2937" }}
+    >
       {field.label}
       {field.required && <span className="text-red-500"> *</span>}
     </label>
@@ -217,6 +235,7 @@ function FieldInput({
   const inputCls = `w-full border rounded px-3 py-2 text-sm ${
     error ? "border-red-400" : "border-gray-300"
   }`;
+  const inputStyle = { backgroundColor: "#ffffff", color: "#111827" } as const;
   const str = typeof value === "string" ? value : "";
 
   let control: React.ReactNode = null;
@@ -244,6 +263,7 @@ function FieldInput({
         value={str}
         onChange={(e) => onChange(e.target.value)}
         className={inputCls}
+        style={inputStyle}
       />
     );
   } else if (field.type === "long_text") {
@@ -253,11 +273,17 @@ function FieldInput({
         onChange={(e) => onChange(e.target.value)}
         rows={4}
         className={`${inputCls} resize-none`}
+        style={inputStyle}
       />
     );
   } else if (field.type === "dropdown") {
     control = (
-      <select value={str} onChange={(e) => onChange(e.target.value)} className={inputCls}>
+      <select
+        value={str}
+        onChange={(e) => onChange(e.target.value)}
+        className={inputCls}
+        style={inputStyle}
+      >
         <option value="">— select —</option>
         {(field.options ?? []).map((o) => (
           <option key={o} value={o}>
@@ -270,7 +296,11 @@ function FieldInput({
     control = (
       <div className="space-y-1">
         {(field.options ?? []).map((o) => (
-          <label key={o} className="flex items-center gap-2 text-sm">
+          <label
+            key={o}
+            className="flex items-center gap-2 text-sm"
+            style={{ color: "#1f2937" }}
+          >
             <input
               type="radio"
               name={field.id}
@@ -287,7 +317,11 @@ function FieldInput({
     control = (
       <div className="space-y-1">
         {(field.options ?? []).map((o) => (
-          <label key={o} className="flex items-center gap-2 text-sm">
+          <label
+            key={o}
+            className="flex items-center gap-2 text-sm"
+            style={{ color: "#1f2937" }}
+          >
             <input
               type="checkbox"
               checked={arr.includes(o)}
@@ -311,8 +345,8 @@ function FieldInput({
           }`}
           style={
             field.type === "outcome"
-              ? { borderColor: accent, backgroundColor: `${accent}10` }
-              : undefined
+              ? { borderColor: accent, backgroundColor: `${accent}10`, color: "#1f2937" }
+              : { color: "#1f2937" }
           }
         >
           <input
