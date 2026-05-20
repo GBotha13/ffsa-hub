@@ -69,10 +69,12 @@ function SuccessScreen({
       {referenceLinks.length > 0 && (
         <div className="space-y-3 max-w-md mx-auto text-left">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Reference Links
+            Your References
           </p>
           <p className="text-xs text-muted-foreground">
-            Send these links to your referees so they can submit their references:
+            We&apos;ve emailed each of your referees a link to submit their
+            reference, so there&apos;s nothing more you need to do. If a referee
+            doesn&apos;t receive it, you can share their link with them directly:
           </p>
 
           <div className="space-y-2">
