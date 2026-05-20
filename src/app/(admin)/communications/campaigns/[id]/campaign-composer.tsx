@@ -56,6 +56,9 @@ export function CampaignComposer({
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [scheduleAt, setScheduleAt] = useState("");
+  const [sendState, setSendState] = useState<"idle" | "sending" | "done">("idle");
+  const [sendProgress, setSendProgress] = useState({ sent: 0, failed: 0 });
 
   const sent = campaign.status === "sent" || campaign.status === "sending";
 
@@ -125,6 +128,106 @@ export function CampaignComposer({
       return;
     }
     setMsg("Saved");
+    router.refresh();
+  }
+
+  /** Persist the latest content, then return whether it succeeded. */
+  async function persist(): Promise<boolean> {
+    const res = await fetch(`/api/campaigns/${campaign.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: name.trim(),
+        subject,
+        preview_text: previewText,
+        body_source: body,
+        label_id: labelId || undefined,
+        sending_identity_id: identityId || undefined,
+      }),
+    });
+    return res.ok;
+  }
+
+  function preflightError(): string | null {
+    if (!subject.trim()) return "Add a subject line before sending.";
+    if (!labelId) return "Pick an audience label.";
+    if (!identityId) return "Pick a sending identity.";
+    if (body.blocks.length === 0) return "Add at least one content block.";
+    return null;
+  }
+
+  async function sendNow() {
+    const pf = preflightError();
+    if (pf) return setErr(pf);
+    if (
+      !confirm(
+        `Send "${name}" to ${audienceCount} contact${
+          audienceCount === 1 ? "" : "s"
+        } now?`
+      )
+    )
+      return;
+
+    setErr(null);
+    setMsg(null);
+    if (!(await persist())) return setErr("Could not save the campaign.");
+
+    setSendState("sending");
+    let totalSent = 0;
+    let totalFailed = 0;
+    // Loop the batch endpoint until the audience is drained.
+    for (let i = 0; i < 1000; i++) {
+      const res = await fetch(`/api/campaigns/${campaign.id}/send`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        setErr(data.error ?? "Send failed");
+        setSendState("idle");
+        return;
+      }
+      const r = (await res.json()) as {
+        sent: number;
+        failed: number;
+        done: boolean;
+      };
+      totalSent += r.sent;
+      totalFailed += r.failed;
+      setSendProgress({ sent: totalSent, failed: totalFailed });
+      if (r.done) break;
+    }
+    setSendState("done");
+    router.refresh();
+  }
+
+  async function schedule() {
+    const pf = preflightError();
+    if (pf) return setErr(pf);
+    if (!scheduleAt) return setErr("Pick a date and time.");
+    const when = new Date(scheduleAt);
+    if (Number.isNaN(when.getTime()) || when.getTime() < Date.now()) {
+      return setErr("Pick a future date and time.");
+    }
+    setErr(null);
+    setBusy(true);
+    if (!(await persist())) {
+      setBusy(false);
+      return setErr("Could not save the campaign.");
+    }
+    const res = await fetch(`/api/campaigns/${campaign.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        status: "scheduled",
+        scheduled_at: when.toISOString(),
+      }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      return setErr(data.error ?? "Could not schedule");
+    }
+    setMsg(`Scheduled for ${when.toLocaleString()}`);
     router.refresh();
   }
 
@@ -285,6 +388,68 @@ export function CampaignComposer({
           </CardContent>
         </Card>
       </div>
+
+      {/* Send */}
+      {!sent && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Send</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {sendState === "sending" && (
+              <p className="text-sm text-blue-700">
+                Sending… {sendProgress.sent} sent
+                {sendProgress.failed > 0 ? `, ${sendProgress.failed} failed` : ""}
+              </p>
+            )}
+            {sendState === "done" && (
+              <p className="text-sm text-green-700">
+                ✓ Campaign sent — {sendProgress.sent} delivered to the provider
+                {sendProgress.failed > 0 ? `, ${sendProgress.failed} failed` : ""}.
+              </p>
+            )}
+            {sendState === "idle" && (
+              <div className="flex flex-wrap items-end gap-4">
+                <button
+                  type="button"
+                  onClick={sendNow}
+                  disabled={busy}
+                  className="px-4 py-2 rounded bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
+                >
+                  Send now to {audienceCount}
+                </button>
+                <span className="text-sm text-muted-foreground">or</span>
+                <div className="flex items-end gap-2">
+                  <label className="text-sm">
+                    <span className="block text-muted-foreground mb-1 text-xs">
+                      Schedule for
+                    </span>
+                    <input
+                      type="datetime-local"
+                      value={scheduleAt}
+                      onChange={(e) => setScheduleAt(e.target.value)}
+                      className="border rounded px-2 py-1.5 text-sm"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={schedule}
+                    disabled={busy}
+                    className="px-3 py-1.5 rounded border text-sm hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Schedule
+                  </button>
+                </div>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Recipients are deduplicated and exclude anyone unsubscribed,
+              bounced, or not subscribed. Every email includes an unsubscribe
+              link.
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
