@@ -169,11 +169,15 @@ export type Database = {
           answers: Json
           applicant_email: string | null
           applicant_info: Json | null
+          assigned_staff_id: string | null
           created_at: string
           id: string
           program_id: string
           reviewed_at: string | null
           reviewed_by: string | null
+          staff_assigned_at: string | null
+          staff_assigned_by: string | null
+          staff_viewed_at: string | null
           status: string
           status_token: string | null
           submitted_at: string
@@ -185,11 +189,15 @@ export type Database = {
           answers?: Json
           applicant_email?: string | null
           applicant_info?: Json | null
+          assigned_staff_id?: string | null
           created_at?: string
           id?: string
           program_id: string
           reviewed_at?: string | null
           reviewed_by?: string | null
+          staff_assigned_at?: string | null
+          staff_assigned_by?: string | null
+          staff_viewed_at?: string | null
           status?: string
           status_token?: string | null
           submitted_at?: string
@@ -201,11 +209,15 @@ export type Database = {
           answers?: Json
           applicant_email?: string | null
           applicant_info?: Json | null
+          assigned_staff_id?: string | null
           created_at?: string
           id?: string
           program_id?: string
           reviewed_at?: string | null
           reviewed_by?: string | null
+          staff_assigned_at?: string | null
+          staff_assigned_by?: string | null
+          staff_viewed_at?: string | null
           status?: string
           status_token?: string | null
           submitted_at?: string
@@ -213,6 +225,13 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "application_responses_assigned_staff_id_fkey"
+            columns: ["assigned_staff_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "application_responses_program_id_fkey"
             columns: ["program_id"]
@@ -223,6 +242,13 @@ export type Database = {
           {
             foreignKeyName: "application_responses_reviewed_by_fkey"
             columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "application_responses_staff_assigned_by_fkey"
+            columns: ["staff_assigned_by"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -1080,6 +1106,7 @@ export type Database = {
       }
       enrollments: {
         Row: {
+          assigned_staff_id: string | null
           completed_at: string | null
           created_at: string
           enrolled_at: string
@@ -1087,11 +1114,15 @@ export type Database = {
           id: string
           notes: string | null
           program_id: string
+          staff_assigned_at: string | null
+          staff_assigned_by: string | null
+          staff_viewed_at: string | null
           status: string
           updated_at: string
           user_id: string
         }
         Insert: {
+          assigned_staff_id?: string | null
           completed_at?: string | null
           created_at?: string
           enrolled_at?: string
@@ -1099,11 +1130,15 @@ export type Database = {
           id?: string
           notes?: string | null
           program_id: string
+          staff_assigned_at?: string | null
+          staff_assigned_by?: string | null
+          staff_viewed_at?: string | null
           status?: string
           updated_at?: string
           user_id: string
         }
         Update: {
+          assigned_staff_id?: string | null
           completed_at?: string | null
           created_at?: string
           enrolled_at?: string
@@ -1111,11 +1146,21 @@ export type Database = {
           id?: string
           notes?: string | null
           program_id?: string
+          staff_assigned_at?: string | null
+          staff_assigned_by?: string | null
+          staff_viewed_at?: string | null
           status?: string
           updated_at?: string
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "enrollments_assigned_staff_id_fkey"
+            columns: ["assigned_staff_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "enrollments_enrolled_by_fkey"
             columns: ["enrolled_by"]
@@ -1131,10 +1176,125 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "enrollments_staff_assigned_by_fkey"
+            columns: ["staff_assigned_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "enrollments_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_outcome_responses: {
+        Row: {
+          contact_id: string
+          form_submission_id: string | null
+          id: string
+          outcome_id: string
+          responded_at: string
+        }
+        Insert: {
+          contact_id: string
+          form_submission_id?: string | null
+          id?: string
+          outcome_id: string
+          responded_at?: string
+        }
+        Update: {
+          contact_id?: string
+          form_submission_id?: string | null
+          id?: string
+          outcome_id?: string
+          responded_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_outcome_responses_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_outcome_responses_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "v_campaign_audience"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "event_outcome_responses_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "v_contact_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_outcome_responses_form_submission_id_fkey"
+            columns: ["form_submission_id"]
+            isOneToOne: false
+            referencedRelation: "form_submissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_outcome_responses_outcome_id_fkey"
+            columns: ["outcome_id"]
+            isOneToOne: false
+            referencedRelation: "event_outcomes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_outcomes: {
+        Row: {
+          created_at: string
+          description: string | null
+          event_id: string
+          id: string
+          is_active: boolean
+          label_id: string | null
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          event_id: string
+          id?: string
+          is_active?: boolean
+          label_id?: string | null
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          event_id?: string
+          id?: string
+          is_active?: boolean
+          label_id?: string | null
+          name?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_outcomes_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_outcomes_label_id_fkey"
+            columns: ["label_id"]
+            isOneToOne: false
+            referencedRelation: "labels"
             referencedColumns: ["id"]
           },
         ]
@@ -1208,8 +1368,81 @@ export type Database = {
           },
         ]
       }
+      event_roles: {
+        Row: {
+          contact_id: string | null
+          created_at: string
+          display_name: string | null
+          event_id: string
+          id: string
+          notes: string | null
+          role_name: string
+          sort_order: number
+          user_id: string | null
+        }
+        Insert: {
+          contact_id?: string | null
+          created_at?: string
+          display_name?: string | null
+          event_id: string
+          id?: string
+          notes?: string | null
+          role_name: string
+          sort_order?: number
+          user_id?: string | null
+        }
+        Update: {
+          contact_id?: string | null
+          created_at?: string
+          display_name?: string | null
+          event_id?: string
+          id?: string
+          notes?: string | null
+          role_name?: string
+          sort_order?: number
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_roles_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_roles_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "v_campaign_audience"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "event_roles_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "v_contact_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_roles_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
+          base_label_id: string | null
           created_at: string
           created_by: string
           description: string | null
@@ -1227,6 +1460,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          base_label_id?: string | null
           created_at?: string
           created_by: string
           description?: string | null
@@ -1244,6 +1478,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          base_label_id?: string | null
           created_at?: string
           created_by?: string
           description?: string | null
@@ -1261,6 +1496,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "events_base_label_id_fkey"
+            columns: ["base_label_id"]
+            isOneToOne: false
+            referencedRelation: "labels"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "events_created_by_fkey"
             columns: ["created_by"]
@@ -1349,10 +1591,12 @@ export type Database = {
           custom_label_allowed: boolean
           description: string | null
           double_opt_in: boolean
+          event_id: string | null
           id: string
           is_active: boolean
           label_id: string
           name: string
+          records_attendance: boolean
           redirect_url: string | null
           schema: Json
           sending_identity_id: string | null
@@ -1366,10 +1610,12 @@ export type Database = {
           custom_label_allowed?: boolean
           description?: string | null
           double_opt_in?: boolean
+          event_id?: string | null
           id?: string
           is_active?: boolean
           label_id: string
           name: string
+          records_attendance?: boolean
           redirect_url?: string | null
           schema: Json
           sending_identity_id?: string | null
@@ -1383,10 +1629,12 @@ export type Database = {
           custom_label_allowed?: boolean
           description?: string | null
           double_opt_in?: boolean
+          event_id?: string | null
           id?: string
           is_active?: boolean
           label_id?: string
           name?: string
+          records_attendance?: boolean
           redirect_url?: string | null
           schema?: Json
           sending_identity_id?: string | null
@@ -1400,6 +1648,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "forms_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
             referencedColumns: ["id"]
           },
           {
