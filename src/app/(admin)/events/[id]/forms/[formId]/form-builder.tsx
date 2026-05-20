@@ -11,6 +11,7 @@ import {
   CONTACT_FIELD_KEYS,
   newLocalId,
 } from "@/lib/forms/schema";
+import { QrPanel } from "./qr-panel";
 
 type Outcome = { id: string; name: string };
 type Label = { id: string; slug: string; name: string; color: string | null };
@@ -277,6 +278,9 @@ export function FormBuilder({
           </label>
         </CardContent>
       </Card>
+
+      {/* QR code */}
+      <QrPanel url={publicUrl} formName={name} />
 
       {/* Steps */}
       {schema.steps.map((step, sIdx) => (

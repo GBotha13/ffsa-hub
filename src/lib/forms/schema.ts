@@ -86,6 +86,15 @@ export function newLocalId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}_${idCounter}`;
 }
 
+/**
+ * The data key a field's answer is stored under. Contact-mapped fields
+ * use their contact column key; custom fields fall back to the field id.
+ * Runtime, validator, and submit handler all use this so keys line up.
+ */
+export function fieldKey(field: Pick<FormField, "key" | "id">): string {
+  return field.key && field.key.trim() ? field.key.trim() : field.id;
+}
+
 export function emptyFormSchema(): FormSchema {
   return {
     version: 1,
@@ -147,7 +156,8 @@ export function validateSubmission(
 
   for (const step of schema.steps) {
     for (const field of step.fields) {
-      const raw = data[field.key];
+      const k = fieldKey(field);
+      const raw = data[k];
       const isEmpty =
         raw == null ||
         raw === "" ||
@@ -156,19 +166,19 @@ export function validateSubmission(
         (field.type === "consent" && raw !== true);
 
       if (field.required && isEmpty) {
-        errors[field.key] = `${field.label} is required`;
+        errors[k] = `${field.label} is required`;
         continue;
       }
       if (isEmpty) continue;
 
       if (field.type === "email" && typeof raw === "string") {
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw.trim())) {
-          errors[field.key] = "Enter a valid email address";
+          errors[k] = "Enter a valid email address";
         }
       }
       if (field.type === "number" && typeof raw === "string" && raw.trim() !== "") {
         if (Number.isNaN(Number(raw))) {
-          errors[field.key] = "Enter a number";
+          errors[k] = "Enter a number";
         }
       }
     }
