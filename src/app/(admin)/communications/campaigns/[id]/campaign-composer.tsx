@@ -2,7 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Plus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   type CampaignBlock,
   type CampaignBlockType,
@@ -32,6 +36,15 @@ const ADD_TYPES: { type: CampaignBlockType; label: string }[] = [
   { type: "image", label: "Image" },
   { type: "divider", label: "Divider" },
 ];
+
+const STATUS_CLASS: Record<string, string> = {
+  draft: "status-grey",
+  scheduled: "status-yellow",
+  sending: "status-yellow",
+  sent: "status-green",
+  failed: "status-red",
+  cancelled: "status-grey",
+};
 
 export function CampaignComposer({
   campaign,
@@ -235,32 +248,36 @@ export function CampaignComposer({
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
-        <input
+        <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
           disabled={sent}
-          className="text-xl font-bold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-gray-400 outline-none flex-1"
+          className="flex-1 text-base font-semibold"
         />
         <div className="flex items-center gap-2">
-          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 capitalize">
+          <span
+            className={`text-xs px-2 py-0.5 rounded-full capitalize ${
+              STATUS_CLASS[campaign.status] ?? "status-grey"
+            }`}
+          >
             {campaign.status}
           </span>
           {!sent && (
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              size="sm"
               onClick={save}
               disabled={busy}
-              className="px-3 py-1.5 rounded border text-sm hover:bg-gray-50 disabled:opacity-50"
             >
               Save draft
-            </button>
+            </Button>
           )}
         </div>
       </div>
-      {err && <p className="text-sm text-red-600">{err}</p>}
-      {msg && <p className="text-sm text-green-600">{msg}</p>}
+      {err && <p className="text-sm text-red-400">{err}</p>}
+      {msg && <p className="text-sm text-emerald-400">{msg}</p>}
       {sent && (
-        <p className="text-sm text-amber-600">
+        <p className="text-sm text-amber-400">
           This campaign has been sent and can no longer be edited.
         </p>
       )}
@@ -274,20 +291,18 @@ export function CampaignComposer({
             </CardHeader>
             <CardContent className="space-y-3">
               <Field label="Subject line">
-                <input
+                <Input
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
                   disabled={sent}
-                  className="w-full border rounded px-2 py-1.5 text-sm"
                   placeholder="What recipients see in their inbox"
                 />
               </Field>
               <Field label="Preview text">
-                <input
+                <Input
                   value={previewText}
                   onChange={(e) => setPreviewText(e.target.value)}
                   disabled={sent}
-                  className="w-full border rounded px-2 py-1.5 text-sm"
                   placeholder="The grey text shown after the subject"
                 />
               </Field>
@@ -358,14 +373,16 @@ export function CampaignComposer({
               {!sent && (
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {ADD_TYPES.map((t) => (
-                    <button
+                    <Button
                       key={t.type}
-                      type="button"
+                      variant="outline"
+                      size="sm"
                       onClick={() => addBlock(t.type)}
-                      className="text-xs px-2 py-1 rounded border hover:bg-gray-50"
+                      className="gap-1"
                     >
-                      + {t.label}
-                    </button>
+                      <Plus className="h-3.5 w-3.5" />
+                      {t.label}
+                    </Button>
                   ))}
                 </div>
               )}
@@ -397,48 +414,38 @@ export function CampaignComposer({
           </CardHeader>
           <CardContent className="space-y-4">
             {sendState === "sending" && (
-              <p className="text-sm text-blue-700">
+              <p className="text-sm text-sky-400">
                 Sending… {sendProgress.sent} sent
                 {sendProgress.failed > 0 ? `, ${sendProgress.failed} failed` : ""}
               </p>
             )}
             {sendState === "done" && (
-              <p className="text-sm text-green-700">
+              <p className="text-sm text-emerald-400">
                 ✓ Campaign sent — {sendProgress.sent} delivered to the provider
                 {sendProgress.failed > 0 ? `, ${sendProgress.failed} failed` : ""}.
               </p>
             )}
             {sendState === "idle" && (
               <div className="flex flex-wrap items-end gap-4">
-                <button
-                  type="button"
-                  onClick={sendNow}
-                  disabled={busy}
-                  className="px-4 py-2 rounded bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
-                >
+                <Button onClick={sendNow} disabled={busy}>
                   Send now to {audienceCount}
-                </button>
+                </Button>
                 <span className="text-sm text-muted-foreground">or</span>
                 <div className="flex items-end gap-2">
-                  <label className="text-sm">
+                  <label className="block">
                     <span className="block text-muted-foreground mb-1 text-xs">
                       Schedule for
                     </span>
-                    <input
+                    <Input
                       type="datetime-local"
                       value={scheduleAt}
                       onChange={(e) => setScheduleAt(e.target.value)}
-                      className="border rounded px-2 py-1.5 text-sm"
+                      className="w-auto"
                     />
                   </label>
-                  <button
-                    type="button"
-                    onClick={schedule}
-                    disabled={busy}
-                    className="px-3 py-1.5 rounded border text-sm hover:bg-gray-50 disabled:opacity-50"
-                  >
+                  <Button variant="outline" onClick={schedule} disabled={busy}>
                     Schedule
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -488,9 +495,8 @@ function BlockEditor({
   canUp: boolean;
   canDown: boolean;
 }) {
-  const inputCls = "w-full border rounded px-2 py-1 text-sm";
   return (
-    <div className="border rounded p-2.5 bg-gray-50/50 space-y-1.5">
+    <div className="rounded-lg border bg-muted/40 p-2.5 space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">
           {block.type}
@@ -502,55 +508,50 @@ function BlockEditor({
         </div>
       </div>
       {block.type === "heading" && (
-        <input
+        <Input
           value={block.text}
           onChange={(e) => onChange({ text: e.target.value })}
           disabled={disabled}
-          className={inputCls}
         />
       )}
       {block.type === "text" && (
-        <textarea
+        <Textarea
           value={block.text}
           onChange={(e) => onChange({ text: e.target.value })}
           disabled={disabled}
           rows={3}
-          className={`${inputCls} resize-none`}
+          className="resize-none"
         />
       )}
       {block.type === "button" && (
         <>
-          <input
+          <Input
             value={block.text}
             onChange={(e) => onChange({ text: e.target.value })}
             disabled={disabled}
             placeholder="Button label"
-            className={inputCls}
           />
-          <input
+          <Input
             value={block.url}
             onChange={(e) => onChange({ url: e.target.value })}
             disabled={disabled}
             placeholder="https://…"
-            className={inputCls}
           />
         </>
       )}
       {block.type === "image" && (
         <>
-          <input
+          <Input
             value={block.url}
             onChange={(e) => onChange({ url: e.target.value })}
             disabled={disabled}
             placeholder="Image URL (https://…)"
-            className={inputCls}
           />
-          <input
+          <Input
             value={block.alt}
             onChange={(e) => onChange({ alt: e.target.value })}
             disabled={disabled}
             placeholder="Alt text"
-            className={inputCls}
           />
         </>
       )}
@@ -578,7 +579,9 @@ function Mini({
       onClick={onClick}
       disabled={disabled}
       className={`w-5 h-5 text-[11px] rounded border disabled:opacity-30 ${
-        danger ? "text-red-600 hover:bg-red-50" : "hover:bg-gray-100"
+        danger
+          ? "text-red-400 hover:bg-red-500/10 hover:border-red-500/30"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground"
       }`}
     >
       {label}
