@@ -126,6 +126,57 @@ export function mapDbQuestion(q: DbQuestion): FormQuestion {
   };
 }
 
+// Reorders questions so each conditional follow-up appears directly
+// after its parent (depth-first walk by parent id). Top-level siblings
+// keep their input order — typically `sort_order` from the DB. Without
+// this, follow-ups added later carry the highest sort_order and end up
+// rendered at the bottom of the form instead of under the question they
+// depend on.
+//
+// Returns the ordered list plus a depth lookup so renderers can indent
+// follow-ups to visually mirror the admin question tree. Defensively
+// guards against cycles, and falls back to appending any orphaned
+// children (parent missing from the input) at the end.
+export function orderQuestionsForRender<Q extends { id: string }>(
+  questions: Q[],
+  getParentId: (q: Q) => string | null | undefined
+): { ordered: Q[]; depthById: Map<string, number> } {
+  const byParent = new Map<string | null, Q[]>();
+  for (const q of questions) {
+    const key = getParentId(q) ?? null;
+    const list = byParent.get(key) ?? [];
+    list.push(q);
+    byParent.set(key, list);
+  }
+
+  const ordered: Q[] = [];
+  const depthById = new Map<string, number>();
+  const visited = new Set<string>();
+
+  function walk(parentId: string | null, depth: number): void {
+    const siblings = byParent.get(parentId) ?? [];
+    for (const q of siblings) {
+      if (visited.has(q.id)) continue; // cycle guard
+      visited.add(q.id);
+      ordered.push(q);
+      depthById.set(q.id, depth);
+      walk(q.id, depth + 1);
+    }
+  }
+  walk(null, 0);
+
+  // Append any orphans (parent_question_id pointing at a question not in
+  // this list) at the end so they never disappear from the form.
+  for (const q of questions) {
+    if (visited.has(q.id)) continue;
+    visited.add(q.id);
+    ordered.push(q);
+    depthById.set(q.id, 0);
+  }
+
+  return { ordered, depthById };
+}
+
 // Returns true if `question` should be shown given the current form values.
 // A question is shown when its parent chain is fully satisfied — every
 // ancestor's current answer must match its `showWhenAnswer`.

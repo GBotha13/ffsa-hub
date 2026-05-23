@@ -12,6 +12,7 @@ import { buildFormSchema } from "@/lib/build-form-schema";
 import {
   mapDbQuestion,
   isQuestionVisible,
+  orderQuestionsForRender,
   type FormQuestion,
   type FileValue,
 } from "@/lib/form-types";
@@ -133,10 +134,19 @@ export function PublicApplicationForm({
   const [consentAccepted, setConsentAccepted] = useState(false);
   const [consentError, setConsentError] = useState<string | null>(null);
 
-  const allQuestions: FormQuestion[] = useMemo(
-    () => questions.map(mapDbQuestion),
-    [questions]
-  );
+  // Reorder so follow-ups render directly under their parent (and indent
+  // them via depthById) instead of falling to the bottom by sort_order.
+  const { allQuestions, depthById } = useMemo<{
+    allQuestions: FormQuestion[];
+    depthById: Map<string, number>;
+  }>(() => {
+    const mapped = questions.map(mapDbQuestion);
+    const { ordered, depthById } = orderQuestionsForRender(
+      mapped,
+      (q) => q.parentQuestionId
+    );
+    return { allQuestions: ordered, depthById };
+  }, [questions]);
 
   const questionsById = useMemo(
     () => new Map(allQuestions.map((q) => [q.id, q])),
@@ -343,14 +353,21 @@ export function PublicApplicationForm({
       {/* Application Questions */}
       {visibleQuestions.length > 0 && (
         <div className="rounded-lg border bg-card p-6 space-y-4">
-          {visibleQuestions.map((q) => (
-            <FormField
-              key={q.id}
-              question={q}
-              control={control}
-              applicationId={applicationId || programId}
-            />
-          ))}
+          {visibleQuestions.map((q) => {
+            const depth = depthById.get(q.id) ?? 0;
+            return (
+              <div
+                key={q.id}
+                style={depth > 0 ? { marginLeft: `${depth * 16}px` } : undefined}
+              >
+                <FormField
+                  question={q}
+                  control={control}
+                  applicationId={applicationId || programId}
+                />
+              </div>
+            );
+          })}
         </div>
       )}
 

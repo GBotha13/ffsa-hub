@@ -12,6 +12,7 @@ import { buildFormSchema } from "@/lib/build-form-schema";
 import {
   mapDbQuestion,
   isQuestionVisible,
+  orderQuestionsForRender,
   type FormQuestion,
 } from "@/lib/form-types";
 
@@ -46,10 +47,19 @@ export function ReferenceForm({
   const [serverError, setServerError] = useState<string | null>(null);
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
-  const allQuestions: FormQuestion[] = useMemo(
-    () => questions.map(mapDbQuestion),
-    [questions]
-  );
+  // Reorder so follow-ups render directly under their parent (and indent
+  // them via depthById) instead of falling to the bottom by sort_order.
+  const { allQuestions, depthById } = useMemo<{
+    allQuestions: FormQuestion[];
+    depthById: Map<string, number>;
+  }>(() => {
+    const mapped = questions.map(mapDbQuestion);
+    const { ordered, depthById } = orderQuestionsForRender(
+      mapped,
+      (q) => q.parentQuestionId
+    );
+    return { allQuestions: ordered, depthById };
+  }, [questions]);
 
   const questionsById = useMemo(
     () => new Map(allQuestions.map((q) => [q.id, q])),
@@ -259,9 +269,21 @@ export function ReferenceForm({
                 </p>
               ) : (
                 <div className="space-y-4">
-                  {visibleQuestions.map((q) => (
-                    <FormField key={q.id} question={q} control={control} />
-                  ))}
+                  {visibleQuestions.map((q) => {
+                    const depth = depthById.get(q.id) ?? 0;
+                    return (
+                      <div
+                        key={q.id}
+                        style={
+                          depth > 0
+                            ? { marginLeft: `${depth * 16}px` }
+                            : undefined
+                        }
+                      >
+                        <FormField question={q} control={control} />
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 

@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle } from "lucide-react";
+import { orderQuestionsForRender } from "@/lib/form-types";
 
 type Question = {
   id: string;
@@ -67,7 +68,20 @@ export function ApplicationForm({
     [questions]
   );
 
-  const visibleQuestions = questions.filter((q) =>
+  // Reorder so follow-ups render directly under their parent (and indent
+  // them via depthById) instead of falling to the bottom by sort_order.
+  const { orderedQuestions, depthById } = useMemo<{
+    orderedQuestions: Question[];
+    depthById: Map<string, number>;
+  }>(() => {
+    const { ordered, depthById } = orderQuestionsForRender(
+      questions,
+      (q) => q.parent_question_id
+    );
+    return { orderedQuestions: ordered, depthById };
+  }, [questions]);
+
+  const visibleQuestions = orderedQuestions.filter((q) =>
     isVisible(q, questionsById, answers)
   );
   const visibleIds = new Set(visibleQuestions.map((q) => q.id));
@@ -157,63 +171,70 @@ export function ApplicationForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {visibleQuestions.map((q, idx) => (
-        <div key={q.id} className="space-y-2">
-          <Label className="text-sm font-medium">
-            {idx + 1}. {q.label}
-            {q.is_required && <span className="text-destructive ml-1">*</span>}
-          </Label>
-          {q.description && (
-            <p className="text-xs text-muted-foreground">{q.description}</p>
-          )}
-          {q.type === "multiple_choice" && q.options && q.options.length > 0 ? (
-            <div className="flex flex-col gap-2 pt-1">
-              {q.options.map((option) => (
-                <label key={option} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name={`q-${q.id}`}
-                    value={option}
-                    checked={answers[q.id] === option}
-                    onChange={() => setAnswer(q.id, option)}
-                  />
-                  <span className="text-sm">{option}</span>
-                </label>
-              ))}
-            </div>
-          ) : q.type === "yes_no" ? (
-            <div className="flex gap-4 pt-1">
-              {["yes", "no"].map((option) => (
-                <label key={option} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name={`q-${q.id}`}
-                    value={option}
-                    checked={answers[q.id] === option}
-                    onChange={() => setAnswer(q.id, option)}
-                  />
-                  <span className="text-sm capitalize">{option}</span>
-                </label>
-              ))}
-            </div>
-          ) : q.type === "long_answer" ? (
-            <Textarea
-              value={answers[q.id] ?? ""}
-              onChange={(e) => setAnswer(q.id, e.target.value)}
-              placeholder="Your answer..."
-              rows={5}
-              required={q.is_required}
-            />
-          ) : (
-            <Input
-              value={answers[q.id] ?? ""}
-              onChange={(e) => setAnswer(q.id, e.target.value)}
-              placeholder="Your answer..."
-              required={q.is_required}
-            />
-          )}
-        </div>
-      ))}
+      {visibleQuestions.map((q, idx) => {
+        const depth = depthById.get(q.id) ?? 0;
+        return (
+          <div
+            key={q.id}
+            className="space-y-2"
+            style={depth > 0 ? { marginLeft: `${depth * 16}px` } : undefined}
+          >
+            <Label className="text-sm font-medium">
+              {idx + 1}. {q.label}
+              {q.is_required && <span className="text-destructive ml-1">*</span>}
+            </Label>
+            {q.description && (
+              <p className="text-xs text-muted-foreground">{q.description}</p>
+            )}
+            {q.type === "multiple_choice" && q.options && q.options.length > 0 ? (
+              <div className="flex flex-col gap-2 pt-1">
+                {q.options.map((option) => (
+                  <label key={option} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name={`q-${q.id}`}
+                      value={option}
+                      checked={answers[q.id] === option}
+                      onChange={() => setAnswer(q.id, option)}
+                    />
+                    <span className="text-sm">{option}</span>
+                  </label>
+                ))}
+              </div>
+            ) : q.type === "yes_no" ? (
+              <div className="flex gap-4 pt-1">
+                {["yes", "no"].map((option) => (
+                  <label key={option} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name={`q-${q.id}`}
+                      value={option}
+                      checked={answers[q.id] === option}
+                      onChange={() => setAnswer(q.id, option)}
+                    />
+                    <span className="text-sm capitalize">{option}</span>
+                  </label>
+                ))}
+              </div>
+            ) : q.type === "long_answer" ? (
+              <Textarea
+                value={answers[q.id] ?? ""}
+                onChange={(e) => setAnswer(q.id, e.target.value)}
+                placeholder="Your answer..."
+                rows={5}
+                required={q.is_required}
+              />
+            ) : (
+              <Input
+                value={answers[q.id] ?? ""}
+                onChange={(e) => setAnswer(q.id, e.target.value)}
+                placeholder="Your answer..."
+                required={q.is_required}
+              />
+            )}
+          </div>
+        );
+      })}
 
       {/* References */}
       {referenceSlots.length > 0 && (
