@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createCampaign, setCampaignLabels } from "@/services/campaigns";
 import { emptyCampaignBody, renderCampaignHtml } from "@/lib/campaigns/blocks";
 import { getAuthedUser, hasAnyRole, COMMS_MANAGE_ROLES } from "@/lib/api-auth";
-import type { Json, TablesInsert } from "@/types/database";
+import type { Json } from "@/types/database";
 
 // POST /api/campaigns — create a draft campaign.
 export async function POST(request: Request) {
@@ -37,8 +37,6 @@ export async function POST(request: Request) {
   }
 
   const emptyBody = emptyCampaignBody();
-  // label_id was dropped by migration 051 — the cast covers the stale type
-  // until `supabase gen types` is re-run.
   const { data, error } = await createCampaign(supabase, {
     name: body.name.trim(),
     subject: "",
@@ -47,7 +45,7 @@ export async function POST(request: Request) {
     sending_identity_id: body.sendingIdentityId,
     status: "draft",
     created_by: user.id,
-  } as unknown as TablesInsert<"campaigns">);
+  });
 
   if (error || !data) {
     return NextResponse.json(

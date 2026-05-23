@@ -44,8 +44,6 @@ export default async function PreferencesPage({
   }
 
   const admin = createAdminClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const adminAny = admin as any;
 
   // Contact's current labels + (if this came from a campaign email) the
   // labels that campaign targeted, so we can highlight them at the top.
@@ -55,7 +53,7 @@ export default async function PreferencesPage({
       .select("labels(id, name)")
       .eq("contact_id", v.contactId),
     v.campaignId
-      ? adminAny
+      ? admin
           .from("campaign_labels")
           .select("label_id")
           .eq("campaign_id", v.campaignId)

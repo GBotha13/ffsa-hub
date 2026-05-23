@@ -464,6 +464,39 @@ export type Database = {
           },
         ]
       }
+      campaign_labels: {
+        Row: {
+          added_at: string
+          campaign_id: string
+          label_id: string
+        }
+        Insert: {
+          added_at?: string
+          campaign_id: string
+          label_id: string
+        }
+        Update: {
+          added_at?: string
+          campaign_id?: string
+          label_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_labels_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_labels_label_id_fkey"
+            columns: ["label_id"]
+            isOneToOne: false
+            referencedRelation: "labels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaign_recipients: {
         Row: {
           bounce_reason: string | null
@@ -545,7 +578,6 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
-          label_id: string
           name: string
           preview_text: string | null
           scheduled_at: string | null
@@ -561,7 +593,6 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
-          label_id: string
           name: string
           preview_text?: string | null
           scheduled_at?: string | null
@@ -577,7 +608,6 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
-          label_id?: string
           name?: string
           preview_text?: string | null
           scheduled_at?: string | null
@@ -593,13 +623,6 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "campaigns_label_id_fkey"
-            columns: ["label_id"]
-            isOneToOne: false
-            referencedRelation: "labels"
             referencedColumns: ["id"]
           },
           {
@@ -4027,19 +4050,19 @@ export type Database = {
     Views: {
       v_campaign_audience: {
         Row: {
+          campaign_id: string | null
           contact_id: string | null
           email: string | null
           email_normalized: string | null
           first_name: string | null
-          label_id: string | null
           last_name: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "contact_labels_label_id_fkey"
-            columns: ["label_id"]
+            foreignKeyName: "campaign_labels_campaign_id_fkey"
+            columns: ["campaign_id"]
             isOneToOne: false
-            referencedRelation: "labels"
+            referencedRelation: "campaigns"
             referencedColumns: ["id"]
           },
         ]
