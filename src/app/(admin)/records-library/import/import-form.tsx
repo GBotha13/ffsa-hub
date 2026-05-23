@@ -336,7 +336,7 @@ export function ImportForm({ templates }: { templates: Template[] }) {
     <div className="space-y-6">
       <section className="border rounded-md p-4 space-y-3">
         <h2 className="font-semibold">1. Record type</h2>
-        <p className="text-xs text-gray-600">
+        <p className="text-xs text-muted-foreground">
           What kind of record does each row represent? You can save the mapping
           as a template at the end and re-use it for the next upload.
         </p>
@@ -351,7 +351,7 @@ export function ImportForm({ templates }: { templates: Template[] }) {
                 className={`px-3 py-1.5 text-sm rounded-md border capitalize ${
                   recordType === rt
                     ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-white text-gray-700 hover:bg-gray-50"
+                    : "bg-card text-foreground hover:bg-muted"
                 }`}
               >
                 {rt}
@@ -361,7 +361,7 @@ export function ImportForm({ templates }: { templates: Template[] }) {
         </div>
         {templates.length > 0 && (
           <div className="pt-2">
-            <label className="block text-xs text-gray-600 mb-1">
+            <label className="block text-xs text-muted-foreground mb-1">
               Or load a saved template
             </label>
             <select
@@ -394,7 +394,7 @@ export function ImportForm({ templates }: { templates: Template[] }) {
           disabled={stage === "uploading"}
         />
         {filename && (
-          <p className="text-xs text-gray-600 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             {filename} — {rows.length.toLocaleString()} rows parsed
           </p>
         )}
@@ -403,7 +403,7 @@ export function ImportForm({ templates }: { templates: Template[] }) {
       {stage !== "idle" && headers.length > 0 && (
         <section className="border rounded-md p-4">
           <h2 className="font-semibold mb-2">3. Map columns</h2>
-          <p className="text-xs text-gray-600 mb-3">
+          <p className="text-xs text-muted-foreground mb-3">
             Required: map a column to <code>email</code>. Anything you leave
             unmapped is stored in raw payload.
           </p>
@@ -411,7 +411,7 @@ export function ImportForm({ templates }: { templates: Template[] }) {
             {headers.map((h) => (
               <div key={h} className="flex items-center gap-2 text-sm">
                 <span
-                  className="font-mono text-xs text-gray-600 flex-1 truncate"
+                  className="font-mono text-xs text-muted-foreground flex-1 truncate"
                   title={h}
                 >
                   {h}
@@ -472,13 +472,13 @@ export function ImportForm({ templates }: { templates: Template[] }) {
       )}
 
       {errorMessage && (
-        <div className="border border-red-300 bg-red-50 text-red-800 rounded-md p-3 text-sm">
+        <div className="border border-red-500/40 bg-red-500/10 text-red-300 rounded-md p-3 text-sm">
           {errorMessage}
         </div>
       )}
 
       {result && (
-        <div className="border rounded-md p-4 bg-gray-50">
+        <div className="border rounded-md p-4 bg-muted/50">
           <h3 className="font-semibold mb-2 text-sm">
             {stage === "complete" ? "Import complete" : "Progress"}
           </h3>
@@ -490,7 +490,7 @@ export function ImportForm({ templates }: { templates: Template[] }) {
             <Stat label="Errors" value={result.error_count} />
           </div>
           {stage === "uploading" && (
-            <p className="text-xs text-gray-600 mt-2">
+            <p className="text-xs text-muted-foreground mt-2">
               Processed {progress.done.toLocaleString()} / {progress.total.toLocaleString()}
             </p>
           )}
@@ -511,7 +511,7 @@ export function ImportForm({ templates }: { templates: Template[] }) {
         <button
           type="button"
           onClick={() => router.push("/records-library")}
-          className="px-4 py-2 border rounded-md text-sm hover:bg-gray-50"
+          className="px-4 py-2 border rounded-md text-sm hover:bg-muted"
         >
           Back to Records Library
         </button>
@@ -523,7 +523,7 @@ export function ImportForm({ templates }: { templates: Template[] }) {
 function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div>
-      <div className="text-xs uppercase tracking-wide text-gray-500">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="text-lg font-semibold">{value.toLocaleString()}</div>
     </div>
   );

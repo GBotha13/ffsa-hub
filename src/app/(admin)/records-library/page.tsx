@@ -28,7 +28,7 @@ export default async function RecordsLibraryPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold mb-1">Records Library</h1>
-          <p className="text-sm text-gray-600 max-w-2xl">
+          <p className="text-sm text-muted-foreground max-w-2xl">
             Upload CSVs of historical staff/student data — applications,
             payments, schools attended, documents. When a user is invited or
             signs up, matching records auto-attach to their profile.
@@ -37,11 +37,11 @@ export default async function RecordsLibraryPage() {
         <div className="flex gap-2">
           <Link
             href="/records-library/match-queue"
-            className="px-3 py-2 text-sm border rounded-md hover:bg-gray-50 relative"
+            className="px-3 py-2 text-sm border rounded-md hover:bg-muted relative"
           >
             Match queue
             {pendingQueueCount && pendingQueueCount > 0 ? (
-              <span className="ml-2 inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs bg-yellow-200 text-yellow-800">
+              <span className="ml-2 inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs bg-yellow-500/20 text-yellow-200 border border-yellow-500/30">
                 {pendingQueueCount}
               </span>
             ) : null}
@@ -71,11 +71,11 @@ export default async function RecordsLibraryPage() {
       <section>
         <h2 className="text-lg font-semibold mb-3">Recent imports</h2>
         {recentImports.length === 0 ? (
-          <p className="text-sm text-gray-500">No imports yet. Upload your first CSV to begin.</p>
+          <p className="text-sm text-muted-foreground">No imports yet. Upload your first CSV to begin.</p>
         ) : (
           <div className="overflow-x-auto border rounded-md">
             <table className="min-w-full text-sm">
-              <thead className="bg-gray-50">
+              <thead className="bg-muted/50 text-foreground">
                 <tr>
                   <th className="text-left px-3 py-2 font-medium">File</th>
                   <th className="text-left px-3 py-2 font-medium">Type</th>
@@ -101,7 +101,7 @@ export default async function RecordsLibraryPage() {
                     <td className="px-3 py-2 text-right">{row.auto_linked_count}</td>
                     <td className="px-3 py-2 text-right">{row.queued_count}</td>
                     <td className="px-3 py-2 text-right">{row.error_count}</td>
-                    <td className="px-3 py-2 text-gray-500">
+                    <td className="px-3 py-2 text-muted-foreground">
                       {new Date(row.created_at).toLocaleString()}
                     </td>
                   </tr>
@@ -115,11 +115,11 @@ export default async function RecordsLibraryPage() {
       <section>
         <h2 className="text-lg font-semibold mb-3">Recently added persons</h2>
         {recentPersons.length === 0 ? (
-          <p className="text-sm text-gray-500">No library persons yet.</p>
+          <p className="text-sm text-muted-foreground">No library persons yet.</p>
         ) : (
           <div className="overflow-x-auto border rounded-md">
             <table className="min-w-full text-sm">
-              <thead className="bg-gray-50">
+              <thead className="bg-muted/50 text-foreground">
                 <tr>
                   <th className="text-left px-3 py-2 font-medium">Name</th>
                   <th className="text-left px-3 py-2 font-medium">Email</th>
@@ -139,7 +139,7 @@ export default async function RecordsLibraryPage() {
                       {row.users
                         ? `${row.users.first_name ?? ""} ${row.users.last_name ?? ""}`.trim() ||
                           row.users.email
-                        : <span className="text-gray-400">Unlinked</span>}
+                        : <span className="text-muted-foreground">Unlinked</span>}
                     </td>
                   </tr>
                 ))}
@@ -164,10 +164,10 @@ function StatCard({
   return (
     <div
       className={`border rounded-md p-4 ${
-        highlight ? "border-yellow-300 bg-yellow-50" : ""
+        highlight ? "border-yellow-500/40 bg-yellow-500/10" : ""
       }`}
     >
-      <div className="text-xs uppercase tracking-wide text-gray-500">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="text-2xl font-semibold mt-1">{value}</div>
     </div>
   );
@@ -176,12 +176,12 @@ function StatCard({
 function StatusBadge({ status }: { status: string }) {
   const cls =
     status === "completed"
-      ? "bg-green-100 text-green-800"
+      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
       : status === "processing" || status === "pending"
-      ? "bg-yellow-100 text-yellow-800"
+      ? "bg-yellow-500/20 text-yellow-200 border border-yellow-500/30"
       : status === "failed"
-      ? "bg-red-100 text-red-800"
-      : "bg-gray-100 text-gray-800";
+      ? "bg-red-500/20 text-red-300 border border-red-500/30"
+      : "bg-muted text-muted-foreground border";
   return <span className={`inline-block px-2 py-0.5 rounded text-xs ${cls}`}>{status}</span>;
 }
 
