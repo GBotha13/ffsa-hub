@@ -1,0 +1,41 @@
+// Server-side authoritative compute of a ticket type's display
+// price from its target net and pricing mode. Wraps pricing.ts
+// (pure math) with the DB read for active fee profiles.
+//
+// Use in admin save handlers (POST/PATCH ticket-types). The
+// client may render a live gross-up preview, but the server
+// always recomputes from staff input before persisting.
+//
+// See FFSA_Hub_Events_Ticketing_Spec.md §4.
+
+import { grossUpToCover, type FeeProfile } from "./pricing";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Client = any;
+
+export async function computeDisplayPriceCents(
+  supabase: Client,
+  pricingMode: "fixed" | "pwyw",
+  targetNetCents: number
+): Promise<{ displayPriceCents?: number; error?: string }> {
+  if (!Number.isInteger(targetNetCents) || targetNetCents < 0) {
+    return { error: "target_net_cents must be a non-negative integer" };
+  }
+  if (targetNetCents === 0) return { displayPriceCents: 0 };
+  if (pricingMode === "pwyw") return { displayPriceCents: targetNetCents };
+
+  const { data: profiles, error } = await supabase
+    .from("payment_fee_profiles")
+    .select("provider, percent_bps, fixed_cents")
+    .eq("is_active", true);
+
+  if (error) {
+    return { error: `Failed to read fee profiles: ${error.message}` };
+  }
+  if (!profiles || profiles.length === 0) {
+    return { error: "No active payment fee profiles configured." };
+  }
+  return {
+    displayPriceCents: grossUpToCover(targetNetCents, profiles as FeeProfile[]),
+  };
+}
