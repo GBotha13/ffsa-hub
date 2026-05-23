@@ -19,6 +19,7 @@ import { randomBytes } from "node:crypto";
 import QRCode from "qrcode";
 import { Resend } from "resend";
 import { ticketConfirmationEmailHtml } from "@/lib/email/templates/ticket-confirmation";
+import { resolveOrderToCrm } from "./crm-resolution";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Client = any;
@@ -155,6 +156,23 @@ export async function fulfillOrder(
     console.error("[fulfillment] failed to send confirmation email:", e);
     // Tickets are issued — staff can resend the email from the admin
     // orders view. Don't fail fulfilment for an email-only issue.
+  }
+
+  // 5. CRM resolution (async-spirit: never fails fulfilment).
+  // Routes the buyer through the existing dedup pipeline, links the
+  // contact to the order, creates the event_registration, applies
+  // the consent label, writes the timeline entry. Dedup conflicts
+  // land in the existing review queue and resolve later.
+  try {
+    const crm = await resolveOrderToCrm(supabase, orderId);
+    if (!crm.ok) {
+      console.error(
+        "[fulfillment] CRM resolution returned error (non-blocking):",
+        crm.error
+      );
+    }
+  } catch (e) {
+    console.error("[fulfillment] CRM resolution threw (non-blocking):", e);
   }
 
   return { ok: true };
