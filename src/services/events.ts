@@ -47,6 +47,14 @@ export async function getEventById(supabase: Client, id: string) {
   return supabase.from("events").select("*").eq("id", id).single();
 }
 
+export async function getEventBySlug(supabase: Client, slug: string) {
+  return supabase
+    .from("events")
+    .select("*")
+    .eq("public_slug", slug)
+    .maybeSingle();
+}
+
 export async function createEvent(supabase: Client, data: EventInsert) {
   return supabase.from("events").insert(data).select().single();
 }
