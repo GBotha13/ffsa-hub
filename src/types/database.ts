@@ -4092,6 +4092,85 @@ export type Database = {
         Args: { check_team_id: string }
         Returns: boolean
       }
+      redeem_promo_code: {
+        Args: { p_promo_code_id: string }
+        Returns: {
+          amount_off_cents: number | null
+          applies_to_ticket_type_id: string | null
+          code: string
+          created_at: string
+          created_by: string | null
+          event_id: string
+          id: string
+          is_active: boolean
+          kind: string
+          max_redemptions: number | null
+          percent_off: number | null
+          redemption_count: number
+          valid_from: string | null
+          valid_until: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "promo_codes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      release_ticket_inventory: {
+        Args: { p_qty: number; p_ticket_type_id: string }
+        Returns: {
+          capacity: number | null
+          created_at: string
+          description: string | null
+          display_price_cents: number
+          event_id: string
+          id: string
+          is_active: boolean
+          max_per_order: number | null
+          name: string
+          pricing_mode: string
+          quantity_sold: number
+          sales_end_at: string | null
+          sales_start_at: string | null
+          sort_order: number
+          target_net_cents: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "ticket_types"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      reserve_ticket_inventory: {
+        Args: { p_qty: number; p_ticket_type_id: string }
+        Returns: {
+          capacity: number | null
+          created_at: string
+          description: string | null
+          display_price_cents: number
+          event_id: string
+          id: string
+          is_active: boolean
+          max_per_order: number | null
+          name: string
+          pricing_mode: string
+          quantity_sold: number
+          sales_end_at: string | null
+          sales_start_at: string | null
+          sort_order: number
+          target_net_cents: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "ticket_types"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       seed_default_reference_questions: {
         Args: { p_program_id: string }
         Returns: undefined
