@@ -78,17 +78,17 @@ export async function fulfillOrder(
   // 2. Idempotency: if tickets already exist for this order, skip
   //    issuance and just resend the email.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let tickets: any[] | null = null;
+  let tickets: any[];
   {
     const { data: existing } = await supabase
       .from("tickets")
       .select("id, code, ticket_type_id, ticket_types(name)")
       .eq("order_id", orderId)
       .order("created_at");
-    tickets = existing ?? null;
+    tickets = existing ?? [];
   }
 
-  if (!tickets || tickets.length === 0) {
+  if (tickets.length === 0) {
     const lines = (order.lines as OrderLine[]) ?? [];
     if (lines.length === 0) {
       return { ok: false, error: `Order ${orderId} has no lines to fulfil` };
