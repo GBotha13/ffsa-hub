@@ -23,9 +23,11 @@ import { BaseLabelPicker } from "./base-label-picker";
 import { FormsTab } from "./forms-tab";
 import { EventLogo } from "./event-logo";
 import { TicketsTab } from "./tickets-tab";
+import { OrdersTab } from "./orders-tab";
 import {
   listTicketTypesByEvent,
   listPromoCodesByEvent,
+  listOrdersByEvent,
   getActiveFeeProfiles,
 } from "@/services/ticketing";
 import type { FeeProfile } from "@/lib/payments/pricing";
@@ -33,6 +35,7 @@ import type { FeeProfile } from "@/lib/payments/pricing";
 const TABS = [
   { key: "details", label: "Details & Roles" },
   { key: "tickets", label: "Tickets" },
+  { key: "orders", label: "Orders" },
   { key: "forms", label: "Forms" },
 ] as const;
 
@@ -63,6 +66,7 @@ export default async function EventDetailPage({
     { data: ticketTypes },
     { data: promoCodes },
     { data: feeProfilesRaw },
+    { data: orders },
   ] = await Promise.all([
     getRegistrationsForEvent(supabase, id),
     getAttendanceForEvent(supabase, id),
@@ -82,6 +86,7 @@ export default async function EventDetailPage({
     listTicketTypesByEvent(supabase, id),
     listPromoCodesByEvent(supabase, id),
     getActiveFeeProfiles(supabase),
+    listOrdersByEvent(supabase, id),
   ]);
 
   // payment_fee_profiles rows are snake_case in the DB; FeeProfile
@@ -168,6 +173,10 @@ export default async function EventDetailPage({
           promoCodes={promoCodes ?? []}
           feeProfiles={feeProfiles}
         />
+      )}
+
+      {tab === "orders" && (
+        <OrdersTab eventId={id} orders={orders ?? []} />
       )}
 
       {tab === "forms" && <FormsTab eventId={id} forms={forms ?? []} />}
