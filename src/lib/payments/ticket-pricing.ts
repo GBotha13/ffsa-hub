@@ -24,7 +24,7 @@ export async function computeDisplayPriceCents(
   if (targetNetCents === 0) return { displayPriceCents: 0 };
   if (pricingMode === "pwyw") return { displayPriceCents: targetNetCents };
 
-  const { data: profiles, error } = await supabase
+  const { data, error } = await supabase
     .from("payment_fee_profiles")
     .select("provider, percent_bps, fixed_cents")
     .eq("is_active", true);
@@ -32,10 +32,19 @@ export async function computeDisplayPriceCents(
   if (error) {
     return { error: `Failed to read fee profiles: ${error.message}` };
   }
-  if (!profiles || profiles.length === 0) {
+  if (!data || data.length === 0) {
     return { error: "No active payment fee profiles configured." };
   }
-  return {
-    displayPriceCents: grossUpToCover(targetNetCents, profiles as FeeProfile[]),
-  };
+
+  // DB rows are snake_case; FeeProfile / grossUpToCover use camelCase.
+  // Without this mapping the gross-up math reads undefined and returns NaN.
+  const profiles: FeeProfile[] = data.map(
+    (row: { provider: string; percent_bps: number; fixed_cents: number }) => ({
+      provider: row.provider,
+      percentBps: row.percent_bps,
+      fixedCents: row.fixed_cents,
+    })
+  );
+
+  return { displayPriceCents: grossUpToCover(targetNetCents, profiles) };
 }

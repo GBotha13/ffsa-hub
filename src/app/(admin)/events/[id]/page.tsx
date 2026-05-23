@@ -22,6 +22,13 @@ import { RolesRoster } from "./roles-roster";
 import { BaseLabelPicker } from "./base-label-picker";
 import { FormsTab } from "./forms-tab";
 import { EventLogo } from "./event-logo";
+import { TicketsTab } from "./tickets-tab";
+import {
+  listTicketTypesByEvent,
+  listPromoCodesByEvent,
+  getActiveFeeProfiles,
+} from "@/services/ticketing";
+import type { FeeProfile } from "@/lib/payments/pricing";
 
 const TABS = [
   { key: "details", label: "Details & Roles" },
@@ -53,6 +60,9 @@ export default async function EventDetailPage({
     { data: labels },
     { data: users },
     { data: forms },
+    { data: ticketTypes },
+    { data: promoCodes },
+    { data: feeProfilesRaw },
   ] = await Promise.all([
     getRegistrationsForEvent(supabase, id),
     getAttendanceForEvent(supabase, id),
@@ -69,7 +79,20 @@ export default async function EventDetailPage({
       .select("id, slug, name, is_active, records_attendance")
       .eq("event_id", id)
       .order("created_at"),
+    listTicketTypesByEvent(supabase, id),
+    listPromoCodesByEvent(supabase, id),
+    getActiveFeeProfiles(supabase),
   ]);
+
+  // payment_fee_profiles rows are snake_case in the DB; FeeProfile
+  // (pricing.ts) is camelCase. Map once here for the client preview.
+  const feeProfiles: FeeProfile[] = (feeProfilesRaw ?? []).map(
+    (p: { provider: string; percent_bps: number; fixed_cents: number }) => ({
+      provider: p.provider,
+      percentBps: p.percent_bps,
+      fixedCents: p.fixed_cents,
+    })
+  );
 
   const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
     draft: "outline",
@@ -137,12 +160,14 @@ export default async function EventDetailPage({
       )}
 
       {tab === "tickets" && (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            <p className="font-medium">Tickets</p>
-            <p className="text-sm mt-1">Ticketing is coming in a later phase.</p>
-          </CardContent>
-        </Card>
+        <TicketsTab
+          eventId={id}
+          ticketingEnabled={event.ticketing_enabled ?? false}
+          publicSlug={event.public_slug ?? null}
+          ticketTypes={ticketTypes ?? []}
+          promoCodes={promoCodes ?? []}
+          feeProfiles={feeProfiles}
+        />
       )}
 
       {tab === "forms" && <FormsTab eventId={id} forms={forms ?? []} />}
