@@ -5,6 +5,7 @@ import {
   getCampaignById,
   getCampaignAudienceCount,
   getCampaignStats,
+  getCampaignLabelIds,
   listSendingIdentities,
 } from "@/services/campaigns";
 import { getLabels } from "@/services/labels";
@@ -27,13 +28,12 @@ export default async function CampaignComposerPage({
   const { data: campaign, error } = await getCampaignById(supabase, id);
   if (error || !campaign) notFound();
 
-  const [{ data: labels }, { data: identities }, audienceCount] =
+  const [{ data: labels }, { data: identities }, audienceCount, labelIds] =
     await Promise.all([
       getLabels(supabase, { active: true }),
       listSendingIdentities(supabase),
-      campaign.label_id
-        ? getCampaignAudienceCount(supabase, campaign.label_id)
-        : Promise.resolve(0),
+      getCampaignAudienceCount(supabase, id),
+      getCampaignLabelIds(supabase, id),
     ]);
 
   const body: CampaignBody =
@@ -43,7 +43,6 @@ export default async function CampaignComposerPage({
       ? (campaign.body_source as unknown as CampaignBody)
       : emptyCampaignBody();
 
-  // Sent / sending campaigns get a performance panel.
   const showStats =
     campaign.status === "sent" || campaign.status === "sending";
   const stats = showStats ? await getCampaignStats(supabase, id) : null;
@@ -66,7 +65,7 @@ export default async function CampaignComposerPage({
           name: campaign.name,
           subject: campaign.subject ?? "",
           preview_text: campaign.preview_text ?? "",
-          label_id: campaign.label_id,
+          label_ids: labelIds,
           sending_identity_id: campaign.sending_identity_id,
           status: campaign.status,
           scheduled_at: campaign.scheduled_at,

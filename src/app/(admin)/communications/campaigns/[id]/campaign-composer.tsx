@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +23,7 @@ type CampaignMeta = {
   name: string;
   subject: string;
   preview_text: string;
-  label_id: string | null;
+  label_ids: string[];
   sending_identity_id: string | null;
   status: string;
   scheduled_at: string | null;
@@ -63,7 +63,7 @@ export function CampaignComposer({
   const [name, setName] = useState(campaign.name);
   const [subject, setSubject] = useState(campaign.subject);
   const [previewText, setPreviewText] = useState(campaign.preview_text);
-  const [labelId, setLabelId] = useState(campaign.label_id ?? "");
+  const [labelIds, setLabelIds] = useState<string[]>(campaign.label_ids);
   const [identityId, setIdentityId] = useState(campaign.sending_identity_id ?? "");
   const [body, setBody] = useState<CampaignBody>(initialBody);
   const [busy, setBusy] = useState(false);
@@ -74,6 +74,32 @@ export function CampaignComposer({
   const [sendProgress, setSendProgress] = useState({ sent: 0, failed: 0 });
 
   const sent = campaign.status === "sent" || campaign.status === "sending";
+
+  const labelById = useMemo(() => {
+    const map = new Map<string, Label>();
+    for (const l of labels) map.set(l.id, l);
+    return map;
+  }, [labels]);
+
+  const selectedLabels = labelIds
+    .map((id) => labelById.get(id))
+    .filter((l): l is Label => !!l);
+
+  const availableLabels = labels.filter((l) => !labelIds.includes(l.id));
+
+  const labelSetChanged = useMemo(() => {
+    if (labelIds.length !== campaign.label_ids.length) return true;
+    const saved = new Set(campaign.label_ids);
+    return labelIds.some((id) => !saved.has(id));
+  }, [labelIds, campaign.label_ids]);
+
+  function addLabel(id: string) {
+    if (!id || labelIds.includes(id)) return;
+    setLabelIds((ids) => [...ids, id]);
+  }
+  function removeLabel(id: string) {
+    setLabelIds((ids) => ids.filter((x) => x !== id));
+  }
 
   const previewHtml = useMemo(
     () => renderCampaignHtml(body, { previewText }),
@@ -130,7 +156,7 @@ export function CampaignComposer({
         subject,
         preview_text: previewText,
         body_source: body,
-        label_id: labelId || undefined,
+        label_ids: labelIds,
         sending_identity_id: identityId || undefined,
       }),
     });
@@ -144,7 +170,6 @@ export function CampaignComposer({
     router.refresh();
   }
 
-  /** Persist the latest content, then return whether it succeeded. */
   async function persist(): Promise<boolean> {
     const res = await fetch(`/api/campaigns/${campaign.id}`, {
       method: "PATCH",
@@ -154,7 +179,7 @@ export function CampaignComposer({
         subject,
         preview_text: previewText,
         body_source: body,
-        label_id: labelId || undefined,
+        label_ids: labelIds,
         sending_identity_id: identityId || undefined,
       }),
     });
@@ -163,7 +188,7 @@ export function CampaignComposer({
 
   function preflightError(): string | null {
     if (!subject.trim()) return "Add a subject line before sending.";
-    if (!labelId) return "Pick an audience label.";
+    if (labelIds.length === 0) return "Pick at least one audience label.";
     if (!identityId) return "Pick a sending identity.";
     if (body.blocks.length === 0) return "Add at least one content block.";
     return null;
@@ -188,7 +213,6 @@ export function CampaignComposer({
     setSendState("sending");
     let totalSent = 0;
     let totalFailed = 0;
-    // Loop the batch endpoint until the audience is drained.
     for (let i = 0; i < 1000; i++) {
       const res = await fetch(`/api/campaigns/${campaign.id}/send`, {
         method: "POST",
@@ -306,43 +330,82 @@ export function CampaignComposer({
                   placeholder="The grey text shown after the subject"
                 />
               </Field>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Audience (label)">
-                  <select
-                    value={labelId}
-                    onChange={(e) => setLabelId(e.target.value)}
-                    disabled={sent}
-                    className="w-full border rounded px-2 py-1.5 text-sm"
-                  >
-                    <option value="">— pick —</option>
-                    {labels.map((l) => (
-                      <option key={l.id} value={l.id}>
-                        {l.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Send from">
-                  <select
-                    value={identityId}
-                    onChange={(e) => setIdentityId(e.target.value)}
-                    disabled={sent}
-                    className="w-full border rounded px-2 py-1.5 text-sm"
-                  >
-                    <option value="">— pick —</option>
-                    {identities.map((i) => (
-                      <option key={i.id} value={i.id}>
-                        {i.display_name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              </div>
+
+              <Field label="Audience labels (anyone with ANY of these receives the send)">
+                <div className="space-y-2">
+                  {selectedLabels.length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic">
+                      No labels selected — pick one or more below.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedLabels.map((l) => (
+                        <span
+                          key={l.id}
+                          className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border bg-muted"
+                        >
+                          {l.name}
+                          {!sent && (
+                            <button
+                              type="button"
+                              onClick={() => removeLabel(l.id)}
+                              className="hover:text-red-400"
+                              aria-label={`Remove ${l.name}`}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {!sent && availableLabels.length > 0 && (
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        addLabel(e.target.value);
+                        e.target.value = "";
+                      }}
+                      className="w-full border rounded px-2 py-1.5 text-sm"
+                    >
+                      <option value="">+ Add a label…</option>
+                      {availableLabels.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              </Field>
+
+              <Field label="Send from">
+                <select
+                  value={identityId}
+                  onChange={(e) => setIdentityId(e.target.value)}
+                  disabled={sent}
+                  className="w-full border rounded px-2 py-1.5 text-sm"
+                >
+                  <option value="">— pick —</option>
+                  {identities.map((i) => (
+                    <option key={i.id} value={i.id}>
+                      {i.display_name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
               <p className="text-xs text-muted-foreground">
                 Current audience:{" "}
                 <span className="font-medium">{audienceCount}</span> contact
                 {audienceCount === 1 ? "" : "s"} (subscribed, not unsubscribed or
                 bounced).
+                {labelSetChanged && (
+                  <span className="text-amber-400 ml-1">
+                    Save to recompute after changing labels.
+                  </span>
+                )}
               </p>
             </CardContent>
           </Card>
@@ -450,9 +513,9 @@ export function CampaignComposer({
               </div>
             )}
             <p className="text-xs text-muted-foreground">
-              Recipients are deduplicated and exclude anyone unsubscribed,
-              bounced, or not subscribed. Every email includes an unsubscribe
-              link.
+              Recipients are deduplicated across the chosen labels and exclude
+              anyone unsubscribed, bounced, or not subscribed. Every email
+              includes a Manage Preferences link.
             </p>
           </CardContent>
         </Card>

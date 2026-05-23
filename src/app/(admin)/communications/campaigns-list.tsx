@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,7 +27,9 @@ type Campaign = {
   status: string;
   scheduled_at: string | null;
   sent_at: string | null;
-  labels: { id: string; slug: string; name: string; color: string | null } | null;
+  campaign_labels: {
+    labels: { id: string; slug: string; name: string; color: string | null } | null;
+  }[] | null;
 };
 
 const STATUS_CLASS: Record<string, string> = {
@@ -51,14 +53,33 @@ export function CampaignsList({
   const router = useRouter();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
-  const [labelId, setLabelId] = useState(labels[0]?.id ?? "");
+  const [labelIds, setLabelIds] = useState<string[]>([]);
   const [identityId, setIdentityId] = useState(identities[0]?.id ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  const labelById = useMemo(() => {
+    const map = new Map<string, Label>();
+    for (const l of labels) map.set(l.id, l);
+    return map;
+  }, [labels]);
+
+  const selectedLabels = labelIds
+    .map((id) => labelById.get(id))
+    .filter((l): l is Label => !!l);
+  const availableLabels = labels.filter((l) => !labelIds.includes(l.id));
+
+  function addLabel(id: string) {
+    if (!id || labelIds.includes(id)) return;
+    setLabelIds((ids) => [...ids, id]);
+  }
+  function removeLabel(id: string) {
+    setLabelIds((ids) => ids.filter((x) => x !== id));
+  }
+
   async function create() {
     if (!name.trim()) return setErr("Campaign name is required.");
-    if (!labelId) return setErr("Pick an audience label.");
+    if (labelIds.length === 0) return setErr("Pick at least one audience label.");
     if (!identityId) return setErr("Pick a sending identity.");
     setBusy(true);
     setErr(null);
@@ -67,7 +88,7 @@ export function CampaignsList({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: name.trim(),
-        labelId,
+        labelIds,
         sendingIdentityId: identityId,
       }),
     });
@@ -104,21 +125,49 @@ export function CampaignsList({
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">
                 <span className="block text-muted-foreground mb-1 text-xs">
-                  Audience (label)
+                  Audience labels (OR — anyone with ANY)
                 </span>
-                <select
-                  value={labelId}
-                  onChange={(e) => setLabelId(e.target.value)}
-                  className="w-full px-2 py-1.5"
-                  disabled={busy}
-                >
-                  <option value="">— pick a label —</option>
-                  {labels.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="space-y-2">
+                  {selectedLabels.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedLabels.map((l) => (
+                        <span
+                          key={l.id}
+                          className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border bg-card"
+                        >
+                          {l.name}
+                          <button
+                            type="button"
+                            onClick={() => removeLabel(l.id)}
+                            className="hover:text-red-400"
+                            aria-label={`Remove ${l.name}`}
+                            disabled={busy}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {availableLabels.length > 0 && (
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        addLabel(e.target.value);
+                        e.target.value = "";
+                      }}
+                      disabled={busy}
+                      className="w-full px-2 py-1.5"
+                    >
+                      <option value="">+ Add a label…</option>
+                      {availableLabels.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
               </label>
               <label className="block">
                 <span className="block text-muted-foreground mb-1 text-xs">
@@ -173,58 +222,71 @@ export function CampaignsList({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {campaigns.map((c) => (
-                  <TableRow key={c.id}>
-                    <TableCell>
-                      <Link
-                        href={`/communications/campaigns/${c.id}`}
-                        className="font-medium text-foreground hover:underline"
-                      >
-                        {c.name}
-                      </Link>
-                      {c.subject && (
-                        <div className="text-xs text-muted-foreground">
-                          {c.subject}
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {c.labels ? (
-                        <span
-                          className="inline-flex items-center text-xs px-2 py-0.5 rounded-full border font-medium"
-                          style={(() => {
-                            const col = getLabelColors(c.labels);
-                            return {
-                              backgroundColor: col.bg,
-                              color: col.text,
-                              borderColor: col.border,
-                            };
-                          })()}
+                {campaigns.map((c) => {
+                  const cLabels = (c.campaign_labels ?? [])
+                    .map((cl) => cl.labels)
+                    .filter(
+                      (l): l is { id: string; slug: string; name: string; color: string | null } =>
+                        !!l
+                    );
+                  return (
+                    <TableRow key={c.id}>
+                      <TableCell>
+                        <Link
+                          href={`/communications/campaigns/${c.id}`}
+                          className="font-medium text-foreground hover:underline"
                         >
-                          {c.labels.name}
+                          {c.name}
+                        </Link>
+                        {c.subject && (
+                          <div className="text-xs text-muted-foreground">
+                            {c.subject}
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {cLabels.length === 0 ? (
+                          <span className="text-muted-foreground">—</span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {cLabels.map((l) => {
+                              const col = getLabelColors(l);
+                              return (
+                                <span
+                                  key={l.id}
+                                  className="inline-flex items-center text-xs px-2 py-0.5 rounded-full border font-medium"
+                                  style={{
+                                    backgroundColor: col.bg,
+                                    color: col.text,
+                                    borderColor: col.border,
+                                  }}
+                                >
+                                  {l.name}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
+                            STATUS_CLASS[c.status] ?? "status-grey"
+                          }`}
+                        >
+                          {c.status}
                         </span>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
-                          STATUS_CLASS[c.status] ?? "status-grey"
-                        }`}
-                      >
-                        {c.status}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-xs">
-                      {c.sent_at
-                        ? `Sent ${new Date(c.sent_at).toLocaleString()}`
-                        : c.scheduled_at
-                        ? `Scheduled ${new Date(c.scheduled_at).toLocaleString()}`
-                        : "—"}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-xs">
+                        {c.sent_at
+                          ? `Sent ${new Date(c.sent_at).toLocaleString()}`
+                          : c.scheduled_at
+                          ? `Scheduled ${new Date(c.scheduled_at).toLocaleString()}`
+                          : "—"}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>

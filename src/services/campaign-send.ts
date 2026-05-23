@@ -1,9 +1,6 @@
 import { renderCampaignHtml, type CampaignBody } from "@/lib/campaigns/blocks";
 import { sendViaMailtrap } from "@/lib/email/mailtrap";
-import {
-  signUnsubscribeToken,
-  signPreferencesToken,
-} from "@/lib/tokens/unsubscribe";
+import { signPrefsToken } from "@/lib/tokens/unsubscribe";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Client = any;
@@ -19,20 +16,12 @@ export type BatchResult = {
   done: boolean;
 };
 
-function footerHtml(args: {
-  contactId: string;
-  labelId: string | null;
-  labelName: string;
-}): string {
-  const unsubToken = signUnsubscribeToken(args.contactId, args.labelId);
-  const prefsToken = signPreferencesToken(args.contactId);
-  const unsubUrl = `${APP_URL}/unsubscribe?t=${encodeURIComponent(unsubToken)}`;
-  const prefsUrl = `${APP_URL}/preferences?t=${encodeURIComponent(prefsToken)}`;
+function footerHtml(args: { contactId: string; campaignId: string }): string {
+  const token = signPrefsToken(args.contactId, args.campaignId);
+  const prefsUrl = `${APP_URL}/preferences?t=${encodeURIComponent(token)}`;
   return `<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
 <tr><td style="padding:18px 36px;font-size:12px;line-height:1.6;color:#94a3b8;text-align:center;">
-You're receiving this because you're subscribed to <strong>${args.labelName}</strong>.<br/>
-<a href="${unsubUrl}" style="color:#94a3b8;text-decoration:underline;">Unsubscribe</a>
-&middot; <a href="${prefsUrl}" style="color:#94a3b8;text-decoration:underline;">Manage preferences</a>
+<a href="${prefsUrl}" style="color:#94a3b8;text-decoration:underline;">Manage email preferences</a>
 &middot; Fire &amp; Fragrance South Africa
 </td></tr></table>`;
 }
@@ -60,7 +49,7 @@ export async function sendCampaignBatch(
   const { data: campaign, error: cErr } = await supabase
     .from("campaigns")
     .select(
-      "*, labels(id, name), sending_identities(from_email, from_name, reply_to)"
+      "*, sending_identities(from_email, from_name, reply_to), campaign_labels(label_id)"
     )
     .eq("id", campaignId)
     .maybeSingle();
@@ -73,21 +62,25 @@ export async function sendCampaignBatch(
   if (!campaign.subject?.trim()) {
     return { ...base, ok: false, error: "Campaign has no subject" };
   }
-  if (!campaign.label_id || !campaign.sending_identities) {
-    return { ...base, ok: false, error: "Campaign is missing audience or sender" };
+  if (!campaign.sending_identities) {
+    return { ...base, ok: false, error: "Campaign is missing sender" };
+  }
+  const labelCount = (campaign.campaign_labels ?? []).length;
+  if (labelCount === 0) {
+    return { ...base, ok: false, error: "Campaign has no audience labels" };
   }
 
-  // Flip to 'sending' on the first batch.
   if (campaign.status !== "sending") {
     await supabase.from("campaigns").update({ status: "sending" }).eq("id", campaignId);
   }
 
-  // Audience minus already-processed recipients.
+  // Audience for this campaign (DISTINCT across all its labels), minus
+  // recipients already processed in earlier batches.
   const [{ data: audience }, { data: doneRows }] = await Promise.all([
     supabase
       .from("v_campaign_audience")
       .select("contact_id, email")
-      .eq("label_id", campaign.label_id),
+      .eq("campaign_id", campaignId),
     supabase
       .from("campaign_recipients")
       .select("contact_id")
@@ -112,7 +105,6 @@ export async function sendCampaignBatch(
   const fromEmail = campaign.sending_identities.from_email;
   const fromName = campaign.sending_identities.from_name;
   const replyTo = campaign.sending_identities.reply_to;
-  const labelName = campaign.labels?.name ?? "our updates";
 
   let sent = 0;
   let failed = 0;
@@ -122,8 +114,7 @@ export async function sendCampaignBatch(
       previewText: campaign.preview_text ?? undefined,
       footerHtml: footerHtml({
         contactId: recipient.contact_id,
-        labelId: campaign.label_id,
-        labelName,
+        campaignId,
       }),
     });
 

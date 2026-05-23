@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { verifyPreferencesToken } from "@/lib/tokens/unsubscribe";
+import { verifyPrefsToken } from "@/lib/tokens/unsubscribe";
 import { PreferencesForm } from "./preferences-form";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +11,7 @@ export default async function PreferencesPage({
 }) {
   const { t } = await searchParams;
   const token = t ?? "";
-  const v = verifyPreferencesToken(token);
+  const v = verifyPrefsToken(token);
 
   const shell = (children: React.ReactNode) => (
     <div
@@ -44,19 +44,37 @@ export default async function PreferencesPage({
   }
 
   const admin = createAdminClient();
-  const { data: held } = await admin
-    .from("contact_labels")
-    .select("labels(id, name)")
-    .eq("contact_id", v.contactId);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const adminAny = admin as any;
+
+  // Contact's current labels + (if this came from a campaign email) the
+  // labels that campaign targeted, so we can highlight them at the top.
+  const [{ data: held }, { data: campaignLabels }] = await Promise.all([
+    admin
+      .from("contact_labels")
+      .select("labels(id, name)")
+      .eq("contact_id", v.contactId),
+    v.campaignId
+      ? adminAny
+          .from("campaign_labels")
+          .select("label_id")
+          .eq("campaign_id", v.campaignId)
+      : Promise.resolve({ data: null }),
+  ]);
 
   const labels = (held ?? [])
     .map((r: { labels: { id: string; name: string } | null }) => r.labels)
     .filter((l): l is { id: string; name: string } => !!l);
 
+  const highlightedLabelIds = new Set(
+    ((campaignLabels ?? []) as { label_id: string }[]).map((r) => r.label_id)
+  );
+
   return shell(
     <PreferencesForm
       token={token}
       labels={labels.map((l) => ({ id: l.id, name: l.name }))}
+      highlightedLabelIds={Array.from(highlightedLabelIds)}
     />
   );
 }

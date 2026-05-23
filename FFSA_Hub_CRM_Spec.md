@@ -198,7 +198,7 @@ CREATE TABLE public.form_submissions (
 );
 ```
 
-### 3.6 `campaigns` + `campaign_recipients`
+### 3.6 `campaigns` + `campaign_labels` + `campaign_recipients`
 
 ```sql
 CREATE TABLE public.campaigns (
@@ -208,7 +208,6 @@ CREATE TABLE public.campaigns (
   preview_text  text,
   body_html     text NOT NULL,                   -- rendered email html
   body_source   jsonb,                           -- composer source (Tiptap JSON or markdown)
-  label_id      uuid NOT NULL REFERENCES public.labels(id), -- audience
   sending_identity_id uuid NOT NULL REFERENCES public.sending_identities(id),
   status        text NOT NULL DEFAULT 'draft'
     CHECK (status IN ('draft', 'scheduled', 'sending', 'sent', 'failed', 'cancelled')),
@@ -217,6 +216,15 @@ CREATE TABLE public.campaigns (
   created_by    uuid REFERENCES public.users(id),
   created_at    timestamptz NOT NULL DEFAULT now(),
   updated_at    timestamptz NOT NULL DEFAULT now()
+);
+
+-- Many-to-many: a campaign targets one or more labels with OR semantics
+-- (a contact in ANY of the picked labels receives the send).
+CREATE TABLE public.campaign_labels (
+  campaign_id  uuid NOT NULL REFERENCES public.campaigns(id) ON DELETE CASCADE,
+  label_id     uuid NOT NULL REFERENCES public.labels(id) ON DELETE RESTRICT,
+  added_at     timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (campaign_id, label_id)
 );
 
 CREATE TABLE public.campaign_recipients (
@@ -329,7 +337,7 @@ Idempotency: if a CSV row would produce no changes to the matched contact, we st
 - Adding a label = subscribing. Removing a label = unsubscribing (writes an `unsubscribes` row).
 - A "global unsubscribe" sets `contacts.marketing_status = 'unsubscribed_all'` and writes an `unsubscribes(contact_id, label_id = NULL)` row. The send query excludes all contacts in this state regardless of labels.
 
-Audience composition for v1 = exactly one label per campaign. v2 adds AND/OR + field filters.
+Audience composition for v1 = **one or more labels per campaign with OR semantics** — a contact on ANY of the picked labels receives the send. v2 adds AND + field filters.
 
 ---
 
@@ -381,7 +389,7 @@ Composer lives at `/admin/communications/campaigns/new`. Fields: name, subject, 
 Send pipeline:
 
 1. Staff hits "Send Now" or scheduler fires at `scheduled_at`.
-2. Worker queries audience: `contacts INNER JOIN contact_labels ON label_id = campaign.label_id` minus unsubscribes minus suppressions minus `marketing_status != 'subscribed'`.
+2. Worker queries audience via `v_campaign_audience` keyed on `campaign_id` — returns DISTINCT contacts holding ANY of the campaign's labels (from `campaign_labels`), minus globally-unsubscribed contacts (`unsubscribes.label_id IS NULL` or `marketing_status != 'subscribed'`) and suppressed emails. Per-label unsubscribes don't need a filter here — they already removed the contact_labels row via the migration 046 trigger.
 3. Batch into groups of 500, send via Mailtrap bulk API.
 4. For each delivery: insert `campaign_recipients` with `provider_message_id`, write `activity_events.email_sent`.
 5. Mailtrap webhook hits `/api/integrations/mailtrap/webhook` → updates the right timestamp column on `campaign_recipients` AND writes the corresponding `activity_events` row (`email_delivered`, `email_opened`, `email_clicked`, `email_bounced`, `email_complained`).
@@ -398,8 +406,9 @@ A/B testing (v2): manual winner pick. v1 ships single-variant only.
 - Double opt-in: in v1, default to single opt-in (matches HubSpot's previous behavior) with the option flag per form. **Double opt-in implementation is in v1 scope.** If `forms.double_opt_in = true` (we'll add this column), the new contact has `marketing_status = 'pending'` and we send a confirmation email via Resend; clicking the link sets `marketing_status = 'subscribed'`.
 
 ### Unsubscribe
-- Every campaign email footer includes a signed unsubscribe link (HMAC token, payload `{contact_id, label_id, exp}`, 30-day expiry).
-- `/unsubscribe?t=<token>` page: "You're unsubscribing from <label>. You're still subscribed to: <list>." Buttons: confirm / unsubscribe from all.
+- Every campaign email footer includes a signed "Manage preferences" link (HMAC token, payload `{contact_id, campaign_id, exp}`, 30-day expiry). `/unsubscribe` and `/preferences` both route to the same checkbox preferences page.
+- The preferences page lists **all** the contact's current labels as checkboxes (pre-checked = subscribed). Labels used by the campaign that sent this link are visually grouped/highlighted at the top so the recipient knows which list they're acting on. Submit removes any unchecked labels (writes an `unsubscribes` row with `source = 'preferences_page'`; trigger removes the matching `contact_labels` row).
+- A separate "Unsubscribe from all marketing" button writes a global unsubscribe (`unsubscribes.label_id IS NULL`), which the migration 046 trigger expands into removal of every contact_labels row + `marketing_status = 'unsubscribed_all'`.
 - All POPIA requirements: per-stream unsubscribe + global unsubscribe + suppression list.
 
 ### Data export
@@ -468,7 +477,7 @@ The 8k legacy contacts are migrated this way on day one. Pre-flight: export lega
 
 ## 12. Out of scope (v2 and v3)
 
-**v2:** automated label-triggered welcome sequences, AND/OR + field-filter segmentation, A/B testing (manual winner pick), engagement scoring, per-label/segment analytics.
+**v2:** automated label-triggered welcome sequences, AND + field-filter segmentation (OR is in v1 per §5), A/B testing (manual winner pick), engagement scoring, per-label/segment analytics.
 
 **v3:** WhatsApp via Twilio, advanced automations (date-based, inactivity, branching), in-app form builder UX polish, saved broadcast templates.
 
@@ -488,6 +497,7 @@ The 8k legacy contacts are migrated this way on day one. Pre-flight: export lega
 | 048 | `048_crm_permissions.sql` | Insert new permission rows |
 | 049 | `049_crm_rls.sql` | RLS policies on all new tables |
 | 050 | `050_crm_seed.sql` | Preset labels, default sending identities |
+| 051 | `051_campaigns_multi_label.sql` | campaign_labels join, drop campaigns.label_id, rebuild v_campaign_audience keyed on campaign_id |
 
 Each migration ends with a comment block listing what to verify in Supabase Table Editor. After 041–050 are applied, regenerate `src/types/database.ts`.
 

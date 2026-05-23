@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getCampaignById, updateCampaign, deleteCampaign } from "@/services/campaigns";
+import {
+  getCampaignById,
+  updateCampaign,
+  deleteCampaign,
+  setCampaignLabels,
+} from "@/services/campaigns";
 import {
   renderCampaignHtml,
   type CampaignBody,
@@ -35,7 +40,6 @@ export async function PATCH(
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
-  // A sent campaign is immutable.
   const existing = await getCampaignById(supabase, id);
   if (!existing.data) {
     return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
@@ -52,7 +56,7 @@ export async function PATCH(
     subject?: string;
     preview_text?: string | null;
     body_source?: CampaignBody;
-    label_id?: string;
+    label_ids?: string[];
     sending_identity_id?: string;
     scheduled_at?: string | null;
     status?: string;
@@ -67,13 +71,11 @@ export async function PATCH(
   if (body.name !== undefined) patch.name = body.name.trim();
   if (body.subject !== undefined) patch.subject = body.subject;
   if (body.preview_text !== undefined) patch.preview_text = body.preview_text;
-  if (body.label_id !== undefined) patch.label_id = body.label_id;
   if (body.sending_identity_id !== undefined)
     patch.sending_identity_id = body.sending_identity_id;
   if (body.scheduled_at !== undefined) patch.scheduled_at = body.scheduled_at;
   if (body.status !== undefined) patch.status = body.status;
 
-  // When the body blocks change, re-render the HTML.
   if (body.body_source !== undefined) {
     patch.body_source = body.body_source as unknown as Json;
     patch.body_html = renderCampaignHtml(body.body_source, {
@@ -81,13 +83,25 @@ export async function PATCH(
     });
   }
 
-  if (Object.keys(patch).length === 0) {
+  const hasLabelIds = Array.isArray(body.label_ids);
+  if (Object.keys(patch).length === 0 && !hasLabelIds) {
     return NextResponse.json({ error: "No fields to update" }, { status: 400 });
   }
 
-  const { data, error } = await updateCampaign(supabase, id, patch);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ campaign: data });
+  if (Object.keys(patch).length > 0) {
+    const { error } = await updateCampaign(supabase, id, patch);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  if (hasLabelIds) {
+    const setRes = await setCampaignLabels(supabase, id, body.label_ids!);
+    if (setRes.error) {
+      return NextResponse.json({ error: setRes.error.message }, { status: 500 });
+    }
+  }
+
+  const refreshed = await getCampaignById(supabase, id);
+  return NextResponse.json({ campaign: refreshed.data });
 }
 
 export async function DELETE(

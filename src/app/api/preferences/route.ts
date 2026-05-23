@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { verifyPreferencesToken } from "@/lib/tokens/unsubscribe";
+import { verifyPrefsToken } from "@/lib/tokens/unsubscribe";
 
 // POST /api/preferences — public, token-authorized.
 // Body: { token, keepLabelIds: string[] }  — labels NOT kept get unsubscribed.
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing token" }, { status: 400 });
   }
 
-  const v = verifyPreferencesToken(body.token);
+  const v = verifyPrefsToken(body.token);
   if (!v.valid || !v.contactId) {
     return NextResponse.json(
       { error: `This link is ${v.reason ?? "invalid"}` },
@@ -39,6 +39,7 @@ export async function POST(request: Request) {
     await admin.from("activity_events").insert({
       contact_id: v.contactId,
       event_type: "email_unsubscribed",
+      related_campaign_id: v.campaignId ?? null,
       payload: { scope: "all", source: "preferences_page" },
     });
     return NextResponse.json({ ok: true, scope: "all" });
@@ -46,7 +47,6 @@ export async function POST(request: Request) {
 
   const keep = new Set(body.keepLabelIds ?? []);
 
-  // The contact's current labels — anything not kept gets unsubscribed.
   const { data: current } = await admin
     .from("contact_labels")
     .select("label_id")
@@ -70,6 +70,7 @@ export async function POST(request: Request) {
       contact_id: v.contactId,
       event_type: "email_unsubscribed",
       related_label_id: labelId,
+      related_campaign_id: v.campaignId ?? null,
       payload: { scope: "label", source: "preferences_page" },
     });
   }

@@ -17,7 +17,7 @@ export async function listCampaigns(
   let query = supabase
     .from("campaigns")
     .select(
-      "id, name, subject, status, scheduled_at, sent_at, created_at, label_id, labels(id, slug, name, color)",
+      "id, name, subject, status, scheduled_at, sent_at, created_at, campaign_labels(labels(id, slug, name, color))",
       { count: "exact" }
     )
     .order("created_at", { ascending: false });
@@ -34,7 +34,7 @@ export async function getCampaignById(supabase: Client, id: string) {
   return supabase
     .from("campaigns")
     .select(
-      "*, labels(id, slug, name, color), sending_identities(id, slug, display_name, from_email, from_name, provider)"
+      "*, campaign_labels(labels(id, slug, name, color)), sending_identities(id, slug, display_name, from_email, from_name, provider)"
     )
     .eq("id", id)
     .maybeSingle();
@@ -62,22 +62,64 @@ export async function deleteCampaign(supabase: Client, id: string) {
 }
 
 // ────────────────────────────────────────────────────────────
+// Campaign ↔ label mapping
+// ────────────────────────────────────────────────────────────
+
+export async function getCampaignLabelIds(
+  supabase: Client,
+  campaignId: string
+): Promise<string[]> {
+  const { data } = await supabase
+    .from("campaign_labels")
+    .select("label_id")
+    .eq("campaign_id", campaignId);
+  return ((data ?? []) as { label_id: string }[]).map((r) => r.label_id);
+}
+
+/**
+ * Replace the audience labels for a campaign. Delete-then-insert to keep
+ * the set in sync with the provided ids. Safe because campaign_labels has
+ * no extra metadata that would be lost.
+ */
+export async function setCampaignLabels(
+  supabase: Client,
+  campaignId: string,
+  labelIds: string[]
+) {
+  const dedup = Array.from(new Set(labelIds.filter(Boolean)));
+  const del = await supabase
+    .from("campaign_labels")
+    .delete()
+    .eq("campaign_id", campaignId);
+  if (del.error) return del;
+  if (dedup.length === 0) return { data: [], error: null };
+
+  return supabase
+    .from("campaign_labels")
+    .insert(dedup.map((label_id) => ({ campaign_id: campaignId, label_id })))
+    .select();
+}
+
+// ────────────────────────────────────────────────────────────
 // Audience + recipients
 // ────────────────────────────────────────────────────────────
 
-/** Contacts who would receive a campaign for the given label. */
-export async function getCampaignAudience(supabase: Client, labelId: string) {
+/** Contacts who would receive this campaign — DISTINCT across all its labels. */
+export async function getCampaignAudience(supabase: Client, campaignId: string) {
   return supabase
     .from("v_campaign_audience")
     .select("contact_id, email, email_normalized, first_name, last_name")
-    .eq("label_id", labelId);
+    .eq("campaign_id", campaignId);
 }
 
-export async function getCampaignAudienceCount(supabase: Client, labelId: string) {
+export async function getCampaignAudienceCount(
+  supabase: Client,
+  campaignId: string
+) {
   const { count } = await supabase
     .from("v_campaign_audience")
     .select("contact_id", { count: "exact", head: true })
-    .eq("label_id", labelId);
+    .eq("campaign_id", campaignId);
   return count ?? 0;
 }
 
