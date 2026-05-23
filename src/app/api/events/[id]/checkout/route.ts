@@ -380,6 +380,11 @@ export async function POST(
       donation_cents: donationCents,
       total_cents: totalCents,
       promo_code_id: promoCodeId,
+      lines: resolved.map((r) => ({
+        ticket_type_id: r.ticketType.id,
+        qty: r.qty,
+        per_ticket_cents: r.perTicketCents,
+      })),
       expires_at: expiresAt,
     })
     .select("id")

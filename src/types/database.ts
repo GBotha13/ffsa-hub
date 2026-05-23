@@ -1830,6 +1830,7 @@ export type Database = {
           event_id: string
           expires_at: string | null
           id: string
+          lines: Json
           marketing_consent: boolean
           paid_at: string | null
           payment_provider: string | null
@@ -1859,6 +1860,7 @@ export type Database = {
           event_id: string
           expires_at?: string | null
           id?: string
+          lines?: Json
           marketing_consent?: boolean
           paid_at?: string | null
           payment_provider?: string | null
@@ -1888,6 +1890,7 @@ export type Database = {
           event_id?: string
           expires_at?: string | null
           id?: string
+          lines?: Json
           marketing_consent?: boolean
           paid_at?: string | null
           payment_provider?: string | null
