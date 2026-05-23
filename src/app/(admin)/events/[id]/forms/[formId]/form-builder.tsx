@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -178,7 +178,7 @@ export function FormBuilder({
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="text-xl font-bold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-gray-400 outline-none w-full"
+            className="text-xl font-bold bg-transparent border-b border-transparent hover:border-border focus:border-foreground outline-none w-full"
           />
           <p className="text-xs text-muted-foreground mt-1">
             Public URL: <span className="font-mono">{publicUrl}</span>
@@ -187,7 +187,9 @@ export function FormBuilder({
         <div className="flex items-center gap-2">
           <span
             className={`text-xs px-2 py-0.5 rounded-full ${
-              isActive ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-700"
+              isActive
+                ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                : "bg-secondary text-secondary-foreground border border-border"
             }`}
           >
             {isActive ? "Published" : "Draft"}
@@ -196,7 +198,7 @@ export function FormBuilder({
             type="button"
             onClick={() => save()}
             disabled={busy}
-            className="px-3 py-1.5 rounded border text-sm hover:bg-gray-50 disabled:opacity-50"
+            className="px-3 py-1.5 rounded border text-sm hover:bg-accent disabled:opacity-50"
           >
             Save
           </button>
@@ -205,7 +207,7 @@ export function FormBuilder({
               type="button"
               onClick={() => save(false)}
               disabled={busy}
-              className="px-3 py-1.5 rounded border text-sm hover:bg-gray-50 disabled:opacity-50"
+              className="px-3 py-1.5 rounded border text-sm hover:bg-accent disabled:opacity-50"
             >
               Unpublish
             </button>
@@ -279,7 +281,7 @@ export function FormBuilder({
               <input
                 value={step.title}
                 onChange={(e) => updateStep(step.id, { title: e.target.value })}
-                className="text-sm font-medium bg-transparent border-b border-transparent hover:border-gray-300 focus:border-gray-400 outline-none flex-1"
+                className="text-sm font-medium bg-transparent border-b border-transparent hover:border-border focus:border-foreground outline-none flex-1"
               />
             </div>
             <div className="flex gap-1">
@@ -328,11 +330,57 @@ export function FormBuilder({
       <button
         type="button"
         onClick={addStep}
-        className="w-full border-2 border-dashed rounded-lg py-3 text-sm text-muted-foreground hover:bg-gray-50"
+        className="w-full border-2 border-dashed rounded-lg py-3 text-sm text-muted-foreground hover:bg-accent"
       >
         + Add step
       </button>
     </div>
+  );
+}
+
+// Local-state textarea for dropdown / multi-select / radio options. The
+// textarea must hold the user's raw text verbatim (including in-progress
+// blank lines) so pressing Enter actually moves to a new line — the
+// previous implementation derived the textarea value from the cleaned
+// `options` array on every keystroke, which immediately stripped any
+// empty intermediate line and snapped the cursor back to the line above,
+// making it impossible to add a second option.
+function OptionsEditor({
+  options,
+  onChange,
+}: {
+  options: string[] | undefined;
+  onChange: (next: string[]) => void;
+}) {
+  const [text, setText] = useState<string>(() => (options ?? []).join("\n"));
+
+  // Re-sync from props only when the cleaned text genuinely differs (e.g.
+  // the parent seeded ["Option 1"] because field type just switched to a
+  // choice type). We never clobber in-progress typing.
+  useEffect(() => {
+    const fromProps = (options ?? []).join("\n");
+    const normalised = text
+      .split("\n")
+      .map((o) => o.trim())
+      .filter(Boolean)
+      .join("\n");
+    if (fromProps !== normalised) {
+      setText(fromProps);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [options]);
+
+  return (
+    <textarea
+      value={text}
+      onChange={(e) => {
+        const next = e.target.value;
+        setText(next);
+        onChange(next.split("\n").map((o) => o.trim()).filter(Boolean));
+      }}
+      rows={3}
+      className="w-full border rounded px-2 py-1 text-xs mt-1 resize-none"
+    />
   );
 }
 
@@ -353,7 +401,7 @@ function IconBtn({
       onClick={onClick}
       disabled={disabled}
       className={`w-6 h-6 text-xs rounded border disabled:opacity-30 ${
-        danger ? "text-red-600 hover:bg-red-50" : "hover:bg-gray-50"
+        danger ? "text-red-600 hover:bg-destructive/10" : "hover:bg-accent"
       }`}
     >
       {label}
@@ -385,7 +433,7 @@ function FieldEditor({
   const isConsent = field.type === "consent";
 
   return (
-    <div className="border rounded p-3 space-y-2 bg-gray-50/50">
+    <div className="border rounded p-3 space-y-2 bg-muted/40">
       <div className="flex items-center gap-2">
         <select
           value={field.type}
@@ -471,15 +519,9 @@ function FieldEditor({
       {isChoice && (
         <div className="text-xs">
           <span className="text-muted-foreground">Options (one per line)</span>
-          <textarea
-            value={(field.options ?? []).join("\n")}
-            onChange={(e) =>
-              onChange({
-                options: e.target.value.split("\n").map((o) => o.trim()).filter(Boolean),
-              })
-            }
-            rows={3}
-            className="w-full border rounded px-2 py-1 text-xs mt-1 resize-none"
+          <OptionsEditor
+            options={field.options}
+            onChange={(options) => onChange({ options })}
           />
         </div>
       )}
