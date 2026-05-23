@@ -54,7 +54,7 @@ export function TicketingSettings({
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">
           When ticketing is enabled, this event has a public storefront at{" "}
-          <code className="text-xs">/events/&lt;slug&gt;</code>.
+          <code className="text-xs">/e/&lt;slug&gt;</code>.
         </p>
         <label className="flex items-center gap-2 text-sm">
           <input
@@ -70,7 +70,7 @@ export function TicketingSettings({
             Public URL slug
           </label>
           <div className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">/events/</span>
+            <span className="text-muted-foreground">/e/</span>
             <input
               type="text"
               value={slug}

@@ -434,8 +434,8 @@ export async function POST(
       currency: "ZAR",
       description: describeOrder(event.title, totalQty),
       buyer: { firstName, lastName, email: emailRaw },
-      returnUrl: `${base}/events/${event.public_slug}/thanks?order=${order.id}`,
-      cancelUrl: `${base}/events/${event.public_slug}`,
+      returnUrl: `${base}/e/${event.public_slug}/thanks?order=${order.id}`,
+      cancelUrl: `${base}/e/${event.public_slug}`,
       notifyUrl: `${base}/api/integrations/payfast/notify`,
     });
   } catch (e) {

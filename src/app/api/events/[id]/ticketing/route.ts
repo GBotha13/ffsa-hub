@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { updateEvent } from "@/services/events";
 import { getAuthedUser, hasAnyRole, EVENTS_MANAGE_ROLES } from "@/lib/api-auth";
 
-// Slugs that show up at /events/<slug> on the public storefront.
+// Slugs that show up at /e/<slug> on the public storefront.
 // Lowercase a-z, 0-9, dashes; can't start or end with a dash.
 const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
 
