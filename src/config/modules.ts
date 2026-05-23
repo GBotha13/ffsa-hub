@@ -10,6 +10,8 @@ import {
   UserCog,
   Shield,
   Heart,
+  Archive,
+  History,
   type LucideIcon,
 } from "lucide-react";
 
@@ -104,6 +106,14 @@ export const ADMIN_MODULES: ModuleDefinition[] = [
     description: "Outreach trips and impact stats",
     requiredRoles: ["super_admin", "admin", "mission_leader"],
   },
+  {
+    id: "records-library",
+    label: "Records Library",
+    href: "/records-library",
+    icon: Archive,
+    description: "Historical CSVs of staff/student data — auto-linked to user profiles",
+    requiredRoles: ["super_admin", "admin"],
+  },
 ];
 
 /** System management modules — shown at the bottom of the sidebar. */
@@ -157,6 +167,12 @@ export const PORTAL_TABS: PortalTab[] = [
     label: "Mission",
     href: "/my-mission",
     icon: Globe,
+  },
+  {
+    id: "my-history",
+    label: "History",
+    href: "/my-history",
+    icon: History,
   },
 ];
 

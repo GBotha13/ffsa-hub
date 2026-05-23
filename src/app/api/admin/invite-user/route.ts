@@ -137,5 +137,29 @@ export async function POST(request: Request) {
     changes: { email, first_name, last_name },
   });
 
-  return NextResponse.json({ success: true, user_id: newUserId });
+  // Records Library auto-match: link any pre-imported records
+  // for this person to their new user account. High-confidence
+  // matches (email + last name) auto-link; medium ones queue.
+  let libraryMatch = { auto_linked: 0, queued: 0 };
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: rpcData } = await (adminSupabase as any).rpc(
+      "auto_link_library_records_for_user",
+      { p_user_id: newUserId }
+    );
+    if (Array.isArray(rpcData) && rpcData[0]) {
+      libraryMatch = {
+        auto_linked: rpcData[0].auto_linked ?? 0,
+        queued: rpcData[0].queued ?? 0,
+      };
+    }
+  } catch {
+    // Non-fatal: surface in logs but don't block the invite.
+  }
+
+  return NextResponse.json({
+    success: true,
+    user_id: newUserId,
+    library_match: libraryMatch,
+  });
 }
