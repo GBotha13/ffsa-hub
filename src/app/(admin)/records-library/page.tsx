@@ -92,7 +92,14 @@ export default async function RecordsLibraryPage() {
               <tbody>
                 {recentImports.map((row: ImportRow) => (
                   <tr key={row.id} className="border-t">
-                    <td className="px-3 py-2">{row.filename}</td>
+                    <td className="px-3 py-2">
+                      <Link
+                        href={`/records-library/imports/${row.id}`}
+                        className="text-foreground hover:underline"
+                      >
+                        {row.filename}
+                      </Link>
+                    </td>
                     <td className="px-3 py-2 capitalize">{row.record_type}</td>
                     <td className="px-3 py-2"><StatusBadge status={row.status} /></td>
                     <td className="px-3 py-2 text-right">{row.row_count}</td>
@@ -131,7 +138,12 @@ export default async function RecordsLibraryPage() {
                 {recentPersons.map((row: PersonRow) => (
                   <tr key={row.id} className="border-t">
                     <td className="px-3 py-2">
-                      {[row.first_name, row.last_name].filter(Boolean).join(" ") || "—"}
+                      <Link
+                        href={`/records-library/persons/${row.id}`}
+                        className="text-foreground hover:underline"
+                      >
+                        {[row.first_name, row.last_name].filter(Boolean).join(" ") || "—"}
+                      </Link>
                     </td>
                     <td className="px-3 py-2">{row.email ?? "—"}</td>
                     <td className="px-3 py-2">{row.date_of_birth ?? "—"}</td>

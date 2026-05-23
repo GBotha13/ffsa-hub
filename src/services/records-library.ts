@@ -304,6 +304,85 @@ export async function createDocument(
 }
 
 // ────────────────────────────────────────────────────────────
+// Per-import / per-person detail — used by the admin drill-in pages
+// ────────────────────────────────────────────────────────────
+
+export async function getRecordsForImport(supabase: Client, importId: string) {
+  const [apps, payments, enrolls, docs] = await Promise.all([
+    supabase
+      .from("library_applications")
+      .select("*, library_persons:person_id(id, first_name, last_name, email)")
+      .eq("import_id", importId)
+      .order("submitted_at", { ascending: false, nullsFirst: false }),
+    supabase
+      .from("library_payments")
+      .select("*, library_persons:person_id(id, first_name, last_name, email)")
+      .eq("import_id", importId)
+      .order("paid_at", { ascending: false, nullsFirst: false }),
+    supabase
+      .from("library_enrollments")
+      .select("*, library_persons:person_id(id, first_name, last_name, email)")
+      .eq("import_id", importId)
+      .order("start_date", { ascending: false, nullsFirst: false }),
+    supabase
+      .from("library_documents")
+      .select("*, library_persons:person_id(id, first_name, last_name, email)")
+      .eq("import_id", importId)
+      .order("expires_at", { ascending: false, nullsFirst: false }),
+  ]);
+
+  const personsRes = await supabase
+    .from("library_persons")
+    .select("id, first_name, last_name, email, date_of_birth, linked_user_id, created_at")
+    .eq("source_import_id", importId)
+    .order("created_at", { ascending: false });
+
+  return {
+    applications: apps.data ?? [],
+    payments: payments.data ?? [],
+    enrollments: enrolls.data ?? [],
+    documents: docs.data ?? [],
+    persons: personsRes.data ?? [],
+    errors: [apps.error, payments.error, enrolls.error, docs.error, personsRes.error].filter(
+      Boolean
+    ),
+  };
+}
+
+export async function getRecordsForPerson(supabase: Client, personId: string) {
+  const [apps, payments, enrolls, docs] = await Promise.all([
+    supabase
+      .from("library_applications")
+      .select("*, library_imports:import_id(filename, created_at)")
+      .eq("person_id", personId)
+      .order("submitted_at", { ascending: false, nullsFirst: false }),
+    supabase
+      .from("library_payments")
+      .select("*, library_imports:import_id(filename, created_at)")
+      .eq("person_id", personId)
+      .order("paid_at", { ascending: false, nullsFirst: false }),
+    supabase
+      .from("library_enrollments")
+      .select("*, library_imports:import_id(filename, created_at)")
+      .eq("person_id", personId)
+      .order("start_date", { ascending: false, nullsFirst: false }),
+    supabase
+      .from("library_documents")
+      .select("*, library_imports:import_id(filename, created_at)")
+      .eq("person_id", personId)
+      .order("expires_at", { ascending: false, nullsFirst: false }),
+  ]);
+
+  return {
+    applications: apps.data ?? [],
+    payments: payments.data ?? [],
+    enrollments: enrolls.data ?? [],
+    documents: docs.data ?? [],
+    errors: [apps.error, payments.error, enrolls.error, docs.error].filter(Boolean),
+  };
+}
+
+// ────────────────────────────────────────────────────────────
 // Per-user history — used by the profile "History" tab
 // ────────────────────────────────────────────────────────────
 
