@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 type TicketType = {
   id: string;
@@ -31,11 +33,9 @@ type PublicEvent = {
 type LineItem = {
   ticketTypeId: string;
   qty: number;
-  // For pwyw tiers: the buyer's chosen per-ticket amount in cents.
+  /** For pwyw tiers: the buyer's chosen per-ticket amount in cents. */
   pwywAmountCents: number | null;
 };
-
-const ACCENT = "#1d4ed8";
 
 function rands(cents: number): string {
   return `R${(cents / 100).toFixed(2)}`;
@@ -184,390 +184,290 @@ export function Storefront({
         ? formatTime(event.start_time)
         : null;
 
-  return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 50,
-        overflowY: "auto",
-        background: "linear-gradient(180deg,#f8fafc 0%,#eef1f5 100%)",
-        colorScheme: "light",
-      }}
-    >
-      <div className="min-h-full flex justify-center px-4 py-10">
-        <div className="w-full max-w-[680px]">
-          {/* Event header */}
-          <div className="rounded-2xl overflow-hidden mb-5" style={cardStyle}>
-            <div style={{ height: 5, backgroundColor: ACCENT }} />
-            <div className="px-7 sm:px-9 pt-7 pb-6">
-              {event.logo_url && (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={event.logo_url} alt="" className="h-12 object-contain mb-4" />
-              )}
-              <h1
-                className="text-[28px] font-bold tracking-tight leading-tight"
-                style={{ color: "#0f172a" }}
-              >
-                {event.title}
-              </h1>
-              <p className="text-sm mt-2" style={{ color: "#475569" }}>
-                {dateRange}
-                {timeRange ? ` · ${timeRange}` : ""}
-                {event.location ? ` · ${event.location}` : ""}
-              </p>
-              {event.description && (
-                <p
-                  className="text-sm mt-4 whitespace-pre-wrap"
-                  style={{ color: "#334155" }}
-                >
-                  {event.description}
-                </p>
-              )}
-            </div>
-          </div>
+  // ── Render ──────────────────────────────────────────────────
+  // Sits inside the (public) layout — that gives us a centred
+  // max-w-2xl container on a bg-background page. We add nothing
+  // exotic here; theme + typography flow from globals.css so
+  // every input, label, and button matches the rest of the app.
 
-          {/* Ticket tiers */}
-          <div className="rounded-2xl overflow-hidden mb-5" style={cardStyle}>
-            <div className="px-7 sm:px-9 pt-6 pb-7">
-              <h2
-                className="text-[15px] font-semibold tracking-tight mb-1"
-                style={{ color: "#0f172a" }}
-              >
-                Tickets
-              </h2>
-              {ticketTypes.length === 0 ? (
-                <p className="text-sm mt-3" style={{ color: "#64748b" }}>
-                  No tickets available right now. Please check back soon.
-                </p>
-              ) : (
-                <ul className="mt-4 space-y-3">
-                  {ticketTypes.map((t) => {
-                    const onSale = isOnSale(t, now);
-                    const rem = remaining(t);
-                    const line = lines[t.id];
-                    const qty = line?.qty ?? 0;
-                    const isPwyw = t.pricing_mode === "pwyw";
-                    return (
-                      <li key={t.id} className="rounded-xl" style={tierStyle}>
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p
-                                className="text-sm font-semibold"
-                                style={{ color: "#0f172a" }}
-                              >
-                                {t.name}
-                              </p>
-                              {isPwyw && (
-                                <span
-                                  className="text-xs px-1.5 py-0.5 rounded"
-                                  style={{
-                                    backgroundColor: `${ACCENT}14`,
-                                    color: ACCENT,
-                                  }}
-                                >
-                                  pay what you want
-                                </span>
-                              )}
-                              {!onSale && (
-                                <span
-                                  className="text-xs px-1.5 py-0.5 rounded"
-                                  style={{
-                                    backgroundColor: "#fee2e2",
-                                    color: "#b91c1c",
-                                  }}
-                                >
-                                  {rem === 0 ? "sold out" : "not on sale"}
-                                </span>
-                              )}
-                            </div>
-                            {t.description && (
-                              <p
-                                className="text-xs mt-1"
-                                style={{ color: "#64748b" }}
-                              >
-                                {t.description}
-                              </p>
-                            )}
-                            <p
-                              className="text-sm mt-1.5"
-                              style={{ color: "#334155" }}
-                            >
-                              {isPwyw
-                                ? `Minimum ${rands(t.display_price_cents)}`
-                                : rands(t.display_price_cents)}
-                              {rem != null && rem > 0 && rem <= 10 && (
-                                <span
-                                  className="text-xs ml-2"
-                                  style={{ color: "#b45309" }}
-                                >
-                                  only {rem} left
-                                </span>
-                              )}
-                            </p>
-                          </div>
-                          {onSale && !isPwyw && (
-                            <QtyStepper
-                              qty={qty}
-                              onChange={(n) => setQty(t, n)}
-                              max={Math.min(t.max_per_order ?? 99, rem ?? 99)}
-                            />
+  return (
+    <div className="w-full space-y-4 animate-fade-up">
+      {/* Event header */}
+      <Card>
+        <CardContent className="p-6 sm:p-8 space-y-3">
+          {event.logo_url && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={event.logo_url}
+              alt=""
+              className="h-12 object-contain mb-1"
+            />
+          )}
+          <p className="page-eyebrow">Event Tickets</p>
+          <h1 className="page-title">{event.title}</h1>
+          <p className="text-sm text-muted-foreground pt-1">
+            {dateRange}
+            {timeRange ? ` · ${timeRange}` : ""}
+            {event.location ? ` · ${event.location}` : ""}
+          </p>
+          {event.description && (
+            <p className="text-sm text-foreground/80 whitespace-pre-wrap leading-relaxed pt-2">
+              {event.description}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Tickets */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Tickets</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {ticketTypes.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No tickets available right now. Please check back soon.
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {ticketTypes.map((t) => {
+                const onSale = isOnSale(t, now);
+                const rem = remaining(t);
+                const line = lines[t.id];
+                const qty = line?.qty ?? 0;
+                const isPwyw = t.pricing_mode === "pwyw";
+                return (
+                  <li
+                    key={t.id}
+                    className="rounded-md border border-border bg-background/40 p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-semibold text-foreground normal-case tracking-normal">
+                            {t.name}
+                          </p>
+                          {isPwyw && (
+                            <span className="status-yellow text-[9px] font-bold uppercase tracking-[0.12em] px-1.5 py-0.5 rounded">
+                              Pay what you want
+                            </span>
                           )}
-                          {onSale &&
-                            isPwyw &&
-                            (qty === 0 ? (
-                              <button
-                                type="button"
-                                className="text-sm font-semibold px-4 py-2 rounded-xl text-white"
-                                style={{ backgroundColor: ACCENT }}
-                                onClick={() => setQty(t, 1)}
-                              >
-                                Add
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                className="text-sm font-medium px-3 py-2 rounded-xl"
-                                style={{ color: "#64748b" }}
-                                onClick={() => setQty(t, 0)}
-                              >
-                                Remove
-                              </button>
-                            ))}
+                          {!onSale && (
+                            <span className="status-red text-[9px] font-bold uppercase tracking-[0.12em] px-1.5 py-0.5 rounded">
+                              {rem === 0 ? "Sold out" : "Not on sale"}
+                            </span>
+                          )}
                         </div>
-                        {isPwyw && qty > 0 && (
-                          <div className="mt-3">
-                            <label
-                              className="block text-xs font-medium mb-1"
-                              style={{ color: "#475569" }}
-                            >
-                              Amount (ZAR)
-                            </label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              min={t.display_price_cents / 100}
-                              defaultValue={(t.display_price_cents / 100).toFixed(2)}
-                              onChange={(e) => setPwywAmount(t, e.target.value)}
-                              className="w-full border rounded-lg px-3 py-2 text-sm"
-                              style={inputStyle}
-                            />
-                          </div>
+                        {t.description && (
+                          <p className="text-xs text-muted-foreground mt-1 normal-case tracking-normal">
+                            {t.description}
+                          </p>
                         )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-          </div>
+                        <p
+                          className="text-sm font-semibold mt-2 normal-case tracking-normal"
+                          style={{ color: "var(--yellow)" }}
+                        >
+                          {isPwyw
+                            ? `Minimum ${rands(t.display_price_cents)}`
+                            : rands(t.display_price_cents)}
+                          {rem != null && rem > 0 && rem <= 10 && (
+                            <span className="text-[10px] font-bold uppercase tracking-[0.14em] ml-2 opacity-80">
+                              only {rem} left
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      {onSale && !isPwyw && (
+                        <QtyStepper
+                          qty={qty}
+                          onChange={(n) => setQty(t, n)}
+                          max={Math.min(t.max_per_order ?? 99, rem ?? 99)}
+                        />
+                      )}
+                      {onSale &&
+                        isPwyw &&
+                        (qty === 0 ? (
+                          <Button
+                            type="button"
+                            onClick={() => setQty(t, 1)}
+                            size="sm"
+                          >
+                            Add
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            onClick={() => setQty(t, 0)}
+                            variant="outline"
+                            size="sm"
+                          >
+                            Remove
+                          </Button>
+                        ))}
+                    </div>
+                    {isPwyw && qty > 0 && (
+                      <div className="mt-3">
+                        <label>Amount (ZAR)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min={t.display_price_cents / 100}
+                          defaultValue={(t.display_price_cents / 100).toFixed(2)}
+                          onChange={(e) => setPwywAmount(t, e.target.value)}
+                          className="w-full mt-1 px-3 py-2"
+                        />
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
-          {/* Promo + donation */}
-          {ticketTypes.length > 0 && (
-            <div className="rounded-2xl overflow-hidden mb-5" style={cardStyle}>
-              <div className="px-7 sm:px-9 pt-6 pb-7 space-y-4">
-                <div>
-                  <label
-                    className="block text-xs font-semibold mb-1.5"
-                    style={{ color: "#334155" }}
-                  >
-                    Promo or comp code (optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={promoCode}
-                    onChange={(e) => setPromoCode(e.target.value)}
-                    placeholder="Enter code"
-                    className="w-full border rounded-lg px-3 py-2 text-sm font-mono"
-                    style={inputStyle}
-                  />
-                </div>
-                <div>
-                  <label
-                    className="block text-xs font-semibold mb-1.5"
-                    style={{ color: "#334155" }}
-                  >
-                    Add a gift (ZAR, optional)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={donationRands}
-                    onChange={(e) => setDonationRands(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full border rounded-lg px-3 py-2 text-sm"
-                    style={inputStyle}
-                  />
-                </div>
+      {/* Promo + donation */}
+      {ticketTypes.length > 0 && (
+        <Card>
+          <CardContent className="p-6 space-y-4">
+            <div>
+              <label>Promo or comp code (optional)</label>
+              <input
+                type="text"
+                value={promoCode}
+                onChange={(e) => setPromoCode(e.target.value)}
+                placeholder="Enter code"
+                className="w-full mt-1 px-3 py-2 font-mono"
+              />
+            </div>
+            <div>
+              <label>Add a gift (ZAR, optional)</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={donationRands}
+                onChange={(e) => setDonationRands(e.target.value)}
+                placeholder="0.00"
+                className="w-full mt-1 px-3 py-2"
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Total */}
+      {lineCount > 0 && (
+        <Card>
+          <CardContent className="px-6 py-4 flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+              Total
+            </span>
+            <span
+              className="text-2xl font-display tracking-wide"
+              style={{ color: "var(--yellow)" }}
+            >
+              {rands(totalCents)}
+            </span>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Buyer details */}
+      {lineCount > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Your details</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label>First name *</label>
+                <input
+                  type="text"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  className="w-full mt-1 px-3 py-2"
+                />
+              </div>
+              <div>
+                <label>Last name *</label>
+                <input
+                  type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  className="w-full mt-1 px-3 py-2"
+                />
               </div>
             </div>
-          )}
-
-          {/* Total */}
-          {lineCount > 0 && (
-            <div className="rounded-2xl overflow-hidden mb-5" style={cardStyle}>
-              <div className="px-7 sm:px-9 pt-5 pb-5 flex items-center justify-between">
-                <span className="text-sm font-semibold" style={{ color: "#475569" }}>
-                  Total
-                </span>
-                <span className="text-xl font-bold" style={{ color: "#0f172a" }}>
-                  {rands(totalCents)}
-                </span>
-              </div>
+            <div>
+              <label>Email *</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full mt-1 px-3 py-2"
+              />
             </div>
-          )}
-
-          {/* Buyer details */}
-          {lineCount > 0 && (
-            <div className="rounded-2xl overflow-hidden mb-5" style={cardStyle}>
-              <div className="px-7 sm:px-9 pt-6 pb-7 space-y-4">
-                <h2
-                  className="text-[15px] font-semibold tracking-tight"
-                  style={{ color: "#0f172a" }}
-                >
-                  Your details
-                </h2>
-                <div className="grid grid-cols-2 gap-3">
-                  <Labelled label="First name *">
-                    <input
-                      type="text"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      className="w-full border rounded-lg px-3 py-2 text-sm"
-                      style={inputStyle}
-                    />
-                  </Labelled>
-                  <Labelled label="Last name *">
-                    <input
-                      type="text"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      className="w-full border rounded-lg px-3 py-2 text-sm"
-                      style={inputStyle}
-                    />
-                  </Labelled>
-                </div>
-                <Labelled label="Email *">
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2 text-sm"
-                    style={inputStyle}
-                  />
-                </Labelled>
-                <Labelled label="Phone (optional)">
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2 text-sm"
-                    style={inputStyle}
-                  />
-                </Labelled>
-                <label
-                  className="flex items-start gap-2 text-sm"
-                  style={{ color: "#334155" }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={marketingConsent}
-                    onChange={(e) => setMarketingConsent(e.target.checked)}
-                    className="mt-0.5"
-                    style={{ accentColor: ACCENT }}
-                  />
-                  <span>
-                    Keep me posted on FFSA events and gatherings by email.
-                  </span>
-                </label>
-              </div>
+            <div>
+              <label>Phone (optional)</label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="w-full mt-1 px-3 py-2"
+              />
             </div>
-          )}
+            <label className="flex items-start gap-2 cursor-pointer pt-1">
+              <input
+                type="checkbox"
+                checked={marketingConsent}
+                onChange={(e) => setMarketingConsent(e.target.checked)}
+                className="mt-0.5 accent-primary"
+              />
+              {/* Span carries the visible text so the global label
+                  uppercase/tracking rule doesn't show. */}
+              <span className="text-sm text-foreground/80 normal-case tracking-normal font-normal">
+                Keep me posted on FFSA events and gatherings by email.
+              </span>
+            </label>
+          </CardContent>
+        </Card>
+      )}
 
-          {/* Pay */}
-          {lineCount > 0 && (
-            <div className="rounded-2xl overflow-hidden mb-5" style={cardStyle}>
-              <div className="px-7 sm:px-9 pt-5 pb-6">
-                <p className="text-xs mb-3" style={{ color: "#64748b" }}>
-                  You'll be redirected to PayFast (South African card) to complete
-                  payment securely.
-                </p>
-                {err && (
-                  <p
-                    className="text-sm mb-3 rounded-lg px-3 py-2"
-                    style={{ color: "#b91c1c", backgroundColor: "#fef2f2" }}
-                  >
-                    {err}
-                  </p>
-                )}
-                <button
-                  type="button"
-                  onClick={submit}
-                  disabled={submitting || !buyerValid}
-                  className="w-full text-sm font-semibold text-white rounded-xl"
-                  style={{
-                    backgroundColor: ACCENT,
-                    padding: "13px",
-                    opacity: submitting || !buyerValid ? 0.6 : 1,
-                    boxShadow: `0 6px 16px -6px ${ACCENT}80`,
-                  }}
-                >
-                  {submitting ? "Starting payment…" : `Pay ${rands(totalCents)} →`}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+      {/* Pay */}
+      {lineCount > 0 && (
+        <Card>
+          <CardContent className="p-6 space-y-3">
+            <p className="text-xs text-muted-foreground normal-case tracking-normal">
+              You'll be redirected to PayFast to complete payment securely.
+            </p>
+            {err && (
+              <p className="text-sm rounded-md px-3 py-2 status-red normal-case tracking-normal">
+                {err}
+              </p>
+            )}
+            <Button
+              type="button"
+              onClick={submit}
+              disabled={submitting || !buyerValid}
+              size="lg"
+              className="w-full h-12"
+            >
+              {submitting
+                ? "Starting payment…"
+                : `Pay ${rands(totalCents)} →`}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
 
 // ────────────────────────────────────────────────────────────
-// Small helpers + styles
+// Sub-components + helpers
 // ────────────────────────────────────────────────────────────
-
-const cardStyle: React.CSSProperties = {
-  backgroundColor: "#ffffff",
-  color: "#0f172a",
-  boxShadow:
-    "0 1px 2px rgba(15,23,42,.04), 0 12px 32px -12px rgba(15,23,42,.18)",
-  border: "1px solid #eef1f5",
-};
-
-const tierStyle: React.CSSProperties = {
-  border: "1px solid #e2e8f0",
-  padding: "16px",
-  backgroundColor: "#ffffff",
-};
-
-const inputStyle: React.CSSProperties = {
-  backgroundColor: "#ffffff",
-  color: "#0f172a",
-  borderColor: "#e2e8f0",
-};
-
-function Labelled({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label
-        className="block text-xs font-semibold mb-1.5"
-        style={{ color: "#334155" }}
-      >
-        {label}
-      </label>
-      {children}
-    </div>
-  );
-}
 
 function QtyStepper({
   qty,
@@ -579,31 +479,23 @@ function QtyStepper({
   max: number;
 }) {
   return (
-    <div
-      className="flex items-center gap-1 border rounded-lg"
-      style={{ borderColor: "#e2e8f0" }}
-    >
+    <div className="flex items-center gap-1 border border-border rounded-md bg-background/40 shrink-0">
       <button
         type="button"
         onClick={() => onChange(Math.max(0, qty - 1))}
         disabled={qty === 0}
-        className="w-8 h-9 text-base disabled:opacity-30"
-        style={{ color: "#475569" }}
+        className="w-9 h-9 text-lg text-muted-foreground hover:text-foreground disabled:opacity-30 normal-case tracking-normal"
       >
         −
       </button>
-      <span
-        className="text-sm font-semibold w-6 text-center"
-        style={{ color: "#0f172a" }}
-      >
+      <span className="text-sm font-semibold w-6 text-center text-foreground tabular-nums">
         {qty}
       </span>
       <button
         type="button"
         onClick={() => onChange(Math.min(max, qty + 1))}
         disabled={qty >= max}
-        className="w-8 h-9 text-base disabled:opacity-30"
-        style={{ color: "#475569" }}
+        className="w-9 h-9 text-lg text-muted-foreground hover:text-foreground disabled:opacity-30 normal-case tracking-normal"
       >
         +
       </button>
