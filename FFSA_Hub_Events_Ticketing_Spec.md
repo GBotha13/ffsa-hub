@@ -169,7 +169,7 @@ Buyer **picks the provider explicitly at checkout** ("South African card" /
 ## 7. Fulfilment (synchronous — must not fail)
 
 On a verified payment: issue `tickets` rows (one per seat, unguessable `code`),
-generate QR codes, send the ticket confirmation email via Resend (new
+generate QR codes, send the ticket confirmation email via Mailtrap (new
 template, QR inline). PDF tickets and wallet passes are v2.
 
 ---
@@ -210,7 +210,7 @@ After fulfilment, resolve the buyer into the CRM:
 
 **v1** — schema (057), PayFast, gross-up engine, public storefront + checkout,
 multiple tiers with sales windows, promo + comp codes, pay-what-you-want +
-donation add-on, atomic inventory, ticket issuance + QR + Resend email,
+donation add-on, atomic inventory, ticket issuance + QR + Mailtrap email,
 buyer → CRM resolution, admin Tickets tab + orders list + staff refunds, door
 check-in scanner.
 
@@ -239,7 +239,7 @@ Build in order; later tickets assume earlier ones shipped.
 7. **Public storefront** — `src/app/(public)/events/[slug]`.
 8. **Checkout API** — `/api/events/[id]/checkout`, inventory hold, comp branch.
 9. **PayFast ITN webhook** — `/api/integrations/payfast/notify`; expiry release.
-10. **Fulfilment** — issue tickets, QR, Resend confirmation template.
+10. **Fulfilment** — issue tickets, QR, Mailtrap confirmation template.
 11. **CRM resolution** — contact, consent label, registration, activity.
 12. **Admin orders/sales list + staff refunds.**
 13. **Door check-in scanner** + validation.

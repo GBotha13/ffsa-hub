@@ -17,7 +17,7 @@
 
 import { randomBytes } from "node:crypto";
 import QRCode from "qrcode";
-import { Resend } from "resend";
+import { sendViaMailtrap } from "@/lib/email/mailtrap";
 import { ticketConfirmationEmailHtml } from "@/lib/email/templates/ticket-confirmation";
 import { resolveOrderToCrm } from "./crm-resolution";
 
@@ -124,36 +124,43 @@ export async function fulfillOrder(
     }))
   );
 
-  // 4. Send confirmation email (transactional — Resend).
-  if (!process.env.RESEND_API_KEY) {
+  // 4. Send confirmation email via Mailtrap.
+  // sendViaMailtrap doesn't throw — returns { messageId, error } so we
+  // just check error and log; tickets are already issued either way.
+  if (!process.env.MAILTRAP_API_TOKEN) {
     console.warn(
-      "[fulfillment] RESEND_API_KEY not set; tickets issued without sending email"
+      "[fulfillment] MAILTRAP_API_TOKEN not set; tickets issued without sending email"
     );
     return { ok: true };
   }
-  try {
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    const fromEmail = process.env.RESEND_FROM_EMAIL || "noreply@ffsahub.com";
-    const fromHeader = `Fire & Fragrance SA <${fromEmail}>`;
-    await resend.emails.send({
-      from: fromHeader,
-      to: order.buyer_email,
-      subject: `Your tickets for ${order.events.title}`,
-      html: ticketConfirmationEmailHtml({
-        buyerFirstName: order.buyer_first_name,
-        eventTitle: order.events.title,
-        eventDate: formatEventDate(
-          order.events.start_date,
-          order.events.end_date
-        ),
-        eventLocation: order.events.location,
-        tickets: ticketsWithQr,
-        orderId: orderId,
-        totalCents: order.total_cents,
-      }),
-    });
-  } catch (e) {
-    console.error("[fulfillment] failed to send confirmation email:", e);
+  const fromEmail =
+    process.env.MAILTRAP_FROM_EMAIL ||
+    process.env.RESEND_FROM_EMAIL ||
+    "noreply@ffsahub.com";
+  const sendResult = await sendViaMailtrap({
+    fromEmail,
+    fromName: "Fire & Fragrance SA",
+    to: order.buyer_email,
+    subject: `Your tickets for ${order.events.title}`,
+    html: ticketConfirmationEmailHtml({
+      buyerFirstName: order.buyer_first_name,
+      eventTitle: order.events.title,
+      eventDate: formatEventDate(
+        order.events.start_date,
+        order.events.end_date
+      ),
+      eventLocation: order.events.location,
+      tickets: ticketsWithQr,
+      orderId: orderId,
+      totalCents: order.total_cents,
+    }),
+    category: "ticket_confirmation",
+  });
+  if (sendResult.error) {
+    console.error(
+      "[fulfillment] failed to send confirmation email:",
+      sendResult.error
+    );
     // Tickets are issued — staff can resend the email from the admin
     // orders view. Don't fail fulfilment for an email-only issue.
   }
