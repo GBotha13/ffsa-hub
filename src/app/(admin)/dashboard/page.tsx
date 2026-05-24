@@ -281,10 +281,8 @@ export default async function DashboardPage() {
                 <Link
                   key={event.id}
                   href={`/events/${event.id}`}
-                  className="flex items-center justify-between transition-colors duration-150"
+                  className="flex items-center justify-between transition-colors duration-150 hover:bg-[hsl(22_8%_11%)]"
                   style={{ padding: "0.75rem 1.5rem" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "hsl(22 8% 11%)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                 >
                   <div>
                     <p style={{ fontSize: "13px", fontWeight: 500, color: "#F0EBE3" }}>
