@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { Printer } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import { requireModuleAccess } from "@/lib/require-permission";
 import { getPerson, getRecordsForPerson } from "@/services/records-library";
+import { CsvSheet } from "@/components/csv-sheet";
 
 export default async function PersonDetailPage({
   params,
@@ -45,13 +47,24 @@ export default async function PersonDetailPage({
         </Link>
       </div>
 
-      <div>
-        <h1 className="text-2xl font-bold mb-1">{fullName}</h1>
-        <p className="text-sm text-muted-foreground">
-          {person.email ?? "no email"}
-          {person.date_of_birth ? ` · DOB ${person.date_of_birth}` : ""}
-          {person.phone ? ` · ${person.phone}` : ""}
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold mb-1">{fullName}</h1>
+          <p className="text-sm text-muted-foreground">
+            {person.email ?? "no email"}
+            {person.date_of_birth ? ` · DOB ${person.date_of_birth}` : ""}
+            {person.phone ? ` · ${person.phone}` : ""}
+          </p>
+        </div>
+        <Link
+          href={`/print/records-library/persons/${id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 px-3 py-2 text-sm border rounded-md hover:bg-muted shrink-0"
+        >
+          <Printer className="h-4 w-4" />
+          Print / Save as PDF
+        </Link>
       </div>
 
       <div className="border rounded-md p-4">
@@ -188,10 +201,8 @@ export default async function PersonDetailPage({
         )}
 
       {Object.keys(person.raw_data ?? {}).length > 0 && (
-        <Section title="Original CSV row">
-          <pre className="text-xs bg-muted/50 border rounded-md p-3 overflow-x-auto">
-            {JSON.stringify(person.raw_data, null, 2)}
-          </pre>
+        <Section title="Form responses">
+          <CsvSheet raw={person.raw_data} />
         </Section>
       )}
     </div>
