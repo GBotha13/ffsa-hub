@@ -16,7 +16,6 @@
 // email re-sends (acceptable for retries).
 
 import { randomBytes } from "node:crypto";
-import QRCode from "qrcode";
 import { sendViaMailtrap } from "@/lib/email/mailtrap";
 import { ticketConfirmationEmailHtml } from "@/lib/email/templates/ticket-confirmation";
 import { resolveOrderToCrm } from "./crm-resolution";
@@ -115,14 +114,16 @@ export async function fulfillOrder(
     tickets = inserted;
   }
 
-  // 3. Generate QR codes (one per ticket, inline data URI).
-  const ticketsWithQr = await Promise.all(
-    tickets.map(async (t) => ({
-      code: t.code,
-      tierName: t.ticket_types?.name ?? "Ticket",
-      qrDataUrl: await QRCode.toDataURL(t.code, { width: 220, margin: 1 }),
-    }))
-  );
+  // 3. Build the ticket list for the email. QR codes are loaded
+  //    by the recipient's mail client from /api/tickets/<code>/qr
+  //    rather than embedded as data URIs (Gmail / Outlook block
+  //    those inconsistently).
+  const ticketsForEmail = tickets.map((t) => ({
+    code: t.code,
+    tierName: t.ticket_types?.name ?? "Ticket",
+  }));
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL || "https://www.ffsahub.com";
 
   // 4. Send confirmation email via Mailtrap.
   // sendViaMailtrap doesn't throw — returns { messageId, error } so we
@@ -150,9 +151,10 @@ export async function fulfillOrder(
         order.events.end_date
       ),
       eventLocation: order.events.location,
-      tickets: ticketsWithQr,
+      tickets: ticketsForEmail,
       orderId: orderId,
       totalCents: order.total_cents,
+      siteUrl,
     }),
     category: "ticket_confirmation",
   });

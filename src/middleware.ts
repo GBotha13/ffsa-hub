@@ -44,6 +44,7 @@ export async function middleware(request: NextRequest) {
     "/api/upload/sign", // public applicants upload photos from /apply
     "/api/public", // public application submission
     "/api/integrations", // payment webhooks (PayFast ITN, future Stripe, etc.) — must be reachable by external services with no auth cookies
+    "/api/tickets", // public QR image endpoint (the code in the URL is the auth) — referenced from confirmation emails
   ];
   const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
 
