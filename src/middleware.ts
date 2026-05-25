@@ -40,16 +40,25 @@ export async function middleware(request: NextRequest) {
     "/apply",
     "/reference",
     "/legal", // public privacy / consent agreement
+    "/e", // public ticket storefront (/e/[slug] + /e/[slug]/thanks)
     "/api/upload/sign", // public applicants upload photos from /apply
     "/api/public", // public application submission
+    "/api/integrations", // payment webhooks (PayFast ITN, future Stripe, etc.) — must be reachable by external services with no auth cookies
   ];
   const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
+
+  // Public ticket checkout — the only public sub-route under
+  // /api/events/. Everything else under /api/events/ is admin and
+  // still requires auth (the route handlers also enforce roles).
+  const isPublicCheckoutRoute = /^\/api\/events\/[^/]+\/checkout\/?$/.test(
+    pathname
+  );
 
   // Onboarding requires auth but should not redirect to login if unauthenticated
   // (the page itself handles the redirect)
   const isOnboarding = pathname.startsWith("/onboarding");
 
-  if (!user && !isPublicRoute && !isOnboarding) {
+  if (!user && !isPublicRoute && !isOnboarding && !isPublicCheckoutRoute) {
     // Redirect to login
     const url = request.nextUrl.clone();
     url.pathname = "/login";
