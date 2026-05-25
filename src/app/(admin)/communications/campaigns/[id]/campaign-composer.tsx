@@ -1,12 +1,28 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, X } from "lucide-react";
+import { Plus, X, GripVertical } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   type CampaignBlock,
   type CampaignBlockType,
@@ -14,6 +30,8 @@ import {
   newBlockId,
   renderCampaignHtml,
 } from "@/lib/campaigns/blocks";
+import type { EffectiveBrand } from "@/services/brand";
+import { RichText } from "@/components/communications/rich-text";
 
 type Label = { id: string; slug: string; name: string };
 type Identity = { id: string; display_name: string; from_email: string };
@@ -52,12 +70,16 @@ export function CampaignComposer({
   labels,
   identities,
   audienceCount,
+  brand,
+  currentUserEmail,
 }: {
   campaign: CampaignMeta;
   initialBody: CampaignBody;
   labels: Label[];
   identities: Identity[];
   audienceCount: number;
+  brand: EffectiveBrand;
+  currentUserEmail: string | null;
 }) {
   const router = useRouter();
   const [name, setName] = useState(campaign.name);
@@ -72,6 +94,8 @@ export function CampaignComposer({
   const [scheduleAt, setScheduleAt] = useState("");
   const [sendState, setSendState] = useState<"idle" | "sending" | "done">("idle");
   const [sendProgress, setSendProgress] = useState({ sent: 0, failed: 0 });
+  const [testEmail, setTestEmail] = useState(currentUserEmail ?? "");
+  const [testState, setTestState] = useState<"idle" | "sending" | "done">("idle");
 
   const sent = campaign.status === "sent" || campaign.status === "sending";
 
@@ -102,9 +126,25 @@ export function CampaignComposer({
   }
 
   const previewHtml = useMemo(
-    () => renderCampaignHtml(body, { previewText }),
-    [body, previewText]
+    () => renderCampaignHtml(body, { previewText, brand }),
+    [body, previewText, brand]
   );
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setBody((b) => {
+      const oldIdx = b.blocks.findIndex((bl) => bl.id === active.id);
+      const newIdx = b.blocks.findIndex((bl) => bl.id === over.id);
+      if (oldIdx === -1 || newIdx === -1) return b;
+      return { ...b, blocks: arrayMove(b.blocks, oldIdx, newIdx) };
+    });
+  }
 
   function newBlock(type: CampaignBlockType): CampaignBlock {
     switch (type) {
@@ -192,6 +232,34 @@ export function CampaignComposer({
     if (!identityId) return "Pick a sending identity.";
     if (body.blocks.length === 0) return "Add at least one content block.";
     return null;
+  }
+
+  async function sendTest() {
+    setErr(null);
+    setMsg(null);
+    if (!testEmail.trim()) return setErr("Enter an email address.");
+    if (body.blocks.length === 0)
+      return setErr("Add at least one content block before sending a test.");
+    if (!subject.trim()) return setErr("Add a subject before sending a test.");
+    if (!identityId) return setErr("Pick a sending identity first.");
+
+    // Persist so the test renders the latest content.
+    if (!(await persist()))
+      return setErr("Could not save the campaign before sending the test.");
+
+    setTestState("sending");
+    const res = await fetch(`/api/campaigns/${campaign.id}/test-send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to: testEmail.trim() }),
+    });
+    setTestState("idle");
+    if (!res.ok) {
+      const d = (await res.json().catch(() => ({}))) as { error?: string };
+      return setErr(d.error ?? "Test send failed");
+    }
+    setTestState("done");
+    setMsg(`Test sent to ${testEmail.trim()}.`);
   }
 
   async function sendNow() {
@@ -420,19 +488,31 @@ export function CampaignComposer({
                   No blocks — add one below.
                 </p>
               )}
-              {body.blocks.map((block, idx) => (
-                <BlockEditor
-                  key={block.id}
-                  block={block}
-                  disabled={sent}
-                  onChange={(patch) => updateBlock(block.id, patch)}
-                  onRemove={() => removeBlock(block.id)}
-                  onUp={() => moveBlock(idx, -1)}
-                  onDown={() => moveBlock(idx, 1)}
-                  canUp={idx > 0}
-                  canDown={idx < body.blocks.length - 1}
-                />
-              ))}
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={body.blocks.map((b) => b.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {body.blocks.map((block, idx) => (
+                    <SortableBlockEditor
+                      key={block.id}
+                      block={block}
+                      disabled={sent}
+                      campaignId={campaign.id}
+                      onChange={(patch) => updateBlock(block.id, patch)}
+                      onRemove={() => removeBlock(block.id)}
+                      onUp={() => moveBlock(idx, -1)}
+                      onDown={() => moveBlock(idx, 1)}
+                      canUp={idx > 0}
+                      canDown={idx < body.blocks.length - 1}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
               {!sent && (
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {ADD_TYPES.map((t) => (
@@ -476,6 +556,35 @@ export function CampaignComposer({
             <CardTitle className="text-base">Send</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Test send — always available, even before audience is locked. */}
+            <div className="flex flex-wrap items-end gap-2 pb-3 border-b">
+              <label className="block">
+                <span className="block text-muted-foreground mb-1 text-xs">
+                  Test send to
+                </span>
+                <Input
+                  type="email"
+                  value={testEmail}
+                  onChange={(e) => setTestEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="w-56"
+                />
+              </label>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={sendTest}
+                disabled={busy || testState === "sending"}
+              >
+                {testState === "sending" ? "Sending…" : "Send test"}
+              </Button>
+              <p className="text-xs text-muted-foreground basis-full">
+                Sends the current draft with subject prefixed{" "}
+                <span className="font-mono">[TEST]</span>. Doesn&apos;t affect
+                campaign status or analytics.
+              </p>
+            </div>
+
             {sendState === "sending" && (
               <p className="text-sm text-sky-400">
                 Sending… {sendProgress.sent} sent
@@ -539,31 +648,81 @@ function Field({
   );
 }
 
-function BlockEditor({
-  block,
-  disabled,
-  onChange,
-  onRemove,
-  onUp,
-  onDown,
-  canUp,
-  canDown,
-}: {
+type BlockEditorProps = {
   block: CampaignBlock;
   disabled: boolean;
+  campaignId: string;
   onChange: (patch: Partial<CampaignBlock>) => void;
   onRemove: () => void;
   onUp: () => void;
   onDown: () => void;
   canUp: boolean;
   canDown: boolean;
+};
+
+function SortableBlockEditor(props: BlockEditorProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: props.block.id, disabled: props.disabled });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <BlockEditor
+        {...props}
+        dragHandleProps={{ attributes, listeners }}
+      />
+    </div>
+  );
+}
+
+function BlockEditor({
+  block,
+  disabled,
+  campaignId,
+  onChange,
+  onRemove,
+  onUp,
+  onDown,
+  canUp,
+  canDown,
+  dragHandleProps,
+}: BlockEditorProps & {
+  dragHandleProps?: {
+    attributes: ReturnType<typeof useSortable>["attributes"];
+    listeners: ReturnType<typeof useSortable>["listeners"];
+  };
 }) {
   return (
     <div className="rounded-lg border bg-muted/40 p-2.5 space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">
-          {block.type}
-        </span>
+        <div className="flex items-center gap-1.5">
+          {dragHandleProps && (
+            <button
+              type="button"
+              {...dragHandleProps.attributes}
+              {...dragHandleProps.listeners}
+              disabled={disabled}
+              className="text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-30"
+              aria-label="Drag to reorder"
+            >
+              <GripVertical className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <span className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">
+            {block.type}
+          </span>
+        </div>
         <div className="flex gap-1">
           <Mini onClick={onUp} disabled={disabled || !canUp} label="↑" />
           <Mini onClick={onDown} disabled={disabled || !canDown} label="↓" />
@@ -578,12 +737,11 @@ function BlockEditor({
         />
       )}
       {block.type === "text" && (
-        <Textarea
+        <RichText
           value={block.text}
-          onChange={(e) => onChange({ text: e.target.value })}
+          onChange={(html) => onChange({ text: html })}
           disabled={disabled}
-          rows={3}
-          className="resize-none"
+          placeholder="Write your message — bold, italics, and links supported."
         />
       )}
       {block.type === "button" && (
@@ -603,24 +761,129 @@ function BlockEditor({
         </>
       )}
       {block.type === "image" && (
-        <>
-          <Input
-            value={block.url}
-            onChange={(e) => onChange({ url: e.target.value })}
-            disabled={disabled}
-            placeholder="Image URL (https://…)"
-          />
-          <Input
-            value={block.alt}
-            onChange={(e) => onChange({ alt: e.target.value })}
-            disabled={disabled}
-            placeholder="Alt text"
-          />
-        </>
+        <ImageBlockFields
+          block={block}
+          disabled={disabled}
+          campaignId={campaignId}
+          onChange={onChange}
+        />
       )}
       {block.type === "divider" && (
         <p className="text-xs text-muted-foreground">A horizontal divider line.</p>
       )}
+    </div>
+  );
+}
+
+function ImageBlockFields({
+  block,
+  disabled,
+  campaignId,
+  onChange,
+}: {
+  block: Extract<CampaignBlock, { type: "image" }>;
+  disabled: boolean;
+  campaignId: string;
+  onChange: (patch: Partial<CampaignBlock>) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function upload(file: File) {
+    setUploading(true);
+    setErr(null);
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch(`/api/campaigns/${campaignId}/image`, {
+      method: "POST",
+      body: fd,
+    });
+    setUploading(false);
+    if (!res.ok) {
+      const d = (await res.json().catch(() => ({}))) as { error?: string };
+      setErr(d.error ?? "Upload failed");
+      return;
+    }
+    const data = (await res.json()) as { url: string };
+    onChange({ url: data.url });
+  }
+
+  return (
+    <div className="space-y-2">
+      {block.url && /^https?:\/\//i.test(block.url) ? (
+        <div className="flex items-start gap-3 p-2 border rounded bg-background">
+          <img
+            src={block.url}
+            alt={block.alt || "Preview"}
+            className="h-20 w-auto max-w-[160px] object-cover rounded"
+          />
+          <div className="flex-1 space-y-1.5 text-xs">
+            <p className="text-muted-foreground truncate">{block.url}</p>
+            <div className="flex gap-1.5">
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={disabled || uploading}
+                onClick={() => inputRef.current?.click()}
+                className="h-6 px-2 text-[11px]"
+              >
+                Replace
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={disabled}
+                onClick={() => onChange({ url: "" })}
+                className="h-6 px-2 text-[11px] text-red-400"
+              >
+                Clear
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={disabled || uploading}
+          onClick={() => inputRef.current?.click()}
+          className="w-full gap-1.5"
+        >
+          {uploading ? "Uploading…" : "Upload image"}
+        </Button>
+      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) upload(f);
+          e.target.value = "";
+        }}
+      />
+      <details className="text-xs">
+        <summary className="text-muted-foreground cursor-pointer hover:text-foreground">
+          or paste a URL
+        </summary>
+        <Input
+          value={block.url}
+          onChange={(e) => onChange({ url: e.target.value })}
+          disabled={disabled}
+          placeholder="https://…"
+          className="mt-1.5"
+        />
+      </details>
+      <Input
+        value={block.alt}
+        onChange={(e) => onChange({ alt: e.target.value })}
+        disabled={disabled}
+        placeholder="Alt text (describe the image for screen readers)"
+        className="text-xs"
+      />
+      {err && <p className="text-xs text-red-400">{err}</p>}
     </div>
   );
 }

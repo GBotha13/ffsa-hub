@@ -10,6 +10,7 @@ import {
 } from "@/services/campaigns";
 import { getLabels } from "@/services/labels";
 import { emptyCampaignBody, type CampaignBody } from "@/lib/campaigns/blocks";
+import { getEffectiveBrand } from "@/services/brand";
 import { CampaignComposer } from "./campaign-composer";
 import { CampaignAnalytics } from "./campaign-analytics";
 
@@ -28,12 +29,13 @@ export default async function CampaignComposerPage({
   const { data: campaign, error } = await getCampaignById(supabase, id);
   if (error || !campaign) notFound();
 
-  const [{ data: labels }, { data: identities }, audienceCount, labelIds] =
+  const [{ data: labels }, { data: identities }, audienceCount, labelIds, brand] =
     await Promise.all([
       getLabels(supabase, { active: true }),
       listSendingIdentities(supabase),
       getCampaignAudienceCount(supabase, id),
       getCampaignLabelIds(supabase, id),
+      getEffectiveBrand(supabase, campaign.sending_identity_id),
     ]);
 
   const body: CampaignBody =
@@ -74,6 +76,8 @@ export default async function CampaignComposerPage({
         labels={labels ?? []}
         identities={identities ?? []}
         audienceCount={audienceCount}
+        brand={brand}
+        currentUserEmail={user.email ?? null}
       />
     </div>
   );

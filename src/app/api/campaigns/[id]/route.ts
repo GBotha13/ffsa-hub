@@ -10,6 +10,7 @@ import {
   renderCampaignHtml,
   type CampaignBody,
 } from "@/lib/campaigns/blocks";
+import { getEffectiveBrand } from "@/services/brand";
 import { getAuthedUser, hasAnyRole, COMMS_MANAGE_ROLES } from "@/lib/api-auth";
 import type { Json } from "@/types/database";
 
@@ -78,8 +79,12 @@ export async function PATCH(
 
   if (body.body_source !== undefined) {
     patch.body_source = body.body_source as unknown as Json;
+    const identityId =
+      body.sending_identity_id ?? existing.data.sending_identity_id ?? null;
+    const brand = await getEffectiveBrand(supabase, identityId);
     patch.body_html = renderCampaignHtml(body.body_source, {
       previewText: body.preview_text ?? existing.data.preview_text ?? undefined,
+      brand,
     });
   }
 

@@ -1,6 +1,7 @@
 import { renderCampaignHtml, type CampaignBody } from "@/lib/campaigns/blocks";
 import { sendViaMailtrap } from "@/lib/email/mailtrap";
 import { signPrefsToken } from "@/lib/tokens/unsubscribe";
+import { getEffectiveBrand } from "@/services/brand";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Client = any;
@@ -105,6 +106,7 @@ export async function sendCampaignBatch(
   const fromEmail = campaign.sending_identities.from_email;
   const fromName = campaign.sending_identities.from_name;
   const replyTo = campaign.sending_identities.reply_to;
+  const brand = await getEffectiveBrand(supabase, campaign.sending_identity_id);
 
   let sent = 0;
   let failed = 0;
@@ -112,6 +114,7 @@ export async function sendCampaignBatch(
   for (const recipient of batch as { contact_id: string; email: string }[]) {
     const html = renderCampaignHtml(body, {
       previewText: campaign.preview_text ?? undefined,
+      brand,
       footerHtml: footerHtml({
         contactId: recipient.contact_id,
         campaignId,

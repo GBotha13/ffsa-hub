@@ -22,12 +22,20 @@ export default async function CommunicationsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="page-eyebrow">ANNOUNCEMENTS &amp; OUTREACH</p>
-        <h1 className="page-title">Communications</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Email campaigns to your contact labels.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="page-eyebrow">ANNOUNCEMENTS &amp; OUTREACH</p>
+          <h1 className="page-title">Communications</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Email campaigns to your contact labels.
+          </p>
+        </div>
+        <a
+          href="/communications/brand"
+          className="text-sm px-3 py-1.5 rounded-full border hover:bg-muted transition-colors"
+        >
+          Brand kits →
+        </a>
       </div>
 
       <CampaignsList
