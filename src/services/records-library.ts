@@ -224,13 +224,19 @@ export async function findPersonByEmail(
   const normalized = email.trim().toLowerCase();
   if (!normalized) return { data: null, error: null };
 
+  // Email is the canonical match key. We used to AND on last_name when one
+  // was provided, but that created false misses when the existing row was
+  // saved with last_name = NULL (e.g. an earlier import without a Last Name
+  // mapping). Today we tolerate a NULL existing last_name OR a matching
+  // last_name, but reject if the existing last_name conflicts.
   let query = supabase
     .from("library_persons")
     .select("*")
     .eq("email_normalized", normalized);
 
   if (lastName) {
-    query = query.ilike("last_name", lastName);
+    const safe = lastName.replace(/[%,()]/g, "");
+    query = query.or(`last_name.is.null,last_name.ilike.${safe}`);
   }
   return query.maybeSingle();
 }
