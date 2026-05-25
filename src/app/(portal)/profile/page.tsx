@@ -87,6 +87,10 @@ export default async function ProfilePage() {
             value={user.date_of_birth ?? "—"}
           />
           <InfoRow label="Nationality" value={user.nationality ?? "—"} />
+          <InfoRow
+            label="Department"
+            value={departmentLabel(user.department) ?? "—"}
+          />
         </InfoCard>
 
         <InfoCard title="Contact">
@@ -139,6 +143,20 @@ function addressLines(u: {
     u.postal_code,
     u.country,
   ].filter((s): s is string => !!s && s.length > 0);
+}
+
+const DEPARTMENT_LABELS: Record<string, string> = {
+  prayer_and_worship: "Prayer and Worship",
+  media: "Media",
+  hulk: "Hulk",
+  backbone: "Backbone",
+  training: "Training",
+  project_54: "Project 54",
+};
+
+function departmentLabel(value: string | null | undefined): string | null {
+  if (!value) return null;
+  return DEPARTMENT_LABELS[value] ?? value;
 }
 
 function InfoCard({

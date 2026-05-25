@@ -42,6 +42,19 @@ const REQUIRED_PROFILE_FIELDS: FieldConfig[] = [
   { field: "date_of_birth", label: "Date of Birth", type: "date" },
   { field: "nationality", label: "Nationality", type: "text", placeholder: "e.g. South African" },
   { field: "phone", label: "Phone Number", type: "tel", placeholder: "+27 71 234 5678" },
+  {
+    field: "department",
+    label: "Department",
+    type: "select",
+    options: [
+      { value: "prayer_and_worship", label: "Prayer and Worship" },
+      { value: "media", label: "Media" },
+      { value: "hulk", label: "Hulk" },
+      { value: "backbone", label: "Backbone" },
+      { value: "training", label: "Training" },
+      { value: "project_54", label: "Project 54" },
+    ],
+  },
 ];
 
 export async function ProfileCompletionGate({

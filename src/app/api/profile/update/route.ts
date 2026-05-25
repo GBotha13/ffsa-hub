@@ -17,6 +17,7 @@ export async function PUT(request: Request) {
   const allowedFields = [
     "first_name", "last_name", "preferred_name", "date_of_birth",
     "gender", "marital_status", "nationality", "phone",
+    "department",
     "address_line_1", "address_line_2", "city", "province",
     "country", "postal_code",
     "emergency_contact_name", "emergency_contact_phone",
