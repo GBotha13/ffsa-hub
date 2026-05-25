@@ -51,6 +51,8 @@ export function OrdersTab({
 }) {
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [recentlySentId, setRecentlySentId] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const paid = orders.filter((o) => o.status === "paid");
@@ -83,6 +85,29 @@ export function OrdersTab({
       return;
     }
     router.refresh();
+  }
+
+  async function resendEmail(order: Order) {
+    if (
+      !confirm(
+        `Re-send the ticket email for order #${order.id.slice(0, 8)} to ${order.buyer_email}?`
+      )
+    )
+      return;
+    setResendingId(order.id);
+    setErr(null);
+    const res = await fetch(
+      `/api/events/${eventId}/orders/${order.id}/resend-email`,
+      { method: "POST" }
+    );
+    setResendingId(null);
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      setErr(data.error ?? "Resend failed");
+      return;
+    }
+    setRecentlySentId(order.id);
+    setTimeout(() => setRecentlySentId(null), 3000);
   }
 
   return (
@@ -161,14 +186,32 @@ export function OrdersTab({
                       </TableCell>
                       <TableCell className="text-right">
                         {o.status === "paid" && (
-                          <button
-                            type="button"
-                            onClick={() => refund(o)}
-                            disabled={busyId === o.id}
-                            className="text-xs text-red-600 hover:underline disabled:text-gray-300 disabled:no-underline"
-                          >
-                            {busyId === o.id ? "Refunding…" : "Refund"}
-                          </button>
+                          <div className="flex flex-col items-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => resendEmail(o)}
+                              disabled={
+                                resendingId === o.id || busyId === o.id
+                              }
+                              className="text-xs text-muted-foreground hover:text-foreground hover:underline disabled:opacity-50 disabled:no-underline normal-case tracking-normal"
+                            >
+                              {resendingId === o.id
+                                ? "Sending…"
+                                : recentlySentId === o.id
+                                  ? "Sent"
+                                  : "Resend email"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => refund(o)}
+                              disabled={
+                                busyId === o.id || resendingId === o.id
+                              }
+                              className="text-xs text-red-600 hover:underline disabled:text-gray-300 disabled:no-underline normal-case tracking-normal"
+                            >
+                              {busyId === o.id ? "Refunding…" : "Refund"}
+                            </button>
+                          </div>
                         )}
                       </TableCell>
                     </TableRow>
