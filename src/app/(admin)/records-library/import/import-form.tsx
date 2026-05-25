@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
 import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 
 type Template = {
   id: string;
@@ -128,7 +129,13 @@ function guessField(header: string, fields: readonly string[]): string {
   return "";
 }
 
-type Stage = "idle" | "parsed" | "uploading" | "complete" | "failed";
+type Stage =
+  | "idle"
+  | "parsed"
+  | "uploading"
+  | "finalizing"
+  | "complete"
+  | "failed";
 
 export function ImportForm({ templates }: { templates: Template[] }) {
   const router = useRouter();
@@ -145,6 +152,8 @@ export function ImportForm({ templates }: { templates: Template[] }) {
   const [templateName, setTemplateName] = useState("");
 
   const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [nowTick, setNowTick] = useState<number>(Date.now());
   const [result, setResult] = useState<{
     persons_created: number;
     records_created: number;
@@ -153,6 +162,53 @@ export function ImportForm({ templates }: { templates: Template[] }) {
     error_count: number;
   } | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Keep an elapsed-time tick running while uploading/finalizing so the user
+  // sees the ETA update every second instead of a frozen number.
+  const inFlight = stage === "uploading" || stage === "finalizing";
+  useEffect(() => {
+    if (!inFlight) return;
+    const t = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [inFlight]);
+
+  // Warn before navigating away mid-import — closing the tab abandons the
+  // browser-side batch loop and the import row gets stuck in "processing".
+  useEffect(() => {
+    if (!inFlight) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = ""; // Chrome/Safari require this.
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [inFlight]);
+
+  const percent =
+    progress.total > 0
+      ? Math.min(100, Math.round((progress.done / progress.total) * 100))
+      : 0;
+
+  const elapsedSec =
+    startedAt && inFlight ? Math.max(1, Math.round((nowTick - startedAt) / 1000)) : 0;
+  const etaSec =
+    startedAt && progress.done > 0 && progress.total > progress.done
+      ? Math.max(
+          1,
+          Math.round(
+            ((nowTick - startedAt) / progress.done) *
+              (progress.total - progress.done) /
+              1000
+          )
+        )
+      : 0;
+
+  function formatSec(s: number): string {
+    if (s < 60) return `${s}s`;
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return r === 0 ? `${m}m` : `${m}m ${r}s`;
+  }
 
   const availableFields = useMemo(() => {
     return [...PERSON_FIELDS, ...RECORD_FIELDS_BY_TYPE[recordType]];
@@ -226,6 +282,8 @@ export function ImportForm({ templates }: { templates: Template[] }) {
     setStage("uploading");
     setErrorMessage(null);
     setProgress({ done: 0, total: rows.length });
+    setStartedAt(Date.now());
+    setNowTick(Date.now());
     setResult({
       persons_created: 0,
       records_created: 0,
@@ -312,7 +370,9 @@ export function ImportForm({ templates }: { templates: Template[] }) {
       setProgress({ done: i + batch.length, total: rows.length });
     }
 
-    // 4. Mark complete (and trigger matching).
+    // 4. Mark complete (and trigger matching). This is the slow step on
+    // bigger imports — the matching engine runs against every new person.
+    setStage("finalizing");
     const completeRes = await fetch(
       `/api/records-library/imports/${importId}/complete`,
       {
@@ -478,10 +538,67 @@ export function ImportForm({ templates }: { templates: Template[] }) {
       )}
 
       {result && (
-        <div className="border rounded-md p-4 bg-muted/50">
-          <h3 className="font-semibold mb-2 text-sm">
-            {stage === "complete" ? "Import complete" : "Progress"}
-          </h3>
+        <div
+          className={`rounded-md p-4 ${
+            inFlight
+              ? "border border-blue-500/40 bg-blue-500/10"
+              : stage === "complete"
+              ? "border border-emerald-500/40 bg-emerald-500/10"
+              : "border bg-muted/50"
+          }`}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            {inFlight ? (
+              <Loader2 className="h-4 w-4 animate-spin text-blue-300" />
+            ) : null}
+            <h3 className="font-semibold text-sm">
+              {stage === "uploading"
+                ? "Uploading rows…"
+                : stage === "finalizing"
+                ? "Finalizing — running matching against existing users…"
+                : stage === "complete"
+                ? "Import complete"
+                : "Progress"}
+            </h3>
+          </div>
+
+          {inFlight && (
+            <div className="mb-4 space-y-1.5">
+              <div className="h-3 w-full rounded-full bg-muted overflow-hidden border border-blue-500/30">
+                <div
+                  className={`h-full bg-blue-500 transition-[width] duration-300 ${
+                    stage === "finalizing" ? "animate-pulse" : ""
+                  }`}
+                  style={{
+                    width:
+                      stage === "finalizing" ? "100%" : `${Math.max(2, percent)}%`,
+                  }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>
+                  {stage === "uploading" ? (
+                    <>
+                      {progress.done.toLocaleString()} /{" "}
+                      {progress.total.toLocaleString()} rows ({percent}%)
+                    </>
+                  ) : (
+                    "Linking new persons to existing user accounts…"
+                  )}
+                </span>
+                <span>
+                  Elapsed {formatSec(elapsedSec)}
+                  {stage === "uploading" && etaSec > 0
+                    ? ` · ~${formatSec(etaSec)} left`
+                    : ""}
+                </span>
+              </div>
+              <p className="text-xs text-amber-300">
+                Keep this tab open — leaving the page will abandon the upload.
+              </p>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
             <Stat label="Persons created" value={result.persons_created} />
             <Stat label="Records created" value={result.records_created} />
@@ -489,11 +606,6 @@ export function ImportForm({ templates }: { templates: Template[] }) {
             <Stat label="Queued" value={result.queued} />
             <Stat label="Errors" value={result.error_count} />
           </div>
-          {stage === "uploading" && (
-            <p className="text-xs text-muted-foreground mt-2">
-              Processed {progress.done.toLocaleString()} / {progress.total.toLocaleString()}
-            </p>
-          )}
         </div>
       )}
 
@@ -504,6 +616,17 @@ export function ImportForm({ templates }: { templates: Template[] }) {
           className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700"
         >
           Start import
+        </button>
+      )}
+
+      {inFlight && (
+        <button
+          type="button"
+          disabled
+          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600/60 text-white rounded-md text-sm cursor-not-allowed"
+        >
+          <Loader2 className="h-4 w-4 animate-spin" />
+          {stage === "uploading" ? "Importing…" : "Finalizing…"}
         </button>
       )}
 
