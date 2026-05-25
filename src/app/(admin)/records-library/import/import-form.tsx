@@ -164,6 +164,8 @@ export function ImportForm({ templates }: { templates: Template[] }) {
   const [result, setResult] = useState<{
     persons_created: number;
     records_created: number;
+    records_merged: number;
+    records_skipped: number;
     auto_linked: number;
     queued: number;
     error_count: number;
@@ -294,6 +296,8 @@ export function ImportForm({ templates }: { templates: Template[] }) {
     setResult({
       persons_created: 0,
       records_created: 0,
+      records_merged: 0,
+      records_skipped: 0,
       auto_linked: 0,
       queued: 0,
       error_count: 0,
@@ -345,6 +349,8 @@ export function ImportForm({ templates }: { templates: Template[] }) {
     const totals = {
       persons_created: 0,
       records_created: 0,
+      records_merged: 0,
+      records_skipped: 0,
       auto_linked: 0,
       queued: 0,
       error_count: 0,
@@ -373,6 +379,8 @@ export function ImportForm({ templates }: { templates: Template[] }) {
       const result = await res.json();
       totals.persons_created += result.persons_created;
       totals.records_created += result.records_created;
+      totals.records_merged += result.records_merged ?? 0;
+      totals.records_skipped += result.records_skipped ?? 0;
       totals.error_count += result.error_count;
       setResult({ ...totals });
       setProgress({ done: i + batch.length, total: rows.length });
@@ -607,9 +615,11 @@ export function ImportForm({ templates }: { templates: Template[] }) {
             </div>
           )}
 
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-sm">
             <Stat label="Persons created" value={result.persons_created} />
             <Stat label="Records created" value={result.records_created} />
+            <Stat label="Merged" value={result.records_merged} />
+            <Stat label="Skipped" value={result.records_skipped} />
             <Stat label="Auto-linked" value={result.auto_linked} />
             <Stat label="Queued" value={result.queued} />
             <Stat label="Errors" value={result.error_count} />

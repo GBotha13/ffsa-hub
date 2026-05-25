@@ -20,6 +20,7 @@ type CsvRow = Record<string, string | null | undefined>;
 type Summary = {
   persons_created: number;
   records_created: number;
+  records_merged: number;
   records_skipped: number;
   auto_linked_count: number;
   queued_count: number;
@@ -48,6 +49,42 @@ const DEDUP_TABLE: Record<RecordType, string> = {
   enrollment: "library_enrollments",
   document: "library_documents",
 };
+
+// Fields used to identify "the same record" across re-imports — the
+// importer first looks for an existing row matching ALL non-null
+// values from these fields (per-person), and if found, fills in
+// previously-empty columns/raw_data keys instead of inserting a new
+// row. Fall-through is the byte-for-byte content hash.
+const MERGE_KEYS: Record<RecordType, readonly string[]> = {
+  application: ["program_name", "cohort"],
+  payment: ["paid_at", "amount", "currency"],
+  enrollment: ["school_name", "start_date"],
+  document: ["doc_type", "identifier"],
+};
+
+function isEmpty(v: unknown): boolean {
+  return v == null || v === "";
+}
+
+/**
+ * "Fill the gaps" merge — for each key in `incoming` whose value is
+ * non-empty, set on the result only when the existing value is
+ * empty. Never overwrites populated existing data.
+ */
+function mergeFilling<T extends Record<string, unknown>>(
+  existing: T,
+  incoming: Partial<T>
+): { merged: T; changed: boolean } {
+  const merged: Record<string, unknown> = { ...existing };
+  let changed = false;
+  for (const [k, v] of Object.entries(incoming)) {
+    if (isEmpty(v)) continue;
+    if (!isEmpty(existing[k])) continue;
+    merged[k] = v;
+    changed = true;
+  }
+  return { merged: merged as T, changed };
+}
 
 export async function POST(
   request: Request,
@@ -99,6 +136,7 @@ export async function POST(
   const totals: Summary = {
     persons_created: 0,
     records_created: 0,
+    records_merged: 0,
     records_skipped: 0,
     auto_linked_count: 0,
     queued_count: 0,
@@ -175,13 +213,110 @@ export async function POST(
         totals.persons_created += 1;
       }
 
-      // 2. Compute a content hash and skip if this exact row was already
-      //    imported for this person — the "re-imported the same CSV by
-      //    accident" case. raw_data preserves all original columns, so a
-      //    row with identical raw_data + identical core fields is the
-      //    same record by definition.
-      const contentHash = computeContentHash(recordPart, rawData);
+      // 2. Build the typed core column object for this record type. Date
+      //    fields go through parseDate; amounts go through parseAmount.
+      //    Everything else flows straight through. This is the "incoming"
+      //    record's core column set.
+      const incomingCore: Record<string, unknown> = {};
+      if (recordType === "application") {
+        incomingCore.program_name = (recordPart.program_name as string) ?? null;
+        incomingCore.cohort = (recordPart.cohort as string) ?? null;
+        incomingCore.status = (recordPart.status as string) ?? null;
+        incomingCore.submitted_at = parseDate(recordPart.submitted_at);
+      } else if (recordType === "payment") {
+        incomingCore.amount = parseAmount(recordPart.amount);
+        incomingCore.currency = (recordPart.currency as string) ?? null;
+        incomingCore.description = (recordPart.description as string) ?? null;
+        incomingCore.paid_at = parseDate(recordPart.paid_at);
+      } else if (recordType === "enrollment") {
+        incomingCore.school_name = (recordPart.school_name as string) ?? null;
+        incomingCore.program_name = (recordPart.program_name as string) ?? null;
+        incomingCore.role = (recordPart.role as string) ?? null;
+        incomingCore.start_date = parseDate(recordPart.start_date);
+        incomingCore.end_date = parseDate(recordPart.end_date);
+      } else if (recordType === "document") {
+        incomingCore.doc_type = (recordPart.doc_type as string) ?? null;
+        incomingCore.file_url = (recordPart.file_url as string) ?? null;
+        incomingCore.identifier = (recordPart.identifier as string) ?? null;
+        incomingCore.expires_at = parseDate(recordPart.expires_at);
+      }
+
       const dedupTable = DEDUP_TABLE[recordType];
+
+      // 3. Try a typed-key lookup first: find an existing record on this
+      //    person that shares all the non-empty MERGE_KEYS values from
+      //    the incoming row. This is the "same application / same
+      //    payment / etc." case where we want to fill gaps rather than
+      //    duplicate.
+      const mergeKeyFields = MERGE_KEYS[recordType];
+      const lookupFilters: Record<string, unknown> = {};
+      for (const k of mergeKeyFields) {
+        const v = incomingCore[k];
+        if (!isEmpty(v)) lookupFilters[k] = v;
+      }
+
+      let existing: Record<string, unknown> | null = null;
+      if (Object.keys(lookupFilters).length > 0) {
+        let q = adminSupabase
+          .from(dedupTable)
+          .select("*")
+          .eq("person_id", personId!);
+        for (const [k, v] of Object.entries(lookupFilters)) {
+          q = q.eq(k, v);
+        }
+        const lookupRes = await q.limit(2);
+        if (lookupRes.data && lookupRes.data.length === 1) {
+          existing = lookupRes.data[0];
+        }
+        // If 2+ matches, the typed key is ambiguous → fall through to
+        // content-hash check / insert.
+      }
+
+      // 4. If we found exactly one existing record by typed key, merge.
+      if (existing) {
+        const { merged: mergedCore, changed: coreChanged } = mergeFilling(
+          existing,
+          incomingCore
+        );
+        const existingRaw =
+          (existing.raw_data as Record<string, unknown> | null) ?? {};
+        const { merged: mergedRaw, changed: rawChanged } = mergeFilling(
+          existingRaw,
+          rawData
+        );
+
+        if (!coreChanged && !rawChanged) {
+          // Nothing new to fill — pure dup.
+          totals.records_skipped += 1;
+          continue;
+        }
+
+        // Recompute the content hash from the merged content so future
+        // re-imports of the same merged result skip cleanly.
+        const newHash = computeContentHash(mergedCore, mergedRaw);
+        const updatePayload: Record<string, unknown> = {
+          raw_data: mergedRaw,
+          content_hash: newHash,
+        };
+        for (const k of Object.keys(incomingCore)) {
+          updatePayload[k] = mergedCore[k];
+        }
+        const upd = await adminSupabase
+          .from(dedupTable)
+          .update(updatePayload)
+          .eq("id", existing.id as string);
+        if (upd.error) {
+          throw new Error(upd.error.message ?? "Failed to merge record");
+        }
+        totals.records_merged += 1;
+        continue;
+      }
+
+      // 5. No typed-key match — check for a byte-for-byte content-hash
+      //    duplicate before inserting (handles the "no typed key" case
+      //    and the "same person legitimately has multiple rows but the
+      //    typed key is ambiguous" case).
+      const contentHash = computeContentHash(incomingCore, rawData);
       const dupCheck = await adminSupabase
         .from(dedupTable)
         .select("id")
@@ -195,7 +330,7 @@ export async function POST(
         continue;
       }
 
-      // 3. Create the typed record on the person.
+      // 6. Otherwise, INSERT as a new record.
       const recordBase = {
         person_id: personId!,
         import_id: importId,
@@ -207,38 +342,38 @@ export async function POST(
       if (recordType === "application") {
         const res = await createApplication(adminSupabase, {
           ...recordBase,
-          program_name: (recordPart.program_name as string) ?? null,
-          cohort: (recordPart.cohort as string) ?? null,
-          status: (recordPart.status as string) ?? null,
-          submitted_at: parseDate(recordPart.submitted_at),
+          program_name: incomingCore.program_name as string | null,
+          cohort: incomingCore.cohort as string | null,
+          status: incomingCore.status as string | null,
+          submitted_at: incomingCore.submitted_at as string | null,
         });
         createErr = res.error ?? null;
       } else if (recordType === "payment") {
         const res = await createPayment(adminSupabase, {
           ...recordBase,
-          amount: parseAmount(recordPart.amount),
-          currency: (recordPart.currency as string) ?? null,
-          description: (recordPart.description as string) ?? null,
-          paid_at: parseDate(recordPart.paid_at),
+          amount: incomingCore.amount as number | null,
+          currency: incomingCore.currency as string | null,
+          description: incomingCore.description as string | null,
+          paid_at: incomingCore.paid_at as string | null,
         });
         createErr = res.error ?? null;
       } else if (recordType === "enrollment") {
         const res = await createEnrollment(adminSupabase, {
           ...recordBase,
-          school_name: (recordPart.school_name as string) ?? null,
-          program_name: (recordPart.program_name as string) ?? null,
-          role: (recordPart.role as string) ?? null,
-          start_date: parseDate(recordPart.start_date),
-          end_date: parseDate(recordPart.end_date),
+          school_name: incomingCore.school_name as string | null,
+          program_name: incomingCore.program_name as string | null,
+          role: incomingCore.role as string | null,
+          start_date: incomingCore.start_date as string | null,
+          end_date: incomingCore.end_date as string | null,
         });
         createErr = res.error ?? null;
       } else if (recordType === "document") {
         const res = await createDocument(adminSupabase, {
           ...recordBase,
-          doc_type: (recordPart.doc_type as string) ?? null,
-          file_url: (recordPart.file_url as string) ?? null,
-          identifier: (recordPart.identifier as string) ?? null,
-          expires_at: parseDate(recordPart.expires_at),
+          doc_type: incomingCore.doc_type as string | null,
+          file_url: incomingCore.file_url as string | null,
+          identifier: incomingCore.identifier as string | null,
+          expires_at: incomingCore.expires_at as string | null,
         });
         createErr = res.error ?? null;
       }
@@ -267,7 +402,9 @@ export async function POST(
   // Increment counters atomically by reading + writing (small batches, fine).
   const current = await adminSupabase
     .from("library_imports")
-    .select("persons_created, records_created, skipped_count, error_count")
+    .select(
+      "persons_created, records_created, merged_count, skipped_count, error_count"
+    )
     .eq("id", importId)
     .maybeSingle();
 
@@ -275,6 +412,7 @@ export async function POST(
     | {
         persons_created: number;
         records_created: number;
+        merged_count: number | null;
         skipped_count: number | null;
         error_count: number;
       }
@@ -287,6 +425,8 @@ export async function POST(
           (currentData.persons_created ?? 0) + totals.persons_created,
         records_created:
           (currentData.records_created ?? 0) + totals.records_created,
+        merged_count:
+          (currentData.merged_count ?? 0) + totals.records_merged,
         skipped_count:
           (currentData.skipped_count ?? 0) + totals.records_skipped,
         error_count: (currentData.error_count ?? 0) + totals.error_count,

@@ -90,6 +90,8 @@ export default async function RecordsLibraryPage() {
                   <th className="text-right px-3 py-2 font-medium">Rows</th>
                   <th className="text-right px-3 py-2 font-medium">Persons</th>
                   <th className="text-right px-3 py-2 font-medium">Records</th>
+                  <th className="text-right px-3 py-2 font-medium">Merged</th>
+                  <th className="text-right px-3 py-2 font-medium">Skipped</th>
                   <th className="text-right px-3 py-2 font-medium">Auto-linked</th>
                   <th className="text-right px-3 py-2 font-medium">Queued</th>
                   <th className="text-right px-3 py-2 font-medium">Errors</th>
@@ -112,6 +114,8 @@ export default async function RecordsLibraryPage() {
                     <td className="px-3 py-2 text-right">{row.row_count}</td>
                     <td className="px-3 py-2 text-right">{row.persons_created}</td>
                     <td className="px-3 py-2 text-right">{row.records_created}</td>
+                    <td className="px-3 py-2 text-right">{row.merged_count ?? 0}</td>
+                    <td className="px-3 py-2 text-right">{row.skipped_count ?? 0}</td>
                     <td className="px-3 py-2 text-right">{row.auto_linked_count}</td>
                     <td className="px-3 py-2 text-right">{row.queued_count}</td>
                     <td className="px-3 py-2 text-right">{row.error_count}</td>
@@ -212,6 +216,8 @@ type ImportRow = {
   row_count: number;
   persons_created: number;
   records_created: number;
+  merged_count: number | null;
+  skipped_count: number | null;
   auto_linked_count: number;
   queued_count: number;
   error_count: number;
