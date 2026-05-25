@@ -113,6 +113,10 @@ export async function ProfileRecords({
         />
       </div>
 
+      {/* Stats above show distinct records after CSV dedup. The Sections
+          below render the underlying total (e.g. 2 / 14) when CSV rows
+          were collapsed. */}
+
       {linkedPersons.length > 0 && (
         <div className="rounded-xl border overflow-hidden">
           <div className="bg-muted/50 px-4 py-2.5 text-xs uppercase tracking-wider text-muted-foreground font-semibold">
@@ -224,6 +228,11 @@ function Section({
   rows: AttachmentRow[];
   icon: React.ComponentType<{ className?: string }>;
 }) {
+  // Distinct rows count (after CSV dedup) shown in the header; the total
+  // underlying record count (sum of `count` for collapsed groups) renders
+  // beside it so staff don't lose visibility of the raw number on file.
+  const distinctCount = rows.length;
+  const underlyingTotal = rows.reduce((sum, r) => sum + (r.count ?? 1), 0);
   return (
     <div className="rounded-xl border">
       <div className="flex items-center justify-between bg-muted/50 px-4 py-2.5">
@@ -234,7 +243,10 @@ function Section({
           </span>
         </div>
         <span className="text-xs text-muted-foreground tabular-nums">
-          {rows.length}
+          {distinctCount}
+          {underlyingTotal > distinctCount && (
+            <span className="opacity-60"> / {underlyingTotal}</span>
+          )}
         </span>
       </div>
       <div className="px-4 py-1">
@@ -243,50 +255,97 @@ function Section({
         ) : (
           <ul className="divide-y">
             {rows.map((r) => (
-              <li key={r.id} className="py-2.5 border-t first:border-t-0">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium text-sm flex items-center gap-2 flex-wrap">
-                      <span className="capitalize">{r.title}</span>
-                      <SourceBadge source={r.source} />
-                    </div>
-                    {r.subtitle && (
-                      <div className="text-xs text-muted-foreground mt-0.5 truncate">
-                        {r.subtitle}
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-xs text-muted-foreground shrink-0 text-right">
-                    {r.date ? (
-                      <>
-                        {r.dateLabel && (
-                          <div className="text-[10px] uppercase tracking-wide opacity-70">
-                            {r.dateLabel}
-                          </div>
-                        )}
-                        <div>{formatDate(r.date)}</div>
-                      </>
-                    ) : null}
-                  </div>
-                </div>
-                {r.fileUrl && (
-                  <div className="mt-1.5">
-                    <a
-                      href={r.fileUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-xs underline text-blue-400"
-                    >
-                      Open file →
-                    </a>
-                  </div>
-                )}
+              <li key={r.id} className="border-t first:border-t-0">
+                <Row r={r} />
               </li>
             ))}
           </ul>
         )}
       </div>
     </div>
+  );
+}
+
+function Row({ r }: { r: AttachmentRow }) {
+  const body = (
+    <div className="flex items-start justify-between gap-2 py-2.5 px-1 -mx-1 rounded-md">
+      <div className="min-w-0 flex-1">
+        <div className="font-medium text-sm flex items-center gap-2 flex-wrap">
+          <span className="capitalize">{r.title}</span>
+          <SourceBadge source={r.source} />
+          {r.count && r.count > 1 && (
+            <span
+              className="text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded border bg-muted text-muted-foreground"
+              title={`${r.count} identical records — likely re-imports of the same CSV`}
+            >
+              ×{r.count}
+            </span>
+          )}
+        </div>
+        {r.subtitle && (
+          <div className="text-xs text-muted-foreground mt-0.5 truncate">
+            {r.subtitle}
+          </div>
+        )}
+      </div>
+      <div className="text-xs text-muted-foreground shrink-0 text-right">
+        {r.date ? (
+          <>
+            {r.dateLabel && (
+              <div className="text-[10px] uppercase tracking-wide opacity-70">
+                {r.dateLabel}
+              </div>
+            )}
+            <div>{formatDate(r.date)}</div>
+          </>
+        ) : null}
+      </div>
+    </div>
+  );
+
+  // CSV rows deep-link to the library_person record. In-app rows stay
+  // un-linked here (each in-app domain has its own detail page; we keep
+  // the routing decision out of this shared component for now).
+  if (r.source === "csv" && r.libraryPersonId) {
+    return (
+      <Link
+        href={`/records-library/persons/${r.libraryPersonId}`}
+        className="block hover:bg-muted/40 rounded-md transition-colors"
+      >
+        {body}
+        {r.fileUrl && (
+          <div className="px-1 pb-2 -mt-1">
+            <a
+              href={r.fileUrl}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="text-xs underline text-blue-400"
+            >
+              Open file →
+            </a>
+          </div>
+        )}
+      </Link>
+    );
+  }
+
+  return (
+    <>
+      {body}
+      {r.fileUrl && (
+        <div className="px-1 pb-2 -mt-1">
+          <a
+            href={r.fileUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs underline text-blue-400"
+          >
+            Open file →
+          </a>
+        </div>
+      )}
+    </>
   );
 }
 

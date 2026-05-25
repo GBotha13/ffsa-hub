@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -19,10 +20,33 @@ type CsvRow = Record<string, string | null | undefined>;
 type Summary = {
   persons_created: number;
   records_created: number;
+  records_skipped: number;
   auto_linked_count: number;
   queued_count: number;
   error_count: number;
   processed: number;
+};
+
+// Stable hash of the row content. Keys are sorted so the hash is
+// deterministic regardless of CSV column order, and we include the
+// typed core fields alongside raw_data so a row with the same raw
+// data but different mapping still gets a unique hash.
+function computeContentHash(
+  core: Record<string, unknown>,
+  raw: Record<string, unknown>
+): string {
+  const normalized = JSON.stringify(
+    { core, raw },
+    Object.keys({ ...core, ...raw }).sort()
+  );
+  return createHash("sha256").update(normalized).digest("hex");
+}
+
+const DEDUP_TABLE: Record<RecordType, string> = {
+  application: "library_applications",
+  payment: "library_payments",
+  enrollment: "library_enrollments",
+  document: "library_documents",
 };
 
 export async function POST(
@@ -75,6 +99,7 @@ export async function POST(
   const totals: Summary = {
     persons_created: 0,
     records_created: 0,
+    records_skipped: 0,
     auto_linked_count: 0,
     queued_count: 0,
     error_count: 0,
@@ -150,11 +175,32 @@ export async function POST(
         totals.persons_created += 1;
       }
 
-      // 2. Create the typed record on the person.
+      // 2. Compute a content hash and skip if this exact row was already
+      //    imported for this person — the "re-imported the same CSV by
+      //    accident" case. raw_data preserves all original columns, so a
+      //    row with identical raw_data + identical core fields is the
+      //    same record by definition.
+      const contentHash = computeContentHash(recordPart, rawData);
+      const dedupTable = DEDUP_TABLE[recordType];
+      const dupCheck = await adminSupabase
+        .from(dedupTable)
+        .select("id")
+        .eq("person_id", personId!)
+        .eq("content_hash", contentHash)
+        .limit(1)
+        .maybeSingle();
+
+      if (dupCheck.data?.id) {
+        totals.records_skipped += 1;
+        continue;
+      }
+
+      // 3. Create the typed record on the person.
       const recordBase = {
         person_id: personId!,
         import_id: importId,
         raw_data: rawData,
+        content_hash: contentHash,
       };
 
       let createErr: { message?: string } | null = null;
@@ -221,12 +267,17 @@ export async function POST(
   // Increment counters atomically by reading + writing (small batches, fine).
   const current = await adminSupabase
     .from("library_imports")
-    .select("persons_created, records_created, error_count")
+    .select("persons_created, records_created, skipped_count, error_count")
     .eq("id", importId)
     .maybeSingle();
 
   const currentData = current.data as
-    | { persons_created: number; records_created: number; error_count: number }
+    | {
+        persons_created: number;
+        records_created: number;
+        skipped_count: number | null;
+        error_count: number;
+      }
     | null;
   if (currentData) {
     await adminSupabase
@@ -236,6 +287,8 @@ export async function POST(
           (currentData.persons_created ?? 0) + totals.persons_created,
         records_created:
           (currentData.records_created ?? 0) + totals.records_created,
+        skipped_count:
+          (currentData.skipped_count ?? 0) + totals.records_skipped,
         error_count: (currentData.error_count ?? 0) + totals.error_count,
       })
       .eq("id", importId);

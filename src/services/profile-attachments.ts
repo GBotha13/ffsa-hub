@@ -24,6 +24,12 @@ export type AttachmentRow = {
   fileUrl?: string | null;
   /** Source library_persons.id for CSV-sourced rows so staff can deep-link. */
   libraryPersonId?: string | null;
+  /**
+   * When >1, this row represents N visually-identical records that were
+   * collapsed in the display (typically dupes from re-importing the same
+   * CSV). Clicking through still drills into the underlying library_person.
+   */
+  count?: number;
 };
 
 export type ProfileAttachments = {
@@ -138,6 +144,7 @@ export async function getProfileAttachments(
       subtitle: [r.cohort, r.status].filter(Boolean).join(" · ") || null,
       date: r.submitted_at,
       dateLabel: "Submitted",
+      libraryPersonId: r.person_id,
     });
   }
   for (const r of (appsRes.data ?? []) as AppApplication[]) {
@@ -161,6 +168,7 @@ export async function getProfileAttachments(
       subtitle: [r.program_name, r.role].filter(Boolean).join(" · ") || null,
       date: r.start_date,
       dateLabel: "Started",
+      libraryPersonId: r.person_id,
     });
   }
   for (const r of (enrollsRes.data ?? []) as AppEnrollment[]) {
@@ -186,6 +194,7 @@ export async function getProfileAttachments(
       subtitle: r.description ?? null,
       date: r.paid_at,
       dateLabel: "Paid",
+      libraryPersonId: r.person_id,
     });
   }
   for (const r of (paysRes.data ?? []) as AppPayment[]) {
@@ -230,6 +239,7 @@ export async function getProfileAttachments(
       date: r.expires_at,
       dateLabel: "Expires",
       fileUrl: r.file_url,
+      libraryPersonId: r.person_id,
     });
   }
 
@@ -280,15 +290,52 @@ export async function getProfileAttachments(
     if (!b.date) return -1;
     return a.date > b.date ? -1 : a.date < b.date ? 1 : 0;
   };
-  out.applications.sort(byDateDesc);
-  out.enrollments.sort(byDateDesc);
-  out.payments.sort(byDateDesc);
+
+  // Collapse visually-identical CSV rows (typically caused by re-importing
+  // the same CSV) into a single row with a count badge. In-app rows are
+  // never deduped — they're authoritative individual records.
+  out.applications = dedupCsvRows(out.applications).sort(byDateDesc);
+  out.enrollments = dedupCsvRows(out.enrollments).sort(byDateDesc);
+  out.payments = dedupCsvRows(out.payments).sort(byDateDesc);
   out.tickets.sort(byDateDesc);
-  out.documents.sort(byDateDesc);
+  out.documents = dedupCsvRows(out.documents).sort(byDateDesc);
   out.references.sort(byDateDesc);
   out.consents.sort(byDateDesc);
   out.prayerRoom.sort(byDateDesc);
 
+  return out;
+}
+
+/**
+ * Collapse rows with the same source=csv, libraryPersonId, title, subtitle,
+ * dateLabel, date and fileUrl into a single row carrying a `count`. Leaves
+ * in-app rows alone — they're authoritative.
+ */
+function dedupCsvRows(rows: AttachmentRow[]): AttachmentRow[] {
+  const byKey = new Map<string, AttachmentRow>();
+  const out: AttachmentRow[] = [];
+  for (const row of rows) {
+    if (row.source !== "csv") {
+      out.push(row);
+      continue;
+    }
+    const key = [
+      row.libraryPersonId ?? "",
+      row.title ?? "",
+      row.subtitle ?? "",
+      row.dateLabel ?? "",
+      row.date ?? "",
+      row.fileUrl ?? "",
+    ].join("|");
+    const existing = byKey.get(key);
+    if (existing) {
+      existing.count = (existing.count ?? 1) + 1;
+    } else {
+      const cloned: AttachmentRow = { ...row, count: 1 };
+      byKey.set(key, cloned);
+      out.push(cloned);
+    }
+  }
   return out;
 }
 
@@ -298,6 +345,7 @@ export async function getProfileAttachments(
 
 type CsvApp = {
   id: string;
+  person_id: string;
   program_name: string | null;
   cohort: string | null;
   status: string | null;
@@ -305,6 +353,7 @@ type CsvApp = {
 };
 type CsvEnroll = {
   id: string;
+  person_id: string;
   school_name: string | null;
   program_name: string | null;
   role: string | null;
@@ -313,6 +362,7 @@ type CsvEnroll = {
 };
 type CsvPayment = {
   id: string;
+  person_id: string;
   amount: number | null;
   currency: string | null;
   description: string | null;
@@ -320,6 +370,7 @@ type CsvPayment = {
 };
 type CsvDocument = {
   id: string;
+  person_id: string;
   doc_type: string | null;
   identifier: string | null;
   expires_at: string | null;

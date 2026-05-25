@@ -321,6 +321,7 @@ export async function createApplication(
     status?: string | null;
     submitted_at?: string | null;
     raw_data?: Record<string, unknown>;
+    content_hash?: string | null;
   }
 ) {
   return supabase.from("library_applications").insert(data).select().single();
@@ -337,6 +338,7 @@ export async function createPayment(
     description?: string | null;
     paid_at?: string | null;
     raw_data?: Record<string, unknown>;
+    content_hash?: string | null;
   }
 ) {
   return supabase.from("library_payments").insert(data).select().single();
@@ -354,6 +356,7 @@ export async function createEnrollment(
     start_date?: string | null;
     end_date?: string | null;
     raw_data?: Record<string, unknown>;
+    content_hash?: string | null;
   }
 ) {
   return supabase.from("library_enrollments").insert(data).select().single();
@@ -370,6 +373,7 @@ export async function createDocument(
     identifier?: string | null;
     expires_at?: string | null;
     raw_data?: Record<string, unknown>;
+    content_hash?: string | null;
   }
 ) {
   return supabase.from("library_documents").insert(data).select().single();
