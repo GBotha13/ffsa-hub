@@ -4,6 +4,7 @@ import { requireModuleAccess } from "@/lib/require-permission";
 import { getLabels } from "@/services/labels";
 import { listCsvImports } from "@/services/csv-imports";
 import { CsvImportForm } from "./csv-import-form";
+import { UndoImportButton } from "./undo-import-button";
 
 export default async function ContactsImportPage() {
   const supabase = await createClient();
@@ -49,6 +50,7 @@ export default async function ContactsImportPage() {
                   <th className="text-right px-3 py-2 font-medium">Review</th>
                   <th className="text-right px-3 py-2 font-medium">Errored</th>
                   <th className="text-left px-3 py-2 font-medium">When</th>
+                  <th className="text-right px-3 py-2 font-medium">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -66,6 +68,15 @@ export default async function ContactsImportPage() {
                     <td className="px-3 py-2 text-right">{row.error_count}</td>
                     <td className="px-3 py-2 text-gray-500">
                       {new Date(row.created_at).toLocaleString()}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <UndoImportButton
+                        importId={row.id}
+                        filename={row.filename}
+                        importedCount={row.imported_count}
+                        matchedCount={row.matched_count}
+                        status={row.status}
+                      />
                     </td>
                   </tr>
                 ))}
