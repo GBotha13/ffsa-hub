@@ -307,6 +307,30 @@ export async function listTicketsByOrder(supabase: Client, orderId: string) {
 }
 
 /**
+ * All tickets for an event, joined with buyer (orders) and tier
+ * (ticket_types) info. Powers the admin Check-in tab:
+ *   - aggregate counts (sold / checked in / outstanding)
+ *   - attendance roster (who's been scanned in, by whom, when)
+ *
+ * Voids and pending-order tickets are excluded — we only want
+ * tickets that are or were valid at the door.
+ */
+export async function listAttendanceTicketsByEvent(
+  supabase: Client,
+  eventId: string
+) {
+  return supabase
+    .from("tickets")
+    .select(
+      "id, status, code, checked_in_at, checked_in_by, created_at, ticket_types(name), orders!inner(id, status, buyer_first_name, buyer_last_name, buyer_email), users:checked_in_by(first_name, last_name)"
+    )
+    .eq("event_id", eventId)
+    .in("status", ["valid", "checked_in"])
+    .eq("orders.status", "paid")
+    .order("checked_in_at", { ascending: false, nullsFirst: false });
+}
+
+/**
  * Look up a ticket by its scannable code for door check-in.
  * Returns null when no ticket matches — the scanner shows "invalid".
  */
