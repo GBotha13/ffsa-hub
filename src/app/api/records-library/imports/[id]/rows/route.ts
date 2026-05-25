@@ -88,7 +88,13 @@ export async function POST(
     totals.processed += 1;
 
     try {
-      // Split the row into person fields, record fields, and raw_data.
+      // Split the row into typed person fields, typed record fields, and
+      // raw_data. We ALWAYS preserve every CSV column in raw_data so the
+      // form-response view on /records-library/persons/[id] is a complete
+      // picture of the original CSV row — even the columns that were also
+      // mapped to typed columns (first_name, email, status, etc.) stay
+      // visible there. The typed columns still get populated for dedup /
+      // indexing / sortable display elsewhere.
       const personPart: Record<string, unknown> = {};
       const recordPart: Record<string, unknown> = {};
       const rawData: Record<string, unknown> = {};
@@ -96,17 +102,16 @@ export async function POST(
       for (const [csvCol, value] of Object.entries(raw ?? {}) as Array<[string, string | null | undefined]>) {
         const target = mapping[csvCol];
         const cleaned = normalizeValue(value);
-        if (!target || target === "raw") {
-          if (csvCol) rawData[csvCol] = cleaned;
-          continue;
-        }
+
+        // Always keep the column in raw_data (complete CSV view).
+        if (csvCol) rawData[csvCol] = cleaned;
+
+        // Additionally populate typed columns if this column was mapped.
+        if (!target || target === "raw") continue;
         if (personCoreFields.has(target)) {
           personPart[target] = cleaned;
         } else if (recordCoreFields.has(target)) {
           recordPart[target] = cleaned;
-        } else {
-          // Unknown mapping target — fall back to raw.
-          rawData[csvCol] = cleaned;
         }
       }
 
