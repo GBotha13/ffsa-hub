@@ -53,6 +53,8 @@ const REQUIRED_PROFILE_FIELDS: FieldConfig[] = [
       { value: "backbone", label: "Backbone" },
       { value: "training", label: "Training" },
       { value: "project_54", label: "Project 54" },
+      { value: "education", label: "Education" },
+      { value: "woven", label: "Woven" },
     ],
   },
 ];

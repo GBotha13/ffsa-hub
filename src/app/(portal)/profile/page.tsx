@@ -152,6 +152,8 @@ const DEPARTMENT_LABELS: Record<string, string> = {
   backbone: "Backbone",
   training: "Training",
   project_54: "Project 54",
+  education: "Education",
+  woven: "Woven",
 };
 
 function departmentLabel(value: string | null | undefined): string | null {

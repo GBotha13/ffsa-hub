@@ -22,8 +22,10 @@ ALTER TABLE public.users
       'hulk',
       'backbone',
       'training',
-      'project_54'
+      'project_54',
+      'education',
+      'woven'
     ));
 
 COMMENT ON COLUMN public.users.department IS
-  'FFSA department the user predominantly serves in. Set via the profile-completion gate on first login. Allowed values: prayer_and_worship, media, hulk, backbone, training, project_54.';
+  'FFSA department the user predominantly serves in. Set via the profile-completion gate on first login. Allowed values: prayer_and_worship, media, hulk, backbone, training, project_54, education, woven.';
