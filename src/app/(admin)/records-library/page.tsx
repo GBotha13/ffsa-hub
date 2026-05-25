@@ -35,7 +35,13 @@ export default async function RecordsLibraryPage() {
             signs up, matching records auto-attach to their profile.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Link
+            href="/records-library/persons"
+            className="px-3 py-2 text-sm border rounded-md hover:bg-muted"
+          >
+            Browse all persons
+          </Link>
           <Link
             href="/records-library/match-queue"
             className="px-3 py-2 text-sm border rounded-md hover:bg-muted relative"

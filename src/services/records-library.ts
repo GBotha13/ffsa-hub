@@ -158,30 +158,95 @@ export async function listPersons(
   options?: {
     limit?: number;
     offset?: number;
+    /** Free-text — matches first_name, last_name, preferred_name, email, phone */
     search?: string;
+    /** Filter by source import id */
+    importId?: string;
+    /** 'all' (default) | 'linked' | 'unlinked' */
+    linkedStatus?: "all" | "linked" | "unlinked";
+    /** ISO country name */
+    country?: string;
+    /** ISO nationality string */
+    nationality?: string;
+    /** Sort: 'newest' (default) | 'oldest' | 'name' | 'email' */
+    sort?: "newest" | "oldest" | "name" | "email";
+    /** @deprecated use linkedStatus = 'unlinked' */
     onlyUnlinked?: boolean;
   }
 ) {
   let query = supabase
     .from("library_persons")
     .select(
-      "*, users:linked_user_id(id, first_name, last_name, email)",
+      "*, users:linked_user_id(id, first_name, last_name, email), source_import:source_import_id(id, filename)",
       { count: "exact" }
-    )
-    .order("created_at", { ascending: false });
-
-  if (options?.onlyUnlinked) query = query.is("linked_user_id", null);
-  if (options?.search) {
-    const s = `%${options.search}%`;
-    query = query.or(
-      `first_name.ilike.${s},last_name.ilike.${s},email.ilike.${s}`
     );
+
+  // Sort
+  switch (options?.sort) {
+    case "oldest":
+      query = query.order("created_at", { ascending: true });
+      break;
+    case "name":
+      query = query.order("last_name", { ascending: true, nullsFirst: false });
+      break;
+    case "email":
+      query = query.order("email_normalized", { ascending: true, nullsFirst: false });
+      break;
+    default:
+      query = query.order("created_at", { ascending: false });
+  }
+
+  // Linked status (new) takes precedence over the legacy onlyUnlinked.
+  if (options?.linkedStatus === "linked") {
+    query = query.not("linked_user_id", "is", null);
+  } else if (options?.linkedStatus === "unlinked" || options?.onlyUnlinked) {
+    query = query.is("linked_user_id", null);
+  }
+  if (options?.importId) {
+    query = query.eq("source_import_id", options.importId);
+  }
+  if (options?.country) {
+    query = query.ilike("country", options.country);
+  }
+  if (options?.nationality) {
+    query = query.ilike("nationality", options.nationality);
+  }
+  if (options?.search) {
+    const s = options.search.replace(/[%,()]/g, "");
+    if (s) {
+      const like = `%${s}%`;
+      query = query.or(
+        `first_name.ilike.${like},last_name.ilike.${like},preferred_name.ilike.${like},email.ilike.${like},phone.ilike.${like}`
+      );
+    }
   }
   if (options?.limit) {
     const from = options.offset ?? 0;
     query = query.range(from, from + options.limit - 1);
   }
   return query;
+}
+
+/**
+ * Returns the distinct list of values across all library_persons for the
+ * supplied column — used to populate the filter dropdowns on the persons
+ * browser page (countries, nationalities, etc.).
+ */
+export async function distinctPersonValues(
+  supabase: Client,
+  column: "country" | "nationality"
+): Promise<string[]> {
+  const res = await supabase
+    .from("library_persons")
+    .select(column)
+    .not(column, "is", null)
+    .order(column);
+  const values = new Set<string>();
+  for (const row of (res.data ?? []) as Record<string, string | null>[]) {
+    const v = (row[column] ?? "").trim();
+    if (v) values.add(v);
+  }
+  return Array.from(values).sort((a, b) => a.localeCompare(b));
 }
 
 export async function getPerson(supabase: Client, id: string) {
