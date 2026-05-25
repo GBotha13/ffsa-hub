@@ -190,7 +190,11 @@ export default async function PrintablePersonSheet({
           <h2 className="text-lg font-bold text-slate-900 mb-3">
             Form responses
           </h2>
-          <CsvSheet raw={person.raw_data} variant="light" />
+          <CsvSheet
+            raw={person.raw_data}
+            columnOrder={person.source_import?.column_order ?? null}
+            variant="light"
+          />
         </section>
 
         <footer className="mt-12 pt-4 border-t border-slate-200 text-xs text-slate-400">

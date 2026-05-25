@@ -200,7 +200,10 @@ export default async function PersonDetailPage({
 
       {Object.keys(person.raw_data ?? {}).length > 0 && (
         <Section title="Form responses">
-          <CsvSheet raw={person.raw_data} />
+          <CsvSheet
+            raw={person.raw_data}
+            columnOrder={person.source_import?.column_order ?? null}
+          />
         </Section>
       )}
     </div>

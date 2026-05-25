@@ -1837,6 +1837,527 @@ export type Database = {
           },
         ]
       }
+      library_applications: {
+        Row: {
+          cohort: string | null
+          created_at: string
+          id: string
+          import_id: string | null
+          person_id: string
+          program_name: string | null
+          raw_data: Json
+          status: string | null
+          submitted_at: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          cohort?: string | null
+          created_at?: string
+          id?: string
+          import_id?: string | null
+          person_id: string
+          program_name?: string | null
+          raw_data?: Json
+          status?: string | null
+          submitted_at?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          cohort?: string | null
+          created_at?: string
+          id?: string
+          import_id?: string | null
+          person_id?: string
+          program_name?: string | null
+          raw_data?: Json
+          status?: string | null
+          submitted_at?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "library_applications_import_id_fkey"
+            columns: ["import_id"]
+            isOneToOne: false
+            referencedRelation: "library_imports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "library_applications_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "library_persons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "library_applications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      library_documents: {
+        Row: {
+          created_at: string
+          doc_type: string | null
+          expires_at: string | null
+          file_url: string | null
+          id: string
+          identifier: string | null
+          import_id: string | null
+          person_id: string
+          raw_data: Json
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          doc_type?: string | null
+          expires_at?: string | null
+          file_url?: string | null
+          id?: string
+          identifier?: string | null
+          import_id?: string | null
+          person_id: string
+          raw_data?: Json
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          doc_type?: string | null
+          expires_at?: string | null
+          file_url?: string | null
+          id?: string
+          identifier?: string | null
+          import_id?: string | null
+          person_id?: string
+          raw_data?: Json
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "library_documents_import_id_fkey"
+            columns: ["import_id"]
+            isOneToOne: false
+            referencedRelation: "library_imports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "library_documents_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "library_persons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "library_documents_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      library_enrollments: {
+        Row: {
+          created_at: string
+          end_date: string | null
+          id: string
+          import_id: string | null
+          person_id: string
+          program_name: string | null
+          raw_data: Json
+          role: string | null
+          school_name: string | null
+          start_date: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          import_id?: string | null
+          person_id: string
+          program_name?: string | null
+          raw_data?: Json
+          role?: string | null
+          school_name?: string | null
+          start_date?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          import_id?: string | null
+          person_id?: string
+          program_name?: string | null
+          raw_data?: Json
+          role?: string | null
+          school_name?: string | null
+          start_date?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "library_enrollments_import_id_fkey"
+            columns: ["import_id"]
+            isOneToOne: false
+            referencedRelation: "library_imports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "library_enrollments_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "library_persons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "library_enrollments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      library_imports: {
+        Row: {
+          auto_linked_count: number
+          column_mapping: Json
+          column_order: string[] | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          error_count: number
+          error_log: Json | null
+          filename: string
+          id: string
+          persons_created: number
+          queued_count: number
+          record_type: string
+          records_created: number
+          row_count: number
+          status: string
+          template_id: string | null
+        }
+        Insert: {
+          auto_linked_count?: number
+          column_mapping?: Json
+          column_order?: string[] | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_count?: number
+          error_log?: Json | null
+          filename: string
+          id?: string
+          persons_created?: number
+          queued_count?: number
+          record_type: string
+          records_created?: number
+          row_count?: number
+          status?: string
+          template_id?: string | null
+        }
+        Update: {
+          auto_linked_count?: number
+          column_mapping?: Json
+          column_order?: string[] | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_count?: number
+          error_log?: Json | null
+          filename?: string
+          id?: string
+          persons_created?: number
+          queued_count?: number
+          record_type?: string
+          records_created?: number
+          row_count?: number
+          status?: string
+          template_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "library_imports_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "library_imports_template_fk"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "library_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      library_match_queue: {
+        Row: {
+          confidence: string
+          created_at: string
+          id: string
+          match_reason: string
+          person_id: string
+          resolution_notes: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          confidence: string
+          created_at?: string
+          id?: string
+          match_reason: string
+          person_id: string
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          confidence?: string
+          created_at?: string
+          id?: string
+          match_reason?: string
+          person_id?: string
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "library_match_queue_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "library_persons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "library_match_queue_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "library_match_queue_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      library_payments: {
+        Row: {
+          amount: number | null
+          created_at: string
+          currency: string | null
+          description: string | null
+          id: string
+          import_id: string | null
+          paid_at: string | null
+          person_id: string
+          raw_data: Json
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string
+          currency?: string | null
+          description?: string | null
+          id?: string
+          import_id?: string | null
+          paid_at?: string | null
+          person_id: string
+          raw_data?: Json
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string
+          currency?: string | null
+          description?: string | null
+          id?: string
+          import_id?: string | null
+          paid_at?: string | null
+          person_id?: string
+          raw_data?: Json
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "library_payments_import_id_fkey"
+            columns: ["import_id"]
+            isOneToOne: false
+            referencedRelation: "library_imports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "library_payments_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "library_persons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "library_payments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      library_persons: {
+        Row: {
+          country: string | null
+          created_at: string
+          date_of_birth: string | null
+          email: string | null
+          email_normalized: string | null
+          first_name: string | null
+          id: string
+          last_name: string | null
+          link_method: string | null
+          linked_at: string | null
+          linked_by: string | null
+          linked_user_id: string | null
+          nationality: string | null
+          phone: string | null
+          phone_normalized: string | null
+          preferred_name: string | null
+          raw_data: Json
+          source_import_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          country?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          email?: string | null
+          email_normalized?: string | null
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          link_method?: string | null
+          linked_at?: string | null
+          linked_by?: string | null
+          linked_user_id?: string | null
+          nationality?: string | null
+          phone?: string | null
+          phone_normalized?: string | null
+          preferred_name?: string | null
+          raw_data?: Json
+          source_import_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          country?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          email?: string | null
+          email_normalized?: string | null
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          link_method?: string | null
+          linked_at?: string | null
+          linked_by?: string | null
+          linked_user_id?: string | null
+          nationality?: string | null
+          phone?: string | null
+          phone_normalized?: string | null
+          preferred_name?: string | null
+          raw_data?: Json
+          source_import_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "library_persons_linked_by_fkey"
+            columns: ["linked_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "library_persons_linked_user_id_fkey"
+            columns: ["linked_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "library_persons_source_import_id_fkey"
+            columns: ["source_import_id"]
+            isOneToOne: false
+            referencedRelation: "library_imports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      library_templates: {
+        Row: {
+          column_mapping: Json
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          record_type: string
+          updated_at: string
+        }
+        Insert: {
+          column_mapping: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          record_type: string
+          updated_at?: string
+        }
+        Update: {
+          column_mapping?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          record_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "library_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           buyer_contact_id: string | null
@@ -4093,6 +4614,38 @@ export type Database = {
       }
     }
     Functions: {
+      _library_cascade_link: {
+        Args: {
+          p_link_method: string
+          p_linked_by: string
+          p_person_id: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
+      approve_library_match: {
+        Args: { p_notes?: string; p_queue_id: string }
+        Returns: undefined
+      }
+      auto_link_library_records_for_user: {
+        Args: { p_user_id: string }
+        Returns: {
+          auto_linked: number
+          queued: number
+        }[]
+      }
+      find_library_matches_for_user: {
+        Args: { p_user_id: string }
+        Returns: {
+          confidence: string
+          date_of_birth: string
+          email: string
+          first_name: string
+          last_name: string
+          match_reason: string
+          person_id: string
+        }[]
+      }
       get_my_contact_id: { Args: never; Returns: string }
       grade_to_points: { Args: { grade: string }; Returns: number }
       has_any_role: { Args: { required_roles: string[] }; Returns: boolean }
@@ -4118,6 +4671,10 @@ export type Database = {
         Args: { check_team_id: string }
         Returns: boolean
       }
+      manual_link_library_person: {
+        Args: { p_person_id: string; p_user_id: string }
+        Returns: undefined
+      }
       redeem_promo_code: {
         Args: { p_promo_code_id: string }
         Returns: {
@@ -4142,6 +4699,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      reject_library_match: {
+        Args: { p_notes?: string; p_queue_id: string }
+        Returns: undefined
       }
       release_ticket_inventory: {
         Args: { p_qty: number; p_ticket_type_id: string }
@@ -4199,6 +4760,10 @@ export type Database = {
       }
       seed_default_reference_questions: {
         Args: { p_program_id: string }
+        Returns: undefined
+      }
+      unlink_library_person: {
+        Args: { p_person_id: string }
         Returns: undefined
       }
     }

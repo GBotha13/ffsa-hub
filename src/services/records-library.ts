@@ -58,6 +58,7 @@ export async function createImport(
     record_type: RecordType;
     template_id?: string | null;
     column_mapping: ColumnMapping;
+    column_order?: string[];
     row_count: number;
     created_by?: string | null;
   }
@@ -187,7 +188,7 @@ export async function getPerson(supabase: Client, id: string) {
   return supabase
     .from("library_persons")
     .select(
-      "*, users:linked_user_id(id, first_name, last_name, email)"
+      "*, users:linked_user_id(id, first_name, last_name, email), source_import:source_import_id(id, filename, column_order)"
     )
     .eq("id", id)
     .maybeSingle();

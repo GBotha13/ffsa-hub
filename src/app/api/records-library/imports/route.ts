@@ -21,6 +21,7 @@ export async function POST(request: Request) {
     filename?: string;
     record_type?: RecordType;
     column_mapping?: ColumnMapping;
+    column_order?: string[];
     row_count?: number;
     template_id?: string | null;
   };
@@ -50,6 +51,7 @@ export async function POST(request: Request) {
     record_type: body.record_type,
     template_id: body.template_id ?? null,
     column_mapping: body.column_mapping,
+    column_order: Array.isArray(body.column_order) ? body.column_order : undefined,
     row_count: body.row_count,
     created_by: user.id,
   });

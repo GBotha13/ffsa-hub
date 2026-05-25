@@ -5,17 +5,23 @@ import { toSheetEntries } from "@/lib/csv-sheet";
  * readable form-response sheet. Long answers wrap to full width; short
  * answers sit in two-column rows. Empty answers are shown muted as "—".
  *
+ * Pass `columnOrder` (typically library_imports.column_order from the source
+ * import) so the fields render in the CSV's original column order instead of
+ * the jsonb-scrambled order.
+ *
  * Works in both the dark admin theme (default) and the light print view
  * (pass variant="light").
  */
 export function CsvSheet({
   raw,
+  columnOrder,
   variant = "dark",
 }: {
   raw: Record<string, unknown> | null | undefined;
+  columnOrder?: string[] | null;
   variant?: "dark" | "light";
 }) {
-  const entries = toSheetEntries(raw);
+  const entries = toSheetEntries(raw, columnOrder);
   if (entries.length === 0) {
     return (
       <p

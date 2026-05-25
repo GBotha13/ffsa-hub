@@ -70,6 +70,9 @@ function guessField(header: string, fields: readonly string[]): string {
     last_name: "last_name",
     lastname: "last_name",
     surname: "last_name",
+    last_name_surname: "last_name",
+    lastname_surname: "last_name",
+    surname_last_name: "last_name",
     family_name: "last_name",
     preferred_name: "preferred_name",
     nickname: "preferred_name",
@@ -95,6 +98,10 @@ function guessField(header: string, fields: readonly string[]): string {
     cohort: "cohort",
     term: "cohort",
     quarter: "cohort",
+    quarter_year: "cohort",
+    quater: "cohort", // common typo of "quarter"
+    quater_year: "cohort",
+    year_quarter: "cohort",
     status: "status",
     application_status: "status",
     submitted: "submitted_at",
@@ -318,6 +325,7 @@ export function ImportForm({ templates }: { templates: Template[] }) {
         filename,
         record_type: recordType,
         column_mapping: mapping,
+        column_order: headers, // preserve original CSV order for rendering
         row_count: rows.length,
         template_id: savedTemplateId,
       }),

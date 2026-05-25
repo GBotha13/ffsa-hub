@@ -49,19 +49,42 @@ function normaliseValue(value: unknown): string | null {
 
 /**
  * Turn raw_data into a sorted, prettified list of entries ready for rendering.
- * Sort respects the original form question order (1, 2, 3, ..., 12, 13...).
+ *
+ * Sort precedence (best signal first):
+ *   1. `columnOrder` — the CSV's original header order, captured at import
+ *      time in library_imports.column_order. When present, this is the
+ *      authoritative source of truth for ordering.
+ *   2. Leading-number prefix on the key ("1. ", "12. ", "33b. ") — works
+ *      for question-numbered forms.
+ *   3. Alphabetical fallback — last resort when neither signal exists.
  */
-export function toSheetEntries(raw: Record<string, unknown> | null | undefined): SheetEntry[] {
+export function toSheetEntries(
+  raw: Record<string, unknown> | null | undefined,
+  columnOrder?: string[] | null
+): SheetEntry[] {
   if (!raw || typeof raw !== "object") return [];
+
+  // Build a position lookup. Keys not in columnOrder go to the end so we
+  // don't drop fields whose header was renamed after import.
+  const orderIndex = new Map<string, number>();
+  if (columnOrder && Array.isArray(columnOrder)) {
+    columnOrder.forEach((key, i) => orderIndex.set(key, i));
+  }
+
   return Object.entries(raw)
     .map<SheetEntry>(([key, rawValue]) => {
       const value = normaliseValue(rawValue);
       const label = prettifyKey(key);
+      const explicit = orderIndex.get(key);
+      const order =
+        explicit !== undefined
+          ? explicit // 0, 1, 2, ... — way smaller than any fallback below
+          : leadingNumber(key);
       return {
         key,
         label,
         value,
-        order: leadingNumber(key),
+        order,
         long: !!value && value.length > 80,
       };
     })
