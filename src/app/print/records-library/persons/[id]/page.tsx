@@ -3,6 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import { requireModuleAccess } from "@/lib/require-permission";
 import { getPerson, getRecordsForPerson } from "@/services/records-library";
 import { CsvSheet } from "@/components/csv-sheet";
+import { bestPersonName } from "@/lib/person-name";
 import { PrintButton } from "./print-button";
 
 export const dynamic = "force-dynamic";
@@ -25,10 +26,7 @@ export default async function PrintablePersonSheet({
 
   const records = await getRecordsForPerson(supabase, id);
 
-  const fullName =
-    [person.first_name, person.last_name].filter(Boolean).join(" ") ||
-    person.preferred_name ||
-    "—";
+  const fullName = bestPersonName(person);
 
   const linkedUser = person.users;
   const linkedUserName = linkedUser

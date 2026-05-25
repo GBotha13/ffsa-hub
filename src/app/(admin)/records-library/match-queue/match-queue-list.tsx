@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { bestPersonName } from "@/lib/person-name";
 
 type QueueItem = {
   id: string;
@@ -13,8 +14,10 @@ type QueueItem = {
     email: string | null;
     first_name: string | null;
     last_name: string | null;
+    preferred_name: string | null;
     date_of_birth: string | null;
     phone: string | null;
+    raw_data: Record<string, unknown> | null;
   } | null;
   users: {
     id: string;
@@ -62,12 +65,12 @@ export function MatchQueueList({ items }: { items: QueueItem[] }) {
         </div>
       )}
       {items.map((item) => {
-        const personName = [item.library_persons?.first_name, item.library_persons?.last_name]
-          .filter(Boolean)
-          .join(" ");
-        const userName = [item.users?.first_name, item.users?.last_name]
-          .filter(Boolean)
-          .join(" ");
+        const personName = item.library_persons
+          ? bestPersonName(item.library_persons)
+          : "";
+        const userName = item.users
+          ? bestPersonName(item.users)
+          : "";
         return (
           <div key={item.id} className="border rounded-md p-4">
             <div className="flex items-start justify-between gap-4">

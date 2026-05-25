@@ -5,6 +5,7 @@ import { redirect, notFound } from "next/navigation";
 import { requireModuleAccess } from "@/lib/require-permission";
 import { getPerson, getRecordsForPerson } from "@/services/records-library";
 import { CsvSheet } from "@/components/csv-sheet";
+import { bestPersonName } from "@/lib/person-name";
 
 export default async function PersonDetailPage({
   params,
@@ -24,10 +25,7 @@ export default async function PersonDetailPage({
 
   const records = await getRecordsForPerson(supabase, id);
 
-  const fullName =
-    [person.first_name, person.last_name].filter(Boolean).join(" ") ||
-    person.preferred_name ||
-    "—";
+  const fullName = bestPersonName(person);
 
   const linkedUser = person.users;
   const linkedUserName = linkedUser

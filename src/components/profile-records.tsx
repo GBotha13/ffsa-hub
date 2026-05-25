@@ -15,6 +15,7 @@ import {
   getProfileAttachments,
   type AttachmentRow,
 } from "@/services/profile-attachments";
+import { bestPersonName } from "@/lib/person-name";
 
 /**
  * Shared records-on-file panel for both the admin user profile (/users/[id])
@@ -45,7 +46,7 @@ export async function ProfileRecords({
     adminAny
       .from("library_persons")
       .select(
-        "id, first_name, last_name, email, date_of_birth, link_method, linked_at, source_import_id"
+        "id, first_name, last_name, preferred_name, email, date_of_birth, link_method, linked_at, source_import_id, raw_data"
       )
       .eq("linked_user_id", userId)
       .order("linked_at", { ascending: false }),
@@ -119,10 +120,7 @@ export async function ProfileRecords({
           </div>
           <div className="divide-y">
             {linkedPersons.map((lp) => {
-              const name =
-                [lp.first_name, lp.last_name].filter(Boolean).join(" ") ||
-                lp.email ||
-                "—";
+              const name = bestPersonName(lp);
               return (
                 <div
                   key={lp.id}
@@ -355,9 +353,11 @@ type LinkedPerson = {
   id: string;
   first_name: string | null;
   last_name: string | null;
+  preferred_name: string | null;
   email: string | null;
   date_of_birth: string | null;
   link_method: string | null;
   linked_at: string | null;
   source_import_id: string | null;
+  raw_data: Record<string, unknown> | null;
 };

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import { requireModuleAccess } from "@/lib/require-permission";
 import { getImport, getRecordsForImport } from "@/services/records-library";
+import { bestPersonName } from "@/lib/person-name";
 
 export default async function ImportDetailPage({
   params,
@@ -70,7 +71,7 @@ export default async function ImportDetailPage({
                     href={`/records-library/persons/${p.id}`}
                     className="text-foreground hover:underline"
                   >
-                    {[p.first_name, p.last_name].filter(Boolean).join(" ") || "—"}
+                    {bestPersonName(p)}
                   </Link>
                 </td>
                 <td className="px-3 py-2">{p.email ?? "—"}</td>
@@ -241,16 +242,22 @@ function Stat({ label, value }: { label: string; value: number }) {
 function PersonLink({
   p,
 }: {
-  p: { id: string; first_name: string | null; last_name: string | null; email: string | null } | null;
+  p: {
+    id: string;
+    first_name: string | null;
+    last_name: string | null;
+    preferred_name?: string | null;
+    email: string | null;
+    raw_data?: Record<string, unknown> | null;
+  } | null;
 }) {
   if (!p) return <span className="text-muted-foreground">—</span>;
-  const name = [p.first_name, p.last_name].filter(Boolean).join(" ") || p.email || "—";
   return (
     <Link
       href={`/records-library/persons/${p.id}`}
       className="text-foreground hover:underline"
     >
-      {name}
+      {bestPersonName(p)}
     </Link>
   );
 }
@@ -275,9 +282,11 @@ type PersonRow = {
   id: string;
   first_name: string | null;
   last_name: string | null;
+  preferred_name: string | null;
   email: string | null;
   date_of_birth: string | null;
   linked_user_id: string | null;
+  raw_data: Record<string, unknown> | null;
   created_at: string;
 };
 
@@ -285,7 +294,9 @@ type PersonRef = {
   id: string;
   first_name: string | null;
   last_name: string | null;
+  preferred_name: string | null;
   email: string | null;
+  raw_data: Record<string, unknown> | null;
 } | null;
 
 type ApplicationRow = {

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { requireModuleAccess } from "@/lib/require-permission";
 import { listImports, listPersons } from "@/services/records-library";
+import { bestPersonName } from "@/lib/person-name";
 
 export default async function RecordsLibraryPage() {
   const supabase = await createClient();
@@ -142,7 +143,7 @@ export default async function RecordsLibraryPage() {
                         href={`/records-library/persons/${row.id}`}
                         className="text-foreground hover:underline"
                       >
-                        {[row.first_name, row.last_name].filter(Boolean).join(" ") || "—"}
+                        {bestPersonName(row)}
                       </Link>
                     </td>
                     <td className="px-3 py-2">{row.email ?? "—"}</td>
@@ -215,7 +216,9 @@ type PersonRow = {
   id: string;
   first_name: string | null;
   last_name: string | null;
+  preferred_name: string | null;
   email: string | null;
   date_of_birth: string | null;
+  raw_data: Record<string, unknown> | null;
   users: { first_name: string | null; last_name: string | null; email: string | null } | null;
 };

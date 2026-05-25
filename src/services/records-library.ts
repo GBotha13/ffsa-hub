@@ -308,32 +308,36 @@ export async function createDocument(
 // ────────────────────────────────────────────────────────────
 
 export async function getRecordsForImport(supabase: Client, importId: string) {
+  const personLookup =
+    "library_persons:person_id(id, first_name, last_name, preferred_name, email, raw_data)";
   const [apps, payments, enrolls, docs] = await Promise.all([
     supabase
       .from("library_applications")
-      .select("*, library_persons:person_id(id, first_name, last_name, email)")
+      .select(`*, ${personLookup}`)
       .eq("import_id", importId)
       .order("submitted_at", { ascending: false, nullsFirst: false }),
     supabase
       .from("library_payments")
-      .select("*, library_persons:person_id(id, first_name, last_name, email)")
+      .select(`*, ${personLookup}`)
       .eq("import_id", importId)
       .order("paid_at", { ascending: false, nullsFirst: false }),
     supabase
       .from("library_enrollments")
-      .select("*, library_persons:person_id(id, first_name, last_name, email)")
+      .select(`*, ${personLookup}`)
       .eq("import_id", importId)
       .order("start_date", { ascending: false, nullsFirst: false }),
     supabase
       .from("library_documents")
-      .select("*, library_persons:person_id(id, first_name, last_name, email)")
+      .select(`*, ${personLookup}`)
       .eq("import_id", importId)
       .order("expires_at", { ascending: false, nullsFirst: false }),
   ]);
 
   const personsRes = await supabase
     .from("library_persons")
-    .select("id, first_name, last_name, email, date_of_birth, linked_user_id, created_at")
+    .select(
+      "id, first_name, last_name, preferred_name, email, date_of_birth, linked_user_id, raw_data, created_at"
+    )
     .eq("source_import_id", importId)
     .order("created_at", { ascending: false });
 
@@ -434,7 +438,7 @@ export async function listMatchQueue(
     .select(
       `*,
        library_persons:person_id(
-         id, email, first_name, last_name, date_of_birth, phone
+         id, email, first_name, last_name, preferred_name, date_of_birth, phone, raw_data
        ),
        users:user_id(
          id, first_name, last_name, email
