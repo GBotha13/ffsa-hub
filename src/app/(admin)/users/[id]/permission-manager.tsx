@@ -360,6 +360,8 @@ export function PermissionManager({
   //   null  → can manage assignable-contact for every program (global schools.manage)
   //   array → can manage only these specific program ids
   managedProgramIds = null,
+  isTargetSuperAdmin = false,
+  isSelf = false,
 }: {
   userId: string;
   currentStatus: string;
@@ -369,12 +371,53 @@ export function PermissionManager({
   scopeOptions: ScopeOption[];
   isSuperAdmin?: boolean;
   managedProgramIds?: string[] | null;
+  isTargetSuperAdmin?: boolean;
+  isSelf?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [saving, setSaving] = useState(false);
   const [jobTitle, setJobTitle] = useState(currentJobTitle);
   const [status, setStatus] = useState(currentStatus);
+  const [togglingSuperAdmin, setTogglingSuperAdmin] = useState(false);
+
+  async function handleToggleSuperAdmin() {
+    if (isSelf) {
+      alert("You cannot change your own super_admin status.");
+      return;
+    }
+
+    const grant = !isTargetSuperAdmin;
+    const confirmMsg = grant
+      ? "Grant Super Admin? This bypasses ALL roles and permission checks — the user will have unrestricted access to every module and every record in the system."
+      : "Remove Super Admin? The user will lose unrestricted access and fall back to their other roles and permissions.";
+
+    if (!confirm(confirmMsg)) return;
+
+    setTogglingSuperAdmin(true);
+    try {
+      const endpoint = grant
+        ? "/api/admin/grant-role"
+        : "/api/admin/revoke-role";
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId, role_name: "super_admin" }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || "Failed to update super_admin role.");
+        return;
+      }
+
+      startTransition(() => router.refresh());
+    } catch {
+      alert("Failed to update super_admin role.");
+    } finally {
+      setTogglingSuperAdmin(false);
+    }
+  }
 
   // For non-super-admin granters we narrow the editor to only the
   // `schools.assignable_as_contact` permission, scoped to programs they
@@ -540,6 +583,78 @@ export function PermissionManager({
 
   return (
     <div className="space-y-6">
+      {/* Super Admin toggle — super_admin only */}
+      {isSuperAdmin && (
+        <div
+          style={{
+            background: isTargetSuperAdmin
+              ? "hsl(42 30% 10%)"
+              : "hsl(22 10% 8%)",
+            border: isTargetSuperAdmin
+              ? "1px solid hsl(42 95% 55% / 0.4)"
+              : "1px solid hsl(22 8% 14%)",
+            borderRadius: "12px",
+            padding: "1.25rem 1.5rem",
+          }}
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <div
+                style={{
+                  fontSize: "9px",
+                  letterSpacing: "0.2em",
+                  color: isTargetSuperAdmin
+                    ? "hsl(42 95% 55%)"
+                    : "hsl(30 8% 42%)",
+                  textTransform: "uppercase",
+                  fontWeight: 700,
+                  marginBottom: "6px",
+                }}
+              >
+                {isTargetSuperAdmin
+                  ? "Super Admin — Active"
+                  : "Super Admin"}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Bypasses all roles and permission checks. The user has
+                unrestricted access to every module and every record.
+              </p>
+              {isSelf && (
+                <p
+                  className="text-xs mt-2"
+                  style={{ color: "hsl(30 8% 55%)" }}
+                >
+                  You cannot change your own super_admin status.
+                </p>
+              )}
+            </div>
+            <Button
+              onClick={handleToggleSuperAdmin}
+              disabled={togglingSuperAdmin || isPending || isSelf}
+              variant={isTargetSuperAdmin ? "outline" : "default"}
+              style={
+                isTargetSuperAdmin
+                  ? {
+                      borderColor: "hsl(42 95% 55% / 0.4)",
+                      color: "hsl(42 95% 55%)",
+                    }
+                  : {
+                      background: "hsl(42 95% 55%)",
+                      color: "#0D0B09",
+                      fontWeight: 700,
+                    }
+              }
+            >
+              {togglingSuperAdmin
+                ? "Saving…"
+                : isTargetSuperAdmin
+                ? "Remove Super Admin"
+                : "Make Super Admin"}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Job title + approve section — super_admin only */}
       {isSuperAdmin && (
         <div

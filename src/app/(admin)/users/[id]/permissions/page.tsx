@@ -45,11 +45,21 @@ export default async function UserPermissionsPage({
   const { data: targetUser, error } = await getUserById(supabase, id);
   if (error || !targetUser) notFound();
 
-  const [permissionsByModule, userPermissions, scopeOptions] = await Promise.all([
-    getPermissions(supabase),
-    getUserPermissions(supabase, id),
-    getScopeOptions(supabase),
-  ]);
+  const [permissionsByModule, userPermissions, scopeOptions, targetSuperCheck] =
+    await Promise.all([
+      getPermissions(supabase),
+      getUserPermissions(supabase, id),
+      getScopeOptions(supabase),
+      supabase
+        .from("user_roles")
+        .select("roles!inner(name)")
+        .eq("user_id", id)
+        .eq("roles.name", "super_admin")
+        .limit(1),
+    ]);
+
+  const isTargetSuperAdmin = (targetSuperCheck.data?.length ?? 0) > 0;
+  const isSelf = authUser.id === id;
 
   return (
     <div className="space-y-6">
@@ -67,6 +77,8 @@ export default async function UserPermissionsPage({
         managedProgramIds={
           manageScopes.hasGlobal ? null : manageScopes.programIds
         }
+        isTargetSuperAdmin={isTargetSuperAdmin}
+        isSelf={isSelf}
       />
     </div>
   );
