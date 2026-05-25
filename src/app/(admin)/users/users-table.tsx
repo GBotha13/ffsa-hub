@@ -26,12 +26,24 @@ type UserRow = {
   accepted_at: string | null;
   status: string | null;
   job_title: string | null;
+  department: string | null;
   last_sign_in_at: string | null;
   user_roles: Array<{
     id: string;
     scope_type: string | null;
     roles: { display_name: string } | null;
   }>;
+};
+
+const DEPARTMENT_LABELS: Record<string, string> = {
+  prayer_and_worship: "Prayer and Worship",
+  media: "Media",
+  hulk: "Hulk",
+  backbone: "Backbone",
+  training: "Training",
+  project_54: "Project 54",
+  education: "Education",
+  woven: "Woven",
 };
 
 export function UsersTable({
@@ -85,6 +97,7 @@ export function UsersTable({
             <TableHead>Name</TableHead>
             <TableHead>Email</TableHead>
             <TableHead>Job Title</TableHead>
+            <TableHead>Department</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Last Sign In</TableHead>
             <TableHead className="w-[80px]" />
@@ -94,7 +107,7 @@ export function UsersTable({
           {users.length === 0 ? (
             <TableRow>
               <TableCell
-                colSpan={6}
+                colSpan={7}
                 className="text-center text-muted-foreground py-8"
               >
                 No users found
@@ -118,6 +131,11 @@ export function UsersTable({
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {user.job_title ?? "—"}
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {user.department
+                    ? DEPARTMENT_LABELS[user.department] ?? user.department
+                    : "—"}
                 </TableCell>
                 <TableCell>
                   <Badge
