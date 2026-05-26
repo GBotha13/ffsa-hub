@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
-import { Bold, Italic, Link2, Link2Off } from "lucide-react";
+import { Bold, Italic, Link2, Link2Off, Sparkles } from "lucide-react";
 
 // Minimal rich text editor for campaign text blocks. The editorial
 // rendering pipeline accepts only the marks below — anything else gets
@@ -34,11 +34,18 @@ export function RichText({
   onChange,
   disabled,
   placeholder,
+  onPolish,
 }: {
   value: string;
   onChange: (html: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  /**
+   * Optional AI polish hook. When provided, a ✨ button appears in the
+   * toolbar; clicking it sends the current HTML to onPolish and replaces
+   * the editor content with the returned HTML.
+   */
+  onPolish?: (html: string) => Promise<string>;
 }) {
   // If value looks like plain text (no tags), wrap it in a paragraph
   // so Tiptap doesn't render it as a single un-paragraphed line.
@@ -90,7 +97,7 @@ export function RichText({
 
   return (
     <div className="rounded border bg-background overflow-hidden">
-      <Toolbar editor={editor} disabled={disabled} />
+      <Toolbar editor={editor} disabled={disabled} onPolish={onPolish} />
       <EditorContent editor={editor} />
     </div>
   );
@@ -99,10 +106,13 @@ export function RichText({
 function Toolbar({
   editor,
   disabled,
+  onPolish,
 }: {
   editor: Editor;
   disabled?: boolean;
+  onPolish?: (html: string) => Promise<string>;
 }) {
+  const [polishing, setPolishing] = useState(false);
   const isBold = editor.isActive("bold");
   const isItalic = editor.isActive("italic");
   const isLink = editor.isActive("link");
@@ -130,6 +140,21 @@ function Toolbar({
       .extendMarkRange("link")
       .setLink({ href: url })
       .run();
+  }
+
+  async function polishNow() {
+    if (!onPolish) return;
+    const html = editor.isEmpty ? "" : editor.getHTML();
+    if (!html.trim()) return;
+    setPolishing(true);
+    try {
+      const polished = await onPolish(html);
+      if (polished && polished !== html) {
+        editor.commands.setContent(polished, { emitUpdate: true });
+      }
+    } finally {
+      setPolishing(false);
+    }
   }
 
   return (
@@ -162,6 +187,22 @@ function Toolbar({
           <Link2 className="h-3.5 w-3.5" />
         )}
       </ToolButton>
+      {onPolish && (
+        <>
+          <span className="h-3.5 w-px bg-border mx-1" aria-hidden />
+          <ToolButton
+            disabled={disabled || polishing}
+            onClick={polishNow}
+            label={
+              polishing ? "Polishing…" : "Polish copy with AI"
+            }
+          >
+            <Sparkles
+              className={`h-3.5 w-3.5 ${polishing ? "animate-pulse text-amber-400" : ""}`}
+            />
+          </ToolButton>
+        </>
+      )}
     </div>
   );
 }

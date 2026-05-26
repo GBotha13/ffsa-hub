@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, X, GripVertical } from "lucide-react";
+import { Plus, X, GripVertical, Sparkles } from "lucide-react";
 import {
   DndContext,
   closestCenter,
@@ -332,6 +332,59 @@ export function CampaignComposer({
     setMsg(`Test sent to ${testEmail.trim()}.`);
   }
 
+  // ────────────────────────────────────────────────────────────
+  // AI: suggest layout
+  // ────────────────────────────────────────────────────────────
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestion, setSuggestion] = useState<CampaignBody | null>(null);
+  const [suggestionWarnings, setSuggestionWarnings] = useState<string[]>([]);
+
+  async function requestLayoutSuggestion() {
+    if (body.blocks.length === 0) {
+      setErr("Add at least one content block before asking for a suggestion.");
+      return;
+    }
+    setErr(null);
+    setMsg(null);
+    setSuggesting(true);
+    try {
+      const res = await fetch(
+        `/api/campaigns/${campaign.id}/ai/suggest-layout`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ body }),
+        }
+      );
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        setErr(d.error ?? "Suggestion failed");
+        return;
+      }
+      const data = (await res.json()) as {
+        body: CampaignBody;
+        warnings: string[];
+      };
+      setSuggestion(data.body);
+      setSuggestionWarnings(data.warnings ?? []);
+    } finally {
+      setSuggesting(false);
+    }
+  }
+
+  function acceptSuggestion() {
+    if (!suggestion) return;
+    setBody(suggestion);
+    setSuggestion(null);
+    setSuggestionWarnings([]);
+    setMsg("Applied AI layout. Save to keep the changes.");
+  }
+
+  function rejectSuggestion() {
+    setSuggestion(null);
+    setSuggestionWarnings([]);
+  }
+
   function applyTemplate(templateId: string) {
     if (!templateId) return;
     const tpl = getCampaignTemplate(templateId);
@@ -434,6 +487,21 @@ export function CampaignComposer({
         />
         <div className="flex items-center gap-2">
           {!sent && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={requestLayoutSuggestion}
+              disabled={suggesting || busy}
+              className="gap-1.5 h-7 text-xs"
+              title="Ask AI for a stronger editorial layout"
+            >
+              <Sparkles
+                className={`h-3 w-3 ${suggesting ? "animate-pulse text-amber-400" : ""}`}
+              />
+              {suggesting ? "Thinking…" : "AI layout"}
+            </Button>
+          )}
+          {!sent && (
             <select
               value=""
               onChange={(e) => {
@@ -476,6 +544,16 @@ export function CampaignComposer({
         <p className="text-sm text-amber-400">
           This campaign has been sent and can no longer be edited.
         </p>
+      )}
+
+      {suggestion && (
+        <SuggestionPreview
+          current={body}
+          proposed={suggestion}
+          warnings={suggestionWarnings}
+          onAccept={acceptSuggestion}
+          onReject={rejectSuggestion}
+        />
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -867,6 +945,24 @@ function BlockEditor({
             onChange={(html) => onChange({ text: html })}
             disabled={disabled}
             placeholder="Write your message — bold, italics, and links supported."
+            onPolish={async (html) => {
+              const res = await fetch(
+                `/api/campaigns/${campaignId}/ai/polish`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ html }),
+                }
+              );
+              if (!res.ok) {
+                const d = (await res.json().catch(() => ({}))) as {
+                  error?: string;
+                };
+                throw new Error(d.error ?? "Polish failed");
+              }
+              const data = (await res.json()) as { polished: string };
+              return data.polished;
+            }}
           />
           <label className="flex items-center gap-2 text-xs text-muted-foreground select-none">
             <input
@@ -1344,4 +1440,125 @@ function Mini({
       {label}
     </button>
   );
+}
+
+// ────────────────────────────────────────────────────────────
+// AI layout suggestion preview
+// ────────────────────────────────────────────────────────────
+
+function SuggestionPreview({
+  current,
+  proposed,
+  warnings,
+  onAccept,
+  onReject,
+}: {
+  current: CampaignBody;
+  proposed: CampaignBody;
+  warnings: string[];
+  onAccept: () => void;
+  onReject: () => void;
+}) {
+  return (
+    <Card className="border-amber-400/30 bg-amber-400/5">
+      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+        <div>
+          <CardTitle className="text-base flex items-center gap-1.5">
+            <Sparkles className="h-4 w-4 text-amber-400" />
+            AI layout suggestion
+          </CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">
+            Review the proposed structure. Apply replaces all current blocks
+            (save to keep).
+          </p>
+        </div>
+        <div className="flex gap-1.5 shrink-0">
+          <Button variant="ghost" size="sm" onClick={onReject}>
+            Discard
+          </Button>
+          <Button size="sm" onClick={onAccept} className="gap-1.5">
+            <Sparkles className="h-3.5 w-3.5" />
+            Apply layout
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-4 md:grid-cols-2">
+          <BlockSummaryList title={`Current (${current.blocks.length})`} blocks={current.blocks} muted />
+          <BlockSummaryList title={`Proposed (${proposed.blocks.length})`} blocks={proposed.blocks} />
+        </div>
+        {warnings.length > 0 && (
+          <p className="text-xs text-amber-400 mt-3">
+            {warnings.length} block{warnings.length === 1 ? "" : "s"} skipped:{" "}
+            {warnings.join("; ")}
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function BlockSummaryList({
+  title,
+  blocks,
+  muted,
+}: {
+  title: string;
+  blocks: CampaignBlock[];
+  muted?: boolean;
+}) {
+  return (
+    <div className={`space-y-1 ${muted ? "opacity-60" : ""}`}>
+      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1.5">
+        {title}
+      </p>
+      <ol className="space-y-1">
+        {blocks.map((b, i) => (
+          <li
+            key={b.id}
+            className="text-xs flex items-start gap-2 rounded border bg-background/60 px-2 py-1.5"
+          >
+            <span className="text-[10px] text-muted-foreground tabular-nums w-5 pt-0.5">
+              {String(i + 1).padStart(2, "0")}
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                {b.type}
+              </span>
+              <span className="block truncate text-foreground">
+                {blockOneLine(b)}
+              </span>
+            </span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function blockOneLine(b: CampaignBlock): string {
+  switch (b.type) {
+    case "eyebrow":
+      return b.text;
+    case "heading":
+      return (b.eyebrow ? `${b.eyebrow} · ` : "") + b.text;
+    case "text": {
+      const stripped = b.text.replace(/<[^>]+>/g, "").trim();
+      return stripped.length > 100 ? stripped.slice(0, 100) + "…" : stripped;
+    }
+    case "button":
+      return `${b.text} → ${b.url}`;
+    case "image":
+      return b.caption || b.alt || b.url || "(empty image)";
+    case "divider":
+      return `${b.style ?? "rule"} divider`;
+    case "quote":
+      return `“${b.text}”${b.attribution ? ` — ${b.attribution}` : ""}`;
+    case "spacer":
+      return `${b.size ?? "md"} space`;
+    case "image-text":
+      return `${b.heading ? b.heading + " · " : ""}${(b.text || "").replace(/<[^>]+>/g, "").slice(0, 80)}`;
+    case "cta":
+      return `${b.heading} → ${b.buttonText}`;
+  }
 }
