@@ -30,12 +30,20 @@ export default async function CommunicationsPage() {
             Email campaigns to your contact labels.
           </p>
         </div>
-        <a
-          href="/communications/brand"
-          className="text-sm px-3 py-1.5 rounded-full border hover:bg-muted transition-colors"
-        >
-          Brand kits →
-        </a>
+        <div className="flex gap-1.5">
+          <a
+            href="/communications/identities"
+            className="text-sm px-3 py-1.5 rounded-full border hover:bg-muted transition-colors"
+          >
+            Identities →
+          </a>
+          <a
+            href="/communications/brand"
+            className="text-sm px-3 py-1.5 rounded-full border hover:bg-muted transition-colors"
+          >
+            Brand kits →
+          </a>
+        </div>
       </div>
 
       <CampaignsList
