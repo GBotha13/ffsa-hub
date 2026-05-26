@@ -138,24 +138,55 @@ export async function findDedupMatches(
     return { data: [], error: null };
   }
 
-  const orClauses: string[] = [];
-  if (emailNormalized) orClauses.push(`email_normalized.eq.${emailNormalized}`);
-  if (phoneNormalized) orClauses.push(`phone_normalized.eq.${phoneNormalized}`);
+  // Look across the contact_emails / contact_phones join tables (any
+  // email or phone the contact holds — not just the primary cache on
+  // contacts.email / contacts.phone). This is what enables Jaco-style
+  // "same person, different identifier" deduplication.
+  const emailMatchIds = new Set<string>();
+  const phoneMatchIds = new Set<string>();
+
+  if (emailNormalized) {
+    const { data, error } = await supabase
+      .from("contact_emails")
+      .select("contact_id")
+      .eq("email_normalized", emailNormalized);
+    if (error) return { data: null, error };
+    for (const r of (data ?? []) as Array<{ contact_id: string }>) {
+      emailMatchIds.add(r.contact_id);
+    }
+  }
+  if (phoneNormalized) {
+    const { data, error } = await supabase
+      .from("contact_phones")
+      .select("contact_id")
+      .eq("phone_normalized", phoneNormalized);
+    if (error) return { data: null, error };
+    for (const r of (data ?? []) as Array<{ contact_id: string }>) {
+      phoneMatchIds.add(r.contact_id);
+    }
+  }
+
+  const allIds = new Set<string>([...emailMatchIds, ...phoneMatchIds]);
+  if (allIds.size === 0) {
+    return { data: [], error: null };
+  }
+
+  // Cap at 2 — that's all the calling logic ever needs (one match =
+  // enrich/merge, two = email-A / phone-B conflict → queue).
+  const targetIds = Array.from(allIds).slice(0, 2);
 
   const { data, error } = await supabase
     .from("contacts")
     .select(
       "id, first_name, last_name, email, phone, email_normalized, phone_normalized"
     )
-    .or(orClauses.join(","))
-    .limit(2);
-
+    .in("id", targetIds);
   if (error || !data) return { data: null, error };
 
   const matches: DedupMatch[] = data.map((row: DedupMatch["contact"]) => {
     const matchedOn: ("email" | "phone")[] = [];
-    if (emailNormalized && row.email_normalized === emailNormalized) matchedOn.push("email");
-    if (phoneNormalized && row.phone_normalized === phoneNormalized) matchedOn.push("phone");
+    if (emailMatchIds.has(row.id)) matchedOn.push("email");
+    if (phoneMatchIds.has(row.id)) matchedOn.push("phone");
     return { contact: row, matched_on: matchedOn };
   });
 

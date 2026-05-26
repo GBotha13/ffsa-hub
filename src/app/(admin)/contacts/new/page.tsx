@@ -81,18 +81,50 @@ export default function NewContactPage() {
       }
     }
 
-    const { error: insertError } = await (supabase.from("contacts") as any).insert({
-      first_name: form.first_name.trim(),
-      last_name: form.last_name.trim(),
-      preferred_name: form.preferred_name.trim() || null,
-      email: form.email.trim().toLowerCase() || null,
-      phone: form.phone.trim() || null,
-    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: created, error: insertError } = await (supabase.from("contacts") as any)
+      .insert({
+        first_name: form.first_name.trim(),
+        last_name: form.last_name.trim(),
+        preferred_name: form.preferred_name.trim() || null,
+        email: form.email.trim().toLowerCase() || null,
+        phone: form.phone.trim() || null,
+      })
+      .select("id")
+      .single();
 
     if (insertError) {
       setError(insertError.message);
       setLoading(false);
       return;
+    }
+
+    // Mirror email + phone into the join tables so future dedup
+    // queries find the new contact (the DB trigger only keeps
+    // contacts.email/phone in sync FROM the join tables, not the
+    // other direction).
+    if (created?.id) {
+      const newId = created.id as string;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = supabase as any;
+      if (form.email.trim()) {
+        await sb.from("contact_emails").insert({
+          contact_id: newId,
+          email: form.email.trim(),
+          label: "primary",
+          is_primary: true,
+          source: "manual",
+        });
+      }
+      if (form.phone.trim()) {
+        await sb.from("contact_phones").insert({
+          contact_id: newId,
+          phone: form.phone.trim(),
+          label: "primary",
+          is_primary: true,
+          source: "manual",
+        });
+      }
     }
 
     router.push("/contacts");
@@ -103,10 +135,34 @@ export default function NewContactPage() {
     router.push(`/contacts/${id}`);
   }
 
+  async function handleAddToExisting(id: string) {
+    setLoading(true);
+    setError(null);
+    const res = await fetch(`/api/contacts/${id}/identifiers`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: form.email.trim() || null,
+        phone: form.phone.trim() || null,
+        label: "other",
+      }),
+    });
+    setLoading(false);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(body.error ?? "Failed to add to existing contact");
+      return;
+    }
+    router.push(`/contacts/${id}`);
+    router.refresh();
+  }
+
   function handleCreateAnyway() {
     setSkipDuplicateCheck(true);
     setDuplicates([]);
   }
+
+  const hasNewIdentifiers = !!(form.email.trim() || form.phone.trim());
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -130,7 +186,7 @@ export default function NewContactPage() {
             {duplicates.map((dup) => (
               <div
                 key={dup.id}
-                className="flex items-center justify-between rounded-md border border-white/10 bg-white/5 p-3"
+                className="flex flex-col gap-2 rounded-md border border-white/10 bg-white/5 p-3 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
                   <p className="font-medium">
@@ -143,20 +199,34 @@ export default function NewContactPage() {
                     {[dup.email, dup.phone].filter(Boolean).join(" · ") || "No contact info"}
                   </p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleUseExisting(dup.id)}
-                >
-                  Use this record
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  {hasNewIdentifiers && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => handleAddToExisting(dup.id)}
+                      disabled={loading}
+                    >
+                      Add this info to {dup.first_name}&apos;s record
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleUseExisting(dup.id)}
+                    disabled={loading}
+                  >
+                    Use as-is
+                  </Button>
+                </div>
               </div>
             ))}
             <Button
               variant="ghost"
               size="sm"
               onClick={handleCreateAnyway}
-              className="text-yellow-700 hover:text-yellow-900"
+              disabled={loading}
+              className="text-muted-foreground hover:text-foreground"
             >
               Create new contact anyway
             </Button>

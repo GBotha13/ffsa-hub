@@ -2,6 +2,10 @@ import { createClient } from "@/lib/supabase/server";
 import { getContactById } from "@/services/contacts";
 import { getContactLabels, getLabels } from "@/services/labels";
 import { getContactActivity } from "@/services/activity-events";
+import {
+  listContactEmails,
+  listContactPhones,
+} from "@/services/contact-identifiers";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -12,6 +16,8 @@ import {
 } from "@/components/ui/card";
 import Link from "next/link";
 import { LabelsCard } from "./labels-card";
+import { IdentifiersCard } from "./identifiers-card";
+import { MergeButton } from "./merge-button";
 import { Timeline } from "./timeline";
 
 export default async function ContactDetailPage({
@@ -25,15 +31,20 @@ export default async function ContactDetailPage({
   const { data: contact, error } = await getContactById(supabase, id);
   if (error || !contact) notFound();
 
-  const [contactLabelsRes, allLabelsRes, activityRes] = await Promise.all([
-    getContactLabels(supabase, id),
-    getLabels(supabase, { active: true }),
-    getContactActivity(supabase, id, { limit: 100 }),
-  ]);
+  const [contactLabelsRes, allLabelsRes, activityRes, emailsRes, phonesRes] =
+    await Promise.all([
+      getContactLabels(supabase, id),
+      getLabels(supabase, { active: true }),
+      getContactActivity(supabase, id, { limit: 100 }),
+      listContactEmails(supabase, id),
+      listContactPhones(supabase, id),
+    ]);
 
   const contactLabels = contactLabelsRes.data ?? [];
   const allLabels = allLabelsRes.data ?? [];
   const events = activityRes.data ?? [];
+  const emails = emailsRes.data ?? [];
+  const phones = phonesRes.data ?? [];
 
   const personTypes =
     contact.person_type_assignments?.map(
@@ -69,39 +80,41 @@ export default async function ContactDetailPage({
           <Badge variant={contact.status === "active" ? "default" : "outline"} className="capitalize">
             {contact.status}
           </Badge>
+          <MergeButton
+            sourceContactId={id}
+            sourceName={`${contact.preferred_name ?? contact.first_name} ${contact.last_name}`.trim()}
+          />
         </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Contact information</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Email" value={contact.email} />
-                <Field label="Phone" value={contact.phone} />
-              </div>
+          <IdentifiersCard
+            contactId={id}
+            emails={emails}
+            phones={phones}
+          />
 
-              {(contact.address_line_1 || contact.city || contact.country) && (
-                <div className="mt-4">
-                  <p className="text-sm font-medium text-muted-foreground">Address</p>
-                  <p className="text-sm whitespace-pre-line">
-                    {[
-                      contact.address_line_1,
-                      contact.address_line_2,
-                      [contact.city, contact.province].filter(Boolean).join(", "),
-                      contact.postal_code,
-                      contact.country,
-                    ]
-                      .filter(Boolean)
-                      .join("\n")}
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {(contact.address_line_1 || contact.city || contact.country) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Address</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm whitespace-pre-line">
+                  {[
+                    contact.address_line_1,
+                    contact.address_line_2,
+                    [contact.city, contact.province].filter(Boolean).join(", "),
+                    contact.postal_code,
+                    contact.country,
+                  ]
+                    .filter(Boolean)
+                    .join("\n")}
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>

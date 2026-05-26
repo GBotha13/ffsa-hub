@@ -7,6 +7,12 @@ import {
   logCsvImported,
 } from "./activity-events";
 import { normalizeEmail, normalizePhoneE164 } from "@/lib/phone";
+import {
+  addContactEmail,
+  addContactPhone,
+  listContactEmails,
+  listContactPhones,
+} from "./contact-identifiers";
 
 type ContactInsert = TablesInsert<"contacts">;
 
@@ -83,6 +89,29 @@ export async function upsertContactWithDedup(
       .single();
     if (created.error || !created.data) return { data: null, error: created.error };
 
+    // Mirror the email/phone into the join tables as primary rows.
+    // The cache trigger will keep contacts.email/phone in sync going
+    // forward, but on initial insert we need a row to exist in the
+    // join tables so subsequent dedup queries find it.
+    if (input.contact.email && input.contact.email.trim()) {
+      await addContactEmail(supabase, {
+        contactId: created.data.id,
+        email: input.contact.email,
+        label: "primary",
+        makePrimary: true,
+        source: input.source ?? input.contact.source ?? null,
+      });
+    }
+    if (input.contact.phone && input.contact.phone.trim()) {
+      await addContactPhone(supabase, {
+        contactId: created.data.id,
+        phone: input.contact.phone,
+        label: "primary",
+        makePrimary: true,
+        source: input.source ?? input.contact.source ?? null,
+      });
+    }
+
     await logContactCreated(supabase, {
       contactId: created.data.id,
       source: insertRow.source,
@@ -118,9 +147,16 @@ export async function upsertContactWithDedup(
   }
 
   if (matched.length === 1) {
-    // Single match: enrich + add label
+    // Single match: enrich blank fields + add new identifier as a
+    // secondary if it differs from anything on file + add label.
     const target = matched[0].contact;
     const enrichedFields = await enrichContact(supabase, target.id, input.contact);
+    const addedIdentifiers = await addNewIdentifiersAsSecondary(supabase, {
+      contactId: target.id,
+      incomingEmail: input.contact.email ?? null,
+      incomingPhone: input.contact.phone ?? null,
+      source: input.source ?? input.contact.source ?? null,
+    });
 
     if (input.labelId) {
       const insertResult = await addLabelToContact(supabase, {
@@ -151,7 +187,11 @@ export async function upsertContactWithDedup(
     }
 
     return {
-      data: { action: "matched", contactId: target.id, enrichedFields },
+      data: {
+        action: "matched",
+        contactId: target.id,
+        enrichedFields: [...enrichedFields, ...addedIdentifiers],
+      },
       error: null,
     };
   }
@@ -250,4 +290,67 @@ async function enrichContact(
 
   if (updated.error) return [];
   return filled;
+}
+
+// ────────────────────────────────────────────────────────────
+// Auto-merge: when a contact already exists by ANY identifier, and
+// the incoming payload carries a DIFFERENT email or phone, add it as
+// a non-primary row in contact_emails / contact_phones.
+//
+// Returns the list of fields actually added (for the matched action's
+// enrichedFields telemetry).
+// ────────────────────────────────────────────────────────────
+
+async function addNewIdentifiersAsSecondary(
+  supabase: Client,
+  args: {
+    contactId: string;
+    incomingEmail: string | null;
+    incomingPhone: string | null;
+    source: string | null;
+  }
+): Promise<string[]> {
+  const added: string[] = [];
+
+  if (args.incomingEmail && args.incomingEmail.trim()) {
+    const incomingNormalized = normalizeEmail(args.incomingEmail);
+    if (incomingNormalized) {
+      const existing = await listContactEmails(supabase, args.contactId);
+      const alreadyOnFile = existing.data.some(
+        (e) => e.email_normalized === incomingNormalized
+      );
+      if (!alreadyOnFile) {
+        const result = await addContactEmail(supabase, {
+          contactId: args.contactId,
+          email: args.incomingEmail,
+          label: "other",
+          makePrimary: false,
+          source: args.source,
+        });
+        if (result.data) added.push("contact_emails+");
+      }
+    }
+  }
+
+  if (args.incomingPhone && args.incomingPhone.trim()) {
+    const incomingNormalized = normalizePhoneE164(args.incomingPhone);
+    if (incomingNormalized) {
+      const existing = await listContactPhones(supabase, args.contactId);
+      const alreadyOnFile = existing.data.some(
+        (p) => p.phone_normalized === incomingNormalized
+      );
+      if (!alreadyOnFile) {
+        const result = await addContactPhone(supabase, {
+          contactId: args.contactId,
+          phone: args.incomingPhone,
+          label: "other",
+          makePrimary: false,
+          source: args.source,
+        });
+        if (result.data) added.push("contact_phones+");
+      }
+    }
+  }
+
+  return added;
 }
