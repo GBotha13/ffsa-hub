@@ -6,6 +6,10 @@ import {
   getCsvImport,
   incrementCsvImportCounters,
 } from "@/services/csv-imports";
+import {
+  classifyError,
+  insertImportErrorsBulk,
+} from "@/services/csv-import-errors";
 
 // Max rows per request — keeps each call inside Vercel's function timeout.
 const MAX_BATCH = 250;
@@ -49,7 +53,7 @@ export async function POST(
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
-  let body: { rows?: IncomingRow[] };
+  let body: { rows?: IncomingRow[]; batchOffset?: number };
   try {
     body = await request.json();
   } catch {
@@ -82,13 +86,37 @@ export async function POST(
   let review = 0;
   let errored = 0;
   const errors: Array<{ index: number; message: string }> = [];
+  const errorPersists: Array<{
+    importId: string;
+    rowIndex: number;
+    rawRow: Record<string, unknown>;
+    errorMessage: string;
+    errorCode: ReturnType<typeof classifyError>;
+  }> = [];
+
+  // The client tells us which absolute row index this batch starts at
+  // so the persisted row_index reflects the row's position in the
+  // overall import, not just within this batch. Defaults to 0 if the
+  // client (older deploys) didn't send it.
+  const batchOffset =
+    typeof body.batchOffset === "number" && body.batchOffset >= 0
+      ? body.batchOffset
+      : 0;
 
   for (let i = 0; i < body.rows.length; i++) {
     const raw = body.rows[i];
     const trimmed = trimRow(raw);
     if (!trimmed.email && !trimmed.phone) {
       errored++;
-      errors.push({ index: i, message: "Missing email and phone" });
+      const msg = "Row has neither email nor phone";
+      errors.push({ index: i, message: msg });
+      errorPersists.push({
+        importId,
+        rowIndex: batchOffset + i,
+        rawRow: trimmed as Record<string, unknown>,
+        errorMessage: msg,
+        errorCode: "missing_contact_method",
+      });
       continue;
     }
 
@@ -104,10 +132,18 @@ export async function POST(
 
     if (result.error || !result.data) {
       errored++;
-      errors.push({
-        index: i,
-        message:
-          (result.error as { message?: string })?.message ?? "Unknown error",
+      const message =
+        (result.error as { message?: string })?.message ?? "Unknown error";
+      errors.push({ index: i, message });
+      errorPersists.push({
+        importId,
+        rowIndex: batchOffset + i,
+        rawRow: trimmed as Record<string, unknown>,
+        errorMessage: message,
+        errorCode: classifyError(message, {
+          email: trimmed.email,
+          phone: trimmed.phone,
+        }),
       });
       continue;
     }
@@ -122,6 +158,22 @@ export async function POST(
       case "queued_for_review":
         review++;
         break;
+    }
+  }
+
+  if (errorPersists.length > 0) {
+    // Failure here is non-fatal for the import — the counter still
+    // moves and the user sees the count; they just won't be able to
+    // act on individual rows. Log but don't return an error.
+    const insertResult = await insertImportErrorsBulk(
+      adminSupabase,
+      errorPersists
+    );
+    if (insertResult.error) {
+      console.error(
+        "[csv-import] Failed to persist row errors:",
+        insertResult.error
+      );
     }
   }
 

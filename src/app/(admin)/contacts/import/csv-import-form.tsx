@@ -234,7 +234,7 @@ export function CsvImportForm({ labels }: { labels: Label[] }) {
       const res = await fetch(`/api/contacts/imports/${importId}/rows`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rows: batch }),
+        body: JSON.stringify({ rows: batch, batchOffset: i }),
       });
 
       if (!res.ok) {

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { requireModuleAccess } from "@/lib/require-permission";
 import { getLabels } from "@/services/labels";
 import { listCsvImports } from "@/services/csv-imports";
@@ -84,7 +85,16 @@ export default async function ContactsImportPage() {
                       {row.review_count.toLocaleString()}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {row.error_count.toLocaleString()}
+                      {row.error_count > 0 ? (
+                        <Link
+                          href={`/contacts/imports/${row.id}/errors`}
+                          className="text-red-400 hover:text-red-300 hover:underline"
+                        >
+                          {row.error_count.toLocaleString()}
+                        </Link>
+                      ) : (
+                        <span className="text-muted-foreground">0</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {new Date(row.created_at).toLocaleString()}
