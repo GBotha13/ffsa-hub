@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getLabelColors } from "@/lib/label-color";
+import { CAMPAIGN_TEMPLATES } from "@/lib/campaigns/templates";
 
 type Label = { id: string; slug: string; name: string; color: string | null };
 type Identity = { id: string; display_name: string; from_email: string };
@@ -55,6 +56,7 @@ export function CampaignsList({
   const [name, setName] = useState("");
   const [labelIds, setLabelIds] = useState<string[]>([]);
   const [identityId, setIdentityId] = useState(identities[0]?.id ?? "");
+  const [templateId, setTemplateId] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -90,6 +92,7 @@ export function CampaignsList({
         name: name.trim(),
         labelIds,
         sendingIdentityId: identityId,
+        templateId: templateId || undefined,
       }),
     });
     setBusy(false);
@@ -115,7 +118,29 @@ export function CampaignsList({
       </CardHeader>
       <CardContent className="space-y-4">
         {creating && (
-          <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+          <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">
+                Start from
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5">
+                <TemplateChip
+                  active={templateId === ""}
+                  name="Blank"
+                  tagline="An empty canvas with a single starter block."
+                  onClick={() => setTemplateId("")}
+                />
+                {CAMPAIGN_TEMPLATES.map((t) => (
+                  <TemplateChip
+                    key={t.id}
+                    active={templateId === t.id}
+                    name={t.name}
+                    tagline={t.tagline}
+                    onClick={() => setTemplateId(t.id)}
+                  />
+                ))}
+              </div>
+            </div>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -293,5 +318,34 @@ export function CampaignsList({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function TemplateChip({
+  active,
+  name,
+  tagline,
+  onClick,
+}: {
+  active: boolean;
+  name: string;
+  tagline: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`text-left rounded-lg border p-2.5 transition-colors ${
+        active
+          ? "border-foreground bg-foreground/5"
+          : "border-border hover:bg-muted/50"
+      }`}
+    >
+      <div className="font-semibold text-xs">{name}</div>
+      <div className="text-[10px] text-muted-foreground leading-snug mt-0.5 line-clamp-2">
+        {tagline}
+      </div>
+    </button>
   );
 }

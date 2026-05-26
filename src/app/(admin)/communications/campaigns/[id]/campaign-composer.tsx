@@ -33,6 +33,10 @@ import {
   newBlockId,
   renderCampaignHtml,
 } from "@/lib/campaigns/blocks";
+import {
+  CAMPAIGN_TEMPLATES,
+  getCampaignTemplate,
+} from "@/lib/campaigns/templates";
 import type { EffectiveBrand } from "@/services/brand";
 import { RichText } from "@/components/communications/rich-text";
 
@@ -328,6 +332,22 @@ export function CampaignComposer({
     setMsg(`Test sent to ${testEmail.trim()}.`);
   }
 
+  function applyTemplate(templateId: string) {
+    if (!templateId) return;
+    const tpl = getCampaignTemplate(templateId);
+    if (!tpl) return;
+    if (
+      body.blocks.length > 0 &&
+      !confirm(
+        `Apply "${tpl.name}" template? This will replace all current blocks. Subject and audience are not changed.`
+      )
+    ) {
+      return;
+    }
+    setBody(tpl.build(newBlockId));
+    setMsg(`Applied template: ${tpl.name}. Save to keep the changes.`);
+  }
+
   async function sendNow() {
     const pf = preflightError();
     if (pf) return setErr(pf);
@@ -413,6 +433,24 @@ export function CampaignComposer({
           className="flex-1 text-base font-semibold"
         />
         <div className="flex items-center gap-2">
+          {!sent && (
+            <select
+              value=""
+              onChange={(e) => {
+                applyTemplate(e.target.value);
+                e.target.value = "";
+              }}
+              className="text-xs border rounded px-2 py-1 bg-background"
+              title="Apply an editorial template"
+            >
+              <option value="">Apply template…</option>
+              {CAMPAIGN_TEMPLATES.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          )}
           <span
             className={`text-xs px-2 py-0.5 rounded-full capitalize ${
               STATUS_CLASS[campaign.status] ?? "status-grey"

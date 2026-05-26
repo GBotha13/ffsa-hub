@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createCampaign, setCampaignLabels } from "@/services/campaigns";
-import { emptyCampaignBody, renderCampaignHtml } from "@/lib/campaigns/blocks";
+import {
+  emptyCampaignBody,
+  renderCampaignHtml,
+  newBlockId,
+} from "@/lib/campaigns/blocks";
+import { getCampaignTemplate } from "@/lib/campaigns/templates";
+import { getEffectiveBrand } from "@/services/brand";
 import { getAuthedUser, hasAnyRole, COMMS_MANAGE_ROLES } from "@/lib/api-auth";
 import type { Json } from "@/types/database";
 
@@ -14,7 +20,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
-  let body: { name?: string; labelIds?: string[]; sendingIdentityId?: string };
+  let body: {
+    name?: string;
+    labelIds?: string[];
+    sendingIdentityId?: string;
+    templateId?: string;
+  };
   try {
     body = await request.json();
   } catch {
@@ -36,12 +47,23 @@ export async function POST(request: Request) {
     );
   }
 
-  const emptyBody = emptyCampaignBody();
+  // Pick the template body if requested, otherwise the empty starter.
+  const template = body.templateId
+    ? getCampaignTemplate(body.templateId)
+    : undefined;
+  if (body.templateId && !template) {
+    return NextResponse.json(
+      { error: "Unknown templateId" },
+      { status: 400 }
+    );
+  }
+  const initialBody = template ? template.build(newBlockId) : emptyCampaignBody();
+  const brand = await getEffectiveBrand(supabase, body.sendingIdentityId);
   const { data, error } = await createCampaign(supabase, {
     name: body.name.trim(),
     subject: "",
-    body_source: emptyBody as unknown as Json,
-    body_html: renderCampaignHtml(emptyBody, {}),
+    body_source: initialBody as unknown as Json,
+    body_html: renderCampaignHtml(initialBody, { brand }),
     sending_identity_id: body.sendingIdentityId,
     status: "draft",
     created_by: user.id,
