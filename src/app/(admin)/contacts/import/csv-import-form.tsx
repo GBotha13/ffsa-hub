@@ -272,39 +272,41 @@ export function CsvImportForm({ labels }: { labels: Label[] }) {
 
   return (
     <div className="space-y-6">
-      <div className="border rounded-md p-4">
+      <div className="rounded-md border bg-card p-4">
         <h2 className="font-semibold mb-2">1. Choose CSV file</h2>
         <input
           ref={fileRef}
           type="file"
           accept=".csv,text/csv"
           onChange={handleFile}
-          className="text-sm"
+          className="text-sm file:mr-3 file:rounded file:border file:border-border file:bg-muted file:px-3 file:py-1 file:text-sm file:text-foreground hover:file:bg-muted/80"
           disabled={stage === "uploading"}
         />
         {filename && (
-          <p className="text-xs text-gray-600 mt-1">
+          <p className="text-xs text-muted-foreground mt-2">
             {filename} — {rows.length.toLocaleString()} rows parsed
           </p>
         )}
       </div>
 
       {stage !== "idle" && headers.length > 0 && (
-        <div className="border rounded-md p-4">
+        <div className="rounded-md border bg-card p-4">
           <h2 className="font-semibold mb-3">2. Map columns to contact fields</h2>
-          <p className="text-xs text-gray-600 mb-3">
-            Required: map at least one column to either <code>email</code> or <code>phone</code>.
-            Unmapped columns are ignored.
+          <p className="text-xs text-muted-foreground mb-3">
+            Required: map at least one column to either{" "}
+            <code className="rounded bg-muted px-1.5 py-0.5">email</code> or{" "}
+            <code className="rounded bg-muted px-1.5 py-0.5">phone</code>. Unmapped columns
+            are ignored.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {headers.map((h) => (
               <label key={h} className="text-sm flex items-center gap-2">
-                <span className="font-mono text-xs px-2 py-1 bg-gray-100 rounded min-w-[140px] truncate">
+                <span className="font-mono text-xs px-2 py-1 bg-muted text-foreground rounded min-w-[140px] truncate">
                   {h}
                 </span>
-                <span className="text-gray-400">→</span>
+                <span className="text-muted-foreground">→</span>
                 <select
-                  className="border rounded px-2 py-1 text-sm flex-1"
+                  className="border border-input bg-background text-foreground rounded px-2 py-1 text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-ring"
                   value={mapping[h] ?? ""}
                   onChange={(e) =>
                     updateMapping(h, e.target.value as ContactField | "")
@@ -322,7 +324,7 @@ export function CsvImportForm({ labels }: { labels: Label[] }) {
             ))}
           </div>
           {!hasEmailOrPhone && (
-            <p className="text-xs text-red-600 mt-3">
+            <p className="text-xs text-red-400 mt-3">
               You must map at least one column to email or phone.
             </p>
           )}
@@ -330,7 +332,7 @@ export function CsvImportForm({ labels }: { labels: Label[] }) {
       )}
 
       {stage !== "idle" && headers.length > 0 && (
-        <div className="border rounded-md p-4">
+        <div className="rounded-md border bg-card p-4">
           <h2 className="font-semibold mb-3">3. Apply a label to every row</h2>
           <div className="flex gap-4 mb-3 text-sm">
             <label className="flex items-center gap-2">
@@ -341,6 +343,7 @@ export function CsvImportForm({ labels }: { labels: Label[] }) {
                 checked={labelMode === "existing"}
                 onChange={() => setLabelMode("existing")}
                 disabled={stage === "uploading" || labels.length === 0}
+                className="accent-primary"
               />
               Use existing
             </label>
@@ -352,6 +355,7 @@ export function CsvImportForm({ labels }: { labels: Label[] }) {
                 checked={labelMode === "new"}
                 onChange={() => setLabelMode("new")}
                 disabled={stage === "uploading"}
+                className="accent-primary"
               />
               Create new
             </label>
@@ -359,7 +363,7 @@ export function CsvImportForm({ labels }: { labels: Label[] }) {
 
           {labelMode === "existing" ? (
             <select
-              className="border rounded px-2 py-1.5 text-sm w-full max-w-md"
+              className="border border-input bg-background text-foreground rounded px-2 py-1.5 text-sm w-full max-w-md focus:outline-none focus:ring-2 focus:ring-ring"
               value={labelId}
               onChange={(e) => setLabelId(e.target.value)}
               disabled={stage === "uploading"}
@@ -378,7 +382,7 @@ export function CsvImportForm({ labels }: { labels: Label[] }) {
               placeholder="e.g. Send 2026 Cape Town"
               value={customLabelName}
               onChange={(e) => setCustomLabelName(e.target.value)}
-              className="border rounded px-2 py-1.5 text-sm w-full max-w-md"
+              className="border border-input bg-background text-foreground placeholder:text-muted-foreground rounded px-2 py-1.5 text-sm w-full max-w-md focus:outline-none focus:ring-2 focus:ring-ring"
               disabled={stage === "uploading"}
             />
           )}
@@ -386,10 +390,10 @@ export function CsvImportForm({ labels }: { labels: Label[] }) {
       )}
 
       {stage !== "idle" && headers.length > 0 && (
-        <div className="border rounded-md p-4">
+        <div className="rounded-md border bg-card p-4">
           <h2 className="font-semibold mb-3">4. Import</h2>
           {errorMessage && (
-            <p className="text-sm text-red-600 mb-3">{errorMessage}</p>
+            <p className="text-sm text-red-400 mb-3">{errorMessage}</p>
           )}
 
           {summary && (
@@ -398,9 +402,9 @@ export function CsvImportForm({ labels }: { labels: Label[] }) {
                 Processed {progress.done.toLocaleString()} of{" "}
                 {progress.total.toLocaleString()}
               </p>
-              <div className="w-full h-2 bg-gray-200 rounded overflow-hidden">
+              <div className="w-full h-2 bg-muted rounded overflow-hidden">
                 <div
-                  className="h-full bg-blue-500 transition-all"
+                  className="h-full bg-primary transition-all"
                   style={{
                     width: `${
                       progress.total ? (progress.done / progress.total) * 100 : 0
@@ -408,7 +412,7 @@ export function CsvImportForm({ labels }: { labels: Label[] }) {
                   }}
                 />
               </div>
-              <p className="text-xs text-gray-600 mt-2">
+              <p className="text-xs text-muted-foreground mt-2">
                 New: {summary.imported} · Matched: {summary.matched} · Review:{" "}
                 {summary.review} · Errored: {summary.errored}
               </p>
@@ -419,7 +423,7 @@ export function CsvImportForm({ labels }: { labels: Label[] }) {
             type="button"
             onClick={startImport}
             disabled={stage === "uploading" || rows.length === 0}
-            className="px-4 py-2 rounded bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:bg-gray-300"
+            className="px-4 py-2 rounded bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground"
           >
             {stage === "uploading"
               ? "Importing…"
@@ -429,7 +433,7 @@ export function CsvImportForm({ labels }: { labels: Label[] }) {
           </button>
 
           {stage === "complete" && summary && (
-            <p className="text-sm text-green-700 mt-3">
+            <p className="text-sm text-emerald-400 mt-3">
               ✓ Imported {summary.imported} new, matched {summary.matched} existing,
               {summary.review > 0 ? ` queued ${summary.review} for review,` : ""}{" "}
               errored on {summary.errored}.

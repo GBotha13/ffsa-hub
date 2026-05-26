@@ -26,10 +26,10 @@ export function UndoImportButton({
 
   // Already rolled back, or never produced any rows → no action available.
   if (status === "rolled_back") {
-    return <span className="text-xs text-gray-400">rolled back</span>;
+    return <span className="text-xs text-muted-foreground">rolled back</span>;
   }
   if (importedCount === 0 && matchedCount === 0) {
-    return <span className="text-xs text-gray-400">—</span>;
+    return <span className="text-xs text-muted-foreground">—</span>;
   }
 
   async function handleConfirm() {
@@ -59,48 +59,54 @@ export function UndoImportButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="text-xs text-red-600 hover:text-red-800 underline"
+        className="text-xs font-medium text-red-400 hover:text-red-300 hover:underline"
       >
         Undo
       </button>
 
       {open && (
         <div
-          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           onClick={() => !busy && setOpen(false)}
         >
           <div
-            className="bg-white rounded-md max-w-md w-full p-6 shadow-xl"
+            className="bg-card text-card-foreground border rounded-lg max-w-md w-full p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold mb-2">Undo this import?</h3>
-            <p className="text-sm text-gray-700 mb-1">
-              File: <span className="font-mono">{filename}</span>
+            <p className="text-sm text-muted-foreground mb-1">
+              File: <span className="font-mono text-foreground">{filename}</span>
             </p>
-            <p className="text-sm text-gray-700 mb-4">
-              This will <strong>delete {importedCount.toLocaleString()} contacts</strong>{" "}
+            <p className="text-sm text-muted-foreground mb-4">
+              This will{" "}
+              <strong className="text-foreground">
+                delete {importedCount.toLocaleString()} contacts
+              </strong>{" "}
               created by this import, and{" "}
-              <strong>remove the label from {matchedCount.toLocaleString()} existing contacts</strong>{" "}
+              <strong className="text-foreground">
+                remove the label from {matchedCount.toLocaleString()} existing contacts
+              </strong>{" "}
               that this import touched.
             </p>
-            <p className="text-xs text-gray-500 mb-4">
+            <p className="text-xs text-muted-foreground mb-4">
               Field-level enrichment (e.g. a blank city that got filled in) won&apos;t be
               reverted — only the label is removed.
             </p>
 
-            <label className="block text-xs text-gray-600 mb-1">
-              Type <span className="font-mono font-semibold">DELETE</span> to confirm:
+            <label className="block text-xs text-muted-foreground mb-1">
+              Type <span className="font-mono font-semibold text-foreground">DELETE</span>{" "}
+              to confirm:
             </label>
             <input
               type="text"
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}
-              className="border rounded px-2 py-1 text-sm w-full mb-3"
+              className="border border-input bg-background text-foreground rounded px-2 py-1 text-sm w-full mb-3 focus:outline-none focus:ring-2 focus:ring-ring"
               disabled={busy}
               autoFocus
             />
 
-            {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+            {error && <p className="text-sm text-red-400 mb-3">{error}</p>}
 
             <div className="flex justify-end gap-2">
               <button
@@ -111,7 +117,7 @@ export function UndoImportButton({
                   setError(null);
                 }}
                 disabled={busy}
-                className="px-3 py-1.5 rounded border text-sm hover:bg-gray-50"
+                className="px-3 py-1.5 rounded border border-input bg-background text-foreground text-sm hover:bg-muted disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -119,7 +125,7 @@ export function UndoImportButton({
                 type="button"
                 onClick={handleConfirm}
                 disabled={busy || confirmText !== "DELETE"}
-                className="px-3 py-1.5 rounded bg-red-600 text-white text-sm hover:bg-red-700 disabled:bg-gray-300"
+                className="px-3 py-1.5 rounded bg-red-500/15 border border-red-500/30 text-red-400 text-sm font-medium hover:bg-red-500/25 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {busy ? "Rolling back…" : "Yes, undo import"}
               </button>

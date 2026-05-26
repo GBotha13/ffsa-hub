@@ -3,6 +3,14 @@ import { redirect } from "next/navigation";
 import { requireModuleAccess } from "@/lib/require-permission";
 import { getLabels } from "@/services/labels";
 import { listCsvImports } from "@/services/csv-imports";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { CsvImportForm } from "./csv-import-form";
 import { UndoImportButton } from "./undo-import-button";
 
@@ -24,7 +32,7 @@ export default async function ContactsImportPage() {
     <div className="p-6 max-w-5xl mx-auto space-y-8">
       <div>
         <h1 className="text-2xl font-bold mb-1">Import contacts from CSV</h1>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-muted-foreground">
           Upload a CSV of contacts, pick a label to apply to every row, and the system
           will dedupe by email or phone as it imports.
         </p>
@@ -35,41 +43,53 @@ export default async function ContactsImportPage() {
       <section>
         <h2 className="text-lg font-semibold mb-3">Recent imports</h2>
         {recentImports.length === 0 ? (
-          <p className="text-sm text-gray-500">No imports yet.</p>
+          <p className="text-sm text-muted-foreground">No imports yet.</p>
         ) : (
-          <div className="overflow-x-auto border rounded-md">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="text-left px-3 py-2 font-medium">File</th>
-                  <th className="text-left px-3 py-2 font-medium">Label</th>
-                  <th className="text-left px-3 py-2 font-medium">Status</th>
-                  <th className="text-right px-3 py-2 font-medium">Rows</th>
-                  <th className="text-right px-3 py-2 font-medium">New</th>
-                  <th className="text-right px-3 py-2 font-medium">Matched</th>
-                  <th className="text-right px-3 py-2 font-medium">Review</th>
-                  <th className="text-right px-3 py-2 font-medium">Errored</th>
-                  <th className="text-left px-3 py-2 font-medium">When</th>
-                  <th className="text-right px-3 py-2 font-medium">Action</th>
-                </tr>
-              </thead>
-              <tbody>
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>File</TableHead>
+                  <TableHead>Label</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Rows</TableHead>
+                  <TableHead className="text-right">New</TableHead>
+                  <TableHead className="text-right">Matched</TableHead>
+                  <TableHead className="text-right">Review</TableHead>
+                  <TableHead className="text-right">Errored</TableHead>
+                  <TableHead>When</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {recentImports.map((row: ImportRow) => (
-                  <tr key={row.id} className="border-t">
-                    <td className="px-3 py-2">{row.filename}</td>
-                    <td className="px-3 py-2">{row.labels?.name ?? row.custom_label_name ?? "—"}</td>
-                    <td className="px-3 py-2">
+                  <TableRow key={row.id}>
+                    <TableCell className="font-medium">{row.filename}</TableCell>
+                    <TableCell>
+                      {row.labels?.name ?? row.custom_label_name ?? "—"}
+                    </TableCell>
+                    <TableCell>
                       <StatusBadge status={row.status} />
-                    </td>
-                    <td className="px-3 py-2 text-right">{row.row_count}</td>
-                    <td className="px-3 py-2 text-right">{row.imported_count}</td>
-                    <td className="px-3 py-2 text-right">{row.matched_count}</td>
-                    <td className="px-3 py-2 text-right">{row.review_count}</td>
-                    <td className="px-3 py-2 text-right">{row.error_count}</td>
-                    <td className="px-3 py-2 text-gray-500">
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {row.row_count.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {row.imported_count.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {row.matched_count.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {row.review_count.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {row.error_count.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
                       {new Date(row.created_at).toLocaleString()}
-                    </td>
-                    <td className="px-3 py-2 text-right">
+                    </TableCell>
+                    <TableCell className="text-right">
                       <UndoImportButton
                         importId={row.id}
                         filename={row.filename}
@@ -77,11 +97,11 @@ export default async function ContactsImportPage() {
                         matchedCount={row.matched_count}
                         status={row.status}
                       />
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
       </section>
@@ -106,11 +126,19 @@ type ImportRow = {
 function StatusBadge({ status }: { status: string }) {
   const cls =
     status === "completed"
-      ? "bg-green-100 text-green-800"
+      ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20"
       : status === "processing" || status === "pending"
-      ? "bg-yellow-100 text-yellow-800"
+      ? "bg-amber-500/15 text-amber-400 border-amber-500/20"
       : status === "failed"
-      ? "bg-red-100 text-red-800"
-      : "bg-gray-100 text-gray-800";
-  return <span className={`inline-block px-2 py-0.5 rounded text-xs ${cls}`}>{status}</span>;
+      ? "bg-red-500/15 text-red-400 border-red-500/20"
+      : status === "rolled_back"
+      ? "bg-muted text-muted-foreground border-border"
+      : "bg-muted text-muted-foreground border-border";
+  return (
+    <span
+      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium capitalize ${cls}`}
+    >
+      {status.replace(/_/g, " ")}
+    </span>
+  );
 }
