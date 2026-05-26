@@ -46,12 +46,12 @@ ALTER TABLE public.csv_import_errors ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY csv_import_errors_select
   ON public.csv_import_errors FOR SELECT
-  USING (public.has_permission(auth.uid(), 'contacts.read'));
+  USING (public.has_permission('contacts.read'));
 
 CREATE POLICY csv_import_errors_all
   ON public.csv_import_errors FOR ALL
-  USING (public.has_permission(auth.uid(), 'contacts.write'))
-  WITH CHECK (public.has_permission(auth.uid(), 'contacts.write'));
+  USING (public.has_permission('contacts.write'))
+  WITH CHECK (public.has_permission('contacts.write'));
 
 COMMENT ON TABLE public.csv_import_errors IS
   'Per-row failures from CSV contact imports. One row per failed CSV row. Lifecycle: pending → resolved (via fix-and-retry that successfully created/matched a contact) or dismissed (admin marked as not worth recovering). FK cascades on csv_imports delete so undo cleans these up too.';
