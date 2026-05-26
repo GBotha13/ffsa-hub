@@ -11,7 +11,17 @@ export type MailtrapSendInput = {
   replyTo?: string | null;
   subject: string;
   html: string;
+  /** Plain-text alternative — pair with html for proper multipart/alternative. */
+  text?: string;
   category?: string;
+  /**
+   * Custom headers. Standard set for marketing email:
+   *   List-Unsubscribe        — RFC 2369 unsubscribe URL
+   *   List-Unsubscribe-Post   — RFC 8058 one-click unsubscribe signal
+   *   List-ID                 — RFC 2919 list identifier
+   *   Precedence: bulk        — flags as bulk mail
+   */
+  headers?: Record<string, string>;
 };
 
 export type MailtrapSendResult = {
@@ -29,20 +39,26 @@ export async function sendViaMailtrap(
   }
 
   try {
+    const payload: Record<string, unknown> = {
+      from: { email: input.fromEmail, name: input.fromName },
+      to: [{ email: input.to }],
+      subject: input.subject,
+      html: input.html,
+    };
+    if (input.replyTo) payload.reply_to = { email: input.replyTo };
+    if (input.text) payload.text = input.text;
+    if (input.category) payload.category = input.category;
+    if (input.headers && Object.keys(input.headers).length > 0) {
+      payload.headers = input.headers;
+    }
+
     const res = await fetch(MAILTRAP_BULK_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Api-Token": token,
       },
-      body: JSON.stringify({
-        from: { email: input.fromEmail, name: input.fromName },
-        to: [{ email: input.to }],
-        ...(input.replyTo ? { reply_to: { email: input.replyTo } } : {}),
-        subject: input.subject,
-        html: input.html,
-        ...(input.category ? { category: input.category } : {}),
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!res.ok) {

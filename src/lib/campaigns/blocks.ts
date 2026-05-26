@@ -430,6 +430,13 @@ export type RenderOpts = {
   footerHtml?: string;
   /** Brand kit — pass the effective brand from getEffectiveBrand(). Falls back to editorial defaults. */
   brand?: EffectiveBrand | BrandKitRow | null;
+  /**
+   * Render a subtle banner at the top of the email indicating this is a
+   * preview / test send. Set on test-send only — keeps real campaigns
+   * pristine while still letting designers see the same layout & spam
+   * scoring as a real send.
+   */
+  testNotice?: string;
 };
 
 export function renderCampaignHtml(
@@ -444,7 +451,14 @@ export function renderCampaignHtml(
       : mergeBrand((opts.brand as BrandKitRow) ?? null);
 
   const fontHref = googleFontHref(brand);
-  const rows = body.blocks.map((b) => renderBlock(b, brand)).join("");
+  const testNoticeRow = opts.testNotice
+    ? `<tr><td style="background:${softenHex(brand.accent_color, 0.85)};border:1px dashed ${brand.accent_color};border-radius:3px;padding:10px 14px;margin-bottom:18px;">
+<div style="font-family:${bodyStack(brand)};font-size:11px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:${brand.accent_color};">Preview</div>
+<div style="font-family:${bodyStack(brand)};font-size:12px;color:${brand.text_color};opacity:0.75;margin-top:4px;">${escapeHtml(opts.testNotice)}</div>
+</td></tr>
+<tr><td style="height:14px;line-height:0;">&nbsp;</td></tr>`
+    : "";
+  const rows = testNoticeRow + body.blocks.map((b) => renderBlock(b, brand)).join("");
 
   const preview = opts.previewText
     ? `<div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:transparent;">${escapeHtml(opts.previewText)}</div>`
@@ -476,6 +490,106 @@ ${opts.footerHtml ?? ""}
 </td></tr>
 </table>
 </body></html>`;
+}
+
+// ────────────────────────────────────────────────────────────
+// Plain-text alternative
+// ────────────────────────────────────────────────────────────
+
+function htmlToPlainText(html: string): string {
+  // Convert rich-text HTML back to readable plain text. Inline links become
+  // "label (url)" so URLs are visible without the underline.
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p\s*>/gi, "\n\n")
+    .replace(/<a[^>]*href="([^"]+)"[^>]*>([^<]*)<\/a>/gi, "$2 ($1)")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/**
+ * Plain-text alternative of a campaign body. Pairing this with the HTML
+ * version (via MIME multipart/alternative) is a major spam-filter signal:
+ * mail providers downrank HTML-only marketing emails.
+ */
+export function renderCampaignText(
+  body: CampaignBody,
+  opts: { brand?: EffectiveBrand | BrandKitRow | null; testNotice?: string } = {}
+): string {
+  const brand: EffectiveBrand =
+    opts.brand &&
+    "primary_color" in opts.brand &&
+    typeof opts.brand.primary_color === "string"
+      ? (opts.brand as EffectiveBrand)
+      : mergeBrand((opts.brand as BrandKitRow) ?? null);
+
+  const lines: string[] = [];
+
+  if (opts.testNotice) {
+    lines.push(`[PREVIEW — ${opts.testNotice}]`, "");
+  }
+
+  for (const block of body.blocks) {
+    switch (block.type) {
+      case "eyebrow":
+        lines.push(block.text.toUpperCase(), "");
+        break;
+      case "heading": {
+        if (block.eyebrow) lines.push(block.eyebrow.toUpperCase());
+        lines.push(block.text);
+        lines.push("=".repeat(Math.min(block.text.length, 60)));
+        lines.push("");
+        break;
+      }
+      case "text":
+        lines.push(htmlToPlainText(block.text), "");
+        break;
+      case "button":
+        lines.push(`→ ${block.text}: ${block.url}`, "");
+        break;
+      case "image":
+        if (block.caption) lines.push(`[Image — ${block.caption}]`, "");
+        else if (block.alt) lines.push(`[Image — ${block.alt}]`, "");
+        break;
+      case "divider":
+        lines.push("— — —", "");
+        break;
+      case "quote": {
+        lines.push(`"${block.text}"`);
+        if (block.attribution) lines.push(`  — ${block.attribution}`);
+        lines.push("");
+        break;
+      }
+      case "spacer":
+        lines.push("");
+        break;
+      case "image-text": {
+        if (block.heading) lines.push(block.heading);
+        lines.push(htmlToPlainText(block.text), "");
+        if (block.alt) lines.push(`[Image — ${block.alt}]`, "");
+        break;
+      }
+      case "cta":
+        lines.push(block.heading);
+        lines.push(block.text);
+        lines.push(`→ ${block.buttonText}: ${block.buttonUrl}`, "");
+        break;
+    }
+  }
+
+  // Brand-aware sign-off.
+  lines.push("— — —");
+  lines.push(brand.org_name);
+  if (brand.org_address) lines.push(brand.org_address);
+
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 // Re-export editorial defaults so the UI can show "this is what an empty brand

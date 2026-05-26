@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getCampaignById } from "@/services/campaigns";
 import { getEffectiveBrand } from "@/services/brand";
-import { renderCampaignHtml, type CampaignBody } from "@/lib/campaigns/blocks";
+import {
+  renderCampaignHtml,
+  renderCampaignText,
+  type CampaignBody,
+} from "@/lib/campaigns/blocks";
 import { sendViaMailtrap } from "@/lib/email/mailtrap";
 import {
   getAuthedUser,
@@ -10,12 +14,16 @@ import {
   COMMS_MANAGE_ROLES,
 } from "@/lib/api-auth";
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.ffsahub.com";
+
 // POST /api/campaigns/[id]/test-send
 // Body: { to: string }
 //
 // Renders the campaign through the same renderer used for real sends,
 // including the brand kit attached to the campaign's sending identity.
-// Subject is prefixed with [TEST] so the recipient can tell at a glance.
+// Subject is unchanged from the real campaign so deliverability mirrors
+// production exactly — no [TEST] prefix (it tanks spam scores). A subtle
+// preview banner inside the email body indicates it's a preview.
 // No campaign_recipients row is written — this never counts toward
 // analytics or campaign state.
 export async function POST(
@@ -71,12 +79,14 @@ export async function POST(
   }
 
   const brand = await getEffectiveBrand(supabase, campaign.sending_identity_id);
+  const testNotice = `Preview send to ${to}. Recipients won't see this notice. The rest of the email is exactly what would be sent.`;
+
   const html = renderCampaignHtml(source, {
     previewText: campaign.preview_text ?? undefined,
     brand,
-    // No per-recipient compliance footer for tests — there's no contact row.
-    // The brand footer still renders.
+    testNotice,
   });
+  const text = renderCampaignText(source, { brand, testNotice });
 
   const identity = campaign.sending_identities as {
     from_email: string;
@@ -84,14 +94,28 @@ export async function POST(
     reply_to: string | null;
   };
 
+  // Mirror real-send deliverability headers so the test is an honest preview
+  // of how Gmail/Yahoo/Outlook will route the actual campaign.
+  const domain = identity.from_email.split("@")[1] ?? "ffsahub.com";
+  const prefsUrl = `${APP_URL}/preferences?t=test`;
+  const headers: Record<string, string> = {
+    "List-Unsubscribe": `<${prefsUrl}>`,
+    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    "List-ID": `campaigns.${domain} <campaign-test-${id}.${domain}>`,
+    Precedence: "bulk",
+    "X-Entity-Ref-ID": `test:${id}:${Date.now()}`,
+  };
+
   const result = await sendViaMailtrap({
     fromEmail: identity.from_email,
     fromName: identity.from_name,
     replyTo: identity.reply_to,
     to,
-    subject: `[TEST] ${campaign.subject}`,
+    subject: campaign.subject,
     html,
+    text,
     category: `campaign-test:${id}`,
+    headers,
   });
 
   if (result.error) {

@@ -1,4 +1,8 @@
-import { renderCampaignHtml, type CampaignBody } from "@/lib/campaigns/blocks";
+import {
+  renderCampaignHtml,
+  renderCampaignText,
+  type CampaignBody,
+} from "@/lib/campaigns/blocks";
 import { sendViaMailtrap } from "@/lib/email/mailtrap";
 import { signPrefsToken } from "@/lib/tokens/unsubscribe";
 import { getEffectiveBrand } from "@/services/brand";
@@ -17,14 +21,42 @@ export type BatchResult = {
   done: boolean;
 };
 
-function footerHtml(args: { contactId: string; campaignId: string }): string {
-  const token = signPrefsToken(args.contactId, args.campaignId);
-  const prefsUrl = `${APP_URL}/preferences?t=${encodeURIComponent(token)}`;
+function prefsUrlFor(contactId: string, campaignId: string): string {
+  const token = signPrefsToken(contactId, campaignId);
+  return `${APP_URL}/preferences?t=${encodeURIComponent(token)}`;
+}
+
+function footerHtml(prefsUrl: string): string {
   return `<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
 <tr><td style="padding:18px 36px;font-size:12px;line-height:1.6;color:#94a3b8;text-align:center;">
 <a href="${prefsUrl}" style="color:#94a3b8;text-decoration:underline;">Manage email preferences</a>
 &middot; Fire &amp; Fragrance South Africa
 </td></tr></table>`;
+}
+
+/**
+ * Build the deliverability headers Gmail, Yahoo, and Microsoft reward.
+ * - List-Unsubscribe + List-Unsubscribe-Post: RFC 8058 one-click unsubscribe.
+ *   Required by Gmail / Yahoo for senders over ~5K emails/day as of 2024,
+ *   and a strong inbox-placement signal at any volume.
+ * - List-ID: groups campaigns under a logical list (per campaign here).
+ * - Precedence: bulk: signals this is mass mail (filters score it correctly).
+ * - X-Entity-Ref-ID: unique per-send identifier so threads don't collapse.
+ */
+function deliverabilityHeaders(args: {
+  prefsUrl: string;
+  campaignId: string;
+  fromEmail: string;
+  contactId: string;
+}): Record<string, string> {
+  const domain = args.fromEmail.split("@")[1] ?? "ffsahub.com";
+  return {
+    "List-Unsubscribe": `<${args.prefsUrl}>`,
+    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    "List-ID": `campaigns.${domain} <campaign-${args.campaignId}.${domain}>`,
+    Precedence: "bulk",
+    "X-Entity-Ref-ID": `${args.campaignId}:${args.contactId}`,
+  };
 }
 
 /**
@@ -112,14 +144,13 @@ export async function sendCampaignBatch(
   let failed = 0;
 
   for (const recipient of batch as { contact_id: string; email: string }[]) {
+    const prefsUrl = prefsUrlFor(recipient.contact_id, campaignId);
     const html = renderCampaignHtml(body, {
       previewText: campaign.preview_text ?? undefined,
       brand,
-      footerHtml: footerHtml({
-        contactId: recipient.contact_id,
-        campaignId,
-      }),
+      footerHtml: footerHtml(prefsUrl),
     });
+    const text = renderCampaignText(body, { brand });
 
     const result = await sendViaMailtrap({
       fromEmail,
@@ -128,7 +159,14 @@ export async function sendCampaignBatch(
       to: recipient.email,
       subject: campaign.subject,
       html,
+      text: `${text}\n\n———\nManage email preferences: ${prefsUrl}`,
       category: `campaign:${campaignId}`,
+      headers: deliverabilityHeaders({
+        prefsUrl,
+        campaignId,
+        fromEmail,
+        contactId: recipient.contact_id,
+      }),
     });
 
     const nowIso = new Date().toISOString();
