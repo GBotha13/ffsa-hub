@@ -83,8 +83,14 @@ export async function ProfileCompletionGate({
   // No profile record yet (still in onboarding) — don't block
   if (!profile) return <>{children}</>;
 
-  // User hasn't completed onboarding yet — don't double-gate
-  if (!profile.accepted_at) return <>{children}</>;
+  // NOTE: we used to bail when `accepted_at` was null on the assumption
+  // that the user was still being shepherded through /onboarding. But
+  // the onboarding page lives in the (auth) route group with no layout,
+  // so the gate is not mounted there — the bail can only mis-fire for
+  // seeded super admins (created directly in the DB, never went through
+  // onboarding), leaving their required-field collection silently
+  // skipped. Always gate; if onboarding ever wraps gate-bearing routes,
+  // re-add the check there.
 
   // Check which required fields are missing
   const missingFields = REQUIRED_PROFILE_FIELDS.filter((f) => {
