@@ -1,12 +1,10 @@
 // ============================================================
-// Campaign body — a list of simple blocks, stored in
-// campaigns.body_source (jsonb) and rendered to email HTML
-// (campaigns.body_html) at save time.
+// Campaign body — block-based composer + editorial email renderer.
 //
-// The renderer produces email-safe HTML in a bold, editorial
-// style: serif display headings, generous spacing, branded
-// header band + footer pulled from the sending identity's
-// brand kit (src/services/brand.ts).
+// Blocks are stored in campaigns.body_source (jsonb) and rendered
+// to email-safe HTML (campaigns.body_html) at save time. The
+// renderer produces bold-editorial output: warm off-white paper,
+// confident display typography, refined CTAs, asymmetric layouts.
 // ============================================================
 
 import sanitizeHtml from "sanitize-html";
@@ -18,12 +16,56 @@ import {
   type BrandKitRow,
 } from "@/services/brand";
 
+// ────────────────────────────────────────────────────────────
+// Block type union
+// ────────────────────────────────────────────────────────────
+
+export type ButtonStyle = "filled" | "outline" | "link";
+export type DividerStyle = "rule" | "dots" | "space";
+export type SpacerSize = "sm" | "md" | "lg" | "xl";
+export type ImageTextLayout = "image-left" | "image-right";
+
 export type CampaignBlock =
-  | { id: string; type: "heading"; text: string }
-  | { id: string; type: "text"; text: string }
-  | { id: string; type: "button"; text: string; url: string }
-  | { id: string; type: "image"; url: string; alt: string }
-  | { id: string; type: "divider" };
+  // Core 5 (with optional polish fields)
+  | { id: string; type: "heading"; text: string; eyebrow?: string }
+  | { id: string; type: "text"; text: string; dropCap?: boolean }
+  | {
+      id: string;
+      type: "button";
+      text: string;
+      url: string;
+      style?: ButtonStyle;
+    }
+  | {
+      id: string;
+      type: "image";
+      url: string;
+      alt: string;
+      caption?: string;
+      fullBleed?: boolean;
+    }
+  | { id: string; type: "divider"; style?: DividerStyle }
+  // New editorial primitives
+  | { id: string; type: "eyebrow"; text: string }
+  | { id: string; type: "quote"; text: string; attribution?: string }
+  | { id: string; type: "spacer"; size?: SpacerSize }
+  | {
+      id: string;
+      type: "image-text";
+      url: string;
+      alt: string;
+      heading?: string;
+      text: string;
+      layout?: ImageTextLayout;
+    }
+  | {
+      id: string;
+      type: "cta";
+      heading: string;
+      text: string;
+      buttonText: string;
+      buttonUrl: string;
+    };
 
 export type CampaignBlockType = CampaignBlock["type"];
 
@@ -39,18 +81,34 @@ export function newBlockId(): string {
 }
 
 export function emptyCampaignBody(): CampaignBody {
+  // Tasteful starter — demonstrates the editorial vocabulary so users see
+  // what's possible the moment they open a fresh campaign.
   return {
     version: 1,
     blocks: [
-      { id: newBlockId(), type: "heading", text: "A bold headline goes here" },
+      { id: newBlockId(), type: "eyebrow", text: "From the field" },
+      { id: newBlockId(), type: "heading", text: "A weekend that changed everything" },
       {
         id: newBlockId(),
         type: "text",
-        text: "Open with a sentence that sets the scene. Editorial emails earn the reader's attention by leading with substance, not pleasantries.",
+        text: "Open with a sentence that draws the reader in. Editorial emails earn attention by leading with substance — a moment, a question, an image — rather than a greeting. Two short paragraphs is plenty before the first break.",
+        dropCap: true,
       },
+      { id: newBlockId(), type: "divider", style: "rule" },
+      {
+        id: newBlockId(),
+        type: "quote",
+        text: "The room was quiet at first. Then it wasn't.",
+        attribution: "Team leader, Saturday session",
+      },
+      { id: newBlockId(), type: "spacer", size: "md" },
     ],
   };
 }
+
+// ────────────────────────────────────────────────────────────
+// Sanitization helpers
+// ────────────────────────────────────────────────────────────
 
 function escapeHtml(s: string): string {
   return s
@@ -60,21 +118,11 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-// Only allow http(s) URLs in links/images.
 function safeUrl(u: string): string {
   const t = (u || "").trim();
   return /^https?:\/\//i.test(t) ? t : "#";
 }
 
-/**
- * Sanitize rich text from the Tiptap editor. Whitelists only the inline
- * emphasis tags + line/paragraph structure the editor can produce; strips
- * anything else (images, lists, scripts, styles). Links are kept only if
- * they target an http(s) URL.
- *
- * For legacy plain-text drafts (no tags at all), returns escaped text
- * with newlines converted to <br/> so existing campaigns keep rendering.
- */
 function sanitizeRichText(input: string): string {
   const value = (input ?? "").toString();
   if (!value) return "";
@@ -84,9 +132,7 @@ function sanitizeRichText(input: string): string {
   }
   return sanitizeHtml(value, {
     allowedTags: ["p", "br", "strong", "b", "em", "i", "a"],
-    allowedAttributes: {
-      a: ["href", "target", "rel"],
-    },
+    allowedAttributes: { a: ["href", "target", "rel"] },
     allowedSchemes: ["http", "https", "mailto"],
     transformTags: {
       a: (tagName, attribs) => ({
@@ -102,19 +148,18 @@ function sanitizeRichText(input: string): string {
 }
 
 // ────────────────────────────────────────────────────────────
-// Brand-aware fragments
+// Typography / color helpers
 // ────────────────────────────────────────────────────────────
 
 function googleFontHref(brand: EffectiveBrand): string {
-  // Curated set we serve via Google Fonts. Falls back gracefully in
-  // clients that strip <link> (Outlook desktop) — the CSS font stacks
-  // below include a generic serif/sans fallback.
   const fonts = new Set<string>();
   if (brand.display_font) fonts.add(brand.display_font);
   if (brand.body_font) fonts.add(brand.body_font);
   if (fonts.size === 0) return "";
   const families = Array.from(fonts)
-    .map((f) => `family=${encodeURIComponent(f)}:wght@400;500;600;700;800`)
+    .map(
+      (f) => `family=${encodeURIComponent(f)}:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600`
+    )
     .join("&");
   return `https://fonts.googleapis.com/css2?${families}&display=swap`;
 }
@@ -126,11 +171,29 @@ function bodyStack(brand: EffectiveBrand): string {
   return `'${brand.body_font}', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif`;
 }
 
+/** Lightly lighten a hex color toward white. Used for muted surfaces. */
+function softenHex(hex: string, amount = 0.06): string {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const r = (n >> 16) & 0xff;
+  const g = (n >> 8) & 0xff;
+  const b = n & 0xff;
+  const lift = (c: number) => Math.round(c + (255 - c) * amount);
+  return `#${[lift(r), lift(g), lift(b)]
+    .map((c) => c.toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
+// ────────────────────────────────────────────────────────────
+// Header + brand footer
+// ────────────────────────────────────────────────────────────
+
 function headerHtml(brand: EffectiveBrand): string {
-  const band = `<tr><td style="height:6px;background:${brand.primary_color};border-radius:14px 14px 0 0;"></td></tr>`;
+  const band = `<tr><td style="height:4px;background:${brand.primary_color};border-radius:6px 6px 0 0;"></td></tr>`;
   if (!brand.logo_url) return band;
-  return `${band}<tr><td style="padding:28px 36px 8px;text-align:center;">
-<img src="${safeUrl(brand.logo_url)}" alt="${escapeHtml(brand.org_name)}" style="display:inline-block;max-height:56px;max-width:240px;height:auto;border:0;"/>
+  return `${band}<tr><td style="padding:36px 56px 8px;text-align:left;">
+<img src="${safeUrl(brand.logo_url)}" alt="${escapeHtml(brand.org_name)}" style="display:inline-block;max-height:48px;max-width:200px;height:auto;border:0;"/>
 </td></tr>`;
 }
 
@@ -148,27 +211,31 @@ function brandFooterHtml(brand: EffectiveBrand): string {
     .filter((s) => /^https?:\/\//i.test(s.url))
     .map(
       (s) =>
-        `<a href="${safeUrl(s.url)}" style="color:${brand.primary_color};text-decoration:none;font-weight:600;margin:0 8px;">${escapeHtml(SOCIAL_LABELS[s.platform] ?? s.platform)}</a>`
+        `<a href="${safeUrl(s.url)}" style="color:${brand.primary_color};text-decoration:none;font-weight:600;margin:0 10px;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;">${escapeHtml(SOCIAL_LABELS[s.platform] ?? s.platform)}</a>`
     )
     .join("");
 
   const tagline = brand.footer_tagline
-    ? `<div style="font-style:italic;color:${brand.text_color};opacity:0.7;margin-bottom:14px;font-family:${displayStack(brand)};font-size:14px;">${escapeHtml(brand.footer_tagline)}</div>`
+    ? `<div style="font-style:italic;color:${brand.text_color};opacity:0.7;margin-bottom:18px;font-family:${displayStack(brand)};font-size:15px;line-height:1.5;max-width:380px;margin-left:auto;margin-right:auto;">${escapeHtml(brand.footer_tagline)}</div>`
     : "";
 
   const socialRow = socials
-    ? `<div style="margin-bottom:10px;">${socials}</div>`
+    ? `<div style="margin-bottom:14px;">${socials}</div>`
     : "";
 
   const address = brand.org_address
-    ? `<div style="opacity:0.75;">${escapeHtml(brand.org_address).replace(/\n/g, "<br/>")}</div>`
+    ? `<div style="opacity:0.6;font-size:11px;line-height:1.7;letter-spacing:0.02em;">${escapeHtml(brand.org_address).replace(/\n/g, "<br/>")}</div>`
     : "";
 
-  return `<tr><td style="padding:24px 36px 32px;border-top:1px solid #e2e8f0;text-align:center;font-family:${bodyStack(brand)};font-size:12px;line-height:1.6;color:${brand.text_color};">
+  // Small rule above footer for editorial separation.
+  return `<tr><td style="padding:8px 56px 40px;">
+<div style="border-top:1px solid ${softenHex(brand.text_color, 0.7)};margin-bottom:28px;"></div>
+<div style="text-align:center;font-family:${bodyStack(brand)};font-size:12px;line-height:1.6;color:${brand.text_color};">
 ${tagline}
-<div style="font-weight:700;letter-spacing:0.04em;text-transform:uppercase;font-size:11px;color:${brand.primary_color};margin-bottom:8px;">${escapeHtml(brand.org_name)}</div>
+<div style="font-weight:700;letter-spacing:0.22em;text-transform:uppercase;font-size:10px;color:${brand.primary_color};margin-bottom:10px;">${escapeHtml(brand.org_name)}</div>
 ${socialRow}
 ${address}
+</div>
 </td></tr>`;
 }
 
@@ -176,39 +243,178 @@ ${address}
 // Block renderers
 // ────────────────────────────────────────────────────────────
 
+function eyebrowHtml(text: string, brand: EffectiveBrand): string {
+  return `<div style="font-family:${bodyStack(brand)};font-size:11px;font-weight:700;letter-spacing:0.22em;text-transform:uppercase;color:${brand.primary_color};margin-bottom:14px;">${escapeHtml(text)}</div>`;
+}
+
+function buttonHtml(
+  text: string,
+  url: string,
+  style: ButtonStyle,
+  brand: EffectiveBrand
+): string {
+  const label = escapeHtml(text);
+  const href = safeUrl(url);
+  if (style === "link") {
+    return `<a href="${href}" style="font-family:${bodyStack(brand)};font-size:14px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:${brand.accent_color};text-decoration:none;border-bottom:1.5px solid ${brand.accent_color};padding-bottom:2px;">${label} &nbsp;→</a>`;
+  }
+  if (style === "outline") {
+    return `<a href="${href}" style="display:inline-block;background:transparent;color:${brand.primary_color};text-decoration:none;font-family:${bodyStack(brand)};font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;padding:13px 28px;border:1.5px solid ${brand.primary_color};border-radius:2px;">${label}</a>`;
+  }
+  // filled (default)
+  return `<a href="${href}" style="display:inline-block;background:${brand.accent_color};color:#ffffff;text-decoration:none;font-family:${bodyStack(brand)};font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;padding:14px 30px;border-radius:2px;">${label}</a>`;
+}
+
+function dividerHtml(style: DividerStyle, brand: EffectiveBrand): string {
+  if (style === "space") {
+    return `<tr><td style="padding:24px 0;line-height:0;">&nbsp;</td></tr>`;
+  }
+  if (style === "dots") {
+    return `<tr><td style="padding:32px 0;text-align:center;font-size:14px;letter-spacing:1em;color:${brand.primary_color};">&middot;&nbsp;&middot;&nbsp;&middot;</td></tr>`;
+  }
+  // rule (default) — short left-anchored brand-colored rule
+  return `<tr><td style="padding:32px 0;">
+<div style="width:48px;height:2px;background:${brand.primary_color};"></div>
+</td></tr>`;
+}
+
+function spacerHeight(size: SpacerSize): number {
+  if (size === "sm") return 16;
+  if (size === "lg") return 56;
+  if (size === "xl") return 96;
+  return 32; // md
+}
+
+function dropCapWrap(html: string, brand: EffectiveBrand): string {
+  // Take the first character of the first text node and wrap in a span.
+  // Works on plain or rich-text HTML alike. If we can't find a leading
+  // letter, return the html untouched.
+  const re = /(<p[^>]*>\s*)?([A-Za-z])/;
+  const m = html.match(re);
+  if (!m) return html;
+  const idx = html.indexOf(m[2]);
+  if (idx < 0) return html;
+  const before = html.slice(0, idx);
+  const after = html.slice(idx + 1);
+  const cap = `<span style="float:left;font-family:${displayStack(brand)};font-size:54px;line-height:0.95;font-weight:800;color:${brand.primary_color};padding:6px 10px 0 0;">${m[2]}</span>`;
+  return `${before}${cap}${after}`;
+}
+
+function imageHtml(
+  block: Extract<CampaignBlock, { type: "image" }>,
+  brand: EffectiveBrand
+): string {
+  const img = `<img src="${safeUrl(block.url)}" alt="${escapeHtml(block.alt || "")}" style="display:block;width:100%;max-width:100%;height:auto;border:0;border-radius:2px;"/>`;
+  const caption = block.caption
+    ? `<div style="font-family:${displayStack(brand)};font-style:italic;font-size:13px;line-height:1.5;color:${brand.text_color};opacity:0.7;margin-top:10px;">${escapeHtml(block.caption)}</div>`
+    : "";
+  if (block.fullBleed) {
+    // Visually break out of the standard 56px card padding.
+    return `<tr><td style="padding:16px 0;"><div style="margin:0 -56px;">${img}</div>${caption ? `<div style="padding:0 56px;">${caption}</div>` : ""}</td></tr>`;
+  }
+  return `<tr><td style="padding:16px 0;">${img}${caption}</td></tr>`;
+}
+
+function quoteHtml(
+  block: Extract<CampaignBlock, { type: "quote" }>,
+  brand: EffectiveBrand
+): string {
+  const attribution = block.attribution
+    ? `<div style="font-family:${bodyStack(brand)};font-size:11px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:${brand.text_color};opacity:0.55;margin-top:18px;">— ${escapeHtml(block.attribution)}</div>`
+    : "";
+  return `<tr><td style="padding:24px 0;">
+<div style="border-left:3px solid ${brand.accent_color};padding:6px 0 6px 28px;">
+<div style="font-family:${displayStack(brand)};font-style:italic;font-size:24px;line-height:1.4;font-weight:500;color:${brand.text_color};">${escapeHtml(block.text)}</div>
+${attribution}
+</div>
+</td></tr>`;
+}
+
+function imageTextHtml(
+  block: Extract<CampaignBlock, { type: "image-text" }>,
+  brand: EffectiveBrand
+): string {
+  const img = `<img src="${safeUrl(block.url)}" alt="${escapeHtml(block.alt || "")}" style="display:block;width:100%;max-width:100%;height:auto;border:0;border-radius:2px;"/>`;
+  const heading = block.heading
+    ? `<div style="font-family:${displayStack(brand)};font-size:22px;line-height:1.2;font-weight:700;letter-spacing:-0.015em;color:${brand.primary_color};margin-bottom:10px;">${escapeHtml(block.heading)}</div>`
+    : "";
+  const text = `<div style="font-family:${bodyStack(brand)};font-size:15px;line-height:1.65;color:${brand.text_color};">${sanitizeRichText(block.text)
+    .replace(
+      /<p(\s|>)/g,
+      `<p style="margin:0 0 10px;font-family:${bodyStack(brand)};font-size:15px;line-height:1.65;color:${brand.text_color};"$1`
+    )
+    .replace(
+      /<a(\s|>)/g,
+      `<a style="color:${brand.accent_color};text-decoration:underline;"$1`
+    )}</div>`;
+
+  const imageCell = `<td valign="middle" style="width:46%;padding:0;" width="46%">${img}</td>`;
+  const textCell = `<td valign="middle" style="width:46%;padding:0;" width="46%">${heading}${text}</td>`;
+  const gap = `<td style="width:8%;" width="8%">&nbsp;</td>`;
+
+  const cells =
+    block.layout === "image-right"
+      ? `${textCell}${gap}${imageCell}`
+      : `${imageCell}${gap}${textCell}`;
+
+  // Note: mobile clients without media-query support will see side-by-side
+  // at a narrow width. The 46% widths keep it usable. A future pass can add
+  // an inlined @media query that stacks below 480px in clients that honor it.
+  return `<tr><td style="padding:24px 0;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>${cells}</tr></table>
+</td></tr>`;
+}
+
+function ctaHtml(
+  block: Extract<CampaignBlock, { type: "cta" }>,
+  brand: EffectiveBrand
+): string {
+  return `<tr><td style="padding:32px 0;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${brand.primary_color};border-radius:4px;">
+<tr><td style="padding:44px 40px;text-align:center;">
+<div style="font-family:${displayStack(brand)};font-size:26px;line-height:1.25;font-weight:700;letter-spacing:-0.015em;color:#ffffff;margin-bottom:12px;">${escapeHtml(block.heading)}</div>
+<div style="font-family:${bodyStack(brand)};font-size:15px;line-height:1.65;color:#ffffff;opacity:0.85;margin:0 auto 22px;max-width:420px;">${escapeHtml(block.text)}</div>
+<a href="${safeUrl(block.buttonUrl)}" style="display:inline-block;background:#ffffff;color:${brand.primary_color};text-decoration:none;font-family:${bodyStack(brand)};font-size:13px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;padding:14px 30px;border-radius:2px;">${escapeHtml(block.buttonText)}</a>
+</td></tr>
+</table>
+</td></tr>`;
+}
+
 function renderBlock(block: CampaignBlock, brand: EffectiveBrand): string {
   switch (block.type) {
-    case "heading":
-      return `<tr><td style="padding:18px 0 8px;font-family:${displayStack(brand)};font-size:30px;line-height:1.15;font-weight:700;letter-spacing:-0.01em;color:${brand.primary_color};">${escapeHtml(block.text)}</td></tr>`;
+    case "heading": {
+      const eyebrow = block.eyebrow ? eyebrowHtml(block.eyebrow, brand) : "";
+      return `<tr><td style="padding:24px 0 12px;">${eyebrow}<div style="font-family:${displayStack(brand)};font-size:34px;line-height:1.1;font-weight:800;letter-spacing:-0.025em;color:${brand.primary_color};">${escapeHtml(block.text)}</div></td></tr>`;
+    }
     case "text": {
-      // Wrap sanitized rich-text in a styled container. Tiptap emits <p>
-      // tags, so we strip default <p> margins via a child selector below
-      // (inlined since email clients ignore <style>).
       const safe = sanitizeRichText(block.text)
-        // Inject inline styles into <p> + <a> so the typography matches
-        // the brand kit even in clients that strip <style>.
         .replace(
           /<p(\s|>)/g,
-          `<p style="margin:0 0 12px;font-family:${bodyStack(brand)};font-size:16px;line-height:1.7;color:${brand.text_color};"$1`
+          `<p style="margin:0 0 14px;font-family:${bodyStack(brand)};font-size:17px;line-height:1.7;color:${brand.text_color};"$1`
         )
         .replace(
           /<a(\s|>)/g,
-          `<a style="color:${brand.accent_color};text-decoration:underline;"$1`
+          `<a style="color:${brand.accent_color};text-decoration:underline;text-underline-offset:2px;"$1`
         );
-      return `<tr><td style="padding:6px 0;font-family:${bodyStack(brand)};font-size:16px;line-height:1.7;color:${brand.text_color};">${safe}</td></tr>`;
+      const final = block.dropCap ? dropCapWrap(safe, brand) : safe;
+      return `<tr><td style="padding:6px 0;font-family:${bodyStack(brand)};font-size:17px;line-height:1.7;color:${brand.text_color};">${final}</td></tr>`;
     }
     case "button":
-      return `<tr><td style="padding:20px 0;">
-<a href="${safeUrl(block.url)}" style="display:inline-block;background:${brand.accent_color};color:#ffffff;text-decoration:none;font-family:${bodyStack(brand)};font-size:15px;font-weight:600;letter-spacing:0.01em;padding:14px 30px;border-radius:6px;">${escapeHtml(block.text)}</a>
-</td></tr>`;
+      return `<tr><td style="padding:20px 0;">${buttonHtml(block.text, block.url, block.style ?? "filled", brand)}</td></tr>`;
     case "image":
-      return `<tr><td style="padding:14px 0;">
-<img src="${safeUrl(block.url)}" alt="${escapeHtml(block.alt || "")}" style="display:block;width:100%;max-width:100%;height:auto;border:0;border-radius:4px;"/>
-</td></tr>`;
+      return imageHtml(block, brand);
     case "divider":
-      return `<tr><td style="padding:20px 0;">
-<div style="border-top:2px solid ${brand.primary_color};width:48px;"></div>
-</td></tr>`;
+      return dividerHtml(block.style ?? "rule", brand);
+    case "eyebrow":
+      return `<tr><td style="padding:18px 0 0;">${eyebrowHtml(block.text, brand)}</td></tr>`;
+    case "quote":
+      return quoteHtml(block, brand);
+    case "spacer":
+      return `<tr><td style="line-height:0;height:${spacerHeight(block.size ?? "md")}px;">&nbsp;</td></tr>`;
+    case "image-text":
+      return imageTextHtml(block, brand);
+    case "cta":
+      return ctaHtml(block, brand);
     default:
       return "";
   }
@@ -226,17 +432,14 @@ export type RenderOpts = {
   brand?: EffectiveBrand | BrandKitRow | null;
 };
 
-/**
- * Render the block list to email-safe HTML — table-based, inline styles,
- * 640px centered single column with an editorial brand header + footer.
- * The send worker appends a per-recipient compliance footer via `footerHtml`.
- */
 export function renderCampaignHtml(
   body: CampaignBody,
   opts: RenderOpts = {}
 ): string {
   const brand: EffectiveBrand =
-    opts.brand && "primary_color" in opts.brand && typeof opts.brand.primary_color === "string"
+    opts.brand &&
+    "primary_color" in opts.brand &&
+    typeof opts.brand.primary_color === "string"
       ? (opts.brand as EffectiveBrand)
       : mergeBrand((opts.brand as BrandKitRow) ?? null);
 
@@ -247,6 +450,10 @@ export function renderCampaignHtml(
     ? `<div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:transparent;">${escapeHtml(opts.previewText)}</div>`
     : "";
 
+  // Warm off-white background — avoids the sterile blue-grey of #F8FAFC
+  // and gives the email a "paper" feel that pairs well with editorial type.
+  const pageBg = brand.bg_color || "#F7F5F0";
+
   return `<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8"/>
@@ -254,13 +461,13 @@ export function renderCampaignHtml(
 ${fontHref ? `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="${fontHref}" rel="stylesheet">` : ""}
 <title>${escapeHtml(brand.org_name)}</title>
 </head>
-<body style="margin:0;padding:0;background:${brand.bg_color};font-family:${bodyStack(brand)};">
+<body style="margin:0;padding:0;background:${pageBg};font-family:${bodyStack(brand)};-webkit-font-smoothing:antialiased;">
 ${preview}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${brand.bg_color};padding:32px 0;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${pageBg};padding:40px 0;">
 <tr><td align="center">
-<table role="presentation" width="640" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%;background:#ffffff;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,0.06);">
+<table role="presentation" width="660" cellpadding="0" cellspacing="0" style="max-width:660px;width:100%;background:#ffffff;border-radius:6px;">
 ${headerHtml(brand)}
-<tr><td style="padding:24px 44px 32px;">
+<tr><td style="padding:20px 56px 40px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}</table>
 </td></tr>
 ${brandFooterHtml(brand)}

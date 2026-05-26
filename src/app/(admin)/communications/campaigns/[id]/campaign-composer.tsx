@@ -27,6 +27,9 @@ import {
   type CampaignBlock,
   type CampaignBlockType,
   type CampaignBody,
+  type ButtonStyle,
+  type DividerStyle,
+  type SpacerSize,
   newBlockId,
   renderCampaignHtml,
 } from "@/lib/campaigns/blocks";
@@ -47,12 +50,35 @@ type CampaignMeta = {
   scheduled_at: string | null;
 };
 
-const ADD_TYPES: { type: CampaignBlockType; label: string }[] = [
-  { type: "heading", label: "Heading" },
-  { type: "text", label: "Text" },
-  { type: "button", label: "Button" },
-  { type: "image", label: "Image" },
-  { type: "divider", label: "Divider" },
+const ADD_GROUPS: {
+  group: string;
+  items: { type: CampaignBlockType; label: string }[];
+}[] = [
+  {
+    group: "Layout",
+    items: [
+      { type: "heading", label: "Heading" },
+      { type: "text", label: "Text" },
+      { type: "eyebrow", label: "Eyebrow" },
+      { type: "quote", label: "Pull quote" },
+      { type: "divider", label: "Divider" },
+      { type: "spacer", label: "Spacer" },
+    ],
+  },
+  {
+    group: "Media",
+    items: [
+      { type: "image", label: "Image" },
+      { type: "image-text", label: "Image + text" },
+    ],
+  },
+  {
+    group: "Action",
+    items: [
+      { type: "button", label: "Button" },
+      { type: "cta", label: "CTA card" },
+    ],
+  },
 ];
 
 const STATUS_CLASS: Record<string, string> = {
@@ -149,15 +175,55 @@ export function CampaignComposer({
   function newBlock(type: CampaignBlockType): CampaignBlock {
     switch (type) {
       case "heading":
-        return { id: newBlockId(), type, text: "Heading" };
+        return { id: newBlockId(), type, text: "A confident headline" };
       case "text":
-        return { id: newBlockId(), type, text: "Write your message…" };
+        return {
+          id: newBlockId(),
+          type,
+          text: "Write your message — bold, italics, and links supported.",
+        };
       case "button":
-        return { id: newBlockId(), type, text: "Learn more", url: "https://" };
+        return {
+          id: newBlockId(),
+          type,
+          text: "Learn more",
+          url: "https://",
+          style: "filled",
+        };
       case "image":
-        return { id: newBlockId(), type, url: "https://", alt: "" };
+        return { id: newBlockId(), type, url: "", alt: "" };
       case "divider":
-        return { id: newBlockId(), type };
+        return { id: newBlockId(), type, style: "rule" };
+      case "eyebrow":
+        return { id: newBlockId(), type, text: "FROM THE FIELD" };
+      case "quote":
+        return {
+          id: newBlockId(),
+          type,
+          text: "A short, vivid sentence worth quoting.",
+          attribution: "",
+        };
+      case "spacer":
+        return { id: newBlockId(), type, size: "md" };
+      case "image-text":
+        return {
+          id: newBlockId(),
+          type,
+          url: "",
+          alt: "",
+          heading: "Section title",
+          text: "A few sentences of body copy sit beside the image.",
+          layout: "image-left",
+        };
+      case "cta":
+        return {
+          id: newBlockId(),
+          type,
+          heading: "Take the next step",
+          text: "One clear sentence about why this matters.",
+          buttonText: "Get involved",
+          buttonUrl: "https://",
+        };
     }
   }
   function addBlock(type: CampaignBlockType) {
@@ -514,18 +580,25 @@ export function CampaignComposer({
                 </SortableContext>
               </DndContext>
               {!sent && (
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {ADD_TYPES.map((t) => (
-                    <Button
-                      key={t.type}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => addBlock(t.type)}
-                      className="gap-1"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      {t.label}
-                    </Button>
+                <div className="pt-2 space-y-2 border-t mt-3">
+                  {ADD_GROUPS.map((g) => (
+                    <div key={g.group} className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold w-14">
+                        {g.group}
+                      </span>
+                      {g.items.map((t) => (
+                        <Button
+                          key={t.type}
+                          variant="outline"
+                          size="sm"
+                          onClick={() => addBlock(t.type)}
+                          className="gap-1 h-7 text-xs"
+                        >
+                          <Plus className="h-3 w-3" />
+                          {t.label}
+                        </Button>
+                      ))}
+                    </div>
                   ))}
                 </div>
               )}
@@ -730,19 +803,46 @@ function BlockEditor({
         </div>
       </div>
       {block.type === "heading" && (
-        <Input
-          value={block.text}
-          onChange={(e) => onChange({ text: e.target.value })}
-          disabled={disabled}
-        />
+        <>
+          <Input
+            value={block.eyebrow ?? ""}
+            onChange={(e) =>
+              onChange({ eyebrow: e.target.value || undefined })
+            }
+            disabled={disabled}
+            placeholder="Eyebrow (optional, small uppercase label above)"
+            className="text-xs"
+          />
+          <Input
+            value={block.text}
+            onChange={(e) => onChange({ text: e.target.value })}
+            disabled={disabled}
+            placeholder="Headline"
+            className="text-sm font-medium"
+          />
+        </>
       )}
       {block.type === "text" && (
-        <RichText
-          value={block.text}
-          onChange={(html) => onChange({ text: html })}
-          disabled={disabled}
-          placeholder="Write your message — bold, italics, and links supported."
-        />
+        <>
+          <RichText
+            value={block.text}
+            onChange={(html) => onChange({ text: html })}
+            disabled={disabled}
+            placeholder="Write your message — bold, italics, and links supported."
+          />
+          <label className="flex items-center gap-2 text-xs text-muted-foreground select-none">
+            <input
+              type="checkbox"
+              checked={!!block.dropCap}
+              onChange={(e) =>
+                onChange({ dropCap: e.target.checked || undefined })
+              }
+              disabled={disabled}
+              className="rounded"
+            />
+            Drop cap on first letter (editorial accent)
+          </label>
+        </>
       )}
       {block.type === "button" && (
         <>
@@ -758,6 +858,17 @@ function BlockEditor({
             disabled={disabled}
             placeholder="https://…"
           />
+          <SegmentedPicker
+            label="Style"
+            value={block.style ?? "filled"}
+            disabled={disabled}
+            options={[
+              { value: "filled", label: "Filled" },
+              { value: "outline", label: "Outline" },
+              { value: "link", label: "Text link" },
+            ]}
+            onChange={(v) => onChange({ style: v as ButtonStyle })}
+          />
         </>
       )}
       {block.type === "image" && (
@@ -769,8 +880,147 @@ function BlockEditor({
         />
       )}
       {block.type === "divider" && (
-        <p className="text-xs text-muted-foreground">A horizontal divider line.</p>
+        <SegmentedPicker
+          label="Style"
+          value={block.style ?? "rule"}
+          disabled={disabled}
+          options={[
+            { value: "rule", label: "Rule" },
+            { value: "dots", label: "Dots" },
+            { value: "space", label: "Space only" },
+          ]}
+          onChange={(v) => onChange({ style: v as DividerStyle })}
+        />
       )}
+      {block.type === "eyebrow" && (
+        <Input
+          value={block.text}
+          onChange={(e) => onChange({ text: e.target.value })}
+          disabled={disabled}
+          placeholder="EYEBROW LABEL"
+          className="uppercase tracking-wider text-xs"
+        />
+      )}
+      {block.type === "quote" && (
+        <>
+          <textarea
+            value={block.text}
+            onChange={(e) => onChange({ text: e.target.value })}
+            disabled={disabled}
+            placeholder="A short, vivid sentence worth quoting."
+            rows={2}
+            className="w-full rounded border bg-background px-2 py-1.5 text-sm italic resize-none"
+          />
+          <Input
+            value={block.attribution ?? ""}
+            onChange={(e) =>
+              onChange({ attribution: e.target.value || undefined })
+            }
+            disabled={disabled}
+            placeholder="Attribution (optional, e.g. 'Team leader')"
+            className="text-xs"
+          />
+        </>
+      )}
+      {block.type === "spacer" && (
+        <SegmentedPicker
+          label="Size"
+          value={block.size ?? "md"}
+          disabled={disabled}
+          options={[
+            { value: "sm", label: "S · 16" },
+            { value: "md", label: "M · 32" },
+            { value: "lg", label: "L · 56" },
+            { value: "xl", label: "XL · 96" },
+          ]}
+          onChange={(v) => onChange({ size: v as SpacerSize })}
+        />
+      )}
+      {block.type === "image-text" && (
+        <ImageTextFields
+          block={block}
+          disabled={disabled}
+          campaignId={campaignId}
+          onChange={onChange}
+        />
+      )}
+      {block.type === "cta" && (
+        <>
+          <Input
+            value={block.heading}
+            onChange={(e) => onChange({ heading: e.target.value })}
+            disabled={disabled}
+            placeholder="Heading"
+            className="text-sm font-medium"
+          />
+          <textarea
+            value={block.text}
+            onChange={(e) => onChange({ text: e.target.value })}
+            disabled={disabled}
+            placeholder="One clear sentence about why this matters."
+            rows={2}
+            className="w-full rounded border bg-background px-2 py-1.5 text-sm resize-none"
+          />
+          <div className="grid grid-cols-2 gap-1.5">
+            <Input
+              value={block.buttonText}
+              onChange={(e) => onChange({ buttonText: e.target.value })}
+              disabled={disabled}
+              placeholder="Button label"
+            />
+            <Input
+              value={block.buttonUrl}
+              onChange={(e) => onChange({ buttonUrl: e.target.value })}
+              disabled={disabled}
+              placeholder="https://…"
+            />
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function SegmentedPicker<T extends string>({
+  label,
+  value,
+  options,
+  disabled,
+  onChange,
+}: {
+  label?: string;
+  value: T;
+  options: { value: T; label: string }[];
+  disabled?: boolean;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      {label && (
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+          {label}
+        </span>
+      )}
+      <div className="inline-flex rounded border overflow-hidden">
+        {options.map((opt) => {
+          const active = opt.value === value;
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => onChange(opt.value)}
+              disabled={disabled}
+              className={`px-2 py-1 text-[11px] border-r last:border-r-0 transition-colors disabled:opacity-30 ${
+                active
+                  ? "bg-foreground text-background"
+                  : "bg-background hover:bg-muted text-muted-foreground"
+              }`}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -882,6 +1132,149 @@ function ImageBlockFields({
         disabled={disabled}
         placeholder="Alt text (describe the image for screen readers)"
         className="text-xs"
+      />
+      <Input
+        value={block.caption ?? ""}
+        onChange={(e) =>
+          onChange({ caption: e.target.value || undefined })
+        }
+        disabled={disabled}
+        placeholder="Caption (optional italic line below image)"
+        className="text-xs"
+      />
+      <label className="flex items-center gap-2 text-xs text-muted-foreground select-none">
+        <input
+          type="checkbox"
+          checked={!!block.fullBleed}
+          onChange={(e) =>
+            onChange({ fullBleed: e.target.checked || undefined })
+          }
+          disabled={disabled}
+          className="rounded"
+        />
+        Full-bleed (edge-to-edge in the email card)
+      </label>
+      {err && <p className="text-xs text-red-400">{err}</p>}
+    </div>
+  );
+}
+
+function ImageTextFields({
+  block,
+  disabled,
+  campaignId,
+  onChange,
+}: {
+  block: Extract<CampaignBlock, { type: "image-text" }>;
+  disabled: boolean;
+  campaignId: string;
+  onChange: (patch: Partial<CampaignBlock>) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function upload(file: File) {
+    setUploading(true);
+    setErr(null);
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch(`/api/campaigns/${campaignId}/image`, {
+      method: "POST",
+      body: fd,
+    });
+    setUploading(false);
+    if (!res.ok) {
+      const d = (await res.json().catch(() => ({}))) as { error?: string };
+      setErr(d.error ?? "Upload failed");
+      return;
+    }
+    const data = (await res.json()) as { url: string };
+    onChange({ url: data.url });
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          {block.url && /^https?:\/\//i.test(block.url) ? (
+            <div className="relative">
+              <img
+                src={block.url}
+                alt={block.alt || "Preview"}
+                className="w-full h-24 object-cover rounded border"
+              />
+              <button
+                type="button"
+                onClick={() => onChange({ url: "" })}
+                disabled={disabled}
+                className="absolute top-1 right-1 bg-background/90 rounded h-5 w-5 text-[10px] text-red-400 border"
+                aria-label="Clear image"
+              >
+                ×
+              </button>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={disabled || uploading}
+              onClick={() => inputRef.current?.click()}
+              className="w-full h-24 text-xs"
+            >
+              {uploading ? "Uploading…" : "Upload image"}
+            </Button>
+          )}
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) upload(f);
+              e.target.value = "";
+            }}
+          />
+          <Input
+            value={block.alt}
+            onChange={(e) => onChange({ alt: e.target.value })}
+            disabled={disabled}
+            placeholder="Alt text"
+            className="text-xs mt-1.5"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Input
+            value={block.heading ?? ""}
+            onChange={(e) =>
+              onChange({ heading: e.target.value || undefined })
+            }
+            disabled={disabled}
+            placeholder="Section title (optional)"
+            className="text-xs"
+          />
+          <textarea
+            value={block.text}
+            onChange={(e) => onChange({ text: e.target.value })}
+            disabled={disabled}
+            placeholder="Body copy beside the image"
+            rows={4}
+            className="w-full rounded border bg-background px-2 py-1.5 text-xs resize-none"
+          />
+        </div>
+      </div>
+      <SegmentedPicker
+        label="Layout"
+        value={block.layout ?? "image-left"}
+        disabled={disabled}
+        options={[
+          { value: "image-left", label: "Image · Text" },
+          { value: "image-right", label: "Text · Image" },
+        ]}
+        onChange={(v) =>
+          onChange({ layout: v as "image-left" | "image-right" })
+        }
       />
       {err && <p className="text-xs text-red-400">{err}</p>}
     </div>

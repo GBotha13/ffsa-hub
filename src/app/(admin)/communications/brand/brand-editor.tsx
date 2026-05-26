@@ -128,32 +128,52 @@ export function BrandEditor({
 
   const effective = useMemo(() => mergeBrand({ ...form } as BrandKitRow), [form]);
 
-  // Sample body for preview — gives users a real feel for typography +
-  // spacing without forcing them to also pick a campaign.
+  // Sample body for preview — exercises the full editorial vocabulary so
+  // designers see how their kit lands across eyebrow / heading / quote /
+  // image-text / CTA card, not just plain stacks.
   const previewHtml = useMemo(() => {
     const body = {
       version: 1 as const,
       blocks: [
-        { id: "p1", type: "heading" as const, text: "A Saturday of formation" },
+        {
+          id: "p1",
+          type: "heading" as const,
+          eyebrow: "FROM THE FIELD",
+          text: "A weekend that changed everything",
+        },
         {
           id: "p2",
           type: "text" as const,
+          dropCap: true,
           text:
-            "We gathered eighty young leaders from across the country for a single, focused day. The room was quiet at first — and then it wasn't. This is what we saw, what we learned, and what's next.",
+            "Eighty young leaders gathered for a single, focused day. The room was quiet at first — and then it wasn't. What unfolded over the next eight hours is hard to summarise, but worth trying.",
         },
-        { id: "p3", type: "divider" as const },
-        { id: "p4", type: "heading" as const, text: "Three highlights" },
+        { id: "p3", type: "divider" as const, style: "rule" as const },
         {
-          id: "p5",
-          type: "text" as const,
-          text:
-            "First, the morning sessions were deeper than we'd planned. Second, lunch became its own kind of teaching. Third, no one left the same — and we have the photos to prove it.",
+          id: "p4",
+          type: "quote" as const,
+          text: "The room was quiet at first. Then it wasn't.",
+          attribution: "Team leader, Saturday session",
         },
+        { id: "p5", type: "spacer" as const, size: "md" as const },
         {
           id: "p6",
-          type: "button" as const,
-          text: "Read the recap",
-          url: "https://www.ffsahub.com",
+          type: "heading" as const,
+          text: "Three things we learned",
+        },
+        {
+          id: "p7",
+          type: "text" as const,
+          text:
+            "First, the morning sessions were deeper than we'd planned. Second, lunch became its own kind of teaching. Third, no one left the same.",
+        },
+        {
+          id: "p8",
+          type: "cta" as const,
+          heading: "Read the full recap",
+          text: "Photos, takeaways, and what's next for the team — straight from the leaders who were there.",
+          buttonText: "Open the recap",
+          buttonUrl: "https://www.ffsahub.com",
         },
       ],
     };
