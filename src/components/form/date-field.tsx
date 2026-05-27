@@ -1,7 +1,7 @@
 "use client";
 
 import { useController, type Control } from "react-hook-form";
-import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { FieldWrapper } from "./field-wrapper";
 import type { FormQuestion } from "@/lib/form-types";
 
@@ -25,9 +25,8 @@ export function DateField({
       helpText={question.helpText}
       error={fieldState.error?.message}
     >
-      <Input
+      <DateInput
         id={question.id}
-        type="date"
         value={field.value ?? ""}
         onChange={field.onChange}
         onBlur={field.onBlur}

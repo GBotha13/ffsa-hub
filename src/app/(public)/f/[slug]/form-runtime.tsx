@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { type FormSchema, type FormField, fieldKey } from "@/lib/forms/schema";
+import { DateInput } from "@/components/ui/date-input";
 
 type Values = Record<string, unknown>;
 
@@ -369,12 +370,18 @@ function FieldInput({
 
   let control: React.ReactNode = null;
 
-  if (
+  if (field.type === "date") {
+    control = (
+      <DateInput
+        value={str}
+        onChange={(v) => onChange(v)}
+      />
+    );
+  } else if (
     field.type === "text" ||
     field.type === "email" ||
     field.type === "phone" ||
-    field.type === "number" ||
-    field.type === "date"
+    field.type === "number"
   ) {
     const htmlType =
       field.type === "email"
@@ -383,8 +390,6 @@ function FieldInput({
         ? "tel"
         : field.type === "number"
         ? "number"
-        : field.type === "date"
-        ? "date"
         : "text";
     control = (
       <input

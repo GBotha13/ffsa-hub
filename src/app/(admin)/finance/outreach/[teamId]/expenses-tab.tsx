@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -384,11 +385,10 @@ export function ExpensesTab({
                 </div>
                 <div>
                   <Label>Expense Date *</Label>
-                  <Input
-                    type="date"
+                  <DateInput
                     required
                     value={form.expense_date}
-                    onChange={(e) => updateField("expense_date", e.target.value)}
+                    onChange={(v) => updateField("expense_date", v)}
                   />
                 </div>
                 <div>

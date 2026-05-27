@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { updateUserProfile, completeOnboarding } from "@/services/users";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import Image from "next/image";
 
@@ -378,7 +379,7 @@ export default function OnboardingPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="date_of_birth">Date of Birth</Label>
-                      <Input id="date_of_birth" type="date" value={form.date_of_birth} onChange={(e) => set("date_of_birth", e.target.value)} />
+                      <DateInput id="date_of_birth" value={form.date_of_birth} onChange={(v) => set("date_of_birth", v)} />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="gender">Gender</Label>
@@ -512,7 +513,7 @@ export default function OnboardingPage() {
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="visa_expiry_date">Visa Expiry Date</Label>
-                            <Input id="visa_expiry_date" type="date" value={form.visa_expiry_date} onChange={(e) => set("visa_expiry_date", e.target.value)} />
+                            <DateInput id="visa_expiry_date" value={form.visa_expiry_date} onChange={(v) => set("visa_expiry_date", v)} />
                           </div>
                         </div>
                       )}
@@ -556,7 +557,7 @@ export default function OnboardingPage() {
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="health_insurance_expiry_date">Expiry Date</Label>
-                        <Input id="health_insurance_expiry_date" type="date" value={form.health_insurance_expiry_date} onChange={(e) => set("health_insurance_expiry_date", e.target.value)} />
+                        <DateInput id="health_insurance_expiry_date" value={form.health_insurance_expiry_date} onChange={(v) => set("health_insurance_expiry_date", v)} />
                       </div>
                     </div>
                   </div>

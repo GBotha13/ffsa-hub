@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -249,11 +250,10 @@ function FundReleasesSection({
                 </div>
                 <div>
                   <Label>Release Date</Label>
-                  <Input
-                    type="date"
+                  <DateInput
                     value={form.release_date}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, release_date: e.target.value }))
+                    onChange={(v) =>
+                      setForm((p) => ({ ...p, release_date: v }))
                     }
                   />
                 </div>
@@ -592,11 +592,10 @@ function CashBatchesSection({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Batch Date *</Label>
-                  <Input
-                    type="date"
+                  <DateInput
                     required
                     value={form.batch_date}
-                    onChange={(e) => updateField("batch_date", e.target.value)}
+                    onChange={(v) => updateField("batch_date", v)}
                   />
                 </div>
                 <div>

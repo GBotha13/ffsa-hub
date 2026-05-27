@@ -448,8 +448,9 @@ function normalizeValue(v: unknown): string | null {
   return trimmed === "" ? null : trimmed;
 }
 
-// Accepts: "8/16/04", "8/16/2004", "2004-08-16", "16/8/2004".
-// Heuristic: if the year-component is 2 digits, assume 2000+yy.
+// Accepts: "16/8/04", "16/8/2004", "2004-08-16".
+// Slash-separated values are parsed as day-first (DD/MM/YYYY) to match the
+// app's date input convention. 2-digit years <30 → 2000+, else 1900+.
 function parseDate(v: unknown): string | null {
   if (v == null) return null;
   const s = String(v).trim();
@@ -458,13 +459,13 @@ function parseDate(v: unknown): string | null {
   // ISO already.
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
 
-  // mm/dd/yy(yy) — assume US ordering for now; raw_data preserves the original.
+  // dd/mm/yy(yy) — day-first.
   const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
   if (m) {
+    const dd = parseInt(m[1], 10);
+    const mm = parseInt(m[2], 10);
     let yy = parseInt(m[3], 10);
-    const mm = parseInt(m[1], 10);
-    const dd = parseInt(m[2], 10);
-    if (m[3].length === 2) yy = yy + 2000;
+    if (m[3].length === 2) yy = yy < 30 ? 2000 + yy : 1900 + yy;
     if (mm > 12 || dd > 31) return null;
     return `${yy.toString().padStart(4, "0")}-${mm.toString().padStart(2, "0")}-${dd.toString().padStart(2, "0")}`;
   }

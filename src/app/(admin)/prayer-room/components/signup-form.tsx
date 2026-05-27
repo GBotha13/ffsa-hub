@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -166,19 +167,17 @@ export default function SignupForm({ userId }: SignupFormProps) {
               <Label>
                 {commitmentType === "one_off" ? "Date *" : "Start Date *"}
               </Label>
-              <Input
-                type="date"
+              <DateInput
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(v) => setStartDate(v)}
               />
             </div>
             {commitmentType && commitmentType !== "one_off" && (
               <div className="space-y-2">
                 <Label>End Date (optional)</Label>
-                <Input
-                  type="date"
+                <DateInput
                   value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
+                  onChange={(v) => setEndDate(v)}
                 />
               </div>
             )}

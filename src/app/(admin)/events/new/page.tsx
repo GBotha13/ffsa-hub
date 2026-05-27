@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -112,21 +113,19 @@ export default function NewEventPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="start_date">Start Date *</Label>
-                <Input
+                <DateInput
                   id="start_date"
-                  type="date"
                   value={form.start_date}
-                  onChange={(e) => updateField("start_date", e.target.value)}
+                  onChange={(v) => updateField("start_date", v)}
                   required
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="end_date">End Date</Label>
-                <Input
+                <DateInput
                   id="end_date"
-                  type="date"
                   value={form.end_date}
-                  onChange={(e) => updateField("end_date", e.target.value)}
+                  onChange={(v) => updateField("end_date", v)}
                 />
               </div>
             </div>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -143,18 +144,16 @@ export function CreateTeamForm({ programs }: { programs: Program[] }) {
             </div>
             <div>
               <Label>Start Date</Label>
-              <Input
-                type="date"
+              <DateInput
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(v) => setStartDate(v)}
               />
             </div>
             <div>
               <Label>End Date</Label>
-              <Input
-                type="date"
+              <DateInput
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(v) => setEndDate(v)}
               />
             </div>
             <div>

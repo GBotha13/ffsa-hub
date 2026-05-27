@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -188,11 +189,10 @@ export function RecordPaymentDialog({
             </div>
             <div>
               <Label>Payment Date *</Label>
-              <Input
-                type="date"
+              <DateInput
                 required
                 value={form.payment_date}
-                onChange={(e) => updateField("payment_date", e.target.value)}
+                onChange={(v) => updateField("payment_date", v)}
               />
             </div>
             <div>
