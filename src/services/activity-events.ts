@@ -1,4 +1,5 @@
 import type { TablesInsert, Database } from "@/types/database";
+import { dispatchNotification } from "@/lib/slack/notify";
 
 type ActivityEventInsert = TablesInsert<"activity_events">;
 type EventType = Database["public"]["Tables"]["activity_events"]["Row"]["event_type"];
@@ -44,7 +45,23 @@ export async function getContactActivity(
 // ────────────────────────────────────────────────────────────
 
 export async function logActivity(supabase: Client, event: ActivityEventInsert) {
-  return supabase.from("activity_events").insert(event).select().single();
+  const result = await supabase.from("activity_events").insert(event).select().single();
+
+  // Fire-and-forget Slack + dashboard notification dispatch.
+  // Wrapped here so any failure inside dispatchNotification (network,
+  // Slack outage, missing config) never blocks the original activity log.
+  // See src/lib/slack/notify.ts for the Phase-1 short-circuit (form_submitted only).
+  if (result.data) {
+    void dispatchNotification({ activityEvent: result.data }).catch((err) => {
+      console.error("[activity-events] notification dispatch failed", {
+        eventId: result.data?.id,
+        eventType: result.data?.event_type,
+        err: err instanceof Error ? err.message : String(err),
+      });
+    });
+  }
+
+  return result;
 }
 
 export async function logContactCreated(
