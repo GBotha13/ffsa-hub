@@ -3,10 +3,22 @@ import { isValidPhoneNumber } from "libphonenumber-js";
 import { isQuestionVisible, type FormQuestion } from "./form-types";
 
 function isRealDate(value: string): boolean {
-  const d = new Date(value);
-  if (isNaN(d.getTime())) return false;
-  const [y, m, day] = value.split("-").map(Number);
-  return d.getFullYear() === y && d.getMonth() + 1 === m && d.getDate() === day;
+  const parts = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!parts) return false;
+  const y = Number(parts[1]);
+  const m = Number(parts[2]);
+  const day = Number(parts[3]);
+  if (m < 1 || m > 12 || day < 1 || day > 31) return false;
+  // Use UTC to avoid timezone-shift bugs: `new Date("YYYY-MM-DD")` parses as
+  // UTC midnight, and reading `.getDate()` in a westerly local timezone
+  // returns the previous day — which used to reject every date for any
+  // applicant in the Americas.
+  const dt = new Date(Date.UTC(y, m - 1, day));
+  return (
+    dt.getUTCFullYear() === y &&
+    dt.getUTCMonth() + 1 === m &&
+    dt.getUTCDate() === day
+  );
 }
 
 // For a follow-up question to be answered correctly, its value must be present
