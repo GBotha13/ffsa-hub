@@ -31,12 +31,52 @@ function displayToIso(display: string): string {
 }
 
 function autoFormat(input: string): string {
-  let cleaned = input.replace(/[^\d/]/g, "").slice(0, 10);
-  if (!cleaned.includes("/")) {
-    if (cleaned.length > 4) cleaned = `${cleaned.slice(0, 2)}/${cleaned.slice(2, 4)}/${cleaned.slice(4)}`;
-    else if (cleaned.length > 2) cleaned = `${cleaned.slice(0, 2)}/${cleaned.slice(2)}`;
+  // Allow only digits and slashes.
+  const cleaned = input.replace(/[^\d/]/g, "");
+
+  // Split on user-typed slashes, then distribute characters across the
+  // day / month / year buckets (capped at 2/2/4). Overflow from one bucket
+  // spills into the next AND is what we use to decide whether to auto-insert
+  // a slash — so typing all 8 digits straight, or typing "28/082026", or
+  // typing "28/8/2026" all reconstruct to the right shape.
+  const userSegments = cleaned.split("/");
+  let day = "";
+  let month = "";
+  let year = "";
+  let bucket: 0 | 1 | 2 = 0;
+  let overflowedToMonth = false;
+  let overflowedToYear = false;
+
+  for (let i = 0; i < userSegments.length; i++) {
+    let chars = userSegments[i];
+    while (chars.length > 0 && bucket <= 2) {
+      const capacity =
+        bucket === 0 ? 2 - day.length
+        : bucket === 1 ? 2 - month.length
+        : 4 - year.length;
+      if (capacity === 0) {
+        if (bucket === 0) overflowedToMonth = true;
+        else if (bucket === 1) overflowedToYear = true;
+        bucket = (bucket + 1) as 0 | 1 | 2;
+        continue;
+      }
+      const take = chars.slice(0, capacity);
+      chars = chars.slice(capacity);
+      if (bucket === 0) day += take;
+      else if (bucket === 1) month += take;
+      else year += take;
+    }
+    if (i < userSegments.length - 1) {
+      bucket = Math.min(bucket + 1, 2) as 0 | 1 | 2;
+    }
   }
-  return cleaned;
+
+  let result = day;
+  const showFirstSlash = userSegments.length >= 2 || overflowedToMonth;
+  if (showFirstSlash) result += "/" + month;
+  const showSecondSlash = userSegments.length >= 3 || overflowedToYear;
+  if (showSecondSlash) result += "/" + year;
+  return result;
 }
 
 export interface DateInputProps
