@@ -2,6 +2,14 @@ import { createClient } from "@/lib/supabase/server";
 import { getEventBySlug } from "@/services/events";
 import { listTicketTypesByEvent } from "@/services/ticketing";
 import { Storefront } from "./storefront";
+import { TheSendStorefront } from "./the-send-storefront";
+
+// Bespoke landing pages keyed by event slug. THE SEND gets its own
+// branded storefront; everything else uses the standard Storefront.
+function isTheSend(slug: string, title: string): boolean {
+  const s = slug.toLowerCase();
+  return s.includes("the-send") || title.toLowerCase().includes("the send");
+}
 
 export const dynamic = "force-dynamic";
 
@@ -37,20 +45,23 @@ export default async function PublicEventPage({
     { onlyActive: true }
   );
 
-  return (
-    <Storefront
-      event={{
-        id: event.id,
-        title: event.title,
-        description: event.description,
-        location: event.location,
-        start_date: event.start_date,
-        end_date: event.end_date,
-        start_time: event.start_time,
-        end_time: event.end_time,
-        logo_url: event.logo_url ?? null,
-      }}
-      ticketTypes={ticketTypes ?? []}
-    />
-  );
+  const eventProps = {
+    id: event.id,
+    title: event.title,
+    description: event.description,
+    location: event.location,
+    start_date: event.start_date,
+    end_date: event.end_date,
+    start_time: event.start_time,
+    end_time: event.end_time,
+    logo_url: event.logo_url ?? null,
+  };
+
+  if (isTheSend(slug, event.title)) {
+    return (
+      <TheSendStorefront event={eventProps} ticketTypes={ticketTypes ?? []} />
+    );
+  }
+
+  return <Storefront event={eventProps} ticketTypes={ticketTypes ?? []} />;
 }
