@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Check, Copy, ExternalLink } from "lucide-react";
 
 export function TicketingSettings({
   eventId,
@@ -19,9 +20,40 @@ export function TicketingSettings({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [savedHint, setSavedHint] = useState<string | null>(null);
+  const [origin, setOrigin] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  // Resolve the absolute origin on the client so the shareable link is
+  // correct in every environment (localhost in dev, ffsahub.com in prod).
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
 
   const dirty =
     enabled !== ticketingEnabled || (slug.trim() || null) !== publicSlug;
+
+  const trimmedSlug = slug.trim();
+  const fullUrl = trimmedSlug ? `${origin}/e/${trimmedSlug}` : "";
+  // The link is actually reachable once ticketing is on and the slug is saved.
+  const liveUrl =
+    publicSlug && ticketingEnabled ? `${origin}/e/${publicSlug}` : "";
+
+  async function copyLink() {
+    const toCopy = fullUrl || `/e/${trimmedSlug}`;
+    try {
+      await navigator.clipboard.writeText(toCopy);
+    } catch {
+      // Fallback for older/insecure contexts.
+      const ta = document.createElement("textarea");
+      ta.value = toCopy;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  }
 
   async function save() {
     setBusy(true);
@@ -84,6 +116,58 @@ export function TicketingSettings({
             Lowercase letters, digits and dashes. Must be unique across events.
           </p>
         </div>
+
+        {/* Shareable storefront link — appears as soon as a slug is typed. */}
+        {trimmedSlug && (
+          <div className="rounded-md border border-border bg-muted/40 p-3 space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Shareable ticket link
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                readOnly
+                value={fullUrl || `/e/${trimmedSlug}`}
+                onFocus={(e) => e.currentTarget.select()}
+                className="flex-1 min-w-0 border rounded px-2 py-1.5 text-xs font-mono"
+                aria-label="Public ticket link"
+              />
+              <button
+                type="button"
+                onClick={copyLink}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-blue-600 text-white text-xs hover:bg-blue-700 shrink-0"
+              >
+                {copied ? (
+                  <>
+                    <Check className="h-3.5 w-3.5" /> Copied
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3.5 w-3.5" /> Copy
+                  </>
+                )}
+              </button>
+              <a
+                href={fullUrl || `/e/${trimmedSlug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-border text-xs hover:bg-muted shrink-0"
+              >
+                <ExternalLink className="h-3.5 w-3.5" /> Open
+              </a>
+            </div>
+            {(!enabled || dirty) && (
+              <p className="text-[11px] text-amber-500">
+                {!enabled
+                  ? "Enable ticketing and Save to make this link live."
+                  : "Save your changes to update the live link."}
+              </p>
+            )}
+            {!dirty && enabled && liveUrl && (
+              <p className="text-[11px] text-green-600">Live now.</p>
+            )}
+          </div>
+        )}
+
         {err && <p className="text-xs text-red-600">{err}</p>}
         {savedHint && <p className="text-xs text-green-600">{savedHint}</p>}
         <div>
