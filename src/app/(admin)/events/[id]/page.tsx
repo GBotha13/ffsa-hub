@@ -22,6 +22,7 @@ import { RolesRoster } from "./roles-roster";
 import { BaseLabelPicker } from "./base-label-picker";
 import { FormsTab } from "./forms-tab";
 import { EventLogo } from "./event-logo";
+import { EventStatusControl } from "./event-status-control";
 import { TicketsTab } from "./tickets-tab";
 import { OrdersTab } from "./orders-tab";
 import { CheckInTab } from "./check-in-tab";
@@ -104,13 +105,6 @@ export default async function EventDetailPage({
     })
   );
 
-  const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-    draft: "outline",
-    published: "default",
-    cancelled: "destructive",
-    completed: "secondary",
-  };
-
   return (
     <div className="space-y-6">
       <div>
@@ -134,9 +128,7 @@ export default async function EventDetailPage({
             {event.location ? ` · ${event.location}` : ""}
           </p>
         </div>
-        <Badge variant={statusColors[event.status]} className="capitalize">
-          {event.status}
-        </Badge>
+        <EventStatusControl eventId={id} status={event.status} />
       </div>
 
       {/* Tab navigation */}

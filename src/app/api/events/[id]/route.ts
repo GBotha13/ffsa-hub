@@ -16,17 +16,24 @@ export async function PATCH(
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
-  let body: { base_label_id?: string | null };
+  let body: { base_label_id?: string | null; status?: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  // Only the CRM-related fields are patchable here; core event editing
-  // stays on the existing event edit flow.
+  // Only the CRM-related fields + lifecycle status are patchable here; core
+  // event editing stays on the existing event edit flow.
   const patch: Record<string, unknown> = {};
   if ("base_label_id" in body) patch.base_label_id = body.base_label_id ?? null;
+  if ("status" in body) {
+    const allowed = ["draft", "published", "cancelled", "completed"];
+    if (!allowed.includes(body.status as string)) {
+      return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+    }
+    patch.status = body.status;
+  }
 
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: "No patchable fields provided" }, { status: 400 });
