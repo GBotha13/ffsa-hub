@@ -23,6 +23,7 @@ import { BaseLabelPicker } from "./base-label-picker";
 import { FormsTab } from "./forms-tab";
 import { EventLogo } from "./event-logo";
 import { EventStatusControl } from "./event-status-control";
+import { EventDetailsForm } from "./event-details-form";
 import { TicketsTab } from "./tickets-tab";
 import { OrdersTab } from "./orders-tab";
 import { CheckInTab } from "./check-in-tab";
@@ -203,16 +204,11 @@ function DetailsTab(props: any) {
 
   return (
     <div className="space-y-6">
-      {event.description && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Description</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm whitespace-pre-wrap">{event.description}</p>
-          </CardContent>
-        </Card>
-      )}
+      <EventDetailsForm
+        eventId={eventId}
+        status={event.status}
+        event={event}
+      />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard label="Registrations" value={registrations.length} />

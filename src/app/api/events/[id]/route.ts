@@ -16,17 +16,32 @@ export async function PATCH(
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
-  let body: { base_label_id?: string | null; status?: string };
+  let body: {
+    base_label_id?: string | null;
+    status?: string;
+    title?: string;
+    description?: string | null;
+    location?: string | null;
+    start_date?: string | null;
+    end_date?: string | null;
+    start_time?: string | null;
+    end_time?: string | null;
+    max_capacity?: number | null;
+    is_public?: boolean;
+    registration_required?: boolean;
+  };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  // Only the CRM-related fields + lifecycle status are patchable here; core
-  // event editing stays on the existing event edit flow.
   const patch: Record<string, unknown> = {};
+
+  // CRM label.
   if ("base_label_id" in body) patch.base_label_id = body.base_label_id ?? null;
+
+  // Lifecycle status.
   if ("status" in body) {
     const allowed = ["draft", "published", "cancelled", "completed"];
     if (!allowed.includes(body.status as string)) {
@@ -34,6 +49,60 @@ export async function PATCH(
     }
     patch.status = body.status;
   }
+
+  // Core event details — editable from the event page.
+  const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+  const timeRe = /^\d{2}:\d{2}(:\d{2})?$/;
+  if ("title" in body) {
+    const title = (body.title ?? "").trim();
+    if (!title) {
+      return NextResponse.json({ error: "Title is required" }, { status: 400 });
+    }
+    patch.title = title;
+  }
+  if ("description" in body)
+    patch.description = body.description?.trim() || null;
+  if ("location" in body) patch.location = body.location?.trim() || null;
+  if ("start_date" in body) {
+    if (!body.start_date || !dateRe.test(body.start_date)) {
+      return NextResponse.json(
+        { error: "Start date must be a valid date (YYYY-MM-DD)" },
+        { status: 400 }
+      );
+    }
+    patch.start_date = body.start_date;
+  }
+  if ("end_date" in body) {
+    if (body.end_date && !dateRe.test(body.end_date)) {
+      return NextResponse.json({ error: "Invalid end date" }, { status: 400 });
+    }
+    patch.end_date = body.end_date || null;
+  }
+  if ("start_time" in body) {
+    if (body.start_time && !timeRe.test(body.start_time)) {
+      return NextResponse.json({ error: "Invalid start time" }, { status: 400 });
+    }
+    patch.start_time = body.start_time || null;
+  }
+  if ("end_time" in body) {
+    if (body.end_time && !timeRe.test(body.end_time)) {
+      return NextResponse.json({ error: "Invalid end time" }, { status: 400 });
+    }
+    patch.end_time = body.end_time || null;
+  }
+  if ("max_capacity" in body) {
+    const cap = body.max_capacity;
+    if (cap != null && (!Number.isInteger(cap) || cap < 0)) {
+      return NextResponse.json(
+        { error: "Capacity must be a whole number" },
+        { status: 400 }
+      );
+    }
+    patch.max_capacity = cap ?? null;
+  }
+  if ("is_public" in body) patch.is_public = !!body.is_public;
+  if ("registration_required" in body)
+    patch.registration_required = !!body.registration_required;
 
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: "No patchable fields provided" }, { status: 400 });
