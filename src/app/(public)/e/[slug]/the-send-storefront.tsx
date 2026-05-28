@@ -518,25 +518,21 @@ function Coord({ k, v }: { k: string; v: string }) {
   );
 }
 
+// Recreation of THE SEND circled-arrow mark: thick ring + solid right arrow.
 function ArrowCircle({ small }: { small?: boolean }) {
-  const s = small ? 18 : 26;
+  const s = small ? 20 : 30;
   return (
     <svg
       className="tss-arrow-circle"
       width={s}
       height={s}
-      viewBox="0 0 32 32"
+      viewBox="0 0 100 100"
       fill="none"
       aria-hidden
     >
-      <circle cx="16" cy="16" r="14" stroke="currentColor" strokeWidth="3" />
-      <path
-        d="M10 16h12m0 0l-5-5m5 5l-5 5"
-        stroke="currentColor"
-        strokeWidth="3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <circle cx="50" cy="50" r="45" stroke="currentColor" strokeWidth="8" />
+      <rect x="25" y="45" width="33" height="10" fill="currentColor" />
+      <path d="M53 30 L75 50 L53 70 Z" fill="currentColor" />
     </svg>
   );
 }
@@ -753,8 +749,8 @@ const scopedCss = `
    Globals use input:not([checkbox]):not([radio]):not([range]) = (0,3,1)
    with !important, so we mirror the :not() chain to out-specify it. */
 .tss input:not([type="checkbox"]):not([type="radio"]):not([type="range"]){
-  background:#fff !important;
-  color:var(--navy) !important;
+  background:var(--navy) !important;
+  color:var(--cream) !important;
   border:2px solid var(--navy) !important;
   border-radius:0 !important;
   font-family:var(--font-space-mono),monospace !important;
@@ -762,12 +758,16 @@ const scopedCss = `
   padding:13px 14px !important;
   width:100% !important;
   text-transform:none !important;
-  letter-spacing:0 !important;
+  letter-spacing:.02em !important;
   box-shadow:none !important;
+}
+.tss input:not([type="checkbox"]):not([type="radio"]):not([type="range"])::placeholder{
+  color:rgba(247,241,232,.45) !important;
 }
 .tss input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus{
   outline:none !important;
-  border-color:var(--blue) !important;
+  border-color:var(--gold) !important;
+  background:var(--ink) !important;
   box-shadow:4px 4px 0 var(--gold) !important;
 }
 .tss input.tss-input-money:not([type="checkbox"]):not([type="radio"]):not([type="range"]){
@@ -775,9 +775,9 @@ const scopedCss = `
 }
 .tss input[type="checkbox"]{
   width:20px !important;height:20px !important;flex:0 0 20px;
-  accent-color:var(--red) !important;padding:0 !important;
+  accent-color:var(--gold) !important;padding:0 !important;
   border:2px solid var(--navy) !important;border-radius:0 !important;
-  background:#fff !important;
+  background:var(--navy) !important;
 }
 
 /* ── TICKER ── */
@@ -802,15 +802,17 @@ const scopedCss = `
   padding:14px 18px;border-bottom:1px solid rgba(247,241,232,.16);
 }
 .tss-logo-word{
-  font-family:var(--font-anton),sans-serif;font-size:23px;letter-spacing:.02em;
-  color:var(--gold);display:inline-flex;align-items:center;gap:9px;line-height:1;
+  font-family:"Arial Black","Arial Bold",Arial,sans-serif;font-weight:900;
+  font-size:22px;letter-spacing:-.01em;white-space:nowrap;
+  color:var(--gold);display:inline-flex;align-items:center;gap:11px;line-height:1;
 }
 .tss-logo-img{height:30px;width:auto;object-fit:contain;}
 .tss-arrow-circle{color:var(--gold);}
 .tss-masthead-meta{
-  display:flex;gap:8px;align-items:center;font-size:11px;letter-spacing:.18em;
+  display:none;gap:8px;align-items:center;font-size:11px;letter-spacing:.18em;
   color:var(--cream);opacity:.85;
 }
+@media(min-width:480px){.tss-masthead-meta{display:flex;}}
 .tss-masthead-div{color:var(--gold);}
 
 /* ── HERO ── */
@@ -1018,7 +1020,7 @@ const scopedCss = `
 .tss-input-mono{letter-spacing:.04em;}
 .tss-money-wrap{position:relative;display:flex;align-items:center;}
 .tss-money-prefix{
-  position:absolute;left:13px;font-weight:700;color:var(--navy);font-size:15px;pointer-events:none;z-index:1;
+  position:absolute;left:13px;font-weight:700;color:var(--gold);font-size:15px;pointer-events:none;z-index:1;
 }
 .tss-input-money{padding-left:30px !important;}
 .tss-consent{
@@ -1054,8 +1056,9 @@ const scopedCss = `
 /* ── FOOTER ── */
 .tss-footer{background:var(--navy);color:var(--cream);text-align:center;padding:40px 20px 120px;}
 .tss-footer-word{
-  font-family:var(--font-anton),sans-serif;font-size:30px;color:var(--gold);
-  display:inline-flex;align-items:center;gap:8px;
+  font-family:"Arial Black","Arial Bold",Arial,sans-serif;font-weight:900;
+  font-size:27px;letter-spacing:-.01em;color:var(--gold);
+  display:inline-flex;align-items:center;gap:10px;
 }
 .tss-footer-meta{font-size:10px;letter-spacing:.16em;margin:14px 0 0;opacity:.8;}
 .tss-footer-fine{font-size:9px;letter-spacing:.22em;margin:8px 0 0;color:var(--gold);opacity:.6;}
