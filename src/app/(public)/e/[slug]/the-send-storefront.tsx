@@ -50,9 +50,16 @@ function rands(cents: number): string {
   })}`;
 }
 
-function isOnSale(t: TicketType, now: Date): boolean {
+// A tier's sales window is open when now sits inside [start, end). A tier with
+// no window (both null) is always open — that's the "regular" always-on ticket.
+function isWindowOpen(t: TicketType, now: Date): boolean {
   if (t.sales_start_at && new Date(t.sales_start_at) > now) return false;
   if (t.sales_end_at && new Date(t.sales_end_at) <= now) return false;
+  return true;
+}
+
+function isOnSale(t: TicketType, now: Date): boolean {
+  if (!isWindowOpen(t, now)) return false;
   if (t.capacity != null && t.quantity_sold >= t.capacity) return false;
   return true;
 }
@@ -72,6 +79,12 @@ export function TheSendStorefront({
   ticketTypes: TicketType[];
 }) {
   const now = useMemo(() => new Date(), []);
+  // Only show tiers whose sales window is currently open. Tiers scheduled for
+  // later (or already closed) stay hidden until/while they're in their window.
+  const visibleTickets = useMemo(
+    () => ticketTypes.filter((t) => isWindowOpen(t, now)),
+    [ticketTypes, now]
+  );
   const [lines, setLines] = useState<Record<string, LineItem>>({});
   const [donationRands, setDonationRands] = useState("");
   const [promoCode, setPromoCode] = useState("");
@@ -308,14 +321,14 @@ export function TheSendStorefront({
           </p>
         </div>
 
-        {ticketTypes.length === 0 ? (
+        {visibleTickets.length === 0 ? (
           <div className="tss-empty">
             <p>NO PASSES ON SALE YET.</p>
             <span>{ARROW} CHECK BACK SOON. THE DROP IS COMING.</span>
           </div>
         ) : (
           <div className="tss-ticket-grid">
-            {ticketTypes.map((t, idx) => (
+            {visibleTickets.map((t, idx) => (
               <TicketPass
                 key={t.id}
                 t={t}
@@ -334,7 +347,7 @@ export function TheSendStorefront({
       </section>
 
       {/* ── EXTRAS (promo + gift) ──────────────────────────── */}
-      {ticketTypes.length > 0 && (
+      {visibleTickets.length > 0 && (
         <section className="tss-extras">
           <div className="tss-field">
             <label className="tss-label" htmlFor="tss-promo">
