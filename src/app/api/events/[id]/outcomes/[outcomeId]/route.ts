@@ -1,7 +1,17 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { updateEventOutcome, deleteEventOutcome } from "@/services/event-outcomes";
+import { findOrCreateLabel } from "@/services/labels";
 import { getAuthedUser, hasAnyRole, EVENTS_MANAGE_ROLES } from "@/lib/api-auth";
+
+function slugify(input: string): string {
+  return input
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 64);
+}
 
 export async function PATCH(
   request: Request,
@@ -19,6 +29,7 @@ export async function PATCH(
     name?: string;
     description?: string | null;
     label_id?: string | null;
+    newLabelName?: string | null;
     sort_order?: number;
     is_active?: boolean;
   };
@@ -34,6 +45,20 @@ export async function PATCH(
   if (body.label_id !== undefined) patch.label_id = body.label_id;
   if (body.sort_order !== undefined) patch.sort_order = body.sort_order;
   if (body.is_active !== undefined) patch.is_active = body.is_active;
+
+  // Optionally create a brand-new label on the fly (parity with creation).
+  if (body.newLabelName !== undefined && body.newLabelName?.trim()) {
+    const found = await findOrCreateLabel(supabase, {
+      slug: slugify(body.newLabelName),
+      name: body.newLabelName.trim(),
+      createdBy: user.id,
+      category: "Event outcomes",
+    });
+    if (found.error || !found.data) {
+      return NextResponse.json({ error: "Failed to create label" }, { status: 500 });
+    }
+    patch.label_id = found.data.id;
+  }
 
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: "No fields to update" }, { status: 400 });

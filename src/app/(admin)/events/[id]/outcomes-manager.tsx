@@ -35,6 +35,14 @@ export function OutcomesManager({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // Edit state (inline, one outcome at a time)
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editLabelMode, setEditLabelMode] = useState<"existing" | "new">("existing");
+  const [editLabelId, setEditLabelId] = useState("");
+  const [editNewLabelName, setEditNewLabelName] = useState("");
+
   async function addOutcome() {
     if (!name.trim()) {
       setErr("Outcome name is required.");
@@ -83,6 +91,54 @@ export function OutcomesManager({
     router.refresh();
   }
 
+  function startEdit(o: Outcome) {
+    setAdding(false);
+    setErr(null);
+    setEditingId(o.id);
+    setEditName(o.name);
+    setEditDescription(o.description ?? "");
+    setEditLabelMode("existing");
+    setEditLabelId(o.label_id ?? "");
+    setEditNewLabelName("");
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setErr(null);
+  }
+
+  async function saveEdit(outcomeId: string) {
+    if (!editName.trim()) {
+      setErr("Outcome name is required.");
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    const payload: Record<string, unknown> = {
+      name: editName.trim(),
+      description: editDescription.trim() || null,
+    };
+    if (editLabelMode === "existing") {
+      payload.label_id = editLabelId || null;
+    } else if (editNewLabelName.trim()) {
+      payload.newLabelName = editNewLabelName.trim();
+    }
+
+    const res = await fetch(`/api/events/${eventId}/outcomes/${outcomeId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      setErr(data.error ?? "Failed to update outcome");
+      return;
+    }
+    setEditingId(null);
+    router.refresh();
+  }
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
@@ -106,46 +162,138 @@ export function OutcomesManager({
           <p className="text-sm text-muted-foreground italic">No outcomes yet.</p>
         ) : (
           <ul className="space-y-2">
-            {outcomes.map((o) => (
-              <li
-                key={o.id}
-                className="flex items-start justify-between gap-3 border rounded p-3"
-              >
-                <div>
-                  <p className="text-sm font-medium">{o.name}</p>
-                  {o.description && (
-                    <p className="text-xs text-muted-foreground mt-0.5">{o.description}</p>
-                  )}
-                  <div className="mt-1">
-                    {o.labels ? (
-                      <span
-                        className="inline-flex items-center text-xs px-2 py-0.5 rounded-full border font-medium"
-                        style={(() => {
-                          const c = getLabelColors(o.labels);
-                          return {
-                            backgroundColor: c.bg,
-                            color: c.text,
-                            borderColor: c.border,
-                          };
-                        })()}
-                      >
-                        {o.labels.name}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-amber-600">No label assigned</span>
-                    )}
+            {outcomes.map((o) =>
+              editingId === o.id ? (
+                <li key={o.id} className="border rounded p-3 space-y-2">
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder="Outcome name"
+                    className="w-full border rounded px-2 py-1.5 text-sm"
+                    disabled={busy}
+                  />
+                  <textarea
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    placeholder="Description (optional)"
+                    rows={2}
+                    className="w-full border rounded px-2 py-1.5 text-sm resize-none"
+                    disabled={busy}
+                  />
+                  <div className="flex gap-3 text-xs">
+                    <label className="flex items-center gap-1">
+                      <input
+                        type="radio"
+                        checked={editLabelMode === "existing"}
+                        onChange={() => setEditLabelMode("existing")}
+                      />
+                      Existing label
+                    </label>
+                    <label className="flex items-center gap-1">
+                      <input
+                        type="radio"
+                        checked={editLabelMode === "new"}
+                        onChange={() => setEditLabelMode("new")}
+                      />
+                      New label
+                    </label>
                   </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => removeOutcome(o.id)}
-                  disabled={busy}
-                  className="text-xs text-red-600 hover:underline shrink-0"
+                  {editLabelMode === "existing" ? (
+                    <select
+                      value={editLabelId}
+                      onChange={(e) => setEditLabelId(e.target.value)}
+                      className="w-full border rounded px-2 py-1.5 text-sm"
+                      disabled={busy}
+                    >
+                      <option value="">— no label —</option>
+                      {labels.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={editNewLabelName}
+                      onChange={(e) => setEditNewLabelName(e.target.value)}
+                      placeholder="New label name"
+                      className="w-full border rounded px-2 py-1.5 text-sm"
+                      disabled={busy}
+                    />
+                  )}
+                  {err && <p className="text-xs text-red-600">{err}</p>}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => saveEdit(o.id)}
+                      disabled={busy}
+                      className="px-3 py-1 rounded bg-blue-600 text-white text-xs hover:bg-blue-700 disabled:bg-gray-300"
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelEdit}
+                      disabled={busy}
+                      className="px-3 py-1 rounded border text-xs hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </li>
+              ) : (
+                <li
+                  key={o.id}
+                  className="flex items-start justify-between gap-3 border rounded p-3"
                 >
-                  Delete
-                </button>
-              </li>
-            ))}
+                  <div>
+                    <p className="text-sm font-medium">{o.name}</p>
+                    {o.description && (
+                      <p className="text-xs text-muted-foreground mt-0.5">{o.description}</p>
+                    )}
+                    <div className="mt-1">
+                      {o.labels ? (
+                        <span
+                          className="inline-flex items-center text-xs px-2 py-0.5 rounded-full border font-medium"
+                          style={(() => {
+                            const c = getLabelColors(o.labels);
+                            return {
+                              backgroundColor: c.bg,
+                              color: c.text,
+                              borderColor: c.border,
+                            };
+                          })()}
+                        >
+                          {o.labels.name}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-amber-600">No label assigned</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-3 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => startEdit(o)}
+                      disabled={busy}
+                      className="text-xs text-blue-600 hover:underline"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeOutcome(o.id)}
+                      disabled={busy}
+                      className="text-xs text-red-600 hover:underline"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </li>
+              )
+            )}
           </ul>
         )}
 
