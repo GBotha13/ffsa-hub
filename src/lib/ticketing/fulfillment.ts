@@ -18,7 +18,17 @@
 import { randomBytes } from "node:crypto";
 import { sendViaMailtrap } from "@/lib/email/mailtrap";
 import { ticketConfirmationEmailHtml } from "@/lib/email/templates/ticket-confirmation";
+import { theSendTicketEmailHtml } from "@/lib/email/templates/the-send-ticket-confirmation";
 import { resolveOrderToCrm } from "./crm-resolution";
+
+// Bespoke email keyed by event slug/title — mirrors the storefront
+// detection so the email and landing page match aesthetically.
+function isTheSendEvent(slug: string | null | undefined, title: string | null | undefined) {
+  return (
+    (slug ?? "").toLowerCase().includes("the-send") ||
+    (title ?? "").toLowerCase().includes("the send")
+  );
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Client = any;
@@ -138,24 +148,33 @@ export async function fulfillOrder(
     process.env.MAILTRAP_FROM_EMAIL ||
     process.env.RESEND_FROM_EMAIL ||
     "noreply@ffsahub.com";
+  const emailArgs = {
+    buyerFirstName: order.buyer_first_name,
+    eventTitle: order.events.title,
+    eventDate: formatEventDate(
+      order.events.start_date,
+      order.events.end_date
+    ),
+    eventLocation: order.events.location,
+    tickets: ticketsForEmail,
+    orderId: orderId,
+    totalCents: order.total_cents,
+    siteUrl,
+  };
+  const isTheSend = isTheSendEvent(
+    order.events.public_slug,
+    order.events.title
+  );
   const sendResult = await sendViaMailtrap({
     fromEmail,
     fromName: "Fire & Fragrance SA",
     to: order.buyer_email,
-    subject: `Your tickets for ${order.events.title}`,
-    html: ticketConfirmationEmailHtml({
-      buyerFirstName: order.buyer_first_name,
-      eventTitle: order.events.title,
-      eventDate: formatEventDate(
-        order.events.start_date,
-        order.events.end_date
-      ),
-      eventLocation: order.events.location,
-      tickets: ticketsForEmail,
-      orderId: orderId,
-      totalCents: order.total_cents,
-      siteUrl,
-    }),
+    subject: isTheSend
+      ? `You're in — ${order.events.title} →`
+      : `Your tickets for ${order.events.title}`,
+    html: isTheSend
+      ? theSendTicketEmailHtml(emailArgs)
+      : ticketConfirmationEmailHtml(emailArgs),
     category: "ticket_confirmation",
   });
   if (sendResult.error) {
