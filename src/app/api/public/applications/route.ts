@@ -12,6 +12,7 @@ import {
   getCurrentConsentAgreement,
   recordConsent,
 } from "@/services/consent";
+import { notifyApplicationSubmitted } from "@/lib/slack/notify";
 import { Resend } from "resend";
 import { applicationConfirmationEmailHtml } from "@/lib/email/templates/application-confirmation";
 import { referenceRequestEmailHtml } from "@/lib/email/templates/reference-request";
@@ -174,6 +175,18 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+
+  // Fire-and-forget Slack notification — never blocks the applicant's
+  // submission. School applications aren't CRM contacts, so this is a
+  // direct notify rather than going through the activity_events pipeline.
+  void notifyApplicationSubmitted({
+    applicantName: [firstName, lastName].filter(Boolean).join(" ") || null,
+    programName: program.name,
+    programId: program_id,
+    applicantEmail: email ?? null,
+  }).catch((err) =>
+    console.error("[applications] slack notify failed", err)
+  );
 
   // Record the consent acceptance. We deliberately don't fail the submission
   // on this insert — the agreement version was already validated above, and

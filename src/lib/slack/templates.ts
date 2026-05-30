@@ -37,19 +37,43 @@ export function formatNotification(args: FormatArgs): FormatResult {
   const who = contactName ?? "an unidentified contact";
 
   switch (eventType) {
-    // ──── Tier 1 — Action required ───────────────────────────
+    // ──── Form submission ────────────────────────────────────
     case "form_submitted": {
-      const formSlug = readString(payload, "form_slug") ?? readString(payload, "form_id");
-      const title = `New form submission: ${who}`;
-      const body = formSlug ? `Form: ${formSlug}` : "Form submitted via public page.";
+      const formName =
+        readString(payload, "form_name") ??
+        readString(payload, "form_slug") ??
+        readString(payload, "form_id");
+      const title = formName
+        ? `New form submission: ${formName}`
+        : `New form submission: ${who}`;
+      const body = formName ? `From: ${who}` : "Form submitted via public page.";
       return {
         title,
         body,
         blocks: buildBlocks({
           headline: ":envelope_with_arrow: *New form submission*",
           lines: [
+            formName ? `*Form:* ${formName}` : null,
             `*From:* ${who}`,
-            formSlug ? `*Form:* \`${formSlug}\`` : null,
+          ],
+          appUrl,
+        }),
+      };
+    }
+
+    // ──── School application ─────────────────────────────────
+    case "application_submitted": {
+      const programName = readString(payload, "program_name") ?? "a program";
+      const title = `New application: ${who}`;
+      const body = `Program: ${programName}`;
+      return {
+        title,
+        body,
+        blocks: buildBlocks({
+          headline: ":mortar_board: *New school application*",
+          lines: [
+            `*Applicant:* ${who}`,
+            `*Program:* ${programName}`,
           ],
           appUrl,
         }),

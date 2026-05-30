@@ -1,29 +1,32 @@
 /**
- * Slack notification dispatcher.
+ * Slack notification dispatcher — Hub → Slack channel posts.
  *
- * Called fire-and-forget from `logActivity()` in
- * `src/services/activity-events.ts` after every activity_events
- * insert. Also called directly from the assign-staff routes via
- * `notifyAssignmentChanged()`.
+ * Current scope is deliberately small: exactly three kinds of
+ * message reach Slack, all posted to the #ffsa-activity channel
+ * (channel id from slack_settings.channel_id, or the
+ * SLACK_ACTIVITY_CHANNEL_ID env fallback).
  *
- *   ─── Phase 1 short-circuit ─────────────────────────────────
- *   This file currently only dispatches `form_submitted` events
- *   to the #ffsa-activity Slack channel. No DMs, no
- *   `notifications` rows yet. The phase-1 guards are clearly
- *   labelled — Phase 2 removes them in one pass.
- *   ───────────────────────────────────────────────────────────
+ *   1. form_submitted        — someone fills out a public form
+ *   2. ticket_purchased      — someone buys event tickets
+ *   3. application_submitted — someone applies to any school/program
  *
- * Failures inside this module are swallowed at the call site
- * (callers wrap in `void dispatchNotification(...).catch(...)`)
- * so a Slack outage never blocks user-facing requests.
+ * (1) and (2) ride the existing activity_events pipeline:
+ * logActivity() calls dispatchNotification() fire-and-forget after
+ * the insert. (3) is NOT part of the CRM activity system (school
+ * applications aren't contacts), so the public applications route
+ * calls notifyApplicationSubmitted() directly.
+ *
+ * Failures here are swallowed at the call site (callers wrap in
+ * `void notify(...).catch(...)`) so a Slack outage never blocks a
+ * user-facing request.
+ *
+ * NOTE: DMs, per-user routing, and the notifications-table writes
+ * designed in migration 069 are intentionally NOT wired yet — this
+ * is channel-only until the team decides to broaden scope.
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import * as slack from "./client";
-import {
-  classifyTier,
-  type EventForRouting,
-} from "./routing";
 import { formatNotification } from "./templates";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.ffsahub.com";
@@ -36,26 +39,21 @@ type ActivityEventRow = {
   event_type: string;
   contact_id: string | null;
   related_user_id: string | null;
+  related_form_id: string | null;
   payload: Record<string, unknown> | null;
   occurred_at: string;
 };
 
+// Only these activity_events event types post to Slack today.
+// Everything else logActivity() records is ignored here.
+const CHANNEL_EVENT_TYPES = new Set(["form_submitted", "ticket_purchased"]);
+
 // ────────────────────────────────────────────────────────────
 // Public entry: dispatchNotification
 // ------------------------------------------------------------
-// Called from logActivity() after an activity_events row is
-// inserted. Performs:
-//
-//   1. Tier classification (tier1 / tier2 / tier3 / unknown).
-//   2. Tier-3 + unknown: no-op (those live only in
-//      activity_events for stat-card aggregates).
-//   3. Tier-1: post to the #ffsa-activity channel.
-//      [Phase 2: also create per-recipient DM rows and send.]
-//   4. Tier-2: post to the #ffsa-activity channel.
-//      [Phase 2: also queue digest rows for the daily cron.]
-//
-// In Phase 1 the dispatcher hard-skips everything except
-// form_submitted (see PHASE 1 GUARD below).
+// Called fire-and-forget from logActivity() after every
+// activity_events insert. Posts a #ffsa-activity message for the
+// two in-scope activity event types; ignores all others.
 // ────────────────────────────────────────────────────────────
 
 export async function dispatchNotification(args: {
@@ -63,17 +61,10 @@ export async function dispatchNotification(args: {
 }): Promise<void> {
   const event = args.activityEvent;
 
-  // ───── PHASE 1 GUARD ───────────────────────────────────────
-  // Only form_submitted flows in Phase 1. Remove this guard in
-  // Phase 2 along with the // PHASE 1 comments throughout.
-  if (event.event_type !== "form_submitted") return;
-  // ───────────────────────────────────────────────────────────
+  if (!CHANNEL_EVENT_TYPES.has(event.event_type)) return;
 
-  const tier = classifyTier(event.event_type);
-  if (!tier || tier === "tier3") return;
-
-  // No-op if Slack isn't configured. Log once so the operator
-  // can spot a misconfigured environment, but never throw.
+  // No-op if Slack isn't configured. Warn so a misconfigured
+  // environment is visible in logs, but never throw.
   if (!process.env.SLACK_BOT_TOKEN) {
     console.warn("[slack/notify] SLACK_BOT_TOKEN missing — skipping");
     return;
@@ -81,6 +72,7 @@ export async function dispatchNotification(args: {
 
   const admin = createAdminClient();
   const contactName = await fetchContactName(admin, event.contact_id);
+  const payload = await enrichPayload(admin, event);
   const url = event.contact_id
     ? `${APP_URL}/contacts/${event.contact_id}`
     : APP_URL;
@@ -88,37 +80,92 @@ export async function dispatchNotification(args: {
   const { title, blocks } = formatNotification({
     eventType: event.event_type,
     contactName,
-    payload: event.payload,
+    payload,
     appUrl: url,
   });
 
   await postToActivityChannel(admin, { title, blocks });
-
-  // PHASE 1 stops here. Phase 2 will fan out to DM recipients
-  // and insert notifications rows below this line.
 }
 
 // ────────────────────────────────────────────────────────────
-// Public entry: notifyAssignmentChanged (Phase 2)
+// Public entry: notifyApplicationSubmitted
 // ------------------------------------------------------------
-// Called from the two assign-staff route handlers when a user
-// is set as assigned_staff_id on an application_responses or
-// enrollments row. Not used in Phase 1 — exported so Phase 2
-// can wire it without touching this file's exports.
+// Called directly from src/app/api/public/applications/route.ts
+// after a successful application insert. School applications are
+// not contacts, so they don't flow through logActivity().
 // ────────────────────────────────────────────────────────────
 
-export async function notifyAssignmentChanged(_args: {
-  resourceType: "application_response" | "enrollment";
-  resourceId: string;
-  newStaffId: string;
-  previousStaffId: string | null;
-  assignedBy: string | null;
+export async function notifyApplicationSubmitted(args: {
+  applicantName: string | null;
   programName: string;
-  studentName: string;
+  programId: string;
+  applicantEmail: string | null;
 }): Promise<void> {
-  // PHASE 1: stubbed. Implemented in Phase 2 once the
-  // notifications table is being written to.
-  return;
+  if (!process.env.SLACK_BOT_TOKEN) {
+    console.warn("[slack/notify] SLACK_BOT_TOKEN missing — skipping");
+    return;
+  }
+
+  const admin = createAdminClient();
+  const url = `${APP_URL}/schools/${args.programId}`;
+
+  const { title, blocks } = formatNotification({
+    eventType: "application_submitted",
+    contactName: args.applicantName,
+    payload: {
+      program_name: args.programName,
+      applicant_email: args.applicantEmail,
+    },
+    appUrl: url,
+  });
+
+  await postToActivityChannel(admin, { title, blocks });
+}
+
+// ────────────────────────────────────────────────────────────
+// Internal: payload enrichment
+// ------------------------------------------------------------
+// The activity_events rows carry only minimal payloads (ids), so
+// we hydrate the human-readable bits the templates want right
+// before formatting:
+//   • ticket_purchased → event title (via payload.event_id)
+//   • form_submitted   → form name   (via related_form_id)
+// ────────────────────────────────────────────────────────────
+
+async function enrichPayload(
+  admin: AdminClient,
+  event: ActivityEventRow
+): Promise<Record<string, unknown> | null> {
+  const base = event.payload ?? {};
+
+  if (event.event_type === "ticket_purchased") {
+    const eventId = typeof base["event_id"] === "string" ? (base["event_id"] as string) : null;
+    if (eventId) {
+      const { data } = await admin
+        .from("events")
+        .select("title")
+        .eq("id", eventId)
+        .maybeSingle();
+      const title = (data as { title: string | null } | null)?.title;
+      if (title) return { ...base, event_title: title };
+    }
+    return base;
+  }
+
+  if (event.event_type === "form_submitted" && event.related_form_id) {
+    const { data } = await admin
+      .from("forms")
+      .select("name, slug")
+      .eq("id", event.related_form_id)
+      .maybeSingle();
+    const form = data as { name: string | null; slug: string | null } | null;
+    if (form) {
+      return { ...base, form_name: form.name, form_slug: form.slug };
+    }
+    return base;
+  }
+
+  return base;
 }
 
 // ────────────────────────────────────────────────────────────
@@ -126,11 +173,9 @@ export async function notifyAssignmentChanged(_args: {
 // ────────────────────────────────────────────────────────────
 
 /**
- * Post a message to the #ffsa-activity channel. Channel id
- * comes from `slack_settings.channel_id`; if the singleton row
- * has no channel_id we fall back to SLACK_ACTIVITY_CHANNEL_ID
- * env var (useful for Phase 1 testing before the admin page
- * exists).
+ * Post a message to the #ffsa-activity channel. Channel id comes
+ * from slack_settings.channel_id; if the singleton row has no
+ * channel_id we fall back to the SLACK_ACTIVITY_CHANNEL_ID env var.
  */
 async function postToActivityChannel(
   admin: AdminClient,
@@ -162,9 +207,8 @@ async function postToActivityChannel(
 }
 
 async function resolveActivityChannelId(admin: AdminClient): Promise<string | null> {
-  // Prefer the DB-configured channel so the admin page can
-  // change it without a redeploy. Fall back to env for
-  // bootstrap / Phase 1 testing.
+  // Prefer the DB-configured channel so the admin page can change
+  // it without a redeploy. Fall back to env for bootstrap / testing.
   const { data, error } = await admin
     .from("slack_settings")
     .select("channel_id")
@@ -202,6 +246,3 @@ async function fetchContactName(
   const joined = `${first} ${last}`.trim();
   return joined.length > 0 ? joined : null;
 }
-
-// Type-only re-export so callers don't need to import from routing.
-export type { EventForRouting };
