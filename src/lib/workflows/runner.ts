@@ -1,0 +1,443 @@
+// ============================================================
+// Workflow runner — advances a single enrollment.
+// ============================================================
+// Called two ways:
+//   1. inline from the form-submit hook, right after enrollment,
+//      so the first email goes out instantly; and
+//   2. from the run-workflows cron, for enrollments whose delay
+//      has elapsed (next_run_at <= now).
+//
+// One call drains all consecutive INSTANT steps (send_email,
+// assign_label) and stops at the first delay (parking the
+// enrollment via next_run_at) or at the end (status=completed).
+// Always invoked with a service-role admin client (bypasses RLS).
+// ============================================================
+
+import { addLabelToContact } from "@/services/labels";
+import { logActivity, logLabelAdded } from "@/services/activity-events";
+import {
+  getWorkflowSteps,
+  updateEnrollment,
+  recordStepRun,
+} from "@/services/workflows";
+import { sendViaMailtrap } from "@/lib/email/mailtrap";
+import {
+  renderCampaignHtml,
+  renderCampaignText,
+  type CampaignBody,
+} from "@/lib/campaigns/blocks";
+import { getEffectiveBrand } from "@/services/brand";
+import { signPrefsToken } from "@/lib/tokens/unsubscribe";
+import type {
+  AssignLabelConfig,
+  DelayConfig,
+  SendEmailConfig,
+} from "@/lib/workflows/types";
+import type { Json } from "@/types/database";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Client = any;
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.ffsahub.com";
+
+export type Enrollment = {
+  id: string;
+  workflow_id: string;
+  contact_id: string;
+  current_step: number;
+  status: string;
+};
+
+export type TickResult = {
+  enrollmentId: string;
+  stepsRun: number;
+  status: "active" | "completed" | "cancelled";
+  emailsSent: number;
+};
+
+type IdentityRow = {
+  id: string;
+  from_email: string;
+  from_name: string;
+  reply_to: string | null;
+};
+
+type ContactRow = {
+  id: string;
+  email: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  preferred_name: string | null;
+  marketing_status: string | null;
+};
+
+type StepRow = { id: string; step_type: string; config: unknown };
+
+// ── Email helpers (mirror src/services/campaign-send.ts) ─────
+
+function prefsUrlFor(contactId: string): string {
+  // Workflows carry no campaign id; the preferences page shows all labels.
+  const token = signPrefsToken(contactId, null);
+  return `${APP_URL}/preferences?t=${encodeURIComponent(token)}`;
+}
+
+function footerHtml(prefsUrl: string): string {
+  return `<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
+<tr><td style="padding:18px 36px;font-size:12px;line-height:1.6;color:#94a3b8;text-align:center;">
+<a href="${prefsUrl}" style="color:#94a3b8;text-decoration:underline;">Manage email preferences</a>
+&middot; Fire &amp; Fragrance South Africa
+</td></tr></table>`;
+}
+
+function deliverabilityHeaders(args: {
+  prefsUrl: string;
+  workflowId: string;
+  fromEmail: string;
+  contactId: string;
+}): Record<string, string> {
+  const domain = args.fromEmail.split("@")[1] ?? "ffsahub.com";
+  return {
+    "List-Unsubscribe": `<${args.prefsUrl}>`,
+    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    "List-ID": `workflows.${domain} <workflow-${args.workflowId}.${domain}>`,
+    Precedence: "bulk",
+    "X-Entity-Ref-ID": `workflow-${args.workflowId}:${args.contactId}`,
+  };
+}
+
+async function recordStep(
+  supabase: Client,
+  enrollmentId: string,
+  stepId: string,
+  status: "done" | "failed" | "skipped",
+  detail: Record<string, unknown>
+): Promise<void> {
+  await recordStepRun(supabase, {
+    enrollment_id: enrollmentId,
+    step_id: stepId,
+    status,
+    detail: detail as Json,
+  });
+}
+
+// ── Identity resolution ──────────────────────────────────────
+// Sender priority: step override → outcome label's identity →
+// first active identity (prefer the seeded 'default-marketing').
+
+async function resolveFallbackIdentity(supabase: Client): Promise<IdentityRow | null> {
+  const { data } = await supabase
+    .from("sending_identities")
+    .select("id, from_email, from_name, reply_to, slug")
+    .eq("is_active", true)
+    .order("slug")
+    .limit(50);
+  const rows = (data ?? []) as Array<IdentityRow & { slug: string }>;
+  return rows.find((r) => r.slug === "default-marketing") ?? rows[0] ?? null;
+}
+
+async function getIdentityById(
+  supabase: Client,
+  id: string
+): Promise<IdentityRow | null> {
+  const { data } = await supabase
+    .from("sending_identities")
+    .select("id, from_email, from_name, reply_to")
+    .eq("id", id)
+    .maybeSingle();
+  return (data ?? null) as IdentityRow | null;
+}
+
+async function loadWorkflowIdentity(
+  supabase: Client,
+  workflowId: string
+): Promise<{ labelId: string | null; identity: IdentityRow | null }> {
+  const { data } = await supabase
+    .from("outcome_workflows")
+    .select(
+      "id, event_outcomes(label_id, labels(id, sending_identity_id, sending_identities(id, from_email, from_name, reply_to)))"
+    )
+    .eq("id", workflowId)
+    .maybeSingle();
+
+  const outcome = data?.event_outcomes ?? null;
+  const label = outcome?.labels ?? null;
+  const identity = (label?.sending_identities ?? null) as IdentityRow | null;
+  return { labelId: label?.id ?? null, identity };
+}
+
+// ── Public entry ─────────────────────────────────────────────
+
+export async function runEnrollment(
+  supabase: Client,
+  enrollment: Enrollment
+): Promise<TickResult> {
+  const result: TickResult = {
+    enrollmentId: enrollment.id,
+    stepsRun: 0,
+    status: "active",
+    emailsSent: 0,
+  };
+
+  if (enrollment.status !== "active") {
+    result.status = enrollment.status as TickResult["status"];
+    return result;
+  }
+
+  // Load the contact once. Respect global opt-out: cancel the run.
+  const { data: contactData } = await supabase
+    .from("contacts")
+    .select("id, email, first_name, last_name, preferred_name, marketing_status")
+    .eq("id", enrollment.contact_id)
+    .maybeSingle();
+  const contact = contactData as ContactRow | null;
+
+  if (!contact) {
+    await markCancelled(supabase, enrollment.id);
+    result.status = "cancelled";
+    return result;
+  }
+  if (contact.marketing_status === "unsubscribed_all") {
+    await markCancelled(supabase, enrollment.id);
+    await logActivity(supabase, {
+      contact_id: contact.id,
+      event_type: "workflow_cancelled",
+      payload: { workflow_id: enrollment.workflow_id, reason: "globally_unsubscribed" },
+    });
+    result.status = "cancelled";
+    return result;
+  }
+
+  // Ordered steps + the outcome label's sending identity (sender fallback).
+  const [{ data: steps }, identityCtx] = await Promise.all([
+    getWorkflowSteps(supabase, enrollment.workflow_id),
+    loadWorkflowIdentity(supabase, enrollment.workflow_id),
+  ]);
+  const stepList = (steps ?? []) as StepRow[];
+
+  const identityCache = new Map<string, IdentityRow | null>();
+  let fallbackIdentity: IdentityRow | null | undefined;
+  const getFallback = async () => {
+    if (fallbackIdentity === undefined) {
+      fallbackIdentity = await resolveFallbackIdentity(supabase);
+    }
+    return fallbackIdentity;
+  };
+
+  let idx = enrollment.current_step;
+
+  // Drain consecutive instant steps; pause on delay; complete at end.
+  // Bounded by stepList.length to rule out any accidental infinite loop.
+  for (let guard = 0; guard <= stepList.length; guard++) {
+    if (idx >= stepList.length) {
+      await updateEnrollment(supabase, enrollment.id, {
+        status: "completed",
+        next_run_at: null,
+        completed_at: new Date().toISOString(),
+        current_step: idx,
+      });
+      await logActivity(supabase, {
+        contact_id: contact.id,
+        event_type: "workflow_completed",
+        payload: { workflow_id: enrollment.workflow_id },
+      });
+      result.status = "completed";
+      return result;
+    }
+
+    const step = stepList[idx];
+
+    // Delay: park the enrollment for the cron to resume later.
+    if (step.step_type === "delay") {
+      const days = Math.max(0, Number((step.config as DelayConfig)?.days ?? 0));
+      const resumeAt = new Date(Date.now() + days * 86_400_000).toISOString();
+      await updateEnrollment(supabase, enrollment.id, {
+        current_step: idx + 1,
+        next_run_at: resumeAt,
+      });
+      await recordStep(supabase, enrollment.id, step.id, "done", {
+        type: "delay",
+        days,
+        resumes_at: resumeAt,
+      });
+      result.status = "active";
+      return result;
+    }
+
+    // Instant steps.
+    try {
+      if (step.step_type === "send_email") {
+        const sent = await runEmailStep(supabase, {
+          enrollmentId: enrollment.id,
+          step,
+          cfg: step.config as SendEmailConfig,
+          contact,
+          workflowId: enrollment.workflow_id,
+          outcomeLabelId: identityCtx.labelId,
+          labelIdentity: identityCtx.identity,
+          identityCache,
+          getFallback,
+        });
+        if (sent) result.emailsSent++;
+      } else if (step.step_type === "assign_label") {
+        await runAssignLabelStep(supabase, {
+          enrollmentId: enrollment.id,
+          step,
+          cfg: step.config as AssignLabelConfig,
+          contactId: contact.id,
+          workflowId: enrollment.workflow_id,
+        });
+      } else {
+        await recordStep(supabase, enrollment.id, step.id, "skipped", {
+          reason: `unknown_step_type:${step.step_type}`,
+        });
+      }
+    } catch (e) {
+      await recordStep(supabase, enrollment.id, step.id, "failed", {
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+
+    result.stepsRun++;
+    idx += 1;
+    await updateEnrollment(supabase, enrollment.id, { current_step: idx });
+  }
+
+  return result;
+}
+
+// ── Step implementations ─────────────────────────────────────
+
+async function runEmailStep(
+  supabase: Client,
+  args: {
+    enrollmentId: string;
+    step: StepRow;
+    cfg: SendEmailConfig;
+    contact: ContactRow;
+    workflowId: string;
+    outcomeLabelId: string | null;
+    labelIdentity: IdentityRow | null;
+    identityCache: Map<string, IdentityRow | null>;
+    getFallback: () => Promise<IdentityRow | null>;
+  }
+): Promise<boolean> {
+  const { enrollmentId, step, cfg, contact, workflowId } = args;
+
+  if (!contact.email) {
+    await recordStep(supabase, enrollmentId, step.id, "skipped", { reason: "no_email" });
+    return false;
+  }
+
+  // Resolve sender.
+  let identity: IdentityRow | null = args.labelIdentity;
+  const overrideId = cfg?.sending_identity_id ?? null;
+  if (overrideId) {
+    if (!args.identityCache.has(overrideId)) {
+      args.identityCache.set(overrideId, await getIdentityById(supabase, overrideId));
+    }
+    identity = args.identityCache.get(overrideId) ?? null;
+  }
+  if (!identity) identity = await args.getFallback();
+  if (!identity) {
+    await recordStep(supabase, enrollmentId, step.id, "failed", {
+      reason: "no_sending_identity",
+    });
+    return false;
+  }
+
+  const prefsUrl = prefsUrlFor(contact.id);
+  const brand = await getEffectiveBrand(supabase, identity.id);
+  const body = (cfg?.body ?? { blocks: [] }) as unknown as CampaignBody;
+  const subject = cfg?.subject?.trim() || "A message from Fire & Fragrance";
+
+  const html = renderCampaignHtml(body, {
+    brand,
+    footerHtml: footerHtml(prefsUrl),
+  });
+  const text = renderCampaignText(body, { brand });
+
+  const res = await sendViaMailtrap({
+    fromEmail: identity.from_email,
+    fromName: identity.from_name,
+    replyTo: identity.reply_to,
+    to: contact.email,
+    subject,
+    html,
+    text: `${text}\n\n———\nManage email preferences: ${prefsUrl}`,
+    category: `workflow:${workflowId}`,
+    headers: deliverabilityHeaders({
+      prefsUrl,
+      workflowId,
+      fromEmail: identity.from_email,
+      contactId: contact.id,
+    }),
+  });
+
+  if (res.error) {
+    await recordStep(supabase, enrollmentId, step.id, "failed", {
+      error: res.error.slice(0, 300),
+    });
+    return false;
+  }
+
+  await recordStep(supabase, enrollmentId, step.id, "done", {
+    type: "send_email",
+    message_id: res.messageId,
+    subject,
+  });
+  await logActivity(supabase, {
+    contact_id: contact.id,
+    event_type: "workflow_email_sent",
+    related_label_id: args.outcomeLabelId,
+    occurred_at: new Date().toISOString(),
+    payload: { workflow_id: workflowId, step_id: step.id, subject },
+  });
+  return true;
+}
+
+async function runAssignLabelStep(
+  supabase: Client,
+  args: {
+    enrollmentId: string;
+    step: StepRow;
+    cfg: AssignLabelConfig;
+    contactId: string;
+    workflowId: string;
+  }
+): Promise<void> {
+  const labelId = args.cfg?.label_id;
+  if (!labelId) {
+    await recordStep(supabase, args.enrollmentId, args.step.id, "skipped", {
+      reason: "no_label_id",
+    });
+    return;
+  }
+  const added = await addLabelToContact(supabase, {
+    contact_id: args.contactId,
+    label_id: labelId,
+    added_via: `workflow:${args.workflowId}`,
+    added_by: null,
+  });
+  if (added.data) {
+    await logLabelAdded(supabase, {
+      contactId: args.contactId,
+      labelId,
+      addedVia: `workflow:${args.workflowId}`,
+      userId: null,
+    });
+  }
+  await recordStep(supabase, args.enrollmentId, args.step.id, "done", {
+    type: "assign_label",
+    label_id: labelId,
+  });
+}
+
+// ── Small helpers ────────────────────────────────────────────
+
+async function markCancelled(supabase: Client, enrollmentId: string): Promise<void> {
+  await updateEnrollment(supabase, enrollmentId, {
+    status: "cancelled",
+    next_run_at: null,
+    completed_at: new Date().toISOString(),
+  });
+}

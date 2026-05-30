@@ -1,0 +1,66 @@
+// ============================================================
+// Workflow shared types + trigger evaluation
+// ============================================================
+// Used by the form-submit enrollment hook, the runner, and the
+// admin builder UI so the jsonb shapes stay in one place.
+// ============================================================
+
+import type { CampaignBody } from "@/lib/campaigns/blocks";
+
+// ── Trigger ──────────────────────────────────────────────────
+// Stored in outcome_workflows.trigger (jsonb).
+export type WorkflowTrigger =
+  | { type: "on_submit" }
+  | {
+      type: "answer";
+      field_key: string; // matches the form field's data key (fieldKey())
+      op: "eq";
+      value: string | boolean;
+    };
+
+// ── Steps ────────────────────────────────────────────────────
+// Stored in workflow_steps.step_type + workflow_steps.config (jsonb).
+export type WorkflowStepType = "send_email" | "delay" | "assign_label";
+
+export type SendEmailConfig = {
+  subject: string;
+  body: CampaignBody; // same composer format as campaigns
+  sending_identity_id?: string | null; // falls back to the outcome label's identity
+};
+
+export type DelayConfig = {
+  days: number;
+};
+
+export type AssignLabelConfig = {
+  label_id: string;
+};
+
+export type WorkflowStepConfig = SendEmailConfig | DelayConfig | AssignLabelConfig;
+
+// "Instant" steps execute back-to-back in a single runner tick;
+// a delay step is the only one that parks the enrollment.
+export function isInstantStep(stepType: WorkflowStepType): boolean {
+  return stepType === "send_email" || stepType === "assign_label";
+}
+
+// ── Trigger evaluation ───────────────────────────────────────
+// `data` is the raw form submission keyed by fieldKey().
+export function evaluateTrigger(
+  trigger: WorkflowTrigger | null | undefined,
+  data: Record<string, unknown>
+): boolean {
+  if (!trigger || trigger.type === "on_submit") return true;
+  if (trigger.type === "answer") {
+    const actual = data[trigger.field_key];
+    if (typeof trigger.value === "boolean") {
+      return actual === trigger.value;
+    }
+    // String compare, trimmed + case-insensitive so "Yes" === "yes ".
+    return (
+      String(actual ?? "").trim().toLowerCase() ===
+      String(trigger.value).trim().toLowerCase()
+    );
+  }
+  return false;
+}

@@ -1279,6 +1279,7 @@ export type Database = {
           created_at: string
           description: string | null
           event_id: string
+          form_id: string | null
           id: string
           is_active: boolean
           label_id: string | null
@@ -1289,6 +1290,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           event_id: string
+          form_id?: string | null
           id?: string
           is_active?: boolean
           label_id?: string | null
@@ -1299,6 +1301,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           event_id?: string
+          form_id?: string | null
           id?: string
           is_active?: boolean
           label_id?: string | null
@@ -1318,6 +1321,192 @@ export type Database = {
             columns: ["label_id"]
             isOneToOne: false
             referencedRelation: "labels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_outcomes_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: true
+            referencedRelation: "forms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outcome_workflows: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          name: string
+          outcome_id: string
+          trigger: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          outcome_id: string
+          trigger?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          outcome_id?: string
+          trigger?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outcome_workflows_outcome_id_fkey"
+            columns: ["outcome_id"]
+            isOneToOne: false
+            referencedRelation: "event_outcomes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_enrollments: {
+        Row: {
+          completed_at: string | null
+          contact_id: string
+          current_step: number
+          enrolled_at: string
+          form_submission_id: string | null
+          id: string
+          next_run_at: string | null
+          status: string
+          updated_at: string
+          workflow_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          contact_id: string
+          current_step?: number
+          enrolled_at?: string
+          form_submission_id?: string | null
+          id?: string
+          next_run_at?: string | null
+          status?: string
+          updated_at?: string
+          workflow_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          contact_id?: string
+          current_step?: number
+          enrolled_at?: string
+          form_submission_id?: string | null
+          id?: string
+          next_run_at?: string | null
+          status?: string
+          updated_at?: string
+          workflow_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_enrollments_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "outcome_workflows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_enrollments_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_enrollments_form_submission_id_fkey"
+            columns: ["form_submission_id"]
+            isOneToOne: false
+            referencedRelation: "form_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_step_runs: {
+        Row: {
+          detail: Json | null
+          enrollment_id: string
+          id: string
+          ran_at: string
+          status: string
+          step_id: string | null
+        }
+        Insert: {
+          detail?: Json | null
+          enrollment_id: string
+          id?: string
+          ran_at?: string
+          status: string
+          step_id?: string | null
+        }
+        Update: {
+          detail?: Json | null
+          enrollment_id?: string
+          id?: string
+          ran_at?: string
+          status?: string
+          step_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_step_runs_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_step_runs_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_steps: {
+        Row: {
+          config: Json
+          created_at: string
+          id: string
+          sort_order: number
+          step_type: string
+          workflow_id: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          id?: string
+          sort_order?: number
+          step_type: string
+          workflow_id: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          id?: string
+          sort_order?: number
+          step_type?: string
+          workflow_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_steps_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "outcome_workflows"
             referencedColumns: ["id"]
           },
         ]

@@ -3,7 +3,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getFormBySlug } from "@/services/forms";
 import { upsertContactWithDedup } from "@/services/contact-upsert";
 import { addLabelToContact } from "@/services/labels";
-import { logLabelAdded, logFormSubmitted } from "@/services/activity-events";
+import { logActivity, logLabelAdded, logFormSubmitted } from "@/services/activity-events";
+import {
+  getActiveWorkflowsForOutcomes,
+  getActiveEnrollment,
+  createEnrollment,
+} from "@/services/workflows";
+import { runEnrollment } from "@/lib/workflows/runner";
+import { evaluateTrigger, type WorkflowTrigger } from "@/lib/workflows/types";
 import {
   isContactFieldKey,
   validateSubmission,
@@ -106,10 +113,12 @@ export async function POST(
   }
 
   // 3. Outcome responses — for every checked outcome field.
+  const respondedOutcomeIds = new Set<string>();
   for (const step of schema.steps) {
     for (const field of step.fields) {
       if (field.type !== "outcome" || !field.outcomeId) continue;
       if (data[fieldKey(field)] !== true) continue;
+      respondedOutcomeIds.add(field.outcomeId);
 
       const { data: oc } = await supabase
         .from("event_outcomes")
@@ -163,6 +172,58 @@ export async function POST(
     formId: form.id,
     submissionId: submission.id,
   });
+
+  // 6. Workflow enrollment — enroll the contact into any active workflow
+  //    whose trigger matches this submission, then run the first (instant)
+  //    steps inline so the welcome email goes out immediately. Never fail
+  //    the submission because of a workflow problem.
+  try {
+    const candidateOutcomeIds = new Set<string>(respondedOutcomeIds);
+    // The outcome whose dedicated form this is (1:1 link, migration 070).
+    const { data: linkedOutcomes } = await supabase
+      .from("event_outcomes")
+      .select("id")
+      .eq("form_id", form.id);
+    for (const o of (linkedOutcomes ?? []) as Array<{ id: string }>) {
+      candidateOutcomeIds.add(o.id);
+    }
+
+    if (candidateOutcomeIds.size > 0) {
+      const { data: workflows } = await getActiveWorkflowsForOutcomes(
+        supabase,
+        Array.from(candidateOutcomeIds)
+      );
+      for (const wf of (workflows ?? []) as Array<{
+        id: string;
+        name: string;
+        trigger: unknown;
+      }>) {
+        if (!evaluateTrigger(wf.trigger as WorkflowTrigger | null, data)) continue;
+
+        const existing = await getActiveEnrollment(supabase, wf.id, contactId);
+        if (existing.data) continue; // already mid-flight for this contact
+
+        const enrolled = await createEnrollment(supabase, {
+          workflow_id: wf.id,
+          contact_id: contactId,
+          form_submission_id: submission.id,
+          status: "active",
+          current_step: 0,
+          next_run_at: new Date().toISOString(),
+        });
+        if (enrolled.data) {
+          await logActivity(supabase, {
+            contact_id: contactId,
+            event_type: "workflow_enrolled",
+            payload: { workflow_id: wf.id, workflow_name: wf.name },
+          });
+          await runEnrollment(supabase, enrolled.data);
+        }
+      }
+    }
+  } catch (e) {
+    console.error("[form submit] workflow enrollment failed", e);
+  }
 
   return NextResponse.json({
     ok: true,
