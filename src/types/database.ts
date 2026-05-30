@@ -1326,7 +1326,7 @@ export type Database = {
           {
             foreignKeyName: "event_outcomes_form_id_fkey"
             columns: ["form_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "forms"
             referencedColumns: ["id"]
           },

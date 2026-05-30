@@ -392,17 +392,11 @@ function OutcomesTab(props: any) {
             const triggerFields = form?.schema
               ? extractTriggerFields(form.schema as FormSchema)
               : [];
-            // Forms available to link: this event's forms not already linked
-            // to a *different* outcome (form_id is unique per outcome).
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const otherLinked = new Set(
-              (outcomes as any[])
-                .filter((x) => x.id !== o.id && x.form_id)
-                .map((x) => x.form_id)
+            // A form may be linked to multiple outcomes (migration 072), so
+            // offer all of the event's forms.
+            const availableForms = (forms ?? []).map(
+              (f: { id: string; name: string }) => ({ id: f.id, name: f.name })
             );
-            const availableForms = (forms ?? [])
-              .filter((f: { id: string }) => !otherLinked.has(f.id))
-              .map((f: { id: string; name: string }) => ({ id: f.id, name: f.name }));
             return (
               <Card key={o.id}>
                 <CardHeader>
