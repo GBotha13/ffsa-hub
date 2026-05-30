@@ -392,6 +392,18 @@ async function runEmailStep(
     occurred_at: new Date().toISOString(),
     payload: { workflow_id: workflowId, step_id: step.id, subject },
   });
+
+  // Record the send for delivery/open/click analytics. The Mailtrap webhook
+  // reconciles by provider_message_id, mirroring campaign_recipients.
+  await supabase.from("workflow_email_sends").insert({
+    enrollment_id: enrollmentId,
+    workflow_id: workflowId,
+    step_id: step.id,
+    contact_id: contact.id,
+    outcome_label_id: args.outcomeLabelId,
+    provider_message_id: res.messageId,
+    sent_at: new Date().toISOString(),
+  });
   return true;
 }
 

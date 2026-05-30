@@ -1373,6 +1373,82 @@ export type Database = {
           },
         ]
       }
+      workflow_email_sends: {
+        Row: {
+          bounce_reason: string | null
+          bounced_at: string | null
+          complained_at: string | null
+          contact_id: string
+          delivered_at: string | null
+          enrollment_id: string | null
+          first_clicked_at: string | null
+          id: string
+          opened_at: string | null
+          outcome_label_id: string | null
+          provider_message_id: string | null
+          sent_at: string
+          step_id: string | null
+          unsubscribed_at: string | null
+          workflow_id: string | null
+        }
+        Insert: {
+          bounce_reason?: string | null
+          bounced_at?: string | null
+          complained_at?: string | null
+          contact_id: string
+          delivered_at?: string | null
+          enrollment_id?: string | null
+          first_clicked_at?: string | null
+          id?: string
+          opened_at?: string | null
+          outcome_label_id?: string | null
+          provider_message_id?: string | null
+          sent_at?: string
+          step_id?: string | null
+          unsubscribed_at?: string | null
+          workflow_id?: string | null
+        }
+        Update: {
+          bounce_reason?: string | null
+          bounced_at?: string | null
+          complained_at?: string | null
+          contact_id?: string
+          delivered_at?: string | null
+          enrollment_id?: string | null
+          first_clicked_at?: string | null
+          id?: string
+          opened_at?: string | null
+          outcome_label_id?: string | null
+          provider_message_id?: string | null
+          sent_at?: string
+          step_id?: string | null
+          unsubscribed_at?: string | null
+          workflow_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_email_sends_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_email_sends_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "outcome_workflows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_email_sends_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workflow_enrollments: {
         Row: {
           completed_at: string | null

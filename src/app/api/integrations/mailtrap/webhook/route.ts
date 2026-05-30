@@ -20,13 +20,6 @@ export async function POST(request: Request) {
   for (const ev of events) {
     if (!ev?.message_id) continue;
 
-    const { data: recipient } = await admin
-      .from("campaign_recipients")
-      .select("id, campaign_id, contact_id")
-      .eq("provider_message_id", ev.message_id)
-      .maybeSingle();
-    if (!recipient) continue; // unknown message — ignore gracefully
-
     const at = ev.timestamp
       ? new Date(ev.timestamp * 1000).toISOString()
       : new Date().toISOString();
@@ -65,20 +58,46 @@ export async function POST(request: Request) {
         continue;
     }
 
-    await admin.from("campaign_recipients").update(patch).eq("id", recipient.id);
+    // Reconcile against a campaign send first, then a workflow send.
+    // Opens/clicks/bounces/complaints go on the contact timeline;
+    // deliveries are skipped to avoid timeline noise.
+    const { data: recipient } = await admin
+      .from("campaign_recipients")
+      .select("id, campaign_id, contact_id")
+      .eq("provider_message_id", ev.message_id)
+      .maybeSingle();
 
-    // Opens/clicks/bounces/complaints go on the contact timeline.
-    // Deliveries are skipped to avoid timeline noise.
-    if (activityType && recipient.contact_id) {
-      await admin.from("activity_events").insert({
-        contact_id: recipient.contact_id,
-        event_type: activityType,
-        related_campaign_id: recipient.campaign_id,
-        occurred_at: at,
-      });
+    if (recipient) {
+      await admin.from("campaign_recipients").update(patch).eq("id", recipient.id);
+      if (activityType && recipient.contact_id) {
+        await admin.from("activity_events").insert({
+          contact_id: recipient.contact_id,
+          event_type: activityType,
+          related_campaign_id: recipient.campaign_id,
+          occurred_at: at,
+        });
+      }
+    } else {
+      const { data: wsend } = await admin
+        .from("workflow_email_sends")
+        .select("id, workflow_id, contact_id, outcome_label_id")
+        .eq("provider_message_id", ev.message_id)
+        .maybeSingle();
+      if (!wsend) continue; // unknown message — ignore gracefully
+
+      await admin.from("workflow_email_sends").update(patch).eq("id", wsend.id);
+      if (activityType && wsend.contact_id) {
+        await admin.from("activity_events").insert({
+          contact_id: wsend.contact_id,
+          event_type: activityType,
+          related_label_id: wsend.outcome_label_id ?? null,
+          occurred_at: at,
+          payload: { workflow_id: wsend.workflow_id, source: "workflow" },
+        });
+      }
     }
 
-    // Hard bounces + complaints feed the global suppression list.
+    // Hard bounces + complaints feed the global suppression list (both paths).
     if ((ev.event === "bounce" || ev.event === "spam") && ev.email) {
       await admin
         .from("email_suppressions")
