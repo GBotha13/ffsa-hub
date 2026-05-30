@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { addLabelToContact, findOrCreateLabel } from "@/services/labels";
 import { logLabelAdded } from "@/services/activity-events";
+import { enrollOnLabelAdded } from "@/lib/workflows/enroll-on-label";
 
 function slugify(input: string): string {
   return input
@@ -77,6 +78,19 @@ export async function POST(
       addedVia: `manual:${user.id}`,
       userId: user.id,
     });
+
+    // Fire any label_added workflows for this label. Awaited so it runs to
+    // completion on serverless; wrapped so a workflow error never fails the
+    // label add.
+    try {
+      await enrollOnLabelAdded({
+        contactId,
+        labelId,
+        addedVia: `manual:${user.id}`,
+      });
+    } catch (e) {
+      console.error("[labels] label_added enrollment failed", e);
+    }
   }
 
   return NextResponse.json({ labelId, contactId, added: !!result.data });
