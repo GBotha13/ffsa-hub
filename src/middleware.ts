@@ -54,12 +54,21 @@ export async function middleware(request: NextRequest) {
   const isPublicCheckoutRoute = /^\/api\/events\/[^/]+\/checkout\/?$/.test(
     pathname
   );
+  // Same exception for the promo-validate preview used by the public storefront.
+  const isPublicPromoValidateRoute =
+    /^\/api\/events\/[^/]+\/promo\/validate\/?$/.test(pathname);
 
   // Onboarding requires auth but should not redirect to login if unauthenticated
   // (the page itself handles the redirect)
   const isOnboarding = pathname.startsWith("/onboarding");
 
-  if (!user && !isPublicRoute && !isOnboarding && !isPublicCheckoutRoute) {
+  if (
+    !user &&
+    !isPublicRoute &&
+    !isOnboarding &&
+    !isPublicCheckoutRoute &&
+    !isPublicPromoValidateRoute
+  ) {
     // Redirect to login
     const url = request.nextUrl.clone();
     url.pathname = "/login";

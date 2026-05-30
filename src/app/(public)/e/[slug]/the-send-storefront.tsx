@@ -43,6 +43,14 @@ type LineItem = {
   pwywAmountCents: number | null;
 };
 
+type AppliedPromo = {
+  code: string;
+  kind: "percent" | "fixed_amount" | "comp";
+  percent_off: number | null;
+  amount_off_cents: number | null;
+  applies_to_ticket_type_id: string | null;
+};
+
 function rands(cents: number): string {
   return `R${(cents / 100).toLocaleString("en-ZA", {
     minimumFractionDigits: 2,
@@ -88,6 +96,9 @@ export function TheSendStorefront({
   const [lines, setLines] = useState<Record<string, LineItem>>({});
   const [donationRands, setDonationRands] = useState("");
   const [promoCode, setPromoCode] = useState("");
+  const [appliedPromo, setAppliedPromo] = useState<AppliedPromo | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const [checkingPromo, setCheckingPromo] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -142,8 +153,79 @@ export function TheSendStorefront({
     0,
     Math.round((Number.parseFloat(donationRands) || 0) * 100)
   );
-  const totalCents = subtotalCents + donationCents;
+
+  // Recompute the discount locally from the applied promo's terms so changes
+  // to the cart update the total instantly. Server re-validates at /checkout.
+  const promoDiscountCents = useMemo(() => {
+    if (!appliedPromo) return 0;
+    const tierIds = Object.values(lines).map((l) => l.ticketTypeId);
+    if (
+      appliedPromo.applies_to_ticket_type_id &&
+      !tierIds.includes(appliedPromo.applies_to_ticket_type_id)
+    ) {
+      return 0;
+    }
+    if (appliedPromo.kind === "percent") {
+      return Math.round(
+        (subtotalCents * (appliedPromo.percent_off ?? 0)) / 100
+      );
+    }
+    if (appliedPromo.kind === "fixed_amount") {
+      return Math.min(subtotalCents, appliedPromo.amount_off_cents ?? 0);
+    }
+    if (appliedPromo.kind === "comp") return subtotalCents;
+    return 0;
+  }, [appliedPromo, subtotalCents, lines]);
+
+  const totalCents =
+    Math.max(0, subtotalCents - promoDiscountCents) + donationCents;
   const lineCount = Object.values(lines).reduce((s, l) => s + l.qty, 0);
+
+  async function applyPromo() {
+    const code = promoCode.trim();
+    if (!code) {
+      setPromoError("Enter a code.");
+      return;
+    }
+    setCheckingPromo(true);
+    setPromoError(null);
+    try {
+      const res = await fetch(`/api/events/${event.id}/promo/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          ticket_type_ids: Object.values(lines).map((l) => l.ticketTypeId),
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as
+        | { ok: true; code: string; kind: AppliedPromo["kind"]; percent_off: number | null; amount_off_cents: number | null; applies_to_ticket_type_id: string | null }
+        | { ok: false; error?: string };
+      setCheckingPromo(false);
+      if (!data.ok) {
+        setAppliedPromo(null);
+        setPromoError(data.error ?? "Couldn't apply code.");
+        return;
+      }
+      setAppliedPromo({
+        code: data.code,
+        kind: data.kind,
+        percent_off: data.percent_off,
+        amount_off_cents: data.amount_off_cents,
+        applies_to_ticket_type_id: data.applies_to_ticket_type_id,
+      });
+      setPromoError(null);
+    } catch {
+      setCheckingPromo(false);
+      setPromoError("Network error. Please try again.");
+    }
+  }
+
+  function removePromo() {
+    setAppliedPromo(null);
+    setPromoCode("");
+    setPromoError(null);
+  }
 
   const buyerValid =
     firstName.trim().length > 0 &&
@@ -175,7 +257,7 @@ export function TheSendStorefront({
           pwyw_amount_cents: l.pwywAmountCents,
         })),
         donation_cents: donationCents,
-        promo_code: promoCode.trim() || null,
+        promo_code: appliedPromo?.code ?? promoCode.trim() ?? null,
         buyer: {
           first_name: firstName.trim(),
           last_name: lastName.trim(),
@@ -353,14 +435,59 @@ export function TheSendStorefront({
             <label className="tss-label" htmlFor="tss-promo">
               [ PROMO / COMP CODE ]
             </label>
-            <input
-              id="tss-promo"
-              type="text"
-              value={promoCode}
-              onChange={(e) => setPromoCode(e.target.value)}
-              placeholder="ENTER CODE"
-              className="tss-input tss-input-mono"
-            />
+            {appliedPromo ? (
+              <div className="tss-promo-applied">
+                <div className="tss-promo-applied-info">
+                  <span className="tss-promo-applied-code">
+                    {appliedPromo.code} APPLIED {ARROW}
+                  </span>
+                  <span className="tss-promo-applied-amount">
+                    {promoDiscountCents > 0
+                      ? `−${rands(promoDiscountCents)} off`
+                      : appliedPromo.applies_to_ticket_type_id
+                        ? "Add the matching tier to use this code."
+                        : "No discount on the current cart."}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={removePromo}
+                  className="tss-promo-remove"
+                  aria-label="Remove promo code"
+                >
+                  REMOVE ×
+                </button>
+              </div>
+            ) : (
+              <div className="tss-promo-row">
+                <input
+                  id="tss-promo"
+                  type="text"
+                  value={promoCode}
+                  onChange={(e) => {
+                    setPromoCode(e.target.value);
+                    if (promoError) setPromoError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      applyPromo();
+                    }
+                  }}
+                  placeholder="ENTER CODE"
+                  className="tss-input tss-input-mono"
+                />
+                <button
+                  type="button"
+                  onClick={applyPromo}
+                  disabled={checkingPromo || !promoCode.trim()}
+                  className="tss-promo-apply"
+                >
+                  {checkingPromo ? "…" : "APPLY"}
+                </button>
+              </div>
+            )}
+            {promoError && <p className="tss-promo-error">{promoError}</p>}
           </div>
           <div className="tss-field">
             <label className="tss-label" htmlFor="tss-gift">
@@ -459,6 +586,28 @@ export function TheSendStorefront({
       {/* ── PAY (inline, desktop + fallback) ───────────────── */}
       {lineCount > 0 && (
         <section className="tss-pay">
+          {(promoDiscountCents > 0 || donationCents > 0) && (
+            <div className="tss-pay-breakdown">
+              <div className="tss-pay-row">
+                <span>SUBTOTAL</span>
+                <span className="tss-pay-row-v">{rands(subtotalCents)}</span>
+              </div>
+              {promoDiscountCents > 0 && (
+                <div className="tss-pay-row tss-pay-row-discount">
+                  <span>DISCOUNT ({appliedPromo?.code})</span>
+                  <span className="tss-pay-row-v">
+                    −{rands(promoDiscountCents)}
+                  </span>
+                </div>
+              )}
+              {donationCents > 0 && (
+                <div className="tss-pay-row">
+                  <span>GIFT</span>
+                  <span className="tss-pay-row-v">+{rands(donationCents)}</span>
+                </div>
+              )}
+            </div>
+          )}
           <div className="tss-pay-total">
             <span className="tss-pay-total-k">TOTAL DUE</span>
             <span className="tss-pay-total-v">{rands(totalCents)}</span>
@@ -1041,8 +1190,47 @@ const scopedCss = `
   font-size:11px;line-height:1.6;letter-spacing:.06em;color:var(--navy);
 }
 
+/* ── Promo apply / applied chip ── */
+.tss-promo-row{display:flex;gap:8px;align-items:stretch;}
+.tss-promo-row .tss-input{flex:1;min-width:0;}
+.tss-promo-apply{
+  font-family:var(--font-bebas),sans-serif;font-size:15px;letter-spacing:.1em;
+  background:var(--navy);color:var(--gold);border:2px solid var(--navy);
+  padding:0 16px;cursor:pointer;flex-shrink:0;
+  transition:transform .12s;
+}
+.tss-promo-apply:hover:not(:disabled){background:var(--blue);border-color:var(--blue);color:var(--cream);}
+.tss-promo-apply:disabled{opacity:.4;cursor:not-allowed;}
+.tss-promo-applied{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  border:2px solid var(--navy);background:var(--gold);color:var(--navy);
+  padding:10px 12px;
+}
+.tss-promo-applied-info{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.tss-promo-applied-code{
+  font-family:var(--font-anton),sans-serif;font-size:16px;letter-spacing:.04em;
+  text-transform:uppercase;
+}
+.tss-promo-applied-amount{font-size:11px;letter-spacing:.04em;opacity:.85;}
+.tss-promo-remove{
+  font-family:var(--font-bebas),sans-serif;font-size:12px;letter-spacing:.12em;
+  background:transparent;color:var(--navy);border:1.5px solid var(--navy);
+  padding:5px 9px;cursor:pointer;flex-shrink:0;
+}
+.tss-promo-error{font-size:11px;letter-spacing:.04em;margin:6px 0 0;color:var(--red);}
+
 /* ── PAY ── */
 .tss-pay{text-align:left;}
+.tss-pay-breakdown{
+  border-top:3px solid var(--navy);padding:14px 0 10px;display:flex;flex-direction:column;gap:5px;
+}
+.tss-pay-row{
+  display:flex;align-items:baseline;justify-content:space-between;
+  font-size:12px;letter-spacing:.1em;color:var(--navy);
+}
+.tss-pay-row-v{font-variant-numeric:tabular-nums;}
+.tss-pay-row-discount{color:var(--red);}
+.tss-pay-row-discount span:first-child{font-weight:700;}
 .tss-pay-total{
   display:flex;align-items:baseline;justify-content:space-between;
   border-top:3px solid var(--navy);border-bottom:3px solid var(--navy);

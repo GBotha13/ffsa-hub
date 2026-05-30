@@ -37,6 +37,14 @@ type LineItem = {
   pwywAmountCents: number | null;
 };
 
+type AppliedPromo = {
+  code: string;
+  kind: "percent" | "fixed_amount" | "comp";
+  percent_off: number | null;
+  amount_off_cents: number | null;
+  applies_to_ticket_type_id: string | null;
+};
+
 function rands(cents: number): string {
   return `R${(cents / 100).toFixed(2)}`;
 }
@@ -76,6 +84,9 @@ export function Storefront({
   const [lines, setLines] = useState<Record<string, LineItem>>({});
   const [donationRands, setDonationRands] = useState("");
   const [promoCode, setPromoCode] = useState("");
+  const [appliedPromo, setAppliedPromo] = useState<AppliedPromo | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const [checkingPromo, setCheckingPromo] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -130,8 +141,80 @@ export function Storefront({
     0,
     Math.round((Number.parseFloat(donationRands) || 0) * 100)
   );
-  const totalCents = subtotalCents + donationCents;
+
+  // Recompute the discount locally from the applied promo's terms so changes
+  // to the cart (qty, tier add/remove) update the displayed total instantly.
+  // Server re-validates and re-computes at /checkout.
+  const promoDiscountCents = useMemo(() => {
+    if (!appliedPromo) return 0;
+    const tierIds = Object.values(lines).map((l) => l.ticketTypeId);
+    if (
+      appliedPromo.applies_to_ticket_type_id &&
+      !tierIds.includes(appliedPromo.applies_to_ticket_type_id)
+    ) {
+      return 0;
+    }
+    if (appliedPromo.kind === "percent") {
+      return Math.round(
+        (subtotalCents * (appliedPromo.percent_off ?? 0)) / 100
+      );
+    }
+    if (appliedPromo.kind === "fixed_amount") {
+      return Math.min(subtotalCents, appliedPromo.amount_off_cents ?? 0);
+    }
+    if (appliedPromo.kind === "comp") return subtotalCents;
+    return 0;
+  }, [appliedPromo, subtotalCents, lines]);
+
+  const totalCents =
+    Math.max(0, subtotalCents - promoDiscountCents) + donationCents;
   const lineCount = Object.values(lines).reduce((s, l) => s + l.qty, 0);
+
+  async function applyPromo() {
+    const code = promoCode.trim();
+    if (!code) {
+      setPromoError("Enter a code.");
+      return;
+    }
+    setCheckingPromo(true);
+    setPromoError(null);
+    try {
+      const res = await fetch(`/api/events/${event.id}/promo/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          ticket_type_ids: Object.values(lines).map((l) => l.ticketTypeId),
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as
+        | { ok: true; code: string; kind: AppliedPromo["kind"]; percent_off: number | null; amount_off_cents: number | null; applies_to_ticket_type_id: string | null }
+        | { ok: false; error?: string };
+      setCheckingPromo(false);
+      if (!data.ok) {
+        setAppliedPromo(null);
+        setPromoError(data.error ?? "Couldn't apply code.");
+        return;
+      }
+      setAppliedPromo({
+        code: data.code,
+        kind: data.kind,
+        percent_off: data.percent_off,
+        amount_off_cents: data.amount_off_cents,
+        applies_to_ticket_type_id: data.applies_to_ticket_type_id,
+      });
+      setPromoError(null);
+    } catch {
+      setCheckingPromo(false);
+      setPromoError("Network error. Please try again.");
+    }
+  }
+
+  function removePromo() {
+    setAppliedPromo(null);
+    setPromoCode("");
+    setPromoError(null);
+  }
 
   const buyerValid =
     firstName.trim().length > 0 &&
@@ -160,7 +243,7 @@ export function Storefront({
           pwyw_amount_cents: l.pwywAmountCents,
         })),
         donation_cents: donationCents,
-        promo_code: promoCode.trim() || null,
+        promo_code: appliedPromo?.code ?? promoCode.trim() ?? null,
         buyer: {
           first_name: firstName.trim(),
           last_name: lastName.trim(),
@@ -344,13 +427,61 @@ export function Storefront({
           <CardContent className="p-6 space-y-4">
             <div>
               <label>Promo or comp code (optional)</label>
-              <input
-                type="text"
-                value={promoCode}
-                onChange={(e) => setPromoCode(e.target.value)}
-                placeholder="Enter code"
-                className="w-full mt-1 px-3 py-2 font-mono"
-              />
+              {appliedPromo ? (
+                <div className="mt-1 flex items-center justify-between gap-3 rounded-md border border-green-700/40 bg-green-700/10 px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold font-mono text-green-500 truncate">
+                      {appliedPromo.code} applied
+                    </p>
+                    <p className="text-[11px] text-green-500/80">
+                      {promoDiscountCents > 0
+                        ? `−${rands(promoDiscountCents)} off your order`
+                        : appliedPromo.applies_to_ticket_type_id
+                          ? "Add the matching tier to your cart to use this code."
+                          : "No discount on the current cart."}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={removePromo}
+                    className="text-xs text-muted-foreground hover:text-foreground underline shrink-0"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-1 flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={promoCode}
+                    onChange={(e) => {
+                      setPromoCode(e.target.value);
+                      if (promoError) setPromoError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        applyPromo();
+                      }
+                    }}
+                    placeholder="Enter code"
+                    className="flex-1 min-w-0 px-3 py-2 font-mono"
+                  />
+                  <Button
+                    type="button"
+                    onClick={applyPromo}
+                    disabled={checkingPromo || !promoCode.trim()}
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0"
+                  >
+                    {checkingPromo ? "Checking…" : "Apply"}
+                  </Button>
+                </div>
+              )}
+              {promoError && (
+                <p className="text-xs mt-1.5 text-red-500">{promoError}</p>
+              )}
             </div>
             <div>
               <label>Add a gift (ZAR, optional)</label>
@@ -371,16 +502,40 @@ export function Storefront({
       {/* Total */}
       {lineCount > 0 && (
         <Card>
-          <CardContent className="px-6 py-4 flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-              Total
-            </span>
-            <span
-              className="text-2xl font-display tracking-wide"
-              style={{ color: "var(--yellow)" }}
-            >
-              {rands(totalCents)}
-            </span>
+          <CardContent className="px-6 py-4 space-y-2">
+            {(promoDiscountCents > 0 || donationCents > 0) && (
+              <div className="space-y-1 text-sm text-muted-foreground">
+                <div className="flex items-center justify-between">
+                  <span>Subtotal</span>
+                  <span className="font-mono">{rands(subtotalCents)}</span>
+                </div>
+                {promoDiscountCents > 0 && (
+                  <div className="flex items-center justify-between text-green-500">
+                    <span>Discount ({appliedPromo?.code})</span>
+                    <span className="font-mono">
+                      −{rands(promoDiscountCents)}
+                    </span>
+                  </div>
+                )}
+                {donationCents > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span>Gift</span>
+                    <span className="font-mono">+{rands(donationCents)}</span>
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="flex items-center justify-between border-t pt-2">
+              <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                Total
+              </span>
+              <span
+                className="text-2xl font-display tracking-wide"
+                style={{ color: "var(--yellow)" }}
+              >
+                {rands(totalCents)}
+              </span>
+            </div>
           </CardContent>
         </Card>
       )}
