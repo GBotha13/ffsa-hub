@@ -56,6 +56,17 @@ export async function getWorkflowSteps(supabase: Client, workflowId: string) {
     .order("sort_order");
 }
 
+// Every workflow across all events, with its outcome + event + step count.
+// Powers the Communications → Automations hub.
+export async function listAllWorkflows(supabase: Client) {
+  return supabase
+    .from("outcome_workflows")
+    .select(
+      "id, name, is_active, created_at, event_outcomes(name, event_id, events(title)), workflow_steps(count)"
+    )
+    .order("created_at", { ascending: false });
+}
+
 // ────────────────────────────────────────────────────────────
 // Workflows (write)
 // ────────────────────────────────────────────────────────────

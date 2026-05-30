@@ -32,6 +32,12 @@ export default async function CommunicationsPage() {
         </div>
         <div className="flex gap-1.5">
           <a
+            href="/communications/automations"
+            className="text-sm px-3 py-1.5 rounded-full border hover:bg-muted transition-colors"
+          >
+            Automations →
+          </a>
+          <a
             href="/communications/identities"
             className="text-sm px-3 py-1.5 rounded-full border hover:bg-muted transition-colors"
           >
