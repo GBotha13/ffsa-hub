@@ -16,7 +16,11 @@ export type WorkflowTrigger =
       field_key: string; // matches the form field's data key (fieldKey())
       op: "eq";
       value: string | boolean;
-    };
+    }
+  // Fires when the outcome's label is added to a contact by ANY means
+  // (manual, CSV import, another workflow). Evaluated by the label-add
+  // path, NOT by the form-submit hook — so evaluateTrigger() returns false.
+  | { type: "label_added"; label_id: string };
 
 // ── Steps ────────────────────────────────────────────────────
 // Stored in workflow_steps.step_type + workflow_steps.config (jsonb).
@@ -62,5 +66,6 @@ export function evaluateTrigger(
       String(trigger.value).trim().toLowerCase()
     );
   }
+  // label_added triggers are not driven by form submissions.
   return false;
 }

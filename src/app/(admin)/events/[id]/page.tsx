@@ -21,6 +21,8 @@ import { OutcomesManager } from "./outcomes-manager";
 import { RolesRoster } from "./roles-roster";
 import { BaseLabelPicker } from "./base-label-picker";
 import { FormsTab } from "./forms-tab";
+import { WorkflowsManager } from "./workflows-manager";
+import { fieldKey, type FormSchema } from "@/lib/forms/schema";
 import { EventLogo } from "./event-logo";
 import { EventStatusControl } from "./event-status-control";
 import { EventDetailsForm } from "./event-details-form";
@@ -38,6 +40,7 @@ import type { FeeProfile } from "@/lib/payments/pricing";
 
 const TABS = [
   { key: "details", label: "Details & Roles" },
+  { key: "outcomes", label: "Outcomes" },
   { key: "tickets", label: "Tickets" },
   { key: "orders", label: "Orders" },
   { key: "check-in", label: "Check-in" },
@@ -73,6 +76,7 @@ export default async function EventDetailPage({
     { data: feeProfilesRaw },
     { data: orders },
     { data: attendanceTickets },
+    { data: identities },
   ] = await Promise.all([
     getRegistrationsForEvent(supabase, id),
     getAttendanceForEvent(supabase, id),
@@ -86,7 +90,7 @@ export default async function EventDetailPage({
       .order("first_name"),
     supabase
       .from("forms")
-      .select("id, slug, name, is_active, records_attendance")
+      .select("id, slug, name, is_active, records_attendance, schema, label_id")
       .eq("event_id", id)
       .order("created_at"),
     listTicketTypesByEvent(supabase, id),
@@ -94,7 +98,22 @@ export default async function EventDetailPage({
     getActiveFeeProfiles(supabase),
     listOrdersByEvent(supabase, id),
     listAttendanceTicketsByEvent(supabase, id),
+    supabase
+      .from("sending_identities")
+      .select("id, display_name")
+      .eq("is_active", true)
+      .order("display_name"),
   ]);
+
+  // Workflows for this event's outcomes (for the Outcomes tab). Returns
+  // empty if migration 070 has not been applied yet.
+  const outcomeIds = (outcomes ?? []).map((o: { id: string }) => o.id);
+  const { data: workflows } = outcomeIds.length
+    ? await supabase
+        .from("outcome_workflows")
+        .select("*, workflow_steps(*)")
+        .in("outcome_id", outcomeIds)
+    : { data: [] as unknown[] };
 
   // payment_fee_profiles rows are snake_case in the DB; FeeProfile
   // (pricing.ts) is camelCase. Map once here for the client preview.
@@ -162,6 +181,17 @@ export default async function EventDetailPage({
         />
       )}
 
+      {tab === "outcomes" && (
+        <OutcomesTab
+          eventId={id}
+          outcomes={outcomes ?? []}
+          labels={labels ?? []}
+          forms={forms ?? []}
+          identities={identities ?? []}
+          workflows={workflows ?? []}
+        />
+      )}
+
       {tab === "tickets" && (
         <TicketsTab
           eventId={id}
@@ -192,8 +222,7 @@ export default async function EventDetailPage({
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function DetailsTab(props: any) {
-  const { event, eventId, outcomes, roles, labels, users, registrations, attendance } =
-    props;
+  const { event, eventId, roles, labels, users, registrations, attendance } = props;
 
   const regStatusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
     pending: "outline",
@@ -228,8 +257,6 @@ function DetailsTab(props: any) {
         currentLabelId={event.base_label_id}
         labels={labels}
       />
-
-      <OutcomesManager eventId={eventId} outcomes={outcomes} labels={labels} />
 
       <RolesRoster eventId={eventId} roles={roles} users={users} />
 
@@ -309,4 +336,111 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
       </CardContent>
     </Card>
   );
+}
+
+// ────────────────────────────────────────────────────────────
+// Outcomes tab — the module: each outcome + its form + workflows
+// ────────────────────────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function OutcomesTab(props: any) {
+  const { eventId, outcomes, labels, forms, identities, workflows } = props;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const formById = new Map<string, any>(
+    (forms ?? []).map((f: { id: string }) => [f.id, f])
+  );
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const wfByOutcome = new Map<string, any[]>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const w of (workflows ?? []) as any[]) {
+    const arr = wfByOutcome.get(w.outcome_id) ?? [];
+    arr.push(w);
+    wfByOutcome.set(w.outcome_id, arr);
+  }
+
+  const labelOptions = (labels ?? []).map((l: { id: string; name: string }) => ({
+    id: l.id,
+    name: l.name,
+  }));
+  const identityOptions = (identities ?? []).map(
+    (i: { id: string; display_name: string }) => ({ id: i.id, label: i.display_name })
+  );
+
+  return (
+    <div className="space-y-6">
+      <OutcomesManager eventId={eventId} outcomes={outcomes} labels={labels} />
+
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-base font-semibold">Forms &amp; automation</h2>
+          <p className="text-sm text-muted-foreground">
+            Each outcome owns one form and the follow-up workflows that run when
+            someone responds.
+          </p>
+        </div>
+
+        {(outcomes ?? []).length === 0 ? (
+          <p className="text-sm text-muted-foreground italic">
+            Add an outcome above to configure its form and workflows.
+          </p>
+        ) : (
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (outcomes as any[]).map((o) => {
+            const form = o.form_id ? formById.get(o.form_id) : null;
+            const triggerFields = form?.schema
+              ? extractTriggerFields(form.schema as FormSchema)
+              : [];
+            return (
+              <Card key={o.id}>
+                <CardHeader>
+                  <CardTitle className="text-base">{o.name}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="text-sm">
+                    {form ? (
+                      <Link
+                        href={`/events/${eventId}/forms/${form.id}`}
+                        className="text-blue-600 hover:underline"
+                      >
+                        Form: {form.name} →
+                      </Link>
+                    ) : (
+                      <span className="text-amber-600">
+                        No form linked yet — create one on the Forms tab, then link it.
+                      </span>
+                    )}
+                  </div>
+                  <WorkflowsManager
+                    eventId={eventId}
+                    outcomeId={o.id}
+                    outcomeName={o.name}
+                    outcomeLabelId={o.label_id ?? null}
+                    hasForm={!!form}
+                    labelOptions={labelOptions}
+                    identityOptions={identityOptions}
+                    triggerFields={triggerFields}
+                    initialWorkflows={wfByOutcome.get(o.id) ?? []}
+                  />
+                </CardContent>
+              </Card>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+function extractTriggerFields(
+  schema: FormSchema
+): Array<{ key: string; label: string }> {
+  const out: Array<{ key: string; label: string }> = [];
+  for (const step of schema.steps ?? []) {
+    for (const f of step.fields ?? []) {
+      if (f.type === "consent") continue;
+      out.push({ key: fieldKey(f), label: f.label });
+    }
+  }
+  return out;
 }
