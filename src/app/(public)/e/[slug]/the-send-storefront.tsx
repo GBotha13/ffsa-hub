@@ -104,7 +104,7 @@ export function TheSendStorefront({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [marketingConsent, setMarketingConsent] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useState<"payfast" | "stripe" | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   function setQty(t: TicketType, qty: number) {
@@ -232,7 +232,7 @@ export function TheSendStorefront({
     lastName.trim().length > 0 &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 
-  async function submit() {
+  async function submit(provider: "payfast" | "stripe" = "payfast") {
     if (lineCount === 0) {
       setErr("Add at least one ticket.");
       return;
@@ -244,7 +244,7 @@ export function TheSendStorefront({
         ?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
-    setSubmitting(true);
+    setSubmitting(provider);
     setErr(null);
 
     const res = await fetch(`/api/events/${event.id}/checkout`, {
@@ -265,10 +265,10 @@ export function TheSendStorefront({
           phone: phone.trim() || null,
         },
         marketing_consent: marketingConsent,
-        payment_provider: "payfast",
+        payment_provider: provider,
       }),
     });
-    setSubmitting(false);
+    setSubmitting(null);
     if (!res.ok) {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       setErr(data.error ?? "Couldn't start checkout. Please try again.");
@@ -619,15 +619,36 @@ export function TheSendStorefront({
           {err && <p className="tss-error">{ARROW} {err}</p>}
           <button
             type="button"
-            onClick={submit}
-            disabled={submitting || !buyerValid}
+            onClick={() => submit("payfast")}
+            disabled={submitting !== null || !buyerValid}
             className="tss-paybtn"
           >
-            {submitting
+            {submitting === "payfast"
               ? "DEPLOYING…"
               : `PAY ${rands(totalCents)}`}
-            {!submitting && <span className="tss-cta-arrow">{ARROW}</span>}
+            {submitting !== "payfast" && (
+              <span className="tss-cta-arrow">{ARROW}</span>
+            )}
           </button>
+          <div className="tss-paybtn-alt-wrap">
+            <button
+              type="button"
+              onClick={() => submit("stripe")}
+              disabled={submitting !== null || !buyerValid}
+              className="tss-paybtn-alt"
+            >
+              {submitting === "stripe"
+                ? "DEPLOYING…"
+                : "PAY WITH INTERNATIONAL CARD"}
+              {submitting !== "stripe" && (
+                <span className="tss-cta-arrow">{ARROW}</span>
+              )}
+            </button>
+            <p className="tss-paybtn-alt-note">
+              {ARROW} CARD DECLINED ON PAYFAST? AMEX / APPLE&nbsp;PAY / GOOGLE&nbsp;PAY?
+              USE STRIPE.
+            </p>
+          </div>
         </section>
       )}
 
@@ -654,11 +675,11 @@ export function TheSendStorefront({
           </div>
           <button
             type="button"
-            onClick={submit}
-            disabled={submitting}
+            onClick={() => submit("payfast")}
+            disabled={submitting !== null}
             className="tss-sticky-btn"
           >
-            {submitting ? "…" : "CHECKOUT"}
+            {submitting !== null ? "…" : "CHECKOUT"}
             <span className="tss-cta-arrow">{ARROW}</span>
           </button>
         </div>
@@ -1253,6 +1274,20 @@ const scopedCss = `
 .tss-paybtn:hover:not(:disabled){transform:translate(-2px,-2px);box-shadow:10px 10px 0 var(--navy);}
 .tss-paybtn:active:not(:disabled){transform:translate(2px,2px);box-shadow:3px 3px 0 var(--navy);}
 .tss-paybtn:disabled{opacity:.45;cursor:not-allowed;box-shadow:4px 4px 0 var(--navy);}
+
+.tss-paybtn-alt-wrap{margin-top:14px;}
+.tss-paybtn-alt{
+  width:100%;background:transparent;color:var(--navy);border:2.5px solid var(--navy);
+  font-family:var(--font-bebas),sans-serif;font-size:17px;letter-spacing:.1em;
+  padding:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;
+  transition:background .12s,color .12s;
+}
+.tss-paybtn-alt:hover:not(:disabled){background:var(--navy);color:var(--gold);}
+.tss-paybtn-alt:disabled{opacity:.45;cursor:not-allowed;}
+.tss-paybtn-alt-note{
+  text-align:center;font-size:10px;letter-spacing:.1em;margin:7px 0 0;
+  color:var(--navy);opacity:.7;
+}
 
 /* ── FOOTER ── */
 .tss-footer{background:var(--navy);color:var(--cream);text-align:center;padding:40px 20px 120px;}

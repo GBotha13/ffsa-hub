@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { payfastProvider } from "@/lib/payments/payfast";
+import { stripeProvider } from "@/lib/payments/stripe";
+import type { PaymentProvider } from "@/lib/payments/provider";
 
 // POST /api/events/[id]/checkout
 //
@@ -103,14 +105,13 @@ export async function POST(
     );
   }
 
-  // ── Provider (v1: PayFast only) ──────────────────────────────
-  const provider = body.payment_provider ?? "payfast";
-  if (provider !== "payfast") {
+  // ── Provider ────────────────────────────────────────────────
+  const providerName = body.payment_provider ?? "payfast";
+  const providerImpl: PaymentProvider =
+    providerName === "stripe" ? stripeProvider : payfastProvider;
+  if (providerName !== "payfast" && providerName !== "stripe") {
     return NextResponse.json(
-      {
-        error:
-          "Only PayFast (South African card) is available right now. International cards via Stripe arrive in v1.5.",
-      },
+      { error: "Unknown payment provider." },
       { status: 400 }
     );
   }
@@ -373,7 +374,7 @@ export async function POST(
       marketing_consent: !!body.marketing_consent,
       status: "pending",
       contact_resolution: "pending",
-      payment_provider: provider,
+      payment_provider: providerName,
       currency: "ZAR",
       subtotal_cents: subtotalCents,
       discount_cents: discountCents,
@@ -423,12 +424,16 @@ export async function POST(
     }
   }
 
-  // ── PayFast checkout ─────────────────────────────────────────
+  // ── Provider checkout ───────────────────────────────────────
   const base = siteBase(request);
   const totalQty = resolved.reduce((s, l) => s + l.qty, 0);
+  const notifyUrl =
+    providerName === "stripe"
+      ? `${base}/api/integrations/stripe/notify`
+      : `${base}/api/integrations/payfast/notify`;
   let checkout;
   try {
-    checkout = await payfastProvider.createCheckout({
+    checkout = await providerImpl.createCheckout({
       orderId: order.id,
       amountCents: totalCents,
       currency: "ZAR",
@@ -436,17 +441,17 @@ export async function POST(
       buyer: { firstName, lastName, email: emailRaw },
       returnUrl: `${base}/e/${event.public_slug}/thanks?order=${order.id}`,
       cancelUrl: `${base}/e/${event.public_slug}`,
-      notifyUrl: `${base}/api/integrations/payfast/notify`,
+      notifyUrl,
     });
   } catch (e) {
-    // PayFast misconfigured (env missing) or similar. The order is
+    // Provider misconfigured (env missing) or similar. The order is
     // still pending; expires_at will sweep its inventory.
     return NextResponse.json(
       {
         error:
           e instanceof Error
             ? e.message
-            : "Couldn't start the PayFast checkout.",
+            : "Couldn't start the checkout.",
       },
       { status: 500 }
     );

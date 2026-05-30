@@ -92,7 +92,7 @@ export function Storefront({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [marketingConsent, setMarketingConsent] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useState<"payfast" | "stripe" | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   function setQty(t: TicketType, qty: number) {
@@ -221,7 +221,7 @@ export function Storefront({
     lastName.trim().length > 0 &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 
-  async function submit() {
+  async function submit(provider: "payfast" | "stripe" = "payfast") {
     if (lineCount === 0) {
       setErr("Add at least one ticket.");
       return;
@@ -230,7 +230,7 @@ export function Storefront({
       setErr("Please complete your name and a valid email.");
       return;
     }
-    setSubmitting(true);
+    setSubmitting(provider);
     setErr(null);
 
     const res = await fetch(`/api/events/${event.id}/checkout`, {
@@ -251,10 +251,10 @@ export function Storefront({
           phone: phone.trim() || null,
         },
         marketing_consent: marketingConsent,
-        payment_provider: "payfast",
+        payment_provider: provider,
       }),
     });
-    setSubmitting(false);
+    setSubmitting(null);
     if (!res.ok) {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       setErr(data.error ?? "Couldn't start checkout. Please try again.");
@@ -616,15 +616,33 @@ export function Storefront({
             )}
             <Button
               type="button"
-              onClick={submit}
-              disabled={submitting || !buyerValid}
+              onClick={() => submit("payfast")}
+              disabled={submitting !== null || !buyerValid}
               size="lg"
               className="w-full h-12"
             >
-              {submitting
+              {submitting === "payfast"
                 ? "Starting payment…"
                 : `Pay ${rands(totalCents)} →`}
             </Button>
+            <div className="pt-1">
+              <Button
+                type="button"
+                onClick={() => submit("stripe")}
+                disabled={submitting !== null || !buyerValid}
+                variant="outline"
+                size="lg"
+                className="w-full h-11"
+              >
+                {submitting === "stripe"
+                  ? "Starting payment…"
+                  : "Pay with international card (Stripe) →"}
+              </Button>
+              <p className="text-[11px] text-muted-foreground normal-case tracking-normal mt-2 text-center">
+                Use this if your card was declined on PayFast, or for
+                international cards / Apple Pay.
+              </p>
+            </div>
           </CardContent>
         </Card>
       )}
