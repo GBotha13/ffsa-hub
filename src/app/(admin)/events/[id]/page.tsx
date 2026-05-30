@@ -22,6 +22,7 @@ import { RolesRoster } from "./roles-roster";
 import { BaseLabelPicker } from "./base-label-picker";
 import { FormsTab } from "./forms-tab";
 import { WorkflowsManager } from "./workflows-manager";
+import { OutcomeFormLink } from "./outcome-form-link";
 import { fieldKey, type FormSchema } from "@/lib/forms/schema";
 import { EventLogo } from "./event-logo";
 import { EventStatusControl } from "./event-status-control";
@@ -391,26 +392,30 @@ function OutcomesTab(props: any) {
             const triggerFields = form?.schema
               ? extractTriggerFields(form.schema as FormSchema)
               : [];
+            // Forms available to link: this event's forms not already linked
+            // to a *different* outcome (form_id is unique per outcome).
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const otherLinked = new Set(
+              (outcomes as any[])
+                .filter((x) => x.id !== o.id && x.form_id)
+                .map((x) => x.form_id)
+            );
+            const availableForms = (forms ?? [])
+              .filter((f: { id: string }) => !otherLinked.has(f.id))
+              .map((f: { id: string; name: string }) => ({ id: f.id, name: f.name }));
             return (
               <Card key={o.id}>
                 <CardHeader>
                   <CardTitle className="text-base">{o.name}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="text-sm">
-                    {form ? (
-                      <Link
-                        href={`/events/${eventId}/forms/${form.id}`}
-                        className="text-blue-600 hover:underline"
-                      >
-                        Form: {form.name} →
-                      </Link>
-                    ) : (
-                      <span className="text-amber-600">
-                        No form linked yet — create one on the Forms tab, then link it.
-                      </span>
-                    )}
-                  </div>
+                  <OutcomeFormLink
+                    eventId={eventId}
+                    outcomeId={o.id}
+                    currentFormId={o.form_id ?? null}
+                    currentFormName={form?.name ?? null}
+                    forms={availableForms}
+                  />
                   <WorkflowsManager
                     eventId={eventId}
                     outcomeId={o.id}

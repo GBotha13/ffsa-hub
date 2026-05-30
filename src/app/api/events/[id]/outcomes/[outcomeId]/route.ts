@@ -30,6 +30,7 @@ export async function PATCH(
     description?: string | null;
     label_id?: string | null;
     newLabelName?: string | null;
+    form_id?: string | null;
     sort_order?: number;
     is_active?: boolean;
   };
@@ -43,6 +44,7 @@ export async function PATCH(
   if (body.name !== undefined) patch.name = body.name.trim();
   if (body.description !== undefined) patch.description = body.description;
   if (body.label_id !== undefined) patch.label_id = body.label_id;
+  if (body.form_id !== undefined) patch.form_id = body.form_id;
   if (body.sort_order !== undefined) patch.sort_order = body.sort_order;
   if (body.is_active !== undefined) patch.is_active = body.is_active;
 
