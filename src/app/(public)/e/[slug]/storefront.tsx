@@ -41,9 +41,17 @@ function rands(cents: number): string {
   return `R${(cents / 100).toFixed(2)}`;
 }
 
-function isOnSale(t: TicketType, now: Date): boolean {
+// In its sales window — controls public visibility. Sold-out tiers within
+// the window stay visible (social proof). Tiers scheduled for later or
+// already closed stay hidden so the marketing plan isn't on display.
+function isWindowOpen(t: TicketType, now: Date): boolean {
   if (t.sales_start_at && new Date(t.sales_start_at) > now) return false;
   if (t.sales_end_at && new Date(t.sales_end_at) <= now) return false;
+  return true;
+}
+
+function isOnSale(t: TicketType, now: Date): boolean {
+  if (!isWindowOpen(t, now)) return false;
   if (t.capacity != null && t.quantity_sold >= t.capacity) return false;
   return true;
 }
@@ -61,6 +69,10 @@ export function Storefront({
   ticketTypes: TicketType[];
 }) {
   const now = useMemo(() => new Date(), []);
+  const visibleTickets = useMemo(
+    () => ticketTypes.filter((t) => isWindowOpen(t, now)),
+    [ticketTypes, now]
+  );
   const [lines, setLines] = useState<Record<string, LineItem>>({});
   const [donationRands, setDonationRands] = useState("");
   const [promoCode, setPromoCode] = useState("");
@@ -224,13 +236,13 @@ export function Storefront({
           <CardTitle className="text-base">Tickets</CardTitle>
         </CardHeader>
         <CardContent>
-          {ticketTypes.length === 0 ? (
+          {visibleTickets.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No tickets available right now. Please check back soon.
             </p>
           ) : (
             <ul className="space-y-3">
-              {ticketTypes.map((t) => {
+              {visibleTickets.map((t) => {
                 const onSale = isOnSale(t, now);
                 const rem = remaining(t);
                 const line = lines[t.id];
@@ -327,7 +339,7 @@ export function Storefront({
       </Card>
 
       {/* Promo + donation */}
-      {ticketTypes.length > 0 && (
+      {visibleTickets.length > 0 && (
         <Card>
           <CardContent className="p-6 space-y-4">
             <div>
