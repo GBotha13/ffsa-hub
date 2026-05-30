@@ -1,4 +1,4 @@
-import type { TablesInsert, TablesUpdate } from "@/types/database";
+import type { TablesInsert, TablesUpdate, Json } from "@/types/database";
 
 type WorkflowInsert = TablesInsert<"outcome_workflows">;
 type WorkflowUpdate = TablesUpdate<"outcome_workflows">;
@@ -176,4 +176,24 @@ export async function cancelActiveEnrollmentsForContact(
 
 export async function recordStepRun(supabase: Client, data: StepRunInsert) {
   return supabase.from("workflow_step_runs").insert(data);
+}
+
+/**
+ * Replace a workflow's steps wholesale with an ordered list. Simpler than
+ * diffing for the builder's "save" — delete all, re-insert in order.
+ */
+export async function replaceWorkflowSteps(
+  supabase: Client,
+  workflowId: string,
+  steps: Array<{ step_type: string; config: unknown }>
+) {
+  await supabase.from("workflow_steps").delete().eq("workflow_id", workflowId);
+  if (steps.length === 0) return { data: [], error: null };
+  const rows = steps.map((s, i) => ({
+    workflow_id: workflowId,
+    sort_order: i,
+    step_type: s.step_type,
+    config: (s.config ?? {}) as Json,
+  }));
+  return supabase.from("workflow_steps").insert(rows).select();
 }
