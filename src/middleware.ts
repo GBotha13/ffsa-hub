@@ -41,10 +41,14 @@ export async function middleware(request: NextRequest) {
     "/reference",
     "/legal", // public privacy / consent agreement
     "/e", // public ticket storefront (/e/[slug] + /e/[slug]/thanks)
+    "/f", // public form runtime (/f/[slug]) — CRM lead-capture forms
+    "/preferences", // public email preference / unsubscribe page
     "/api/upload/sign", // public applicants upload photos from /apply
     "/api/public", // public application submission
+    "/api/f", // public form submission (/api/f/[slug]/submit)
     "/api/integrations", // payment webhooks (PayFast ITN, future Stripe, etc.) — must be reachable by external services with no auth cookies
     "/api/tickets", // public QR image endpoint (the code in the URL is the auth) — referenced from confirmation emails
+    "/api/cron", // Vercel Cron endpoints — authenticated by CRON_SECRET bearer token in the route handler, not session cookies
   ];
   const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
 
