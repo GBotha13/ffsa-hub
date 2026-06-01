@@ -70,11 +70,15 @@ export function postMessage(args: {
   text: string;
   blocks?: unknown[];
   unfurl_links?: boolean;
+  thread_ts?: string;
 }) {
   return callSlack<{ ts?: string; channel?: string }>("chat.postMessage", {
     channel: args.channel,
     text: args.text,
     blocks: args.blocks,
+    // When set, reply inside the originating thread (used by the
+    // inbound Q&A bot so channel answers stay tidy).
+    thread_ts: args.thread_ts,
     // Disable link unfurling by default — our messages already
     // include explicit buttons, unfurled previews are visual noise.
     unfurl_links: args.unfurl_links ?? false,
