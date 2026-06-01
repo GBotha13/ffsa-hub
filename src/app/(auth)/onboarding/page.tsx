@@ -80,6 +80,15 @@ export default function OnboardingPage() {
   const [agreementVersion, setAgreementVersion] = useState<string | null>(null);
 
   useEffect(() => {
+    // Users arriving from /join/[code] already set a password during signup,
+    // so skip the password step entirely.
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("welcome") === "1") {
+        setPasswordSet(true);
+        setStep(2);
+      }
+    }
     async function loadUser() {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) { router.push("/login"); return; }
@@ -220,10 +229,10 @@ export default function OnboardingPage() {
         style={{ borderBottom: "1px solid hsl(22 8% 12%)" }}
       >
         <div className="flex items-center gap-3">
-          <Image src="/ff-logo.png" alt="Fire & Fragrance" width={80} height={20} style={{ objectFit: "contain" }} priority />
+          <Image src="/brand/ff-wordmark-white.png" alt="Fire & Fragrance" width={140} height={17} style={{ objectFit: "contain", display: "block" }} priority />
           <div style={{ height: "1px", width: "12px", background: "var(--yellow)" }} />
           <span style={{ fontSize: "8px", letterSpacing: "0.3em", fontWeight: 700, color: "var(--yellow)", textTransform: "uppercase" }}>
-            HUB
+            Hub
           </span>
         </div>
         <p style={{ fontSize: "10px", letterSpacing: "0.2em", color: "var(--text-tertiary)", textTransform: "uppercase" }}>

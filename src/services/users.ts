@@ -95,13 +95,13 @@ export async function updateLastSignIn(supabase: Client, userId: string) {
     .single();
 }
 
-/** Mark onboarding as complete — sets pending_approval so super admin can review. */
+/** Mark onboarding as complete — activates the account with base self_service access. */
 export async function completeOnboarding(supabase: Client, userId: string) {
   return supabase
     .from("users")
     .update({
       accepted_at: new Date().toISOString(),
-      status: "pending_approval",
+      status: "active",
     })
     .eq("id", userId)
     .select()

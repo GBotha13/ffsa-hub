@@ -1,7 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { AdminSidebar } from "@/components/admin-sidebar";
 import { ProfileCompletionGate } from "@/components/profile-completion-gate";
-import { PendingApprovalGate } from "@/components/pending-approval-gate";
 import { AutoRefresh } from "@/components/auto-refresh";
 
 export default async function AdminLayout({
@@ -70,9 +69,7 @@ export default async function AdminLayout({
       <main className="flex-1 overflow-y-auto bg-background pt-14 md:pt-0">
         <div className="mx-auto max-w-6xl px-4 md:px-6 py-6 md:py-8 animate-fade-up">
           <AutoRefresh />
-          <ProfileCompletionGate>
-            <PendingApprovalGate>{children}</PendingApprovalGate>
-          </ProfileCompletionGate>
+          <ProfileCompletionGate>{children}</ProfileCompletionGate>
         </div>
       </main>
     </div>

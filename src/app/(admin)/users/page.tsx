@@ -1,7 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getUsers } from "@/services/users";
 import { UsersTable } from "./users-table";
 import { InviteUserForm } from "./invite-user-form";
+import { PublicSignupLinkCard } from "./public-signup-link-card";
+import { headers } from "next/headers";
 
 export default async function UsersPage() {
   const supabase = await createClient();
@@ -26,9 +29,28 @@ export default async function UsersPage() {
     isSuperAdmin = (superCheck?.length ?? 0) > 0;
   }
 
+  let signupCode: { code: string; enabled: boolean } | null = null;
+  let baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "";
+  if (isSuperAdmin) {
+    if (!baseUrl) {
+      const h = await headers();
+      const host = h.get("host");
+      const proto = h.get("x-forwarded-proto") || "https";
+      baseUrl = host ? `${proto}://${host}` : "";
+    }
+    const adminSupabase = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: settings } = await (adminSupabase as any)
+      .from("public_signup_settings")
+      .select("code, enabled")
+      .eq("id", 1)
+      .single();
+    if (settings) signupCode = settings;
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <p className="page-eyebrow">SYSTEM ACCESS</p>
           <h1 className="page-title">Users</h1>
@@ -36,6 +58,14 @@ export default async function UsersPage() {
         </div>
         {isSuperAdmin && <InviteUserForm />}
       </div>
+
+      {isSuperAdmin && signupCode && (
+        <PublicSignupLinkCard
+          initialCode={signupCode.code}
+          initialEnabled={signupCode.enabled}
+          baseUrl={baseUrl}
+        />
+      )}
 
       <UsersTable users={users ?? []} currentUserId={authUser?.id ?? ""} />
     </div>
