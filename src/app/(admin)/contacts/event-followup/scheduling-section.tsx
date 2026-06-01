@@ -40,8 +40,13 @@ export function SchedulingSection({
 }) {
   const [busy, setBusy] = useState(false);
   const [requestOpen, setRequestOpen] = useState(false);
+  const [confirmTarget, setConfirmTarget] = useState<{
+    id: string;
+    starts_at: string;
+  } | null>(null);
+  const [confirmMsg, setConfirmMsg] = useState("");
 
-  async function handleConfirm(slotId: string) {
+  async function handleConfirm(slotId: string, message: string) {
     if (!scheduling) return;
     setBusy(true);
     try {
@@ -50,7 +55,7 @@ export function SchedulingSection({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ slot_id: slotId }),
+          body: JSON.stringify({ slot_id: slotId, message: message.trim() || null }),
         }
       );
       if (!res.ok) {
@@ -58,6 +63,7 @@ export function SchedulingSection({
         alert(data.error || "Failed to confirm slot");
         return;
       }
+      setConfirmTarget(null);
       onChanged();
     } finally {
       setBusy(false);
@@ -197,7 +203,10 @@ export function SchedulingSection({
                 {recipientSlots.map((slot) => (
                   <button
                     key={slot.id}
-                    onClick={() => handleConfirm(slot.id)}
+                    onClick={() => {
+                      setConfirmTarget({ id: slot.id, starts_at: slot.starts_at });
+                      setConfirmMsg("");
+                    }}
                     disabled={busy}
                     className="w-full flex items-center justify-between gap-3 rounded p-2.5 text-left transition-colors hover:bg-white/5"
                     style={{
@@ -296,6 +305,93 @@ export function SchedulingSection({
           onChanged();
         }}
       />
+
+      <Dialog
+        open={!!confirmTarget}
+        onOpenChange={(o) => !o && setConfirmTarget(null)}
+      >
+        <DialogContent
+          style={{
+            background: "#0D0B09",
+            borderColor: "hsl(22 8% 14%)",
+            color: "#F0EBE3",
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle style={{ color: "#F0EBE3" }}>
+              Confirm this time
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 mt-1">
+            {confirmTarget && (
+              <p
+                style={{
+                  fontSize: "14px",
+                  color: "hsl(42 95% 60%)",
+                  fontWeight: 700,
+                }}
+              >
+                {formatSlot(confirmTarget.starts_at)} ·{" "}
+                {scheduling.duration_minutes} min
+              </p>
+            )}
+            <div>
+              <Label
+                htmlFor="confirm-msg"
+                style={{
+                  fontSize: "11px",
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase",
+                  color: "hsl(30 8% 50%)",
+                }}
+              >
+                Personal message (optional)
+              </Label>
+              <Textarea
+                id="confirm-msg"
+                value={confirmMsg}
+                onChange={(e) => setConfirmMsg(e.target.value)}
+                placeholder="e.g. Can't wait to chat — I'll call you on WhatsApp at this time."
+                className="mt-1"
+                rows={4}
+              />
+              <p
+                style={{
+                  fontSize: "11px",
+                  color: "hsl(30 8% 45%)",
+                  marginTop: "6px",
+                }}
+              >
+                Appears in the confirmation email they receive, alongside the
+                calendar invite.
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setConfirmTarget(null)}
+              disabled={busy}
+              style={{ borderColor: "hsl(22 8% 18%)", color: "hsl(30 8% 70%)" }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() =>
+                confirmTarget && handleConfirm(confirmTarget.id, confirmMsg)
+              }
+              disabled={busy}
+              style={{
+                background: "hsl(42 95% 55%)",
+                color: "#0D0B09",
+                fontWeight: 700,
+              }}
+            >
+              {busy ? "Confirming…" : "Confirm & send"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

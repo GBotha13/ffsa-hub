@@ -17,7 +17,10 @@ export async function POST(
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const body = (await request.json().catch(() => ({}))) as { slot_id?: string };
+  const body = (await request.json().catch(() => ({}))) as {
+    slot_id?: string;
+    message?: string | null;
+  };
   if (!body.slot_id) {
     return NextResponse.json({ error: "slot_id is required" }, { status: 400 });
   }
@@ -54,7 +57,8 @@ export async function POST(
     adminSupabase,
     requestId,
     body.slot_id,
-    authUser.id
+    authUser.id,
+    body.message
   );
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: 400 });

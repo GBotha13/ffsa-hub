@@ -358,7 +358,8 @@ export async function confirmSchedulingSlot(
   adminSupabase: Client,
   requestId: string,
   slotId: string,
-  confirmedBy: string
+  confirmedBy: string,
+  message?: string | null
 ): Promise<{ success: true } | { error: string }> {
   const { data: request } = await adminSupabase
     .from("scheduling_requests")
@@ -387,9 +388,13 @@ export async function confirmSchedulingSlot(
     .eq("id", slotId);
   if (slotError) return { error: slotError.message };
 
+  // A note typed at confirm time wins; otherwise keep the request's message.
+  const finalMessage = message?.trim() ? message.trim() : req.message;
+
   const reqUpdate: Record<string, unknown> = {
     status: "scheduled",
     scheduled_at: new Date().toISOString(),
+    message: finalMessage,
   };
   const { error: updateError } = await adminSupabase
     .from("scheduling_requests")
@@ -397,8 +402,13 @@ export async function confirmSchedulingSlot(
     .eq("id", requestId);
   if (updateError) return { error: updateError.message };
 
-  // Send the confirmation email with ICS
-  await sendConfirmationEmail(adminSupabase, req, chosenSlot, confirmedBy);
+  // Send the confirmation email with ICS — include the confirm-time note.
+  await sendConfirmationEmail(
+    adminSupabase,
+    { ...req, message: finalMessage },
+    chosenSlot,
+    confirmedBy
+  );
 
   // Activity log
   await adminSupabase.from("activity_events").insert({
