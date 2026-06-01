@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
-import { Bold, Italic, Link2, Link2Off, Sparkles } from "lucide-react";
+import { Bold, Italic, Link2, Link2Off, Sparkles, User } from "lucide-react";
 
 // Minimal rich text editor for campaign text blocks. The editorial
 // rendering pipeline accepts only the marks below — anything else gets
@@ -35,11 +35,14 @@ export function RichText({
   disabled,
   placeholder,
   onPolish,
+  mergeFields,
 }: {
   value: string;
   onChange: (html: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  /** Optional one-click insert buttons for merge tokens, e.g. [First Name]. */
+  mergeFields?: Array<{ label: string; token: string }>;
   /**
    * Optional AI polish hook. When provided, a ✨ button appears in the
    * toolbar; clicking it sends the current HTML to onPolish and replaces
@@ -97,7 +100,12 @@ export function RichText({
 
   return (
     <div className="rounded border bg-background overflow-hidden">
-      <Toolbar editor={editor} disabled={disabled} onPolish={onPolish} />
+      <Toolbar
+        editor={editor}
+        disabled={disabled}
+        onPolish={onPolish}
+        mergeFields={mergeFields}
+      />
       <EditorContent editor={editor} />
     </div>
   );
@@ -107,10 +115,12 @@ function Toolbar({
   editor,
   disabled,
   onPolish,
+  mergeFields,
 }: {
   editor: Editor;
   disabled?: boolean;
   onPolish?: (html: string) => Promise<string>;
+  mergeFields?: Array<{ label: string; token: string }>;
 }) {
   const [polishing, setPolishing] = useState(false);
   const isBold = editor.isActive("bold");
@@ -201,6 +211,24 @@ function Toolbar({
               className={`h-3.5 w-3.5 ${polishing ? "animate-pulse text-amber-400" : ""}`}
             />
           </ToolButton>
+        </>
+      )}
+      {mergeFields && mergeFields.length > 0 && (
+        <>
+          <span className="h-3.5 w-px bg-border mx-1" aria-hidden />
+          {mergeFields.map((f) => (
+            <button
+              key={f.token}
+              type="button"
+              disabled={disabled}
+              onClick={() => editor.chain().focus().insertContent(f.token).run()}
+              title={`Insert ${f.label} — automatically replaced with the recipient's name when the email sends`}
+              className="inline-flex items-center gap-1 h-6 rounded px-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-background disabled:opacity-30 disabled:hover:bg-transparent"
+            >
+              <User className="h-3 w-3" />
+              {f.label}
+            </button>
+          ))}
         </>
       )}
     </div>

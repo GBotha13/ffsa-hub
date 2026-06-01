@@ -198,6 +198,7 @@ function BlockFields({
         onChange={(html) => onPatch({ text: html })}
         disabled={disabled}
         placeholder="Write your message — bold, italics, and links supported."
+        mergeFields={[{ label: "First name", token: "[First Name]" }]}
       />
     );
   }
