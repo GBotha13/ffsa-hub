@@ -21,12 +21,8 @@ import {
   recordStepRun,
 } from "@/services/workflows";
 import { sendViaMailtrap } from "@/lib/email/mailtrap";
-import {
-  renderCampaignHtml,
-  renderCampaignText,
-  type CampaignBody,
-} from "@/lib/campaigns/blocks";
-import { getEffectiveBrand } from "@/services/brand";
+import { renderCampaignText, type CampaignBody } from "@/lib/campaigns/blocks";
+import { renderWorkflowEmail } from "@/lib/email/workflow-template";
 import { signPrefsToken } from "@/lib/tokens/unsubscribe";
 import { substituteFirstName, escapeHtml } from "@/lib/email/placeholders";
 import type {
@@ -80,14 +76,6 @@ function prefsUrlFor(contactId: string): string {
   // Workflows carry no campaign id; the preferences page shows all labels.
   const token = signPrefsToken(contactId, null);
   return `${APP_URL}/preferences?t=${encodeURIComponent(token)}`;
-}
-
-function footerHtml(prefsUrl: string): string {
-  return `<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
-<tr><td style="padding:18px 36px;font-size:12px;line-height:1.6;color:#94a3b8;text-align:center;">
-<a href="${prefsUrl}" style="color:#94a3b8;text-decoration:underline;">Manage email preferences</a>
-&middot; Fire &amp; Fragrance South Africa
-</td></tr></table>`;
 }
 
 function deliverabilityHeaders(args: {
@@ -347,7 +335,6 @@ async function runEmailStep(
   }
 
   const prefsUrl = prefsUrlFor(contact.id);
-  const brand = await getEffectiveBrand(supabase, identity.id);
   const body = (cfg?.body ?? { blocks: [] }) as unknown as CampaignBody;
 
   // Personalize: {{first_name}} / [First Name] / [Name] → the contact's name.
@@ -360,11 +347,13 @@ async function runEmailStep(
     firstName
   );
 
+  // Render inside the fixed Fire & Fragrance workflow shell; the block
+  // content is the only variable part.
   const html = substituteFirstName(
-    renderCampaignHtml(body, { brand, footerHtml: footerHtml(prefsUrl) }),
+    renderWorkflowEmail(body, { baseUrl: APP_URL, prefsUrl, previewText: subject }),
     escapeHtml(firstName)
   );
-  const text = substituteFirstName(renderCampaignText(body, { brand }), firstName);
+  const text = substituteFirstName(renderCampaignText(body, {}), firstName);
 
   const res = await sendViaMailtrap({
     fromEmail: identity.from_email,
