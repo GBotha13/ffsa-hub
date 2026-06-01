@@ -94,7 +94,7 @@ function renderBlock(b: CampaignBlock): string {
     }
 
     case "image":
-      return `<p style="margin:0 0 16px;"><img src="${esc(b.url)}" alt="${esc(b.alt)}" width="544" style="display:block;width:100%;max-width:544px;height:auto;border:0;" />${
+      return `<p style="margin:0 0 16px;"><img src="${esc(b.url)}" alt="${esc(b.alt)}" width="544" style="display:block;width:100%;max-width:544px;height:auto;border:0;border-radius:10px;" />${
         b.caption
           ? `<span style="display:block;margin-top:6px;font-family:${MONO};font-size:11px;color:${MUTED};">${esc(b.caption)}</span>`
           : ""
@@ -122,7 +122,7 @@ function renderBlock(b: CampaignBlock): string {
     }
 
     case "image-text":
-      return `<p style="margin:0 0 12px;"><img src="${esc(b.url)}" alt="${esc(b.alt)}" width="544" style="display:block;width:100%;max-width:544px;height:auto;border:0;" /></p>${
+      return `<p style="margin:0 0 12px;"><img src="${esc(b.url)}" alt="${esc(b.alt)}" width="544" style="display:block;width:100%;max-width:544px;height:auto;border:0;border-radius:10px;" /></p>${
         b.heading
           ? `<h2 style="margin:0 0 8px;font-family:${SANS};font-size:20px;line-height:1.15;font-weight:900;text-transform:uppercase;color:${INK};">${esc(b.heading)}</h2>`
           : ""
