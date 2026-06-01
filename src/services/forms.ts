@@ -34,6 +34,22 @@ export async function getFormBySlug(supabase: Client, slug: string) {
     .maybeSingle();
 }
 
+// Submissions for a form, newest first, with the resolved contact (if any).
+export async function listFormSubmissions(
+  supabase: Client,
+  formId: string,
+  limit = 300
+) {
+  return supabase
+    .from("form_submissions")
+    .select(
+      "id, contact_id, raw_data, dedup_action, submitted_at, contacts(id, first_name, last_name, preferred_name, email, phone)"
+    )
+    .eq("form_id", formId)
+    .order("submitted_at", { ascending: false })
+    .limit(limit);
+}
+
 export async function createForm(supabase: Client, data: FormInsert) {
   return supabase.from("forms").insert(data).select().single();
 }
