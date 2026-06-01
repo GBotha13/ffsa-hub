@@ -58,13 +58,21 @@ export function evaluateTrigger(
   if (trigger.type === "answer") {
     const actual = data[trigger.field_key];
     if (typeof trigger.value === "boolean") {
-      return actual === trigger.value;
+      return Boolean(actual) === trigger.value;
     }
-    // String compare, trimmed + case-insensitive so "Yes" === "yes ".
-    return (
-      String(actual ?? "").trim().toLowerCase() ===
-      String(trigger.value).trim().toLowerCase()
-    );
+    const want = String(trigger.value).trim().toLowerCase();
+    // Outcome / commitment checkboxes submit a boolean. Map truthy / falsy
+    // words onto the checkbox state so a trigger like "answer = Yes" matches a
+    // ticked box (actual === true), and "= No" matches an unticked one.
+    if (typeof actual === "boolean") {
+      const truthy = ["yes", "y", "true", "checked", "on", "1"];
+      const falsy = ["no", "n", "false", "unchecked", "off", "0"];
+      if (truthy.includes(want)) return actual === true;
+      if (falsy.includes(want)) return actual === false;
+      return false;
+    }
+    // Text answers (radio / dropdown): case-insensitive, trimmed compare.
+    return String(actual ?? "").trim().toLowerCase() === want;
   }
   // label_added triggers are not driven by form submissions.
   return false;
