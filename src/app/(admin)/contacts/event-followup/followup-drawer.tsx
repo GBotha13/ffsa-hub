@@ -47,9 +47,13 @@ export function FollowupDrawer({
       return;
     }
 
+    const enrollmentId = row.enrollment_id;
+    const shouldMarkViewed =
+      row.assigned_staff_id === currentUserId && !row.staff_viewed_at;
+
     let cancelled = false;
     setLoading(true);
-    fetch(`/api/contacts/event-followup/${row.enrollment_id}`)
+    fetch(`/api/contacts/event-followup/${enrollmentId}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (cancelled) return;
@@ -60,8 +64,8 @@ export function FollowupDrawer({
       });
 
     // Mark viewed if assigned to me and unread (fire-and-forget)
-    if (row.assigned_staff_id === currentUserId && !row.staff_viewed_at) {
-      fetch(`/api/contacts/event-followup/${row.enrollment_id}/view`, {
+    if (shouldMarkViewed) {
+      fetch(`/api/contacts/event-followup/${enrollmentId}/view`, {
         method: "PUT",
       }).then(() => onChanged());
     }
@@ -69,7 +73,11 @@ export function FollowupDrawer({
     return () => {
       cancelled = true;
     };
-  }, [open, row, currentUserId, onChanged]);
+    // Only re-fetch when the selected enrollment changes (or the drawer
+    // opens). row/onChanged identities change on every parent render —
+    // including them caused a re-fetch loop (skeleton↔loaded flicker).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, row?.enrollment_id]);
 
   if (!row) return null;
 
@@ -221,7 +229,10 @@ export function FollowupDrawer({
             {loading ? (
               <Skeleton />
             ) : detail?.form_submission?.raw_data ? (
-              <FormAnswers raw={detail.form_submission.raw_data} />
+              <FormAnswers
+                raw={detail.form_submission.raw_data}
+                labels={detail.form_submission.field_labels ?? {}}
+              />
             ) : (
               <p style={{ color: "hsl(30 8% 50%)", fontSize: "12px" }}>
                 No form submission linked.
@@ -336,7 +347,13 @@ function Eyebrow({ label }: { label: string }) {
   );
 }
 
-function FormAnswers({ raw }: { raw: Record<string, unknown> }) {
+function FormAnswers({
+  raw,
+  labels,
+}: {
+  raw: Record<string, unknown>;
+  labels: Record<string, string>;
+}) {
   const entries = Object.entries(raw).filter(
     ([k]) => !["_meta", "ip", "user_agent"].includes(k.toLowerCase())
   );
@@ -360,7 +377,7 @@ function FormAnswers({ raw }: { raw: Record<string, unknown> }) {
               textTransform: "uppercase",
             }}
           >
-            {key.replaceAll("_", " ")}
+            {labels[key] ?? key.replaceAll("_", " ")}
           </span>
           <span style={{ fontSize: "13px", color: "#F0EBE3" }}>
             {formatValue(value)}

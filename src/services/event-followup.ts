@@ -1,4 +1,5 @@
 import { getActiveSchedulingForEnrollment } from "./scheduling";
+import { fieldKey, type FormSchema } from "@/lib/forms/schema";
 
 // Event Follow-up queue service. Reads workflow_enrollments joined to
 // contacts, workflows, outcomes, events, and assigned staff — then
@@ -309,6 +310,7 @@ export type FollowupDetail = FollowupQueueRow & {
     id: string;
     submitted_at: string;
     raw_data: Record<string, unknown> | null;
+    field_labels: Record<string, string>; // raw_data key → question label
   } | null;
   workflow_steps: Array<{
     id: string;
@@ -445,10 +447,33 @@ export async function getFollowupDetail(
   if (e.form_submission_id) {
     const { data: sub } = await supabase
       .from("form_submissions")
-      .select("id, submitted_at, raw_data")
+      .select("id, submitted_at, raw_data, form_id")
       .eq("id", e.form_submission_id)
       .single();
-    if (sub) formSubmission = sub as FollowupDetail["form_submission"];
+    if (sub) {
+      // Map raw_data keys (contact keys + field ids) → the form's question
+      // labels, so the drawer shows real questions, not "FIELD MPJFQWZ9 2".
+      const fieldLabels: Record<string, string> = {};
+      if (sub.form_id) {
+        const { data: form } = await supabase
+          .from("forms")
+          .select("schema")
+          .eq("id", sub.form_id)
+          .maybeSingle();
+        const schema = form?.schema as FormSchema | undefined;
+        for (const st of schema?.steps ?? []) {
+          for (const f of st.fields ?? []) {
+            if (f?.label) fieldLabels[fieldKey(f)] = f.label;
+          }
+        }
+      }
+      formSubmission = {
+        id: sub.id,
+        submitted_at: sub.submitted_at,
+        raw_data: sub.raw_data,
+        field_labels: fieldLabels,
+      };
+    }
   }
 
   const scheduling = await getActiveSchedulingForEnrollment(
