@@ -143,7 +143,6 @@ export async function createSchedulingRequest(
           expiresAt,
           message: input.message ?? null,
           magicLinkUrl: magicLink,
-          siteUrl: SITE_URL,
         }),
       });
     } catch (e) {
@@ -343,7 +342,6 @@ async function sendSlotsSubmittedNotification(
         slotCount: slots.length,
         firstSlotsPreview: slots.map((s) => formatSlotForRecipient(s.starts_at)),
         followupUrl: `${SITE_URL}/contacts/event-followup`,
-        siteUrl: SITE_URL,
       }),
     });
   } catch {
@@ -465,7 +463,6 @@ async function sendConfirmationEmail(
         formattedDateTime,
         durationMinutes: req.duration_minutes,
         message: req.message,
-        siteUrl: SITE_URL,
       }),
       attachments: [
         {
