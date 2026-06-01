@@ -74,7 +74,7 @@ function renderBlock(b: CampaignBlock): string {
       return eyebrow(b.text);
 
     case "heading":
-      return `${b.eyebrow ? eyebrow(b.eyebrow) : ""}<h1 style="margin:0 0 14px;font-family:${SANS};font-size:27px;line-height:1.1;font-weight:900;letter-spacing:-0.01em;text-transform:uppercase;color:${INK};">${esc(b.text)}</h1>`;
+      return `${b.eyebrow ? eyebrow(b.eyebrow) : ""}<h1 style="margin:0 0 14px;font-family:${SANS};font-size:30px;line-height:1.06;font-weight:900;letter-spacing:-0.015em;text-transform:uppercase;color:${INK};">${esc(b.text)}</h1>`;
 
     case "text":
       return `<div style="margin:0 0 16px;font-family:${SANS};font-size:15px;line-height:1.7;color:${INK};">${richText(b.text)}</div>`;
@@ -156,7 +156,7 @@ export function renderWorkflowEmail(
 ${preview}
 <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:${BLACK};padding:28px 10px;">
 <tr><td align="center">
-<table role="presentation" cellpadding="0" cellspacing="0" width="600" style="max-width:600px;background:${PAPER};table-layout:fixed;">
+<table role="presentation" cellpadding="0" cellspacing="0" width="600" style="max-width:600px;background:${PAPER};table-layout:fixed;border-radius:8px;overflow:hidden;">
 
   <!-- Masthead -->
   <tr><td style="background:${BLACK};padding:18px 28px;border-bottom:2px solid ${GOLD};">
@@ -174,7 +174,7 @@ ${preview}
   </td></tr>
 
   <!-- Footer -->
-  <tr><td style="background:${BLACK};padding:28px 30px;text-align:center;">
+  <tr><td style="background:${BLACK};border-top:2px solid ${GOLD};padding:28px 30px;text-align:center;">
     <img src="${base}/brand/ff-wordmark-white@email.png" alt="Fire &amp; Fragrance" width="124" height="auto" style="display:inline-block;width:124px;height:auto;" />
     <p style="margin:12px 0 0;font-family:${MONO};font-size:10px;color:${GOLD};letter-spacing:0.2em;text-transform:uppercase;">Fire &amp; Fragrance South Africa</p>
     <p style="margin:10px 0 0;font-family:${SANS};font-size:12px;line-height:1.6;color:${WHITE};opacity:0.78;">
