@@ -1,3 +1,5 @@
+import { getActiveSchedulingForEnrollment } from "./scheduling";
+
 // Event Follow-up queue service. Reads workflow_enrollments joined to
 // contacts, workflows, outcomes, events, and assigned staff — then
 // synthesizes a human-readable "stage" label by combining the latest
@@ -321,6 +323,24 @@ export type FollowupDetail = FollowupQueueRow & {
     ran_at: string;
     detail: Json;
   }>;
+  scheduling: {
+    id: string;
+    status: "pending" | "awaiting_selection" | "scheduled" | "cancelled";
+    duration_minutes: number;
+    message: string | null;
+    magic_token: string;
+    expires_at: string;
+    scheduled_at: string | null;
+    cancelled_at: string | null;
+    created_at: string;
+    slots: Array<{
+      id: string;
+      starts_at: string;
+      ends_at: string;
+      proposed_by: "recipient" | "team";
+      is_chosen: boolean;
+    }>;
+  } | null;
 };
 
 export async function getFollowupDetail(
@@ -431,6 +451,11 @@ export async function getFollowupDetail(
     if (sub) formSubmission = sub as FollowupDetail["form_submission"];
   }
 
+  const scheduling = await getActiveSchedulingForEnrollment(
+    supabase,
+    enrollmentId
+  );
+
   return {
     enrollment_id: e.id,
     enrolled_at: e.enrolled_at,
@@ -462,5 +487,25 @@ export async function getFollowupDetail(
       config: s.config,
     })),
     step_runs: runs,
+    scheduling: scheduling
+      ? {
+          id: scheduling.id,
+          status: scheduling.status,
+          duration_minutes: scheduling.duration_minutes,
+          message: scheduling.message,
+          magic_token: scheduling.magic_token,
+          expires_at: scheduling.expires_at,
+          scheduled_at: scheduling.scheduled_at,
+          cancelled_at: scheduling.cancelled_at,
+          created_at: scheduling.created_at,
+          slots: scheduling.slots.map((s) => ({
+            id: s.id,
+            starts_at: s.starts_at,
+            ends_at: s.ends_at,
+            proposed_by: s.proposed_by,
+            is_chosen: s.is_chosen,
+          })),
+        }
+      : null,
   };
 }

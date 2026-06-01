@@ -1,0 +1,543 @@
+"use client";
+
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Calendar, Copy, Check } from "lucide-react";
+import type { FollowupDetail } from "@/services/event-followup";
+
+type Scheduling = NonNullable<FollowupDetail["scheduling"]>;
+
+const SITE_URL = "https://ffsahub.com";
+
+function formatSlot(iso: string): string {
+  return new Date(iso).toLocaleString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export function SchedulingSection({
+  enrollmentId,
+  scheduling,
+  onChanged,
+}: {
+  enrollmentId: string;
+  scheduling: Scheduling | null;
+  onChanged: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [requestOpen, setRequestOpen] = useState(false);
+
+  async function handleConfirm(slotId: string) {
+    if (!scheduling) return;
+    setBusy(true);
+    try {
+      const res = await fetch(
+        `/api/contacts/event-followup/${enrollmentId}/scheduling/${scheduling.id}/confirm`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slot_id: slotId }),
+        }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || "Failed to confirm slot");
+        return;
+      }
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCancel() {
+    if (!scheduling) return;
+    if (!confirm("Cancel this scheduling request?")) return;
+    setBusy(true);
+    try {
+      const res = await fetch(
+        `/api/contacts/event-followup/${enrollmentId}/scheduling/${scheduling.id}/cancel`,
+        { method: "POST" }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || "Failed to cancel");
+        return;
+      }
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // No active request → show the trigger button
+  if (!scheduling) {
+    return (
+      <div className="mt-6">
+        <p
+          style={{
+            fontSize: "9px",
+            letterSpacing: "0.25em",
+            fontWeight: 700,
+            color: "hsl(42 95% 55%)",
+            textTransform: "uppercase",
+          }}
+        >
+          Scheduling
+        </p>
+        <div
+          className="mt-2 rounded-lg p-4 flex items-center justify-between gap-3"
+          style={{
+            background: "hsl(22 10% 7%)",
+            border: "1px solid hsl(22 8% 14%)",
+          }}
+        >
+          <div style={{ color: "hsl(30 8% 60%)", fontSize: "13px" }}>
+            No availability request yet. Send the recipient a link to pick
+            times.
+          </div>
+          <Button
+            onClick={() => setRequestOpen(true)}
+            disabled={busy}
+            style={{
+              background: "hsl(42 95% 55%)",
+              color: "#0D0B09",
+              fontWeight: 700,
+            }}
+          >
+            <Calendar className="h-3.5 w-3.5 mr-1.5" />
+            Request availability
+          </Button>
+        </div>
+        <RequestDialog
+          enrollmentId={enrollmentId}
+          open={requestOpen}
+          onClose={() => setRequestOpen(false)}
+          onCreated={() => {
+            setRequestOpen(false);
+            onChanged();
+          }}
+        />
+      </div>
+    );
+  }
+
+  const expired =
+    scheduling.status === "pending" &&
+    new Date(scheduling.expires_at) < new Date();
+
+  const recipientSlots = scheduling.slots.filter(
+    (s) => s.proposed_by === "recipient"
+  );
+  const chosenSlot = scheduling.slots.find((s) => s.is_chosen) ?? null;
+  const magicLinkUrl = `${SITE_URL}/schedule/${scheduling.magic_token}`;
+
+  return (
+    <div className="mt-6">
+      <p
+        style={{
+          fontSize: "9px",
+          letterSpacing: "0.25em",
+          fontWeight: 700,
+          color: "hsl(42 95% 55%)",
+          textTransform: "uppercase",
+        }}
+      >
+        Scheduling
+      </p>
+
+      <div
+        className="mt-2 rounded-lg p-4"
+        style={{
+          background: "hsl(22 10% 7%)",
+          border: "1px solid hsl(22 8% 14%)",
+        }}
+      >
+        <StatusPill status={scheduling.status} expired={expired} />
+
+        <div className="mt-3 space-y-2">
+          {scheduling.status === "pending" && !expired && (
+            <>
+              <p style={{ color: "hsl(30 8% 70%)", fontSize: "13px" }}>
+                Recipient hasn&rsquo;t picked times yet. Link expires{" "}
+                {formatSlot(scheduling.expires_at)}.
+              </p>
+              <MagicLinkRow url={magicLinkUrl} />
+            </>
+          )}
+
+          {scheduling.status === "pending" && expired && (
+            <p style={{ color: "hsl(0 60% 60%)", fontSize: "13px" }}>
+              This link has expired. Cancel and send a new request.
+            </p>
+          )}
+
+          {scheduling.status === "awaiting_selection" && (
+            <>
+              <p style={{ color: "hsl(30 8% 70%)", fontSize: "13px" }}>
+                {recipientSlots.length} time
+                {recipientSlots.length === 1 ? "" : "s"} submitted. Pick one to
+                confirm:
+              </p>
+              <div className="space-y-1.5">
+                {recipientSlots.map((slot) => (
+                  <button
+                    key={slot.id}
+                    onClick={() => handleConfirm(slot.id)}
+                    disabled={busy}
+                    className="w-full flex items-center justify-between gap-3 rounded p-2.5 text-left transition-colors hover:bg-white/5"
+                    style={{
+                      border: "1px solid hsl(22 8% 18%)",
+                      color: "#F0EBE3",
+                      fontSize: "13px",
+                      background: "hsl(22 10% 10%)",
+                    }}
+                  >
+                    <span>{formatSlot(slot.starts_at)}</span>
+                    <span
+                      style={{
+                        fontSize: "10px",
+                        letterSpacing: "0.1em",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        color: "hsl(42 95% 55%)",
+                      }}
+                    >
+                      Pick this
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {scheduling.status === "scheduled" && chosenSlot && (
+            <p
+              style={{
+                color: "hsl(142 60% 55%)",
+                fontSize: "14px",
+                fontWeight: 600,
+              }}
+            >
+              ✓ Confirmed for {formatSlot(chosenSlot.starts_at)}
+            </p>
+          )}
+
+          {scheduling.status === "cancelled" && (
+            <p style={{ color: "hsl(30 8% 50%)", fontSize: "13px" }}>
+              Cancelled
+              {scheduling.cancelled_at
+                ? ` on ${formatSlot(scheduling.cancelled_at)}`
+                : ""}
+              .
+            </p>
+          )}
+        </div>
+
+        {(scheduling.status === "pending" ||
+          scheduling.status === "awaiting_selection") && (
+          <div className="mt-3 flex justify-end">
+            <button
+              onClick={handleCancel}
+              disabled={busy}
+              style={{
+                fontSize: "11px",
+                fontWeight: 600,
+                letterSpacing: "0.05em",
+                textTransform: "uppercase",
+                color: "hsl(30 8% 50%)",
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              Cancel request
+            </button>
+          </div>
+        )}
+
+        {scheduling.status === "cancelled" && (
+          <div className="mt-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRequestOpen(true)}
+              style={{
+                borderColor: "hsl(22 8% 18%)",
+                color: "hsl(30 8% 70%)",
+              }}
+            >
+              Request again
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <RequestDialog
+        enrollmentId={enrollmentId}
+        open={requestOpen}
+        onClose={() => setRequestOpen(false)}
+        onCreated={() => {
+          setRequestOpen(false);
+          onChanged();
+        }}
+      />
+    </div>
+  );
+}
+
+function StatusPill({
+  status,
+  expired,
+}: {
+  status: Scheduling["status"];
+  expired: boolean;
+}) {
+  let label = status.replace("_", " ");
+  let bg = "hsl(22 10% 14%)";
+  let fg = "hsl(30 8% 60%)";
+
+  if (expired) {
+    label = "expired";
+    bg = "hsl(0 60% 18%)";
+    fg = "hsl(0 80% 65%)";
+  } else if (status === "pending") {
+    bg = "hsl(42 80% 18%)";
+    fg = "hsl(42 95% 60%)";
+  } else if (status === "awaiting_selection") {
+    label = "needs your pick";
+    bg = "hsl(42 80% 18%)";
+    fg = "hsl(42 95% 60%)";
+  } else if (status === "scheduled") {
+    bg = "hsl(142 50% 18%)";
+    fg = "hsl(142 60% 65%)";
+  }
+
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        fontSize: "10px",
+        fontWeight: 700,
+        letterSpacing: "0.1em",
+        padding: "3px 8px",
+        borderRadius: "4px",
+        background: bg,
+        color: fg,
+        textTransform: "uppercase",
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+function MagicLinkRow({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // no-op
+    }
+  }
+
+  return (
+    <div
+      className="flex items-center gap-2 rounded p-2"
+      style={{
+        background: "hsl(22 10% 10%)",
+        border: "1px solid hsl(22 8% 14%)",
+      }}
+    >
+      <code
+        style={{
+          flex: 1,
+          fontSize: "11px",
+          color: "hsl(30 8% 70%)",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          fontFamily: "ui-monospace, monospace",
+        }}
+      >
+        {url}
+      </code>
+      <button
+        onClick={handleCopy}
+        style={{
+          background: "transparent",
+          border: "1px solid hsl(22 8% 18%)",
+          padding: "4px 8px",
+          borderRadius: "4px",
+          color: copied ? "hsl(142 60% 55%)" : "hsl(30 8% 60%)",
+          fontSize: "11px",
+          cursor: "pointer",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "4px",
+        }}
+      >
+        {copied ? (
+          <>
+            <Check className="h-3 w-3" />
+            Copied
+          </>
+        ) : (
+          <>
+            <Copy className="h-3 w-3" />
+            Copy
+          </>
+        )}
+      </button>
+    </div>
+  );
+}
+
+function RequestDialog({
+  enrollmentId,
+  open,
+  onClose,
+  onCreated,
+}: {
+  enrollmentId: string;
+  open: boolean;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const [duration, setDuration] = useState(30);
+  const [expiryDays, setExpiryDays] = useState(7);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function handleCreate() {
+    setBusy(true);
+    try {
+      const res = await fetch(
+        `/api/contacts/event-followup/${enrollmentId}/scheduling/request`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            duration_minutes: duration,
+            expiry_days: expiryDays,
+            message: message.trim() || null,
+          }),
+        }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || "Failed to create request");
+        return;
+      }
+      const data = await res.json();
+      if (data.emailError) {
+        alert(
+          `Request created but email did not send: ${data.emailError}. Magic link: ${data.magicLink}`
+        );
+      }
+      onCreated();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent
+        style={{
+          background: "#0D0B09",
+          borderColor: "hsl(22 8% 14%)",
+          color: "#F0EBE3",
+        }}
+      >
+        <DialogHeader>
+          <DialogTitle style={{ color: "#F0EBE3" }}>
+            Request availability
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 mt-2">
+          <div>
+            <Label htmlFor="duration" style={{ fontSize: "11px", letterSpacing: "0.1em", textTransform: "uppercase", color: "hsl(30 8% 50%)" }}>
+              Call duration (minutes)
+            </Label>
+            <Input
+              id="duration"
+              type="number"
+              min={15}
+              step={15}
+              value={duration}
+              onChange={(e) => setDuration(Math.max(15, parseInt(e.target.value) || 30))}
+              className="mt-1"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="expiry" style={{ fontSize: "11px", letterSpacing: "0.1em", textTransform: "uppercase", color: "hsl(30 8% 50%)" }}>
+              Link expires in (days)
+            </Label>
+            <Input
+              id="expiry"
+              type="number"
+              min={1}
+              max={30}
+              value={expiryDays}
+              onChange={(e) => setExpiryDays(Math.max(1, parseInt(e.target.value) || 7))}
+              className="mt-1"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="message" style={{ fontSize: "11px", letterSpacing: "0.1em", textTransform: "uppercase", color: "hsl(30 8% 50%)" }}>
+              Personal message (optional)
+            </Label>
+            <Textarea
+              id="message"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="e.g. Looking forward to hearing how you're doing!"
+              className="mt-1"
+              rows={3}
+            />
+          </div>
+        </div>
+
+        <DialogFooter className="mt-4">
+          <Button
+            variant="outline"
+            onClick={onClose}
+            disabled={busy}
+            style={{ borderColor: "hsl(22 8% 18%)", color: "hsl(30 8% 70%)" }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleCreate}
+            disabled={busy}
+            style={{ background: "hsl(42 95% 55%)", color: "#0D0B09", fontWeight: 700 }}
+          >
+            {busy ? "Sending…" : "Send request"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

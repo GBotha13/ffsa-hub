@@ -4,6 +4,16 @@
 
 const MAILTRAP_BULK_URL = "https://bulk.api.mailtrap.io/api/send";
 
+export type MailtrapAttachment = {
+  filename: string;
+  /** Already-encoded base64 string of the file bytes. */
+  contentBase64: string;
+  /** MIME type. ICS invites use 'text/calendar; method=REQUEST'. */
+  type: string;
+  /** 'attachment' (default) or 'inline'. */
+  disposition?: "attachment" | "inline";
+};
+
 export type MailtrapSendInput = {
   fromEmail: string;
   fromName: string;
@@ -22,6 +32,7 @@ export type MailtrapSendInput = {
    *   Precedence: bulk        — flags as bulk mail
    */
   headers?: Record<string, string>;
+  attachments?: MailtrapAttachment[];
 };
 
 export type MailtrapSendResult = {
@@ -50,6 +61,14 @@ export async function sendViaMailtrap(
     if (input.category) payload.category = input.category;
     if (input.headers && Object.keys(input.headers).length > 0) {
       payload.headers = input.headers;
+    }
+    if (input.attachments && input.attachments.length > 0) {
+      payload.attachments = input.attachments.map((a) => ({
+        filename: a.filename,
+        content: a.contentBase64,
+        type: a.type,
+        disposition: a.disposition ?? "attachment",
+      }));
     }
 
     const res = await fetch(MAILTRAP_BULK_URL, {

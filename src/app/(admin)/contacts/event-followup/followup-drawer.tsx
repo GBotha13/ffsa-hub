@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Check, CircleDashed, Clock, Mail, Tag, X } from "lucide-react";
 import type { FollowupQueueRow, FollowupDetail } from "@/services/event-followup";
 import type { AssignableFollowupHandler } from "@/lib/auth/assignable-followup-handlers";
+import { SchedulingSection } from "./scheduling-section";
 
 const UNASSIGNED = "__none__";
 
@@ -239,6 +240,22 @@ export function FollowupDrawer({
             ) : null}
           </div>
         </div>
+
+        {detail && (
+          <SchedulingSection
+            enrollmentId={row.enrollment_id}
+            scheduling={detail.scheduling}
+            onChanged={() => {
+              // Re-fetch detail without closing the drawer
+              fetch(`/api/contacts/event-followup/${row.enrollment_id}`)
+                .then((r) => (r.ok ? r.json() : null))
+                .then((data) => {
+                  setDetail(data?.detail ?? null);
+                  onChanged();
+                });
+            }}
+          />
+        )}
 
         <div className="mt-8 flex items-center justify-between gap-3">
           <Button
