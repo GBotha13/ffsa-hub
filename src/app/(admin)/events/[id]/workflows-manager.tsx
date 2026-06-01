@@ -15,7 +15,11 @@ import {
 import { ArrowDown, ArrowUp, Mail, Clock, Tag, Plus, Trash2, Pencil } from "lucide-react";
 import { EmailBlockComposer } from "@/components/communications/email-block-composer";
 import type { CampaignBody } from "@/lib/campaigns/blocks";
-import type { WorkflowTrigger, WorkflowStepType } from "@/lib/workflows/types";
+import type {
+  WorkflowTrigger,
+  WorkflowStepType,
+  WorkflowSchedulerConfig,
+} from "@/lib/workflows/types";
 
 type TriggerField = { key: string; label: string };
 type StepDraft = { step_type: WorkflowStepType; config: Record<string, unknown> };
@@ -430,6 +434,10 @@ function StepsEditor({
                   value={(step.config.body as CampaignBody) ?? { version: 1, blocks: [] }}
                   onChange={(body) => patch(i, { ...step.config, body })}
                 />
+                <SchedulerToggle
+                  scheduler={step.config.scheduler as WorkflowSchedulerConfig | undefined}
+                  onChange={(scheduler) => patch(i, { ...step.config, scheduler })}
+                />
               </div>
             )}
 
@@ -483,6 +491,70 @@ function StepsEditor({
 }
 
 // ── small helpers ────────────────────────────────────────────
+
+function SchedulerToggle({
+  scheduler,
+  onChange,
+}: {
+  scheduler: WorkflowSchedulerConfig | undefined;
+  onChange: (s: WorkflowSchedulerConfig) => void;
+}) {
+  const enabled = !!scheduler?.enabled;
+  const base: WorkflowSchedulerConfig = scheduler ?? { enabled: true };
+  return (
+    <div className="rounded-md border bg-muted/30 p-2.5 space-y-2">
+      <label className="flex items-center gap-2 text-sm font-medium">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) =>
+            onChange({ ...base, enabled: e.target.checked })
+          }
+        />
+        📅 Ask for their availability — adds a “pick a time” button
+      </label>
+      {enabled && (
+        <>
+          <div className="grid grid-cols-2 gap-2 pl-6">
+            <label className="text-xs text-muted-foreground space-y-1 block">
+              <span>Call length (min)</span>
+              <Input
+                type="number"
+                min={5}
+                value={String(scheduler?.durationMinutes ?? 30)}
+                onChange={(e) =>
+                  onChange({ ...base, durationMinutes: Math.max(5, Number(e.target.value)) })
+                }
+              />
+            </label>
+            <label className="text-xs text-muted-foreground space-y-1 block">
+              <span>Booking window (days)</span>
+              <Input
+                type="number"
+                min={1}
+                value={String(scheduler?.windowDays ?? 14)}
+                onChange={(e) =>
+                  onChange({ ...base, windowDays: Math.max(1, Number(e.target.value)) })
+                }
+              />
+            </label>
+            <label className="text-xs text-muted-foreground space-y-1 block col-span-2">
+              <span>Button label</span>
+              <Input
+                value={scheduler?.buttonText ?? "Choose a time that works"}
+                onChange={(e) => onChange({ ...base, buttonText: e.target.value })}
+              />
+            </label>
+          </div>
+          <p className="text-[11px] text-muted-foreground pl-6">
+            The recipient picks times on a Calendly-style page; their choices land
+            on the contact&apos;s Event Follow-up profile.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

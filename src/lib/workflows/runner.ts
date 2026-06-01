@@ -14,6 +14,10 @@
 // ============================================================
 
 import { addLabelToContact } from "@/services/labels";
+import {
+  createSchedulingRequest,
+  getActiveSchedulingForEnrollment,
+} from "@/services/scheduling";
 import { logActivity, logLabelAdded } from "@/services/activity-events";
 import {
   getWorkflowSteps,
@@ -139,11 +143,15 @@ async function getIdentityById(
 async function loadWorkflowIdentity(
   supabase: Client,
   workflowId: string
-): Promise<{ labelId: string | null; identity: IdentityRow | null }> {
+): Promise<{
+  labelId: string | null;
+  identity: IdentityRow | null;
+  createdBy: string | null;
+}> {
   const { data } = await supabase
     .from("outcome_workflows")
     .select(
-      "id, event_outcomes(label_id, labels(id, sending_identity_id, sending_identities(id, from_email, from_name, reply_to)))"
+      "id, created_by, event_outcomes(label_id, labels(id, sending_identity_id, sending_identities(id, from_email, from_name, reply_to)))"
     )
     .eq("id", workflowId)
     .maybeSingle();
@@ -151,7 +159,24 @@ async function loadWorkflowIdentity(
   const outcome = data?.event_outcomes ?? null;
   const label = outcome?.labels ?? null;
   const identity = (label?.sending_identities ?? null) as IdentityRow | null;
-  return { labelId: label?.id ?? null, identity };
+  return {
+    labelId: label?.id ?? null,
+    identity,
+    createdBy: (data?.created_by as string | null) ?? null,
+  };
+}
+
+// Fallback requester for an auto-created scheduling request when the workflow
+// has no created_by — scheduling_requests.requested_by is NOT NULL.
+async function resolveRequesterId(supabase: Client): Promise<string | null> {
+  const { data } = await supabase
+    .from("users")
+    .select("id")
+    .eq("status", "active")
+    .order("created_at")
+    .limit(1)
+    .maybeSingle();
+  return (data?.id as string | undefined) ?? null;
 }
 
 // ── Public entry ─────────────────────────────────────────────
@@ -263,6 +288,7 @@ export async function runEnrollment(
           workflowId: enrollment.workflow_id,
           outcomeLabelId: identityCtx.labelId,
           labelIdentity: identityCtx.identity,
+          workflowCreatedBy: identityCtx.createdBy,
           identityCache,
           getFallback,
         });
@@ -306,6 +332,7 @@ async function runEmailStep(
     workflowId: string;
     outcomeLabelId: string | null;
     labelIdentity: IdentityRow | null;
+    workflowCreatedBy: string | null;
     identityCache: Map<string, IdentityRow | null>;
     getFallback: () => Promise<IdentityRow | null>;
   }
@@ -347,10 +374,48 @@ async function runEmailStep(
     firstName
   );
 
+  // Optional availability scheduler. Reuse an open request for this enrollment,
+  // else create one WITHOUT a standalone email (the button lives in this
+  // email). Proposed times land on the contact's Event Follow-up profile.
+  let scheduler: { url: string; label: string } | undefined;
+  if (cfg?.scheduler?.enabled) {
+    const sc = cfg.scheduler;
+    let token: string | null = null;
+    const existing = await getActiveSchedulingForEnrollment(supabase, enrollmentId);
+    if (existing) {
+      token = existing.magic_token;
+    } else {
+      const requestedBy =
+        args.workflowCreatedBy ?? (await resolveRequesterId(supabase));
+      if (requestedBy) {
+        const r = await createSchedulingRequest(supabase, {
+          contactId: contact.id,
+          requestedBy,
+          enrollmentId,
+          durationMinutes: sc.durationMinutes,
+          expiryDays: sc.windowDays,
+          sendEmail: false,
+        });
+        if (!("error" in r)) token = r.request.magic_token;
+      }
+    }
+    if (token) {
+      scheduler = {
+        url: `${APP_URL}/schedule/${token}`,
+        label: sc.buttonText?.trim() || "Choose a time that works",
+      };
+    }
+  }
+
   // Render inside the fixed Fire & Fragrance workflow shell; the block
   // content is the only variable part.
   const html = substituteFirstName(
-    renderWorkflowEmail(body, { baseUrl: APP_URL, prefsUrl, previewText: subject }),
+    renderWorkflowEmail(body, {
+      baseUrl: APP_URL,
+      prefsUrl,
+      previewText: subject,
+      scheduler,
+    }),
     escapeHtml(firstName)
   );
   const text = substituteFirstName(renderCampaignText(body, {}), firstName);

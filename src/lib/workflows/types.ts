@@ -26,10 +26,18 @@ export type WorkflowTrigger =
 // Stored in workflow_steps.step_type + workflow_steps.config (jsonb).
 export type WorkflowStepType = "send_email" | "delay" | "assign_label";
 
+export type WorkflowSchedulerConfig = {
+  enabled: boolean;
+  durationMinutes?: number; // call length, default 30
+  windowDays?: number; // how far out the recipient may pick, default 14
+  buttonText?: string; // CTA label on the email button
+};
+
 export type SendEmailConfig = {
   subject: string;
   body: CampaignBody; // same composer format as campaigns
   sending_identity_id?: string | null; // falls back to the outcome label's identity
+  scheduler?: WorkflowSchedulerConfig; // optional "pick a time" availability button
 };
 
 export type DelayConfig = {

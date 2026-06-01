@@ -137,6 +137,7 @@ export type WorkflowEmailOpts = {
   baseUrl: string; // e.g. https://www.ffsahub.com — for the logo assets
   prefsUrl: string; // manage-preferences / unsubscribe link
   previewText?: string;
+  scheduler?: { url: string; label: string }; // optional "pick a time" button
 };
 
 export function renderWorkflowEmail(
@@ -145,6 +146,16 @@ export function renderWorkflowEmail(
 ): string {
   const base = opts.baseUrl.replace(/\/$/, "");
   const blocks = (body?.blocks ?? []).map(renderBlock).join("");
+
+  // Optional availability scheduler — a framed card with a pill button to the
+  // magic-token picker. Recipient proposes times; they land on the follow-up.
+  const schedulerBlock = opts.scheduler
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:24px 0 6px;"><tr><td style="background:${WHITE};border:1px solid rgba(20,20,20,0.14);border-radius:10px;padding:22px;text-align:center;">
+<p style="margin:0 0 14px;font-family:${MONO};font-size:11px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:${INK};"><span style="color:${GOLD};">&bull;</span>&nbsp;&nbsp;Find a time to talk</p>
+<table role="presentation" cellpadding="0" cellspacing="0" align="center"><tr><td style="border-radius:999px;background:${BLACK};">
+<a href="${esc(opts.scheduler.url)}" style="display:inline-block;padding:14px 34px;font-family:${SANS};font-size:14px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:${WHITE};text-decoration:none;">${esc(opts.scheduler.label)}</a>
+</td></tr></table></td></tr></table>`
+    : "";
 
   const preview = opts.previewText
     ? `<div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:${PAPER};">${esc(opts.previewText)}</div>`
@@ -170,7 +181,7 @@ ${preview}
 
   <!-- Body -->
   <tr><td style="background:${PAPER};padding:36px 30px 14px 30px;">
-    ${blocks || `<p style="font-family:${SANS};font-size:15px;color:${INK};">&nbsp;</p>`}
+    ${(blocks + schedulerBlock) || `<p style="font-family:${SANS};font-size:15px;color:${INK};">&nbsp;</p>`}
   </td></tr>
 
   <!-- Footer -->

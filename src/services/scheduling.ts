@@ -87,6 +87,7 @@ export async function createSchedulingRequest(
     durationMinutes?: number;
     message?: string | null;
     expiryDays?: number;
+    sendEmail?: boolean; // default true; false = create the request only (caller embeds the link)
   }
 ): Promise<{ request: SchedulingRequest; magicLink: string; emailError: string | null } | { error: string }> {
   const durationMinutes = input.durationMinutes ?? 30;
@@ -130,7 +131,7 @@ export async function createSchedulingRequest(
   ]);
 
   let emailError: string | null = null;
-  if (contact?.email) {
+  if (input.sendEmail !== false && contact?.email) {
     try {
       await resend.emails.send({
         from: FROM_HEADER,
@@ -148,7 +149,7 @@ export async function createSchedulingRequest(
     } catch (e) {
       emailError = e instanceof Error ? e.message : "Failed to send email";
     }
-  } else {
+  } else if (input.sendEmail !== false) {
     emailError = "Contact has no email on file";
   }
 
