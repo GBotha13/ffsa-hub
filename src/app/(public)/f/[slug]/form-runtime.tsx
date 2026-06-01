@@ -3,8 +3,18 @@
 import { useMemo, useState } from "react";
 import { type FormSchema, type FormField, fieldKey } from "@/lib/forms/schema";
 import { DateInput } from "@/components/ui/date-input";
+import {
+  PublicFormShell,
+  PublicFormInputStyles,
+  PUBLIC_SHELL_TOKENS,
+} from "@/components/public-form-shell";
 
 type Values = Record<string, unknown>;
+
+const T = PUBLIC_SHELL_TOKENS;
+// Always use the FF brand gold — accentColor in the form schema is now
+// ignored on the public surface so every form looks like one product.
+const ACCENT = T.yellow;
 
 export function FormRuntime({
   slug,
@@ -17,9 +27,9 @@ export function FormRuntime({
   formName: string;
   eventLogoUrl?: string | null;
 }) {
-  const accent = schema.branding.accentColor || "#1d4ed8";
-  // Event logo (set per event) takes precedence over any form-level logo.
-  const logoUrl = eventLogoUrl || schema.branding.logoUrl || null;
+  // Event/form-specific logo is shown inside the card as a sub-brand, not
+  // replacing the FF wordmark in the shell header.
+  const subBrandLogoUrl = eventLogoUrl || schema.branding.logoUrl || null;
   const steps = schema.steps;
   const [stepIdx, setStepIdx] = useState(0);
   const [values, setValues] = useState<Values>({});
@@ -106,200 +116,113 @@ export function FormRuntime({
   const isLastStep = stepIdx === steps.length - 1;
   const step = steps[stepIdx];
 
-  // Scoped style block: out-specifies the app's global !important input
-  // rules so the public form renders with its own refined light styling.
-  const scopedCss = `
-.ffsa-pf input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
-.ffsa-pf textarea,
-.ffsa-pf select {
-  background:#ffffff !important;
-  color:#0f172a !important;
-  border:1px solid #e2e8f0 !important;
-  border-radius:10px !important;
-  font-size:16px !important;
-  padding:11px 14px !important;
-  width:100% !important;
-  transition:border-color .15s ease, box-shadow .15s ease !important;
-}
-.ffsa-pf input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
-.ffsa-pf textarea:focus,
-.ffsa-pf select:focus {
-  border-color:${accent} !important;
-  box-shadow:0 0 0 3.5px ${accent}26 !important;
-  outline:none !important;
-}
-.ffsa-pf input::placeholder,.ffsa-pf textarea::placeholder{color:#94a3b8 !important;}
-.ffsa-pf-btn-primary{transition:filter .15s ease, transform .04s ease;}
-.ffsa-pf-btn-primary:hover:not(:disabled){filter:brightness(1.08);}
-.ffsa-pf-btn-primary:active:not(:disabled){transform:translateY(1px);}
-.ffsa-pf-btn-ghost{transition:color .15s ease;}
-.ffsa-pf-btn-ghost:hover:not(:disabled){color:#0f172a;}
-.ffsa-pf-outcome{transition:border-color .15s ease, background-color .15s ease;}
-`;
+  if (done) {
+    return (
+      <PublicFormShell
+        eyebrow="Thank You"
+        heading={schema.thankYou.heading}
+        maxWidth={520}
+      >
+        <p
+          style={{
+            fontSize: 15,
+            color: T.textDim,
+            lineHeight: 1.6,
+            margin: 0,
+          }}
+        >
+          {schema.thankYou.message}
+        </p>
+      </PublicFormShell>
+    );
+  }
 
   return (
-    <div
-      className="ffsa-pf"
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 50,
-        overflowY: "auto",
-        background: "linear-gradient(180deg,#f8fafc 0%,#eef1f5 100%)",
-        colorScheme: "light",
-      }}
-    >
-      <style dangerouslySetInnerHTML={{ __html: scopedCss }} />
-
-      <div className="min-h-full flex items-center justify-center px-4 py-10">
-      <div
-        className="w-full max-w-[480px] rounded-2xl overflow-hidden"
-        style={{
-          backgroundColor: "#ffffff",
-          color: "#0f172a",
-          boxShadow:
-            "0 1px 2px rgba(15,23,42,.04), 0 12px 32px -12px rgba(15,23,42,.18)",
-          border: "1px solid #eef1f5",
-        }}
+    <div className="ffsa-public">
+      <PublicFormInputStyles />
+      <PublicFormShell
+        eyebrow={`Step ${stepIdx + 1} of ${steps.length}`}
+        heading={step.title}
+        maxWidth={520}
+        footerNote={formName}
       >
-        {/* Accent strip */}
-        <div style={{ height: 5, backgroundColor: accent }} />
-
-        <div className="px-7 sm:px-9 pt-7 pb-8">
-          {/* Brand */}
-          <div className="flex items-center justify-between mb-7">
-            {logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoUrl} alt="" className="h-9 object-contain" />
-            ) : (
-              <span
-                className="text-[13px] font-semibold tracking-wide"
-                style={{ color: "#64748b" }}
-              >
-                {formName}
-              </span>
-            )}
+        {subBrandLogoUrl && (
+          <div className="mb-6 flex justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={subBrandLogoUrl}
+              alt=""
+              style={{ height: 36, objectFit: "contain", maxWidth: "60%" }}
+            />
           </div>
+        )}
 
-          {done ? (
-            <div className="py-10 text-center">
-              <div
-                className="mx-auto mb-5 flex items-center justify-center rounded-full"
-                style={{
-                  width: 56,
-                  height: 56,
-                  backgroundColor: `${accent}14`,
-                }}
-              >
-                <svg
-                  width="26"
-                  height="26"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke={accent}
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M20 6L9 17l-5-5" />
-                </svg>
-              </div>
-              <h1
-                className="text-2xl font-bold tracking-tight"
-                style={{ color: "#0f172a" }}
-              >
-                {schema.thankYou.heading}
-              </h1>
-              <p className="text-sm mt-2" style={{ color: "#64748b" }}>
-                {schema.thankYou.message}
-              </p>
-            </div>
-          ) : (
-            <>
-              {/* Step indicator + progress */}
-              <p
-                className="text-[11px] font-semibold uppercase mb-1.5"
-                style={{ color: accent, letterSpacing: "0.09em" }}
-              >
-                Step {stepIdx + 1} of {steps.length}
-              </p>
-              <h1
-                className="text-[22px] font-bold tracking-tight leading-tight"
-                style={{ color: "#0f172a" }}
-              >
-                {step.title}
-              </h1>
-              <div
-                className="mt-4 mb-7 h-1.5 rounded-full overflow-hidden"
-                style={{ backgroundColor: "#e9edf2" }}
-              >
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${progress}%`,
-                    backgroundColor: accent,
-                    transition: "width .3s ease",
-                  }}
-                />
-              </div>
-
-              {/* Fields */}
-              <div className="space-y-5">
-                {step.fields.map((field) => (
-                  <FieldInput
-                    key={field.id}
-                    field={field}
-                    value={values[fieldKey(field)]}
-                    error={errors[fieldKey(field)]}
-                    accent={accent}
-                    onChange={(v) => setValue(fieldKey(field), v)}
-                  />
-                ))}
-              </div>
-
-              {submitError && (
-                <p
-                  className="text-sm mt-5 rounded-lg px-3 py-2"
-                  style={{ color: "#b91c1c", backgroundColor: "#fef2f2" }}
-                >
-                  {submitError}
-                </p>
-              )}
-
-              {/* Nav */}
-              <div className="flex items-center justify-between mt-8">
-                <button
-                  type="button"
-                  onClick={prev}
-                  disabled={stepIdx === 0 || submitting}
-                  className="ffsa-pf-btn-ghost text-sm font-medium px-1 disabled:opacity-0"
-                  style={{ color: "#64748b" }}
-                >
-                  ← Back
-                </button>
-                <button
-                  type="button"
-                  onClick={isLastStep ? submit : next}
-                  disabled={submitting}
-                  className="ffsa-pf-btn-primary text-sm font-semibold text-white rounded-xl disabled:opacity-60"
-                  style={{
-                    backgroundColor: accent,
-                    padding: "12px 26px",
-                    boxShadow: `0 6px 16px -6px ${accent}80`,
-                  }}
-                >
-                  {submitting
-                    ? "Submitting…"
-                    : isLastStep
-                    ? "Submit"
-                    : "Continue"}
-                </button>
-              </div>
-            </>
-          )}
+        {/* Progress bar */}
+        <div
+          className="mb-7 h-1.5 rounded-full overflow-hidden"
+          style={{ background: T.borderSoft }}
+        >
+          <div
+            style={{
+              height: "100%",
+              width: `${progress}%`,
+              background: ACCENT,
+              transition: "width .3s ease",
+              borderRadius: 999,
+            }}
+          />
         </div>
-      </div>
-      </div>
+
+        {/* Fields */}
+        <div className="space-y-5">
+          {step.fields.map((field) => (
+            <FieldInput
+              key={field.id}
+              field={field}
+              value={values[fieldKey(field)]}
+              error={errors[fieldKey(field)]}
+              onChange={(v) => setValue(fieldKey(field), v)}
+            />
+          ))}
+        </div>
+
+        {submitError && (
+          <p
+            className="mt-5 rounded-lg px-3 py-2"
+            style={{
+              fontSize: 13,
+              color: T.red,
+              background: `${T.red}1a`,
+              border: `1px solid ${T.red}33`,
+            }}
+          >
+            {submitError}
+          </p>
+        )}
+
+        <div className="flex items-center justify-between mt-8 gap-3">
+          <button
+            type="button"
+            onClick={prev}
+            disabled={stepIdx === 0 || submitting}
+            className="ffsa-public-btn-ghost disabled:opacity-0"
+          >
+            ← Back
+          </button>
+          <button
+            type="button"
+            onClick={isLastStep ? submit : next}
+            disabled={submitting}
+            className="ffsa-public-btn-primary"
+          >
+            {submitting
+              ? "Submitting…"
+              : isLastStep
+              ? "Submit"
+              : "Continue"}
+          </button>
+        </div>
+      </PublicFormShell>
     </div>
   );
 }
@@ -308,59 +231,67 @@ function FieldInput({
   field,
   value,
   error,
-  accent,
   onChange,
 }: {
   field: FormField;
   value: unknown;
   error?: string;
-  accent: string;
   onChange: (v: unknown) => void;
 }) {
   const labelEl = (
     <label
-      className="block text-[13px] font-semibold mb-1.5"
-      style={{ color: "#334155" }}
+      className={`ffsa-public-label ${
+        field.required ? "ffsa-public-label-required" : ""
+      }`}
     >
       {field.label}
-      {field.required && <span style={{ color: "#dc2626" }}> *</span>}
     </label>
   );
   const str = typeof value === "string" ? value : "";
-  const errEl = error ? (
-    <p className="text-[12px] mt-1.5" style={{ color: "#dc2626" }}>
-      {error}
-    </p>
-  ) : null;
+  const errEl = error ? <p className="ffsa-public-error">{error}</p> : null;
 
   // ── checkbox / consent / outcome — selectable cards ──────────
-  if (field.type === "checkbox" || field.type === "consent" || field.type === "outcome") {
+  if (
+    field.type === "checkbox" ||
+    field.type === "consent" ||
+    field.type === "outcome"
+  ) {
     const checked = value === true;
     const isOutcome = field.type === "outcome";
     return (
       <div>
         <label
-          className="ffsa-pf-outcome flex items-start gap-3 cursor-pointer rounded-xl"
+          className={`ffsa-public-card flex items-start gap-3 cursor-pointer ${
+            checked ? "is-selected" : ""
+          }`}
           style={{
             padding: isOutcome ? "14px 16px" : "12px 14px",
-            border: `1.5px solid ${
-              checked ? accent : error ? "#fca5a5" : "#e2e8f0"
-            }`,
-            backgroundColor: checked ? `${accent}0d` : "#ffffff",
           }}
         >
           <input
             type="checkbox"
             checked={checked}
             onChange={(e) => onChange(e.target.checked)}
-            style={{ marginTop: 2, width: 17, height: 17, accentColor: accent }}
+            style={{
+              marginTop: 2,
+              width: 17,
+              height: 17,
+              accentColor: T.yellow,
+              flexShrink: 0,
+            }}
           />
           <span
-            className="text-sm leading-snug"
-            style={{ color: "#1e293b", fontWeight: isOutcome ? 600 : 400 }}
+            style={{
+              fontSize: 14,
+              color: T.text,
+              fontWeight: isOutcome ? 600 : 400,
+              lineHeight: 1.45,
+            }}
           >
             {field.label}
-            {field.required && <span style={{ color: "#dc2626" }}> *</span>}
+            {field.required && (
+              <span style={{ color: T.red }}> *</span>
+            )}
           </span>
         </label>
         {errEl}
@@ -371,12 +302,7 @@ function FieldInput({
   let control: React.ReactNode = null;
 
   if (field.type === "date") {
-    control = (
-      <DateInput
-        value={str}
-        onChange={(v) => onChange(v)}
-      />
-    );
+    control = <DateInput value={str} onChange={(v) => onChange(v)} />;
   } else if (
     field.type === "text" ||
     field.type === "email" ||
@@ -404,7 +330,7 @@ function FieldInput({
         value={str}
         onChange={(e) => onChange(e.target.value)}
         rows={4}
-        className="resize-none"
+        style={{ resize: "none" }}
       />
     );
   } else if (field.type === "dropdown") {
@@ -426,22 +352,19 @@ function FieldInput({
           return (
             <label
               key={o}
-              className="flex items-center gap-3 cursor-pointer rounded-xl text-sm"
-              style={{
-                padding: "11px 14px",
-                border: `1.5px solid ${sel ? accent : "#e2e8f0"}`,
-                backgroundColor: sel ? `${accent}0d` : "#ffffff",
-                color: "#1e293b",
-              }}
+              className={`ffsa-public-card flex items-center gap-3 cursor-pointer text-sm ${
+                sel ? "is-selected" : ""
+              }`}
+              style={{ padding: "11px 14px" }}
             >
               <input
                 type="radio"
                 name={field.id}
                 checked={sel}
                 onChange={() => onChange(o)}
-                style={{ accentColor: accent }}
+                style={{ accentColor: T.yellow, flexShrink: 0 }}
               />
-              {o}
+              <span style={{ color: T.text }}>{o}</span>
             </label>
           );
         })}
@@ -456,25 +379,24 @@ function FieldInput({
           return (
             <label
               key={o}
-              className="flex items-center gap-3 cursor-pointer rounded-xl text-sm"
-              style={{
-                padding: "11px 14px",
-                border: `1.5px solid ${sel ? accent : "#e2e8f0"}`,
-                backgroundColor: sel ? `${accent}0d` : "#ffffff",
-                color: "#1e293b",
-              }}
+              className={`ffsa-public-card flex items-center gap-3 cursor-pointer text-sm ${
+                sel ? "is-selected" : ""
+              }`}
+              style={{ padding: "11px 14px" }}
             >
               <input
                 type="checkbox"
                 checked={sel}
                 onChange={(e) =>
                   onChange(
-                    e.target.checked ? [...arr, o] : arr.filter((x) => x !== o)
+                    e.target.checked
+                      ? [...arr, o]
+                      : arr.filter((x) => x !== o)
                   )
                 }
-                style={{ accentColor: accent }}
+                style={{ accentColor: T.yellow, flexShrink: 0 }}
               />
-              {o}
+              <span style={{ color: T.text }}>{o}</span>
             </label>
           );
         })}

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getFormBySlug } from "@/services/forms";
 import { emptyFormSchema, type FormSchema } from "@/lib/forms/schema";
 import { FormRuntime } from "./form-runtime";
+import { PublicFormNotice } from "@/components/public-form-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -16,14 +17,10 @@ export default async function PublicFormPage({
 
   if (!form || !form.is_active) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
-        <div className="text-center">
-          <h1 className="text-lg font-semibold">Form not available</h1>
-          <p className="text-sm text-gray-600 mt-1">
-            This form may have closed or the link is incorrect.
-          </p>
-        </div>
-      </div>
+      <PublicFormNotice
+        heading="Form not available"
+        body="This form may have closed or the link is incorrect. Please check with the sender for an updated link."
+      />
     );
   }
 

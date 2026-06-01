@@ -3,9 +3,7 @@
 import { useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button } from "@/components/ui/button";
 import { CheckCircle2, Loader2 } from "lucide-react";
-import Image from "next/image";
 import { FormField } from "@/components/form/form-field";
 import { ErrorSummary } from "@/components/form/error-summary";
 import { buildFormSchema } from "@/lib/build-form-schema";
@@ -15,6 +13,13 @@ import {
   orderQuestionsForRender,
   type FormQuestion,
 } from "@/lib/form-types";
+import {
+  PublicFormShell,
+  PublicFormInputStyles,
+  PUBLIC_SHELL_TOKENS,
+} from "@/components/public-form-shell";
+
+const T = PUBLIC_SHELL_TOKENS;
 
 type DbQuestion = {
   id: string;
@@ -47,8 +52,6 @@ export function ReferenceForm({
   const [serverError, setServerError] = useState<string | null>(null);
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
-  // Reorder so follow-ups render directly under their parent (and indent
-  // them via depthById) instead of falling to the bottom by sort_order.
   const { allQuestions, depthById } = useMemo<{
     allQuestions: FormQuestion[];
     depthById: Map<string, number>;
@@ -161,7 +164,9 @@ export function ReferenceForm({
       });
       const result = await res.json();
       if (!res.ok) {
-        setServerError(result.error || "Failed to submit reference. Please try again.");
+        setServerError(
+          result.error || "Failed to submit reference. Please try again."
+        );
         window.scrollTo({ top: 0, behavior: "smooth" });
         return;
       }
@@ -178,138 +183,116 @@ export function ReferenceForm({
 
   if (submitted) {
     return (
-      <div className="min-h-screen flex flex-col" style={{ background: "#0D0B09" }}>
-        <div className="flex-1 flex items-center justify-center px-4">
-          <div className="text-center max-w-md space-y-4">
-            <CheckCircle2 className="mx-auto h-12 w-12" style={{ color: "hsl(142 55% 58%)" }} />
-            <h1 style={{ fontFamily: "var(--font-bebas,'Arial Black',sans-serif)", fontSize: "2rem", color: "#F0EBE3", letterSpacing: "0.04em" }}>
-              Thank You!
-            </h1>
-            <p className="text-sm" style={{ color: "#B8A898" }}>
-              Your reference for {applicantName} has been submitted successfully.
-              The admissions team will review it along with the application.
-            </p>
-          </div>
+      <PublicFormShell eyebrow="Thank You" heading="Reference submitted" maxWidth={520}>
+        <div className="flex justify-center mb-4">
+          <CheckCircle2 className="h-12 w-12" style={{ color: T.green }} />
         </div>
-        <p style={{ textAlign: "center", padding: "2rem", fontSize: "9px", letterSpacing: "0.25em", color: "hsl(30 8% 22%)", textTransform: "uppercase" }}>
-          Catalyse a Generation · Evangelise the World
+        <p
+          style={{
+            fontSize: 15,
+            color: T.textDim,
+            lineHeight: 1.6,
+            margin: 0,
+            textAlign: "center",
+          }}
+        >
+          Your reference for {applicantName} has been submitted successfully.
+          The admissions team will review it along with the application.
         </p>
-      </div>
+      </PublicFormShell>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "#0D0B09" }}>
-      <div
-        className="flex items-center justify-between px-8 py-5"
-        style={{ borderBottom: "1px solid hsl(22 8% 12%)" }}
+    <div className="ffsa-public">
+      <PublicFormInputStyles />
+      <PublicFormShell
+        eyebrow={slotLabel}
+        heading={`Reference for ${applicantName}`}
+        subheading={`Application to ${programName}. Thank you for agreeing to fill out this reference form — please fill it out truthfully and with discretion.`}
+        maxWidth={680}
       >
-        <div className="flex items-center gap-3">
-          <Image src="/ff-logo.png" alt="Fire & Fragrance" width={80} height={20} style={{ objectFit: "contain" }} priority />
-          <div style={{ height: "1px", width: "12px", background: "var(--yellow)" }} />
-          <span style={{ fontSize: "8px", letterSpacing: "0.3em", fontWeight: 700, color: "var(--yellow)", textTransform: "uppercase" }}>
-            HUB
-          </span>
-        </div>
-        <p style={{ fontSize: "10px", letterSpacing: "0.2em", color: "hsl(30 8% 42%)", textTransform: "uppercase" }}>
-          Reference Form
-        </p>
-      </div>
-
-      <div className="flex-1 flex items-start justify-center px-4 py-12">
-        <div className="w-full max-w-2xl">
-          <div
+        {slotDescription && (
+          <p
+            className="mb-5"
             style={{
-              background: "hsl(22 10% 8%)",
-              border: "1px solid hsl(22 8% 14%)",
-              borderRadius: "16px",
-              overflow: "hidden",
+              fontSize: 13,
+              color: T.textDimmer,
+              fontStyle: "italic",
+              lineHeight: 1.55,
+              margin: "0 0 20px",
             }}
           >
-            <div style={{ padding: "1.75rem 2rem 1.25rem", borderBottom: "1px solid hsl(22 8% 12%)" }}>
-              <p style={{ fontSize: "11px", letterSpacing: "0.2em", fontWeight: 700, color: "hsl(42 95% 55%)", textTransform: "uppercase", marginBottom: "6px" }}>
-                {slotLabel}
-              </p>
-              <h2 style={{ fontFamily: "var(--font-bebas,'Arial Black',sans-serif)", fontSize: "1.75rem", letterSpacing: "0.04em", color: "#F0EBE3", lineHeight: 1 }}>
-                Reference for {applicantName}
-              </h2>
-              <p style={{ fontSize: "12px", color: "hsl(30 8% 55%)", marginTop: "6px" }}>
-                Application to <strong style={{ color: "#F0EBE3" }}>{programName}</strong>
-              </p>
-              {slotDescription && (
-                <p style={{ fontSize: "12px", color: "hsl(30 8% 55%)", marginTop: "6px" }}>
-                  {slotDescription}
-                </p>
-              )}
-              <p style={{ fontSize: "12px", color: "hsl(30 8% 45%)", marginTop: "12px", lineHeight: 1.5 }}>
-                Thank you for agreeing to fill out this reference form. Please fill it out truthfully and with discretion.
-              </p>
-            </div>
-
-            <form
-              onSubmit={handleSubmit(onSubmit, onError)}
-              className="space-y-6"
-              style={{ padding: "1.5rem 2rem 2rem" }}
-              noValidate
-            >
-              {serverError && (
-                <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4">
-                  <p className="text-sm text-destructive">{serverError}</p>
-                </div>
-              )}
-
-              {hasAttemptedSubmit && Object.keys(errors).length > 0 && (
-                <ErrorSummary errors={errors} questions={allQuestions} />
-              )}
-
-              {visibleQuestions.length === 0 ? (
-                <p className="text-sm" style={{ color: "#B8A898" }}>
-                  This program has not configured any reference questions yet.
-                  Please check back later or contact the school administrator.
-                </p>
-              ) : (
-                <div className="space-y-4">
-                  {visibleQuestions.map((q) => {
-                    const depth = depthById.get(q.id) ?? 0;
-                    return (
-                      <div
-                        key={q.id}
-                        style={
-                          depth > 0
-                            ? { marginLeft: `${depth * 16}px` }
-                            : undefined
-                        }
-                      >
-                        <FormField question={q} control={control} />
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {visibleQuestions.length > 0 && (
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Submitting...
-                    </>
-                  ) : (
-                    "SUBMIT REFERENCE"
-                  )}
-                </Button>
-              )}
-            </form>
-          </div>
-          <p style={{ textAlign: "center", marginTop: "2rem", fontSize: "9px", letterSpacing: "0.25em", color: "hsl(30 8% 22%)", textTransform: "uppercase" }}>
-            Catalyse a Generation · Evangelise the World
+            {slotDescription}
           </p>
-        </div>
-      </div>
+        )}
+
+        <form
+          onSubmit={handleSubmit(onSubmit, onError)}
+          className="space-y-6"
+          noValidate
+        >
+          {serverError && (
+            <div
+              className="rounded-lg p-4"
+              style={{
+                color: T.red,
+                background: `${T.red}1a`,
+                border: `1px solid ${T.red}33`,
+                fontSize: 13,
+              }}
+            >
+              {serverError}
+            </div>
+          )}
+
+          {hasAttemptedSubmit && Object.keys(errors).length > 0 && (
+            <ErrorSummary errors={errors} questions={allQuestions} />
+          )}
+
+          {visibleQuestions.length === 0 ? (
+            <p style={{ fontSize: 14, color: T.textDim }}>
+              This program has not configured any reference questions yet.
+              Please check back later or contact the school administrator.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {visibleQuestions.map((q) => {
+                const depth = depthById.get(q.id) ?? 0;
+                return (
+                  <div
+                    key={q.id}
+                    style={
+                      depth > 0
+                        ? { marginLeft: `${depth * 16}px` }
+                        : undefined
+                    }
+                  >
+                    <FormField question={q} control={control} />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {visibleQuestions.length > 0 && (
+            <button
+              type="submit"
+              className="ffsa-public-btn-primary w-full"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <span className="inline-flex items-center justify-center">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Submitting…
+                </span>
+              ) : (
+                "Submit reference"
+              )}
+            </button>
+          )}
+        </form>
+      </PublicFormShell>
     </div>
   );
 }

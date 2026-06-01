@@ -4,6 +4,7 @@ import {
   getReferenceQuestionsByProgram,
 } from "@/services/schools";
 import { ReferenceForm } from "./reference-form";
+import { PublicFormNotice } from "@/components/public-form-shell";
 
 export default async function ReferencePage({
   params,
@@ -20,31 +21,21 @@ export default async function ReferencePage({
 
   if (error || !refRequest) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4" style={{ background: "#0D0B09" }}>
-        <div className="text-center max-w-md">
-          <h1 style={{ fontFamily: "var(--font-bebas,'Arial Black',sans-serif)", fontSize: "2rem", color: "#F0EBE3", letterSpacing: "0.04em" }}>
-            Invalid Link
-          </h1>
-          <p className="text-sm mt-2" style={{ color: "#B8A898" }}>
-            This reference link is invalid or has expired. Please contact the applicant for a new link.
-          </p>
-        </div>
-      </div>
+      <PublicFormNotice
+        eyebrow="Reference Form"
+        heading="Invalid link"
+        body="This reference link is invalid or has expired. Please contact the applicant for a new link."
+      />
     );
   }
 
   if (refRequest.status === "submitted") {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4" style={{ background: "#0D0B09" }}>
-        <div className="text-center max-w-md">
-          <h1 style={{ fontFamily: "var(--font-bebas,'Arial Black',sans-serif)", fontSize: "2rem", color: "#F0EBE3", letterSpacing: "0.04em" }}>
-            Reference Already Submitted
-          </h1>
-          <p className="text-sm mt-2" style={{ color: "#B8A898" }}>
-            Thank you! Your reference has already been submitted. No further action is needed.
-          </p>
-        </div>
-      </div>
+      <PublicFormNotice
+        eyebrow="Reference Form"
+        heading="Already submitted"
+        body="Thank you! Your reference has already been submitted. No further action is needed."
+      />
     );
   }
 

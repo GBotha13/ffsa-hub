@@ -1,5 +1,11 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notFound } from "next/navigation";
+import {
+  PublicFormShell,
+  PUBLIC_SHELL_TOKENS,
+} from "@/components/public-form-shell";
+
+const T = PUBLIC_SHELL_TOKENS;
 
 const STATUS_STEPS = [
   { key: "submitted", label: "Submitted" },
@@ -19,19 +25,31 @@ const STATUS_ORDER: Record<string, number> = {
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    submitted: "bg-yellow-900/40 text-yellow-400 border-yellow-700/50",
-    waiting_for_references: "bg-yellow-900/40 text-yellow-400 border-yellow-700/50",
-    references_received: "bg-blue-900/40 text-blue-400 border-blue-700/50",
-    interview_scheduled: "bg-purple-900/40 text-purple-400 border-purple-700/50",
-    accepted: "bg-green-900/40 text-green-400 border-green-700/50",
-    rejected: "bg-red-900/40 text-red-400 border-red-700/50",
-    waitlisted: "bg-orange-900/40 text-orange-400 border-orange-700/50",
+  // Palette tuned for the dark shell.
+  const palettes: Record<string, { bg: string; fg: string; border: string }> = {
+    submitted: { bg: "hsl(42 80% 14%)", fg: "hsl(42 95% 65%)", border: "hsl(42 80% 30%)" },
+    waiting_for_references: { bg: "hsl(42 80% 14%)", fg: "hsl(42 95% 65%)", border: "hsl(42 80% 30%)" },
+    references_received: { bg: "hsl(210 60% 14%)", fg: "hsl(210 80% 70%)", border: "hsl(210 60% 30%)" },
+    interview_scheduled: { bg: "hsl(280 50% 14%)", fg: "hsl(280 80% 75%)", border: "hsl(280 50% 30%)" },
+    accepted: { bg: "hsl(142 40% 14%)", fg: "hsl(142 60% 65%)", border: "hsl(142 40% 30%)" },
+    rejected: { bg: "hsl(0 50% 14%)", fg: "hsl(0 75% 70%)", border: "hsl(0 50% 30%)" },
+    waitlisted: { bg: "hsl(28 60% 14%)", fg: "hsl(28 95% 70%)", border: "hsl(28 60% 30%)" },
   };
-
+  const p = palettes[status] ?? palettes.submitted;
   return (
     <span
-      className={`inline-block px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-full border ${colors[status] ?? colors.submitted}`}
+      style={{
+        display: "inline-block",
+        padding: "5px 12px",
+        fontSize: 11,
+        fontWeight: 700,
+        textTransform: "uppercase",
+        letterSpacing: "0.1em",
+        borderRadius: 999,
+        border: `1px solid ${p.border}`,
+        background: p.bg,
+        color: p.fg,
+      }}
     >
       {status.replace(/_/g, " ")}
     </span>
@@ -46,7 +64,6 @@ export default async function ApplicationStatusPage({
   const { token } = await params;
   const supabase = createAdminClient();
 
-  // Look up the application by status_token
   const { data: response } = await supabase
     .from("application_responses")
     .select(
@@ -59,7 +76,7 @@ export default async function ApplicationStatusPage({
     notFound();
   }
 
-  // Fetch reference requests for this application
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: refs } = await (supabase as any)
     .from("reference_requests")
     .select("id, status, referee_name")
@@ -77,176 +94,175 @@ export default async function ApplicationStatusPage({
     (response.applicant_info as Record<string, string> | null)?.first_name ??
     "Applicant";
 
+  const statusMessages: Record<string, { tone: "green" | "red" | "orange" | "purple"; title: string; body: string }> = {
+    accepted: {
+      tone: "green",
+      title: "Congratulations! Your application has been accepted.",
+      body: "Check your email for next steps and account setup instructions.",
+    },
+    rejected: {
+      tone: "red",
+      title: "We appreciate your interest, but we are unable to offer a place at this time.",
+      body: "We wish you all the best in your future endeavours.",
+    },
+    waitlisted: {
+      tone: "orange",
+      title: "You are on the waitlist for this program.",
+      body: "We'll contact you if a spot becomes available.",
+    },
+    interview_scheduled: {
+      tone: "purple",
+      title: "Your interview has been scheduled!",
+      body: "Check your email for details about your upcoming interview.",
+    },
+  };
+  const msg = statusMessages[response.status];
+  const toneColor: Record<string, string> = {
+    green: "hsl(142 60% 60%)",
+    red: "hsl(0 75% 70%)",
+    orange: "hsl(28 95% 65%)",
+    purple: "hsl(280 80% 75%)",
+  };
+
   return (
-    <div className="min-h-screen bg-[#0D0B09] text-[#F0EBE3]">
-      <div className="mx-auto max-w-lg px-4 py-16">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <div className="text-2xl font-black tracking-[0.06em] font-[Arial_Black,Arial,sans-serif]">
-            FIRE & FRAGRANCE
-          </div>
-          <div className="mt-2 flex items-center justify-center gap-2">
-            <span className="inline-block w-5 h-px bg-[#F5C518]" />
-            <span className="text-[9px] tracking-[0.3em] font-bold text-[#F5C518] uppercase">
-              HUB
-            </span>
-            <span className="inline-block w-5 h-px bg-[#F5C518]" />
-          </div>
-        </div>
+    <PublicFormShell
+      eyebrow="Application Status"
+      heading={`Hi ${firstName}`}
+      subheading={`Your application to ${programName}`}
+      maxWidth={520}
+    >
+      <div className="flex justify-center mb-6">
+        <StatusBadge status={response.status} />
+      </div>
 
-        {/* Main Card */}
-        <div className="rounded-xl border border-[#2a2420] bg-[#141210] overflow-hidden">
-          <div className="h-[3px] bg-gradient-to-r from-transparent via-[#F5C518] to-transparent" />
-
-          <div className="p-8 space-y-8">
-            <div className="text-center space-y-2">
-              <p className="text-[11px] tracking-[0.25em] font-bold text-[#F5C518] uppercase">
-                Application Status
-              </p>
-              <h1 className="text-2xl font-black tracking-wide">
-                Hi {firstName}
-              </h1>
-              <p className="text-sm text-[#B8A898]">
-                Your application to{" "}
-                <strong className="text-[#F0EBE3]">{programName}</strong>
-              </p>
-            </div>
-
-            {/* Status Badge */}
-            <div className="text-center">
-              <StatusBadge status={response.status} />
-            </div>
-
-            {/* Progress Steps */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between px-2">
-                {STATUS_STEPS.map((step, idx) => {
-                  const isActive = idx <= currentStep;
-                  const isCurrent = idx === currentStep;
-                  return (
-                    <div key={step.key} className="flex flex-col items-center gap-2 flex-1">
-                      <div
-                        className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors ${
-                          isCurrent
-                            ? "border-[#F5C518] bg-[#F5C518]/20 text-[#F5C518]"
-                            : isActive
-                              ? "border-[#F5C518] bg-[#F5C518] text-[#0D0B09]"
-                              : "border-[#2a2420] bg-transparent text-[#5a4e42]"
-                        }`}
-                      >
-                        {isActive && idx < currentStep ? "✓" : idx + 1}
-                      </div>
-                      <span
-                        className={`text-[10px] font-semibold tracking-wider uppercase ${
-                          isActive ? "text-[#F5C518]" : "text-[#5a4e42]"
-                        }`}
-                      >
-                        {step.label}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-              {/* Progress bar */}
-              <div className="mx-6 h-1 rounded-full bg-[#2a2420] mt-1">
+      {/* Progress steps */}
+      <div className="mb-6">
+        <div className="flex items-start justify-between px-2">
+          {STATUS_STEPS.map((step, idx) => {
+            const isActive = idx <= currentStep;
+            const isCurrent = idx === currentStep;
+            return (
+              <div
+                key={step.key}
+                style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}
+              >
                 <div
-                  className="h-full rounded-full bg-[#F5C518] transition-all"
                   style={{
-                    width: `${(currentStep / (STATUS_STEPS.length - 1)) * 100}%`,
+                    width: 32,
+                    height: 32,
+                    borderRadius: 999,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    border: `2px solid ${isActive ? T.yellow : T.border}`,
+                    background: isCurrent
+                      ? `${T.yellow}33`
+                      : isActive
+                      ? T.yellow
+                      : "transparent",
+                    color: isCurrent
+                      ? T.yellow
+                      : isActive
+                      ? T.bg
+                      : T.textFaint,
+                    transition: "all .15s ease",
                   }}
-                />
-              </div>
-            </div>
-
-            {/* Details */}
-            <div className="space-y-4 text-sm">
-              <div className="flex justify-between items-center py-2 border-b border-[#2a2420]">
-                <span className="text-[#B8A898]">Submitted</span>
-                <span>
-                  {new Date(response.submitted_at).toLocaleDateString("en-ZA", {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })}
+                >
+                  {isActive && idx < currentStep ? "✓" : idx + 1}
+                </div>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    letterSpacing: "0.1em",
+                    textTransform: "uppercase",
+                    color: isActive ? T.yellow : T.textFaint,
+                  }}
+                >
+                  {step.label}
                 </span>
               </div>
-
-              {totalRefs > 0 && (
-                <div className="flex justify-between items-center py-2 border-b border-[#2a2420]">
-                  <span className="text-[#B8A898]">References</span>
-                  <span
-                    className={
-                      submittedRefs === totalRefs
-                        ? "text-green-400"
-                        : "text-yellow-400"
-                    }
-                  >
-                    {submittedRefs} of {totalRefs} received
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Status-specific messaging */}
-            {response.status === "accepted" && (
-              <div className="rounded-lg bg-green-950/30 border border-green-800/30 p-4 text-center">
-                <p className="text-green-400 font-semibold text-sm">
-                  Congratulations! Your application has been accepted.
-                </p>
-                <p className="text-xs text-[#B8A898] mt-1">
-                  Check your email for next steps and account setup instructions.
-                </p>
-              </div>
-            )}
-
-            {response.status === "rejected" && (
-              <div className="rounded-lg bg-red-950/30 border border-red-800/30 p-4 text-center">
-                <p className="text-red-400 font-semibold text-sm">
-                  We appreciate your interest, but we are unable to offer a
-                  place at this time.
-                </p>
-                <p className="text-xs text-[#B8A898] mt-1">
-                  We wish you all the best in your future endeavours.
-                </p>
-              </div>
-            )}
-
-            {response.status === "waitlisted" && (
-              <div className="rounded-lg bg-orange-950/30 border border-orange-800/30 p-4 text-center">
-                <p className="text-orange-400 font-semibold text-sm">
-                  You are on the waitlist for this program.
-                </p>
-                <p className="text-xs text-[#B8A898] mt-1">
-                  We&apos;ll contact you if a spot becomes available.
-                </p>
-              </div>
-            )}
-
-            {response.status === "interview_scheduled" && (
-              <div className="rounded-lg bg-purple-950/30 border border-purple-800/30 p-4 text-center">
-                <p className="text-purple-400 font-semibold text-sm">
-                  Your interview has been scheduled!
-                </p>
-                <p className="text-xs text-[#B8A898] mt-1">
-                  Check your email for details about your upcoming interview.
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div className="h-px bg-[#2a2420]" />
-
-          {/* Footer */}
-          <div className="p-6 text-center">
-            <p className="text-[10px] tracking-[0.25em] text-[#3a3028] uppercase font-bold">
-              CATALYSE A GENERATION · EVANGELISE THE WORLD
-            </p>
-            <p className="text-[11px] text-[#3a3028] mt-1">
-              Fire & Fragrance South Africa — ffsahub.com
-            </p>
-          </div>
+            );
+          })}
+        </div>
+        <div
+          style={{
+            margin: "8px 24px 0",
+            height: 4,
+            borderRadius: 999,
+            background: T.border,
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              height: "100%",
+              width: `${(currentStep / (STATUS_STEPS.length - 1)) * 100}%`,
+              background: T.yellow,
+              transition: "width .3s ease",
+            }}
+          />
         </div>
       </div>
-    </div>
+
+      <div className="space-y-1 mb-4">
+        <div
+          className="flex justify-between items-center py-2.5"
+          style={{ borderBottom: `1px solid ${T.border}`, fontSize: 14 }}
+        >
+          <span style={{ color: T.textDim }}>Submitted</span>
+          <span style={{ color: T.text }}>
+            {new Date(response.submitted_at).toLocaleDateString("en-ZA", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })}
+          </span>
+        </div>
+        {totalRefs > 0 && (
+          <div
+            className="flex justify-between items-center py-2.5"
+            style={{ borderBottom: `1px solid ${T.border}`, fontSize: 14 }}
+          >
+            <span style={{ color: T.textDim }}>References</span>
+            <span
+              style={{
+                color:
+                  submittedRefs === totalRefs
+                    ? T.green
+                    : "hsl(42 95% 65%)",
+              }}
+            >
+              {submittedRefs} of {totalRefs} received
+            </span>
+          </div>
+        )}
+      </div>
+
+      {msg && (
+        <div
+          className="rounded-lg p-4 text-center"
+          style={{
+            background: `${toneColor[msg.tone]}1a`,
+            border: `1px solid ${toneColor[msg.tone]}40`,
+          }}
+        >
+          <p
+            style={{
+              fontSize: 14,
+              fontWeight: 600,
+              color: toneColor[msg.tone],
+            }}
+          >
+            {msg.title}
+          </p>
+          <p style={{ fontSize: 12, color: T.textDim, marginTop: 4 }}>
+            {msg.body}
+          </p>
+        </div>
+      )}
+    </PublicFormShell>
   );
 }

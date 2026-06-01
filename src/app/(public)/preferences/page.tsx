@@ -1,6 +1,11 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyPrefsToken } from "@/lib/tokens/unsubscribe";
 import { PreferencesForm } from "./preferences-form";
+import {
+  PublicFormNotice,
+  PublicFormShell,
+  PublicFormInputStyles,
+} from "@/components/public-form-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -13,33 +18,13 @@ export default async function PreferencesPage({
   const token = t ?? "";
   const v = verifyPrefsToken(token);
 
-  const shell = (children: React.ReactNode) => (
-    <div
-      className="min-h-screen flex items-center justify-center p-6"
-      style={{ background: "#f1f5f9", colorScheme: "light" }}
-    >
-      <div
-        className="w-full max-w-md rounded-2xl p-8"
-        style={{
-          background: "#ffffff",
-          color: "#0f172a",
-          boxShadow: "0 12px 32px -12px rgba(15,23,42,.18)",
-        }}
-      >
-        {children}
-      </div>
-    </div>
-  );
-
   if (!v.valid || !v.contactId) {
-    return shell(
-      <div className="text-center">
-        <h1 className="text-lg font-bold">Link not valid</h1>
-        <p className="text-sm mt-2" style={{ color: "#64748b" }}>
-          This preferences link is {v.reason ?? "invalid"}. Please use the link
-          from a recent email.
-        </p>
-      </div>
+    return (
+      <PublicFormNotice
+        eyebrow="Preferences"
+        heading="Link not valid"
+        body={`This preferences link is ${v.reason ?? "invalid"}. Please use the link from a recent email.`}
+      />
     );
   }
 
@@ -68,11 +53,21 @@ export default async function PreferencesPage({
     ((campaignLabels ?? []) as { label_id: string }[]).map((r) => r.label_id)
   );
 
-  return shell(
-    <PreferencesForm
-      token={token}
-      labels={labels.map((l) => ({ id: l.id, name: l.name }))}
-      highlightedLabelIds={Array.from(highlightedLabelIds)}
-    />
+  return (
+    <div className="ffsa-public">
+      <PublicFormInputStyles />
+      <PublicFormShell
+        eyebrow="Email Preferences"
+        heading="Stay or step away"
+        subheading="Uncheck anything you want to stop receiving. Changes save when you hit the button at the bottom."
+        maxWidth={520}
+      >
+        <PreferencesForm
+          token={token}
+          labels={labels.map((l) => ({ id: l.id, name: l.name }))}
+          highlightedLabelIds={Array.from(highlightedLabelIds)}
+        />
+      </PublicFormShell>
+    </div>
   );
 }

@@ -3,9 +3,12 @@ import { getEventBySlug } from "@/services/events";
 import { listTicketTypesByEvent } from "@/services/ticketing";
 import { Storefront } from "./storefront";
 import { TheSendStorefront } from "./the-send-storefront";
+import { PublicFormNotice } from "@/components/public-form-shell";
 
 // Bespoke landing pages keyed by event slug. THE SEND gets its own
 // branded storefront; everything else uses the standard Storefront.
+// Both are intentionally event-bespoke and not migrated to the
+// shared dark form shell — see project notes if this changes.
 function isTheSend(slug: string, title: string): boolean {
   const s = slug.toLowerCase();
   return s.includes("the-send") || title.toLowerCase().includes("the send");
@@ -28,14 +31,11 @@ export default async function PublicEventPage({
     event.status !== "published"
   ) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
-        <div className="text-center">
-          <h1 className="text-lg font-semibold">Event not available</h1>
-          <p className="text-sm text-gray-600 mt-1">
-            This event may have ended, been moved, or the link is incorrect.
-          </p>
-        </div>
-      </div>
+      <PublicFormNotice
+        eyebrow="Event"
+        heading="Event not available"
+        body="This event may have ended, been moved, or the link is incorrect."
+      />
     );
   }
 

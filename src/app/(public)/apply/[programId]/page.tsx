@@ -2,6 +2,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getProgramPublicInfo, getQuestionsByProgram, getReferenceSlotsByProgram } from "@/services/schools";
 import { getCurrentConsentAgreement } from "@/services/consent";
 import { PublicApplicationForm } from "./public-application-form";
+import {
+  PublicFormNotice,
+  PublicFormShell,
+  PublicFormInputStyles,
+} from "@/components/public-form-shell";
 
 export default async function PublicApplyPage({
   params,
@@ -19,29 +24,17 @@ export default async function PublicApplyPage({
     : false;
 
   if (!program || program.status !== "active" || !program.application_open || deadlinePassed) {
+    const body = deadlinePassed
+      ? `The application deadline for ${program.name} has passed.`
+      : program
+        ? `Applications for ${program.name} are currently closed. Please check back later.`
+        : "This program was not found or is no longer available.";
     return (
-      <div className="text-center space-y-4 py-16">
-        <div className="space-y-2">
-          <div className="text-2xl font-black tracking-wide text-foreground">
-            FIRE & FRAGRANCE
-          </div>
-          <div className="text-xs font-bold tracking-[0.3em] text-primary uppercase">
-            HUB
-          </div>
-        </div>
-        <div className="pt-8">
-          <h1 className="text-xl font-bold text-foreground">
-            Applications Closed
-          </h1>
-          <p className="text-sm text-muted-foreground mt-2">
-            {deadlinePassed
-              ? `The application deadline for ${program.name} has passed.`
-              : program
-                ? `Applications for ${program.name} are currently closed. Please check back later.`
-                : "This program was not found or is no longer available."}
-          </p>
-        </div>
-      </div>
+      <PublicFormNotice
+        eyebrow="Applications"
+        heading="Applications closed"
+        body={body}
+      />
     );
   }
 
@@ -50,35 +43,22 @@ export default async function PublicApplyPage({
   const { data: agreement } = await getCurrentConsentAgreement(supabase);
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="text-center space-y-2">
-        <div className="text-2xl font-black tracking-wide text-foreground">
-          FIRE & FRAGRANCE
-        </div>
-        <div className="text-xs font-bold tracking-[0.3em] text-primary uppercase">
-          HUB
-        </div>
-      </div>
-
-      {/* Program Info */}
-      <div className="text-center space-y-2">
-        <h1 className="text-xl font-bold text-foreground">
-          Apply to {program.name}
-        </h1>
-        {program.description && (
-          <p className="text-sm text-muted-foreground">{program.description}</p>
-        )}
-      </div>
-
-      {/* Form */}
-      <PublicApplicationForm
-        programId={programId}
-        programName={program.name}
-        questions={questions ?? []}
-        referenceSlots={referenceSlots ?? []}
-        consentAgreementVersion={agreement?.version ?? null}
-      />
+    <div className="ffsa-public">
+      <PublicFormInputStyles />
+      <PublicFormShell
+        eyebrow="Application"
+        heading={`Apply to ${program.name}`}
+        subheading={program.description ?? undefined}
+        maxWidth={680}
+      >
+        <PublicApplicationForm
+          programId={programId}
+          programName={program.name}
+          questions={questions ?? []}
+          referenceSlots={referenceSlots ?? []}
+          consentAgreementVersion={agreement?.version ?? null}
+        />
+      </PublicFormShell>
     </div>
   );
 }

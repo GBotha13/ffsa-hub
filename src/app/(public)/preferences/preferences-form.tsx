@@ -1,6 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { PUBLIC_SHELL_TOKENS } from "@/components/public-form-shell";
+
+const T = PUBLIC_SHELL_TOKENS;
 
 type Label = { id: string; name: string };
 
@@ -13,7 +16,6 @@ export function PreferencesForm({
   labels: Label[];
   highlightedLabelIds: string[];
 }) {
-  // Every label starts checked (subscribed); unchecking = unsubscribe.
   const [checked, setChecked] = useState<Record<string, boolean>>(
     Object.fromEntries(labels.map((l) => [l.id, true]))
   );
@@ -73,9 +75,20 @@ export function PreferencesForm({
 
   if (done) {
     return (
-      <div className="text-center">
-        <h1 className="text-lg font-bold">Preferences updated</h1>
-        <p className="text-sm mt-2" style={{ color: "#64748b" }}>
+      <div className="text-center py-4">
+        <p
+          style={{
+            fontSize: 11,
+            letterSpacing: "0.25em",
+            fontWeight: 700,
+            color: T.yellow,
+            textTransform: "uppercase",
+            marginBottom: 8,
+          }}
+        >
+          Preferences updated
+        </p>
+        <p style={{ fontSize: 14, color: T.textDim, lineHeight: 1.55 }}>
           {done === "all"
             ? "You've been unsubscribed from all marketing emails."
             : "Your email preferences have been saved."}
@@ -84,47 +97,52 @@ export function PreferencesForm({
     );
   }
 
-  const renderRow = (l: Label, highlighted: boolean) => (
-    <label
-      key={l.id}
-      className="flex items-center gap-3 rounded-lg border p-3 text-sm cursor-pointer"
-      style={{
-        borderColor: highlighted ? "#1d4ed8" : "#e2e8f0",
-        background: highlighted ? "#eff6ff" : "transparent",
-        color: "#1e293b",
-      }}
-    >
-      <input
-        type="checkbox"
-        checked={checked[l.id] ?? false}
-        onChange={(e) =>
-          setChecked((c) => ({ ...c, [l.id]: e.target.checked }))
-        }
-        style={{ accentColor: "#1d4ed8", width: 16, height: 16 }}
-      />
-      <span className="flex-1">{l.name}</span>
-    </label>
-  );
+  const renderRow = (l: Label, highlighted: boolean) => {
+    const isChecked = checked[l.id] ?? false;
+    return (
+      <label
+        key={l.id}
+        className={`ffsa-public-card flex items-center gap-3 cursor-pointer ${
+          highlighted ? "is-selected" : ""
+        }`}
+        style={{ padding: "12px 14px" }}
+      >
+        <input
+          type="checkbox"
+          checked={isChecked}
+          onChange={(e) =>
+            setChecked((c) => ({ ...c, [l.id]: e.target.checked }))
+          }
+          style={{
+            accentColor: T.yellow,
+            width: 16,
+            height: 16,
+            flexShrink: 0,
+          }}
+        />
+        <span style={{ flex: 1, color: T.text, fontSize: 14 }}>{l.name}</span>
+      </label>
+    );
+  };
 
   return (
-    <div>
-      <h1 className="text-lg font-bold">Email preferences</h1>
-      <p className="text-sm mt-2" style={{ color: "#475569" }}>
-        Uncheck anything you want to stop receiving. Your changes save when you
-        hit the button at the bottom.
-      </p>
-
+    <>
       {labels.length === 0 ? (
-        <p className="text-sm mt-4" style={{ color: "#64748b" }}>
+        <p style={{ fontSize: 14, color: T.textDim }}>
           You&rsquo;re not subscribed to any email lists.
         </p>
       ) : (
-        <div className="mt-4 space-y-4">
+        <div className="space-y-5">
           {fromEmailLabels.length > 0 && (
             <div className="space-y-2">
               <p
-                className="text-xs font-semibold uppercase tracking-wide"
-                style={{ color: "#1d4ed8", letterSpacing: "0.08em" }}
+                style={{
+                  fontSize: 10,
+                  letterSpacing: "0.2em",
+                  fontWeight: 700,
+                  color: T.yellow,
+                  textTransform: "uppercase",
+                }}
               >
                 From this email
               </p>
@@ -138,8 +156,13 @@ export function PreferencesForm({
             <div className="space-y-2">
               {fromEmailLabels.length > 0 && (
                 <p
-                  className="text-xs font-semibold uppercase tracking-wide"
-                  style={{ color: "#64748b", letterSpacing: "0.08em" }}
+                  style={{
+                    fontSize: 10,
+                    letterSpacing: "0.2em",
+                    fontWeight: 700,
+                    color: T.textDimmer,
+                    textTransform: "uppercase",
+                  }}
                 >
                   Your other subscriptions
                 </p>
@@ -153,7 +176,15 @@ export function PreferencesForm({
       )}
 
       {err && (
-        <p className="text-sm mt-3" style={{ color: "#dc2626" }}>
+        <p
+          className="mt-4 rounded-lg px-3 py-2"
+          style={{
+            color: T.red,
+            background: `${T.red}1a`,
+            border: `1px solid ${T.red}33`,
+            fontSize: 13,
+          }}
+        >
           {err}
         </p>
       )}
@@ -164,22 +195,31 @@ export function PreferencesForm({
             type="button"
             onClick={save}
             disabled={busy}
-            className="w-full rounded-lg py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-            style={{ background: "#1d4ed8" }}
+            className="ffsa-public-btn-primary w-full"
           >
-            Save preferences
+            {busy ? "Saving…" : "Save preferences"}
           </button>
         )}
         <button
           type="button"
           onClick={unsubscribeAll}
           disabled={busy}
-          className="w-full rounded-lg py-2.5 text-sm font-medium disabled:opacity-50"
-          style={{ border: "1px solid #e2e8f0", color: "#475569" }}
+          className="w-full"
+          style={{
+            padding: "12px",
+            borderRadius: 10,
+            border: `1px solid ${T.borderSoft}`,
+            background: "transparent",
+            color: T.textDim,
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: busy ? "not-allowed" : "pointer",
+            opacity: busy ? 0.5 : 1,
+          }}
         >
           Unsubscribe from all emails
         </button>
       </div>
-    </div>
+    </>
   );
 }
