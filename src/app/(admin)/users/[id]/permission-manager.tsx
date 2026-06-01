@@ -187,9 +187,13 @@ function ModuleSection({
 
   // Some permissions are scoped-only — they must always be tied to a
   // specific program/team/event and can never be granted globally.
-  // `schools.assignable_as_contact` is one: it makes a user assignable
-  // as a point of contact for exactly the program it's scoped to.
-  const SCOPED_ONLY_KEYS = new Set(["schools.assignable_as_contact"]);
+  // E.g. `schools.assignable_as_contact` (per-program), and
+  // `events.assignable_as_followup_handler` (per-event) — each grant
+  // makes the user assignable for exactly the scope it's tied to.
+  const SCOPED_ONLY_KEYS = new Set([
+    "schools.assignable_as_contact",
+    "events.assignable_as_followup_handler",
+  ]);
   const globalPermissions = permissions.filter(
     (p) => !SCOPED_ONLY_KEYS.has(p.key)
   );

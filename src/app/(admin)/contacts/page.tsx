@@ -4,6 +4,12 @@ import { requireModuleAccess } from "@/lib/require-permission";
 import { getContacts } from "@/services/contacts";
 import { getPersonTypes } from "@/services/contacts";
 import { ContactsList } from "./contacts-list";
+import { ContactsTabsNav } from "./contacts-tabs-nav";
+import {
+  getAccessibleEventIdsForFollowups,
+  userCanAccessFollowupQueue,
+} from "@/lib/auth/check-followup-access";
+import { getFollowupQueue } from "@/services/event-followup";
 
 export default async function ContactsPage({
   searchParams,
@@ -30,6 +36,21 @@ export default async function ContactsPage({
 
   const { data: personTypes } = await getPersonTypes(supabase);
 
+  // Follow-up pending count for the tab badge (null = user has no access)
+  let pendingCount: number | null = null;
+  if (await userCanAccessFollowupQueue(supabase, user.id)) {
+    const accessible = await getAccessibleEventIdsForFollowups(
+      supabase,
+      user.id
+    );
+    const queue = await getFollowupQueue(supabase, {
+      accessibleEventIds: accessible,
+    });
+    pendingCount = queue.filter(
+      (r) => !r.assigned_staff_id || r.is_unread
+    ).length;
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -53,6 +74,8 @@ export default async function ContactsPage({
           </a>
         </div>
       </div>
+
+      <ContactsTabsNav followupPendingCount={pendingCount} />
 
       <ContactsList
         contacts={contacts ?? []}
