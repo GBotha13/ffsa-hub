@@ -28,6 +28,7 @@ import {
 } from "@/lib/campaigns/blocks";
 import { getEffectiveBrand } from "@/services/brand";
 import { signPrefsToken } from "@/lib/tokens/unsubscribe";
+import { substituteFirstName, escapeHtml } from "@/lib/email/placeholders";
 import type {
   AssignLabelConfig,
   DelayConfig,
@@ -348,13 +349,22 @@ async function runEmailStep(
   const prefsUrl = prefsUrlFor(contact.id);
   const brand = await getEffectiveBrand(supabase, identity.id);
   const body = (cfg?.body ?? { blocks: [] }) as unknown as CampaignBody;
-  const subject = cfg?.subject?.trim() || "A message from Fire & Fragrance";
 
-  const html = renderCampaignHtml(body, {
-    brand,
-    footerHtml: footerHtml(prefsUrl),
-  });
-  const text = renderCampaignText(body, { brand });
+  // Personalize: {{first_name}} / [First Name] / [Name] → the contact's name.
+  // Prefer their preferred name; fall back to first name, then a neutral
+  // "there". Escaped when spliced into HTML; raw for subject + plain text.
+  const firstName =
+    contact.preferred_name?.trim() || contact.first_name?.trim() || "there";
+  const subject = substituteFirstName(
+    cfg?.subject?.trim() || "A message from Fire & Fragrance",
+    firstName
+  );
+
+  const html = substituteFirstName(
+    renderCampaignHtml(body, { brand, footerHtml: footerHtml(prefsUrl) }),
+    escapeHtml(firstName)
+  );
+  const text = substituteFirstName(renderCampaignText(body, { brand }), firstName);
 
   const res = await sendViaMailtrap({
     fromEmail: identity.from_email,
