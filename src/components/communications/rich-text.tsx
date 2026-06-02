@@ -66,7 +66,7 @@ export function RichText({
     editorProps: {
       attributes: {
         class:
-          "min-h-[80px] focus:outline-none px-3 py-2 text-sm leading-relaxed",
+          "min-h-[80px] focus:outline-none px-3 py-2 text-sm leading-relaxed [&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0",
         "data-placeholder": placeholder ?? "Write…",
       },
     },

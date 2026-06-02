@@ -338,10 +338,10 @@ function imageTextHtml(
   const heading = block.heading
     ? `<div style="font-family:${displayStack(brand)};font-size:22px;line-height:1.2;font-weight:700;letter-spacing:-0.015em;color:${brand.primary_color};margin-bottom:10px;">${escapeHtml(block.heading)}</div>`
     : "";
-  const text = `<div style="font-family:${bodyStack(brand)};font-size:15px;line-height:1.65;color:${brand.text_color};">${sanitizeRichText(block.text)
+  const text = `<div style="font-family:${bodyStack(brand)};font-size:15px;line-height:1.5;color:${brand.text_color};">${sanitizeRichText(block.text)
     .replace(
       /<p(\s|>)/g,
-      `<p style="margin:0 0 10px;font-family:${bodyStack(brand)};font-size:15px;line-height:1.65;color:${brand.text_color};"$1`
+      `<p style="margin:0 0 4px;font-family:${bodyStack(brand)};font-size:15px;line-height:1.5;color:${brand.text_color};"$1`
     )
     .replace(
       /<a(\s|>)/g,
@@ -390,14 +390,14 @@ function renderBlock(block: CampaignBlock, brand: EffectiveBrand): string {
       const safe = sanitizeRichText(block.text)
         .replace(
           /<p(\s|>)/g,
-          `<p style="margin:0 0 14px;font-family:${bodyStack(brand)};font-size:17px;line-height:1.7;color:${brand.text_color};"$1`
+          `<p style="margin:0 0 6px;font-family:${bodyStack(brand)};font-size:17px;line-height:1.5;color:${brand.text_color};"$1`
         )
         .replace(
           /<a(\s|>)/g,
           `<a style="color:${brand.accent_color};text-decoration:underline;text-underline-offset:2px;"$1`
         );
       const final = block.dropCap ? dropCapWrap(safe, brand) : safe;
-      return `<tr><td style="padding:6px 0;font-family:${bodyStack(brand)};font-size:17px;line-height:1.7;color:${brand.text_color};">${final}</td></tr>`;
+      return `<tr><td style="padding:2px 0;font-family:${bodyStack(brand)};font-size:17px;line-height:1.5;color:${brand.text_color};">${final}</td></tr>`;
     }
     case "button":
       return `<tr><td style="padding:20px 0;">${buttonHtml(block.text, block.url, block.style ?? "filled", brand)}</td></tr>`;
