@@ -402,9 +402,14 @@ async function fetchOrders(
     );
 }
 
-// Schools — applications (application_responses) + enrollments hang off a USER
-// account, linked to a contact via users.contact_id (not the contact directly).
-// Resolve the linked user(s) first, then their applications/enrollments.
+// Schools — applications (application_responses) + enrollments belong to a
+// school applicant's USER account. In practice users.contact_id is NOT
+// populated, so the real link to a CRM contact is the EMAIL: match users whose
+// email equals any of the contact's emails (primary cache + every
+// contact_emails row), and still honour users.contact_id if it's ever set.
+// The users table is small (staff + applicants), so matching in memory is
+// cheap — and we compare normalized emails exactly rather than with ilike,
+// since emails can contain "_" (a SQL LIKE wildcard).
 async function fetchSchools(
   supabase: Client,
   contactId: string
@@ -412,10 +417,30 @@ async function fetchSchools(
   applications: DossierApplication[];
   enrollments: DossierEnrollment[];
 }> {
-  const users = await safe(supabase, "users", (q: Client) =>
-    q.select("id").eq("contact_id", contactId)
-  );
-  const userIds = users.map((u: Client) => u.id).filter(Boolean);
+  const [contactRows, emailRows, users] = await Promise.all([
+    safe(supabase, "contacts", (q: Client) =>
+      q.select("email").eq("id", contactId)
+    ),
+    safe(supabase, "contact_emails", (q: Client) =>
+      q.select("email").eq("contact_id", contactId)
+    ),
+    safe(supabase, "users", (q: Client) => q.select("id, email, contact_id")),
+  ]);
+
+  const emails = new Set<string>();
+  for (const r of contactRows)
+    if (r.email) emails.add(String(r.email).trim().toLowerCase());
+  for (const r of emailRows)
+    if (r.email) emails.add(String(r.email).trim().toLowerCase());
+
+  const userIds = users
+    .filter(
+      (u: Client) =>
+        u.contact_id === contactId ||
+        (u.email && emails.has(String(u.email).trim().toLowerCase()))
+    )
+    .map((u: Client) => u.id)
+    .filter(Boolean);
   if (userIds.length === 0) return { applications: [], enrollments: [] };
 
   const [apps, enrolls] = await Promise.all([
