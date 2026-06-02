@@ -61,12 +61,6 @@ export default async function ContactsPage({
         </div>
         <div className="flex gap-2">
           <a
-            href="/contacts/dedup-review"
-            className="inline-flex items-center px-3 py-1.5 rounded border text-sm hover:bg-gray-50"
-          >
-            Dedup review
-          </a>
-          <a
             href="/contacts/import"
             className="inline-flex items-center px-3 py-1.5 rounded border text-sm hover:bg-gray-50"
           >
