@@ -25,6 +25,11 @@ export function ContactsTabsNav({
       href: "/contacts/event-followup",
       badgeCount: followupPendingCount,
     },
+    {
+      key: "duplicates",
+      label: "Possible Duplicates",
+      href: "/contacts/duplicates",
+    },
   ];
 
   function isActive(tab: Tab) {

@@ -30,6 +30,13 @@ export type MergePreview = {
   eventOutcomes: number;
   orders: number;
   importErrors: number;
+  // Newer subsystems — re-pointed so a merge never deletes this history.
+  workflowEnrollments: number;
+  workflowEmailSends: number;
+  schedulingRequests: number;
+  eventRegistrations: number;
+  attendanceRecords: number;
+  personTypeAssignments: number;
 };
 
 export async function previewMerge(
@@ -49,6 +56,12 @@ export async function previewMerge(
     countWhere(supabase, "event_outcome_responses", "contact_id", sourceId),
     countWhere(supabase, "orders", "buyer_contact_id", sourceId),
     countWhere(supabase, "csv_import_errors", "resolved_contact_id", sourceId),
+    countWhere(supabase, "workflow_enrollments", "contact_id", sourceId),
+    countWhere(supabase, "workflow_email_sends", "contact_id", sourceId),
+    countWhere(supabase, "scheduling_requests", "contact_id", sourceId),
+    countWhere(supabase, "event_registrations", "contact_id", sourceId),
+    countWhere(supabase, "attendance_records", "contact_id", sourceId),
+    countWhere(supabase, "person_type_assignments", "contact_id", sourceId),
   ]);
   return {
     sourceId,
@@ -64,6 +77,12 @@ export async function previewMerge(
     eventOutcomes: counts[8],
     orders: counts[9],
     importErrors: counts[10],
+    workflowEnrollments: counts[11],
+    workflowEmailSends: counts[12],
+    schedulingRequests: counts[13],
+    eventRegistrations: counts[14],
+    attendanceRecords: counts[15],
+    personTypeAssignments: counts[16],
   };
 }
 
@@ -270,6 +289,67 @@ export async function mergeContacts(
     .update({ phone_match_contact_id: targetId })
     .eq("phone_match_contact_id", sourceId);
 
+  // ── Newer subsystems. These FKs are ON DELETE CASCADE, so they MUST be
+  //    re-pointed before the source contact is deleted or the history is
+  //    destroyed. (This is the whole reason a merge is safe to run on
+  //    people who've moved through workflows / events.)
+
+  // 12b. Workflow email sends — re-point first so send history survives
+  //      even if a colliding active enrollment gets dropped below.
+  await supabase
+    .from("workflow_email_sends")
+    .update({ contact_id: targetId })
+    .eq("contact_id", sourceId);
+
+  // 12c. Workflow enrollments — partial UNIQUE(workflow_id, contact_id)
+  //      WHERE status='active'. Drop source ACTIVE enrollments that would
+  //      collide with an active target enrollment for the same workflow
+  //      (you can't be actively enrolled twice), then re-point the rest.
+  {
+    const { data: tActive } = await supabase
+      .from("workflow_enrollments")
+      .select("workflow_id")
+      .eq("contact_id", targetId)
+      .eq("status", "active");
+    const activeWf = Array.from(
+      new Set(
+        ((tActive ?? []) as Array<{ workflow_id: string }>).map(
+          (r) => r.workflow_id
+        )
+      )
+    );
+    if (activeWf.length > 0) {
+      await supabase
+        .from("workflow_enrollments")
+        .delete()
+        .eq("contact_id", sourceId)
+        .eq("status", "active")
+        .in("workflow_id", activeWf);
+    }
+    await supabase
+      .from("workflow_enrollments")
+      .update({ contact_id: targetId })
+      .eq("contact_id", sourceId);
+  }
+
+  // 12d. Scheduling requests — no contact composite unique, straight re-point.
+  await supabase
+    .from("scheduling_requests")
+    .update({ contact_id: targetId })
+    .eq("contact_id", sourceId);
+
+  // 12e–12g. Tables with UNIQUE(contact_id, <col>) — de-dupe then re-point.
+  await repointDedupe(supabase, "event_registrations", "event_id", sourceId, targetId);
+  await repointDedupe(supabase, "attendance_records", "event_id", sourceId, targetId);
+  await repointDedupe(supabase, "person_type_assignments", "person_type_id", sourceId, targetId);
+
+  // 12h. Slack notifications — contact_id is SET NULL on delete; re-point
+  //      to keep them attached to the surviving contact.
+  await supabase
+    .from("notifications")
+    .update({ contact_id: targetId })
+    .eq("contact_id", sourceId);
+
   // 13. Log the merge event on the surviving contact.
   await logActivity(supabase, {
     contact_id: targetId,
@@ -298,4 +378,39 @@ async function countWhere(
     .select("*", { count: "exact", head: true })
     .eq(column, value);
   return count ?? 0;
+}
+
+// Re-point rows from source → target on a table with a
+// UNIQUE(contact_id, <col>) constraint: first delete the source rows whose
+// <col> the target already has (they'd violate the unique on re-point), then
+// re-point everything else. Mirrors the email/phone/label/campaign de-dupe.
+async function repointDedupe(
+  supabase: Client,
+  table: string,
+  col: string,
+  sourceId: string,
+  targetId: string
+): Promise<void> {
+  const { data: targetRows } = await supabase
+    .from(table)
+    .select(col)
+    .eq("contact_id", targetId);
+  const dupes = Array.from(
+    new Set(
+      ((targetRows ?? []) as Array<Record<string, string>>)
+        .map((r) => r[col])
+        .filter(Boolean)
+    )
+  );
+  if (dupes.length > 0) {
+    await supabase
+      .from(table)
+      .delete()
+      .eq("contact_id", sourceId)
+      .in(col, dupes);
+  }
+  await supabase
+    .from(table)
+    .update({ contact_id: targetId })
+    .eq("contact_id", sourceId);
 }

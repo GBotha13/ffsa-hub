@@ -27,6 +27,12 @@ type Preview = {
   eventOutcomes: number;
   orders: number;
   importErrors: number;
+  workflowEnrollments: number;
+  workflowEmailSends: number;
+  schedulingRequests: number;
+  eventRegistrations: number;
+  attendanceRecords: number;
+  personTypeAssignments: number;
 };
 
 export function MergeButton({
@@ -239,6 +245,22 @@ export function MergeButton({
                       value={preview.unsubscribes}
                     />
                     <PreviewLine label="Event roles" value={preview.eventRoles} />
+                    <PreviewLine
+                      label="Event registrations"
+                      value={preview.eventRegistrations}
+                    />
+                    <PreviewLine
+                      label="Workflow enrollments"
+                      value={preview.workflowEnrollments}
+                    />
+                    <PreviewLine
+                      label="Workflow emails sent"
+                      value={preview.workflowEmailSends}
+                    />
+                    <PreviewLine
+                      label="Scheduling requests"
+                      value={preview.schedulingRequests}
+                    />
                     <PreviewLine label="Orders" value={preview.orders} />
                   </div>
                 )}
