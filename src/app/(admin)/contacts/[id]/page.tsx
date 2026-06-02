@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getContactById } from "@/services/contacts";
 import { getContactLabels, getLabels } from "@/services/labels";
 import { getContactActivity } from "@/services/activity-events";
@@ -31,13 +32,22 @@ export default async function ContactDetailPage({
   const { data: contact, error } = await getContactById(supabase, id);
   if (error || !contact) notFound();
 
+  // contact_emails / contact_phones are RLS-gated on the granular
+  // has_permission('contacts.read') grant, whereas the contacts table (and the
+  // list view) is gated on roles — so a role-based admin without that explicit
+  // permission row reads contacts fine but gets ZERO identifier rows, showing
+  // "No email on file" despite data existing. Read identifiers with the admin
+  // client (this page is already admin-gated and getContactById above enforces
+  // contact visibility), matching how the rest of the app reads these tables.
+  const admin = createAdminClient();
+
   const [contactLabelsRes, allLabelsRes, activityRes, emailsRes, phonesRes] =
     await Promise.all([
       getContactLabels(supabase, id),
       getLabels(supabase, { active: true }),
       getContactActivity(supabase, id, { limit: 100 }),
-      listContactEmails(supabase, id),
-      listContactPhones(supabase, id),
+      listContactEmails(admin, id),
+      listContactPhones(admin, id),
     ]);
 
   const contactLabels = contactLabelsRes.data ?? [];
