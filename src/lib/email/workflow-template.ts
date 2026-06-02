@@ -57,7 +57,7 @@ function richText(html: string): string {
       p: () => ({
         tagName: "p",
         attribs: {
-          style: `margin:0 0 14px;font-family:${SANS};font-size:15px;line-height:1.7;color:${INK};`,
+          style: `margin:0 0 2px;font-family:${SANS};font-size:15px;line-height:1.45;color:${INK};`,
         },
       }),
     },
@@ -74,10 +74,10 @@ function renderBlock(b: CampaignBlock): string {
       return eyebrow(b.text);
 
     case "heading":
-      return `${b.eyebrow ? eyebrow(b.eyebrow) : ""}<h1 style="margin:0 0 14px;font-family:${SANS};font-size:30px;line-height:1.06;font-weight:900;letter-spacing:-0.015em;text-transform:uppercase;color:${INK};">${esc(b.text)}</h1>`;
+      return `${b.eyebrow ? eyebrow(b.eyebrow) : ""}<h1 style="margin:0 0 8px;font-family:${SANS};font-size:30px;line-height:1.06;font-weight:900;letter-spacing:-0.015em;text-transform:uppercase;color:${INK};">${esc(b.text)}</h1>`;
 
     case "text":
-      return `<div style="margin:0 0 16px;font-family:${SANS};font-size:15px;line-height:1.7;color:${INK};">${richText(b.text)}</div>`;
+      return `<div style="margin:0 0 6px;font-family:${SANS};font-size:15px;line-height:1.45;color:${INK};">${richText(b.text)}</div>`;
 
     case "button": {
       const style = b.style ?? "filled";
@@ -122,11 +122,11 @@ function renderBlock(b: CampaignBlock): string {
     }
 
     case "image-text":
-      return `<p style="margin:0 0 12px;"><img src="${esc(b.url)}" alt="${esc(b.alt)}" width="544" style="display:block;width:100%;max-width:544px;height:auto;border:0;border-radius:10px;" /></p>${
+      return `<p style="margin:0 0 8px;"><img src="${esc(b.url)}" alt="${esc(b.alt)}" width="544" style="display:block;width:100%;max-width:544px;height:auto;border:0;border-radius:10px;" /></p>${
         b.heading
-          ? `<h2 style="margin:0 0 8px;font-family:${SANS};font-size:20px;line-height:1.15;font-weight:900;text-transform:uppercase;color:${INK};">${esc(b.heading)}</h2>`
+          ? `<h2 style="margin:0 0 4px;font-family:${SANS};font-size:20px;line-height:1.15;font-weight:900;text-transform:uppercase;color:${INK};">${esc(b.heading)}</h2>`
           : ""
-      }<div style="margin:0 0 16px;font-family:${SANS};font-size:15px;line-height:1.7;color:${INK};">${richText(b.text)}</div>`;
+      }<div style="margin:0 0 6px;font-family:${SANS};font-size:15px;line-height:1.45;color:${INK};">${richText(b.text)}</div>`;
 
     default:
       return "";
