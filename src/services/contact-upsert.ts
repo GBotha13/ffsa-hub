@@ -69,8 +69,16 @@ export async function upsertContactWithDedup(
     };
   }
 
-  // 1. Match
-  const matches = await findDedupMatches(supabase, { emailNormalized, phoneNormalized });
+  // 1. Match — EMAIL is the contact key. When an email is present we match
+  // on email ONLY (phone is stored but never used to match), so a stray
+  // phone collision can't fork the resolution into the review queue.
+  // Phone-only records (no email) fall back to phone matching so repeated
+  // phone-only imports don't spawn duplicates.
+  const matchByEmail = !!emailNormalized;
+  const matches = await findDedupMatches(supabase, {
+    emailNormalized,
+    phoneNormalized: matchByEmail ? null : phoneNormalized,
+  });
   if (matches.error) return { data: null, error: matches.error };
   const matched = matches.data ?? [];
 
@@ -146,85 +154,60 @@ export async function upsertContactWithDedup(
     return { data: { action: "created", contactId: created.data.id }, error: null };
   }
 
-  if (matched.length === 1) {
-    // Single match: enrich blank fields + add new identifier as a
-    // secondary if it differs from anything on file + add label.
-    const target = matched[0].contact;
-    const enrichedFields = await enrichContact(supabase, target.id, input.contact);
-    const addedIdentifiers = await addNewIdentifiersAsSecondary(supabase, {
-      contactId: target.id,
-      incomingEmail: input.contact.email ?? null,
-      incomingPhone: input.contact.phone ?? null,
-      source: input.source ?? input.contact.source ?? null,
+  // 2+ outcomes collapse to one. Email is the key, so resolve to a single
+  // contact — the first match. (With email-only matching, >1 match only
+  // happens for legacy duplicate-email contacts; we still never block the
+  // funnel, so we pick one and proceed. No review queue.)
+  const target = matched[0].contact;
+
+  // Same email → the submission OVERRIDES the contact's fields (non-empty
+  // values only, so a field the form omits never wipes existing data). A
+  // phone-only fallback match stays conservative and just fills blanks.
+  const changedFields = matchByEmail
+    ? await overrideContact(supabase, target.id, input.contact, phoneNormalized)
+    : await enrichContact(supabase, target.id, input.contact);
+
+  const addedIdentifiers = await addNewIdentifiersAsSecondary(supabase, {
+    contactId: target.id,
+    incomingEmail: input.contact.email ?? null,
+    incomingPhone: input.contact.phone ?? null,
+    source: input.source ?? input.contact.source ?? null,
+  });
+
+  if (input.labelId) {
+    const insertResult = await addLabelToContact(supabase, {
+      contact_id: target.id,
+      label_id: input.labelId,
+      added_via: input.addedVia,
+      added_by: input.userId,
     });
-
-    if (input.labelId) {
-      const insertResult = await addLabelToContact(supabase, {
-        contact_id: target.id,
-        label_id: input.labelId,
-        added_via: input.addedVia,
-        added_by: input.userId,
-      });
-      // Only log label_added if the upsert actually inserted a new row.
-      if (insertResult.data) {
-        await logLabelAdded(supabase, {
-          contactId: target.id,
-          labelId: input.labelId,
-          addedVia: input.addedVia,
-          userId: input.userId,
-        });
-      }
-    }
-
-    if (input.addedVia.startsWith("csv:")) {
-      const importId = input.addedVia.slice(4);
-      await logCsvImported(supabase, {
+    // Only log label_added if the upsert actually inserted a new row.
+    if (insertResult.data) {
+      await logLabelAdded(supabase, {
         contactId: target.id,
-        importId,
         labelId: input.labelId,
+        addedVia: input.addedVia,
         userId: input.userId,
       });
     }
-
-    return {
-      data: {
-        action: "matched",
-        contactId: target.id,
-        enrichedFields: [...enrichedFields, ...addedIdentifiers],
-      },
-      error: null,
-    };
   }
 
-  // 3. Two distinct matches: email hits A, phone hits B. Queue for review.
-  const emailMatch = matched.find((m) => m.matched_on.includes("email"));
-  const phoneMatch = matched.find((m) => m.matched_on.includes("phone"));
-
-  // Embed the pending labelId (and addedVia) inside incoming_data so the
-  // resolution step can re-apply them once a human picks a path.
-  const incomingPayload = {
-    ...input.contact,
-    _label_id: input.labelId,
-    _added_via: input.addedVia,
-  };
-
-  const review = await supabase
-    .from("dedup_review_queue")
-    .insert({
-      incoming_data: incomingPayload as Record<string, unknown>,
-      email_match_contact_id: emailMatch?.contact.id ?? null,
-      phone_match_contact_id: phoneMatch?.contact.id ?? null,
-      source_type: input.reviewSource.type,
-      source_id: input.reviewSource.id,
-      status: "pending",
-    })
-    .select("id")
-    .single();
-
-  if (review.error || !review.data) return { data: null, error: review.error };
+  if (input.addedVia.startsWith("csv:")) {
+    const importId = input.addedVia.slice(4);
+    await logCsvImported(supabase, {
+      contactId: target.id,
+      importId,
+      labelId: input.labelId,
+      userId: input.userId,
+    });
+  }
 
   return {
-    data: { action: "queued_for_review", reviewId: review.data.id },
+    data: {
+      action: "matched",
+      contactId: target.id,
+      enrichedFields: [...changedFields, ...addedIdentifiers],
+    },
     error: null,
   };
 }
@@ -290,6 +273,65 @@ async function enrichContact(
 
   if (updated.error) return [];
   return filled;
+}
+
+// ────────────────────────────────────────────────────────────
+// Override an existing contact (email-keyed match): overwrite with every
+// non-empty incoming value. The email is the match key and is never touched;
+// a field the submission omits is left as-is (never blanked). Returns the
+// list of changed keys.
+// ────────────────────────────────────────────────────────────
+
+async function overrideContact(
+  supabase: Client,
+  contactId: string,
+  incoming: Omit<ContactInsert, "email_normalized" | "phone_normalized">,
+  phoneNormalized: string | null
+): Promise<string[]> {
+  const candidate: Record<string, unknown> = {};
+  const changed: string[] = [];
+
+  const overridable = [
+    "first_name",
+    "last_name",
+    "preferred_name",
+    "date_of_birth",
+    "marital_status",
+    "gender",
+    "nationality",
+    "preferred_language",
+    "preferred_channel",
+    "address_line_1",
+    "address_line_2",
+    "city",
+    "province",
+    "country",
+    "postal_code",
+  ] as const;
+
+  for (const key of overridable) {
+    const v = (incoming as Record<string, unknown>)[key];
+    if (v == null || v === "") continue;
+    candidate[key] = v;
+    changed.push(key);
+  }
+
+  // Phone overrides the primary cache + its normalized form. Email is the
+  // match key, so it's intentionally never overwritten here.
+  if (incoming.phone != null && String(incoming.phone).trim() !== "") {
+    candidate.phone = incoming.phone;
+    if (phoneNormalized) candidate.phone_normalized = phoneNormalized;
+    changed.push("phone");
+  }
+
+  if (changed.length === 0) return [];
+
+  const updated = await supabase
+    .from("contacts")
+    .update(candidate)
+    .eq("id", contactId);
+  if (updated.error) return [];
+  return changed;
 }
 
 // ────────────────────────────────────────────────────────────
