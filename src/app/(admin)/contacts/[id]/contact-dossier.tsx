@@ -154,7 +154,7 @@ export function ContactDossier({ dossier }: { dossier: ContactDossier }) {
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   {w.totalSteps > 0 ? `Step ${Math.min(w.currentStep + 1, w.totalSteps)} of ${w.totalSteps}` : "—"}
-                  {w.currentStepType ? ` · next: ${w.currentStepType.replace("_", " ")}` : ""}
+                  {w.currentStepType ? ` · next: ${w.currentStepType.replace(/_/g, " ")}` : ""}
                   {w.status === "active" && w.nextRunAt ? ` · runs ${fmtDate(w.nextRunAt)}` : ""}
                   {w.completedAt ? ` · completed ${fmtDate(w.completedAt)}` : ""}
                 </p>
@@ -179,7 +179,7 @@ export function ContactDossier({ dossier }: { dossier: ContactDossier }) {
               <div key={i} className="rounded-md border bg-muted/20 px-3 py-2">
                 <div className="flex items-center justify-between gap-2">
                   <StatusPill
-                    label={c.status.replace("_", " ")}
+                    label={c.status.replace(/_/g, " ")}
                     tone={c.status === "scheduled" ? "good" : c.status === "cancelled" ? "bad" : "neutral"}
                   />
                   <span className="text-xs text-muted-foreground">
@@ -254,7 +254,7 @@ export function ContactDossier({ dossier }: { dossier: ContactDossier }) {
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <StatusPill
-                    label={e.status.replace("_", " ")}
+                    label={e.status.replace(/_/g, " ")}
                     tone={e.status === "active" ? "accent" : e.status === "completed" ? "good" : e.status === "withdrawn" ? "bad" : "neutral"}
                   />
                   <span className="text-xs text-muted-foreground">{fmtDate(e.completedAt ?? e.enrolledAt)}</span>
