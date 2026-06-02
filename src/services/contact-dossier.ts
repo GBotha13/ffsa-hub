@@ -70,6 +70,19 @@ export type DossierOrder = {
   eventTitle: string | null;
 };
 
+export type DossierApplication = {
+  programName: string;
+  status: string; // submitted | accepted | rejected | waitlisted
+  submittedAt: string | null;
+};
+
+export type DossierEnrollment = {
+  programName: string;
+  status: string; // active | completed | withdrawn | on_hold
+  enrolledAt: string | null;
+  completedAt: string | null;
+};
+
 export type ContactDossier = {
   events: DossierEvent[];
   outcomes: DossierOutcome[];
@@ -78,6 +91,8 @@ export type ContactDossier = {
   calls: DossierCall[];
   forms: DossierForm[];
   orders: DossierOrder[];
+  applications: DossierApplication[];
+  enrollments: DossierEnrollment[];
   counts: {
     events: number;
     outcomes: number;
@@ -86,6 +101,7 @@ export type ContactDossier = {
     calls: number;
     forms: number;
     orders: number;
+    schools: number;
   };
 };
 
@@ -101,6 +117,7 @@ export async function getContactDossier(
     calls,
     forms,
     orders,
+    schools,
   ] = await Promise.all([
     fetchEvents(supabase, contactId),
     fetchOutcomes(supabase, contactId),
@@ -109,6 +126,7 @@ export async function getContactDossier(
     fetchCalls(supabase, contactId),
     fetchForms(supabase, contactId),
     fetchOrders(supabase, contactId),
+    fetchSchools(supabase, contactId),
   ]);
 
   return {
@@ -119,6 +137,8 @@ export async function getContactDossier(
     calls,
     forms,
     orders,
+    applications: schools.applications,
+    enrollments: schools.enrollments,
     counts: {
       events: events.length,
       outcomes: outcomes.length,
@@ -127,6 +147,7 @@ export async function getContactDossier(
       calls: calls.length,
       forms: forms.length,
       orders: orders.length,
+      schools: schools.applications.length + schools.enrollments.length,
     },
   };
 }
@@ -379,6 +400,56 @@ async function fetchOrders(
     .sort((a: DossierOrder, b: DossierOrder) =>
       (b.createdAt ?? "").localeCompare(a.createdAt ?? "")
     );
+}
+
+// Schools — applications (application_responses) + enrollments hang off a USER
+// account, linked to a contact via users.contact_id (not the contact directly).
+// Resolve the linked user(s) first, then their applications/enrollments.
+async function fetchSchools(
+  supabase: Client,
+  contactId: string
+): Promise<{
+  applications: DossierApplication[];
+  enrollments: DossierEnrollment[];
+}> {
+  const users = await safe(supabase, "users", (q: Client) =>
+    q.select("id").eq("contact_id", contactId)
+  );
+  const userIds = users.map((u: Client) => u.id).filter(Boolean);
+  if (userIds.length === 0) return { applications: [], enrollments: [] };
+
+  const [apps, enrolls] = await Promise.all([
+    safe(supabase, "application_responses", (q: Client) =>
+      q.select("status, submitted_at, programs(name)").in("user_id", userIds)
+    ),
+    safe(supabase, "enrollments", (q: Client) =>
+      q
+        .select("status, enrolled_at, completed_at, programs(name)")
+        .in("user_id", userIds)
+    ),
+  ]);
+
+  return {
+    applications: apps
+      .map((a: Client) => ({
+        programName: a.programs?.name ?? "Program",
+        status: a.status,
+        submittedAt: a.submitted_at ?? null,
+      }))
+      .sort((a: DossierApplication, b: DossierApplication) =>
+        (b.submittedAt ?? "").localeCompare(a.submittedAt ?? "")
+      ),
+    enrollments: enrolls
+      .map((e: Client) => ({
+        programName: e.programs?.name ?? "Program",
+        status: e.status,
+        enrolledAt: e.enrolled_at ?? null,
+        completedAt: e.completed_at ?? null,
+      }))
+      .sort((a: DossierEnrollment, b: DossierEnrollment) =>
+        (b.enrolledAt ?? "").localeCompare(a.enrolledAt ?? "")
+      ),
+  };
 }
 
 // ── helpers ──

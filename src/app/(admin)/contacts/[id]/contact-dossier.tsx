@@ -21,6 +21,7 @@ import {
   MousePointerClick,
   AlertTriangle,
   UserCog,
+  GraduationCap,
 } from "lucide-react";
 import type {
   ContactDossier,
@@ -52,7 +53,8 @@ export function ContactDossier({ dossier }: { dossier: ContactDossier }) {
     counts.emails +
     counts.calls +
     counts.forms +
-    counts.orders;
+    counts.orders +
+    counts.schools;
 
   if (totalRecords === 0) {
     return (
@@ -85,6 +87,7 @@ export function ContactDossier({ dossier }: { dossier: ContactDossier }) {
             <Stat n={counts.emails} label="emails" icon={<Mail className="h-3.5 w-3.5" />} />
             <Stat n={counts.calls} label="calls" icon={<CalendarClock className="h-3.5 w-3.5" />} />
             <Stat n={counts.forms} label="forms" icon={<FileText className="h-3.5 w-3.5" />} />
+            <Stat n={counts.schools} label="schools" icon={<GraduationCap className="h-3.5 w-3.5" />} />
             <Stat n={counts.orders} label="orders" icon={<Receipt className="h-3.5 w-3.5" />} />
           </div>
         </CardContent>
@@ -217,6 +220,44 @@ export function ContactDossier({ dossier }: { dossier: ContactDossier }) {
                 <div className="flex items-center gap-2 shrink-0">
                   <StatusPill label={o.status} tone={o.status === "paid" ? "good" : o.status.includes("cancel") || o.status === "expired" ? "bad" : "neutral"} />
                   <span className="text-xs text-muted-foreground">{fmtDate(o.paidAt ?? o.createdAt)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* Schools — applications & enrollments */}
+      {(dossier.applications.length > 0 || dossier.enrollments.length > 0) && (
+        <Section title="Schools" icon={<GraduationCap className="h-4 w-4" />}>
+          <div className="space-y-1.5">
+            {dossier.applications.map((a, i) => (
+              <div key={`app-${i}`} className="flex items-center justify-between gap-2 rounded-md border bg-muted/20 px-3 py-2">
+                <div className="min-w-0">
+                  <span className="text-sm font-medium">{a.programName}</span>
+                  <span className="text-xs text-muted-foreground"> · application</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <StatusPill
+                    label={a.status}
+                    tone={a.status === "accepted" ? "good" : a.status === "rejected" ? "bad" : a.status === "waitlisted" ? "neutral" : "accent"}
+                  />
+                  <span className="text-xs text-muted-foreground">{fmtDate(a.submittedAt)}</span>
+                </div>
+              </div>
+            ))}
+            {dossier.enrollments.map((e, i) => (
+              <div key={`enr-${i}`} className="flex items-center justify-between gap-2 rounded-md border bg-muted/20 px-3 py-2">
+                <div className="min-w-0">
+                  <span className="text-sm font-medium">{e.programName}</span>
+                  <span className="text-xs text-muted-foreground"> · enrolled</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <StatusPill
+                    label={e.status.replace("_", " ")}
+                    tone={e.status === "active" ? "accent" : e.status === "completed" ? "good" : e.status === "withdrawn" ? "bad" : "neutral"}
+                  />
+                  <span className="text-xs text-muted-foreground">{fmtDate(e.completedAt ?? e.enrolledAt)}</span>
                 </div>
               </div>
             ))}
