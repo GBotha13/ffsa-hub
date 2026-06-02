@@ -7,6 +7,7 @@ import {
   listContactEmails,
   listContactPhones,
 } from "@/services/contact-identifiers";
+import { getContactDossier } from "@/services/contact-dossier";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -20,6 +21,7 @@ import { LabelsCard } from "./labels-card";
 import { IdentifiersCard } from "./identifiers-card";
 import { MergeButton } from "./merge-button";
 import { Timeline } from "./timeline";
+import { ContactDossier } from "./contact-dossier";
 
 export default async function ContactDetailPage({
   params,
@@ -41,14 +43,21 @@ export default async function ContactDetailPage({
   // contact visibility), matching how the rest of the app reads these tables.
   const admin = createAdminClient();
 
-  const [contactLabelsRes, allLabelsRes, activityRes, emailsRes, phonesRes] =
-    await Promise.all([
-      getContactLabels(supabase, id),
-      getLabels(supabase, { active: true }),
-      getContactActivity(supabase, id, { limit: 100 }),
-      listContactEmails(admin, id),
-      listContactPhones(admin, id),
-    ]);
+  const [
+    contactLabelsRes,
+    allLabelsRes,
+    activityRes,
+    emailsRes,
+    phonesRes,
+    dossier,
+  ] = await Promise.all([
+    getContactLabels(supabase, id),
+    getLabels(supabase, { active: true }),
+    getContactActivity(supabase, id, { limit: 100 }),
+    listContactEmails(admin, id),
+    listContactPhones(admin, id),
+    getContactDossier(admin, id),
+  ]);
 
   const contactLabels = contactLabelsRes.data ?? [];
   const allLabels = allLabelsRes.data ?? [];
@@ -104,6 +113,8 @@ export default async function ContactDetailPage({
             emails={emails}
             phones={phones}
           />
+
+          <ContactDossier dossier={dossier} />
 
           {(contact.address_line_1 || contact.city || contact.country) && (
             <Card>
