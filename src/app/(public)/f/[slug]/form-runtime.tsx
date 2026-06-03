@@ -1,7 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { type FormSchema, type FormField, fieldKey } from "@/lib/forms/schema";
+import {
+  type FormSchema,
+  type FormField,
+  fieldKey,
+  buildFieldsById,
+  isFieldVisible,
+} from "@/lib/forms/schema";
 import { DateInput } from "@/components/ui/date-input";
 import {
   PublicFormShell,
@@ -43,6 +49,8 @@ export function FormRuntime({
     [stepIdx, steps.length]
   );
 
+  const fieldsById = useMemo(() => buildFieldsById(schema), [schema]);
+
   function setValue(key: string, v: unknown) {
     setValues((prev) => ({ ...prev, [key]: v }));
     setErrors((prev) => {
@@ -57,6 +65,8 @@ export function FormRuntime({
     const step = steps[stepIdx];
     const stepErrors: Record<string, string> = {};
     for (const field of step.fields) {
+      // Conditional fields whose rule isn't met don't block progression.
+      if (!isFieldVisible(field, fieldsById, values)) continue;
       const k = fieldKey(field);
       const raw = values[k];
       const empty =
@@ -90,10 +100,22 @@ export function FormRuntime({
     if (!validateStep()) return;
     setSubmitting(true);
     setSubmitError(null);
+    // Drop answers belonging to fields hidden by an unmet conditional
+    // rule. The user may have filled a child, then changed the parent —
+    // sending the stale answer would store ghost data and confuse the
+    // server validator's matching logic.
+    const payload: Values = {};
+    for (const step of schema.steps) {
+      for (const field of step.fields) {
+        if (!isFieldVisible(field, fieldsById, values)) continue;
+        const k = fieldKey(field);
+        if (k in values) payload[k] = values[k];
+      }
+    }
     const res = await fetch(`/api/f/${slug}/submit`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ data: values }),
+      body: JSON.stringify({ data: payload }),
     });
     setSubmitting(false);
     if (!res.ok) {
@@ -175,15 +197,18 @@ export function FormRuntime({
 
         {/* Fields */}
         <div className="space-y-5">
-          {step.fields.map((field) => (
-            <FieldInput
-              key={field.id}
-              field={field}
-              value={values[fieldKey(field)]}
-              error={errors[fieldKey(field)]}
-              onChange={(v) => setValue(fieldKey(field), v)}
-            />
-          ))}
+          {step.fields.map((field) => {
+            if (!isFieldVisible(field, fieldsById, values)) return null;
+            return (
+              <FieldInput
+                key={field.id}
+                field={field}
+                value={values[fieldKey(field)]}
+                error={errors[fieldKey(field)]}
+                onChange={(v) => setValue(fieldKey(field), v)}
+              />
+            );
+          })}
         </div>
 
         {submitError && (
@@ -344,10 +369,14 @@ function FieldInput({
         ))}
       </select>
     );
-  } else if (field.type === "radio") {
+  } else if (field.type === "radio" || field.type === "yes_no") {
+    const opts =
+      field.type === "yes_no"
+        ? ["Yes", "No"]
+        : field.options ?? [];
     control = (
       <div className="space-y-2">
-        {(field.options ?? []).map((o) => {
+        {opts.map((o) => {
           const sel = value === o;
           return (
             <label

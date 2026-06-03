@@ -16,6 +16,7 @@ export type FormFieldType =
   | "multiselect"
   | "radio"
   | "checkbox"
+  | "yes_no"
   | "outcome"
   | "consent";
 
@@ -34,7 +35,51 @@ export type FormField = {
   outcomeId?: string | null; // outcome fields — binds to an event_outcome
   agreementVersion?: string | null; // consent fields
   helpText?: string | null;
+  /**
+   * Conditional visibility. When set, this field is only shown if the
+   * referenced parent field's current answer equals `showWhenValue`.
+   * Chains are allowed — a child can itself be a parent. See
+   * `isFieldVisible` for the resolution rules.
+   */
+  parentFieldId?: string | null;
+  showWhenValue?: string | null;
 };
+
+/**
+ * Field types whose answer can drive a conditional child. Only choice-style
+ * answers produce a single discrete value we can match against.
+ */
+export const PARENT_ELIGIBLE_TYPES: FormFieldType[] = [
+  "yes_no",
+  "radio",
+  "dropdown",
+  "checkbox",
+];
+
+export function isParentEligible(field: Pick<FormField, "type">): boolean {
+  return PARENT_ELIGIBLE_TYPES.includes(field.type);
+}
+
+/**
+ * The set of values a parent of this type can produce, used to populate
+ * the "Show when answer is…" picker in the builder. Checkbox has the
+ * single sentinel "true" (checked).
+ */
+export function parentValueChoices(
+  field: Pick<FormField, "type" | "options">
+): string[] {
+  switch (field.type) {
+    case "yes_no":
+      return ["Yes", "No"];
+    case "radio":
+    case "dropdown":
+      return field.options ?? [];
+    case "checkbox":
+      return ["true"];
+    default:
+      return [];
+  }
+}
 
 export type FormStep = {
   id: string;
@@ -95,6 +140,52 @@ export function fieldKey(field: Pick<FormField, "key" | "id">): string {
   return field.key && field.key.trim() ? field.key.trim() : field.id;
 }
 
+/**
+ * Flatten every field in the schema into a single id->field lookup. Used
+ * by both runtime and validator to walk parent chains.
+ */
+export function buildFieldsById(schema: FormSchema): Map<string, FormField> {
+  const m = new Map<string, FormField>();
+  for (const step of schema.steps) {
+    for (const f of step.fields) m.set(f.id, f);
+  }
+  return m;
+}
+
+/**
+ * Returns true when `field` should be visible given current answer values.
+ * Walks the parent chain — every ancestor must be answered with its
+ * `showWhenValue` for the descendant to render. Missing parents or cycles
+ * resolve to "hidden" so a broken rule never crashes the form.
+ */
+export function isFieldVisible(
+  field: FormField,
+  fieldsById: Map<string, FormField>,
+  values: Record<string, unknown>
+): boolean {
+  let current: FormField | undefined = field;
+  const seen = new Set<string>();
+  while (current?.parentFieldId) {
+    if (seen.has(current.id)) return false;
+    seen.add(current.id);
+    const parent = fieldsById.get(current.parentFieldId);
+    if (!parent) return false;
+    const expected = current.showWhenValue ?? "";
+    const rawParent = values[fieldKey(parent)];
+    const actual =
+      parent.type === "checkbox"
+        ? rawParent === true
+          ? "true"
+          : ""
+        : typeof rawParent === "string"
+        ? rawParent
+        : "";
+    if (actual !== expected) return false;
+    current = parent;
+  }
+  return true;
+}
+
 export function emptyFormSchema(): FormSchema {
   return {
     version: 1,
@@ -153,9 +244,13 @@ export function validateSubmission(
   data: Record<string, unknown>
 ): ValidationResult {
   const errors: Record<string, string> = {};
+  const fieldsById = buildFieldsById(schema);
 
   for (const step of schema.steps) {
     for (const field of step.fields) {
+      // Conditional fields whose parent rule isn't met are treated as
+      // not-present — neither required nor type-checked.
+      if (!isFieldVisible(field, fieldsById, data)) continue;
       const k = fieldKey(field);
       const raw = data[k];
       const isEmpty =

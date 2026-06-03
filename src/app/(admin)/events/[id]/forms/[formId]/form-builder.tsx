@@ -10,6 +10,8 @@ import {
   type FormFieldType,
   CONTACT_FIELD_KEYS,
   newLocalId,
+  isParentEligible,
+  parentValueChoices,
 } from "@/lib/forms/schema";
 import { QrPanel } from "./qr-panel";
 
@@ -32,6 +34,7 @@ const FIELD_TYPES: { value: FormFieldType; label: string }[] = [
   { value: "phone", label: "Phone" },
   { value: "date", label: "Date" },
   { value: "number", label: "Number" },
+  { value: "yes_no", label: "Yes / No" },
   { value: "dropdown", label: "Dropdown" },
   { value: "multiselect", label: "Multi-select" },
   { value: "radio", label: "Radio buttons" },
@@ -41,6 +44,46 @@ const FIELD_TYPES: { value: FormFieldType; label: string }[] = [
 ];
 
 const CHOICE_TYPES: FormFieldType[] = ["dropdown", "multiselect", "radio"];
+
+// A flattened reference to a field used by the conditional-rule picker:
+// each field needs to know which earlier fields are eligible parents.
+type FieldRef = {
+  field: FormField;
+  stepIdx: number;
+  fieldIdx: number;
+  position: number; // global linearised position across all steps
+};
+
+function flattenFields(schema: FormSchema): FieldRef[] {
+  const out: FieldRef[] = [];
+  let position = 0;
+  schema.steps.forEach((step, stepIdx) => {
+    step.fields.forEach((field, fieldIdx) => {
+      out.push({ field, stepIdx, fieldIdx, position: position++ });
+    });
+  });
+  return out;
+}
+
+// Depth = length of the parent chain. Used to indent children in the
+// admin list so conditional nesting is visible at a glance. Defensive
+// against cycles by capping iterations.
+function fieldDepth(
+  fieldId: string,
+  fieldsById: Map<string, FormField>
+): number {
+  let depth = 0;
+  let current = fieldsById.get(fieldId);
+  const seen = new Set<string>();
+  while (current?.parentFieldId && !seen.has(current.id)) {
+    seen.add(current.id);
+    const parent = fieldsById.get(current.parentFieldId);
+    if (!parent) break;
+    depth += 1;
+    current = parent;
+  }
+  return depth;
+}
 
 export function FormBuilder({
   eventId,
@@ -121,12 +164,20 @@ export function FormBuilder({
     });
   }
   function removeField(stepId: string, fieldId: string) {
+    // Removing a parent leaves dangling parentFieldId references on its
+    // children. Clear them across the whole schema so those children
+    // become unconditional rather than permanently hidden.
     update({
-      steps: schema.steps.map((s) =>
-        s.id === stepId
-          ? { ...s, fields: s.fields.filter((f) => f.id !== fieldId) }
-          : s
-      ),
+      steps: schema.steps.map((s) => ({
+        ...s,
+        fields: s.fields
+          .filter((f) => !(s.id === stepId && f.id === fieldId))
+          .map((f) =>
+            f.parentFieldId === fieldId
+              ? { ...f, parentFieldId: null, showWhenValue: null }
+              : f
+          ),
+      })),
     });
   }
   function moveField(stepId: string, idx: number, dir: -1 | 1) {
@@ -273,7 +324,10 @@ export function FormBuilder({
       <QrPanel url={publicUrl} formName={name} />
 
       {/* Steps */}
-      {schema.steps.map((step, sIdx) => (
+      {(() => {
+        const flat = flattenFields(schema);
+        const fieldsById = new Map(flat.map((r) => [r.field.id, r.field]));
+        return schema.steps.map((step, sIdx) => (
         <Card key={step.id}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <div className="flex items-center gap-2 flex-1">
@@ -303,19 +357,32 @@ export function FormBuilder({
             {step.fields.length === 0 && (
               <p className="text-xs text-muted-foreground italic">No fields in this step.</p>
             )}
-            {step.fields.map((field, fIdx) => (
-              <FieldEditor
-                key={field.id}
-                field={field}
-                outcomes={outcomes}
-                onChange={(patch) => updateField(step.id, field.id, patch)}
-                onRemove={() => removeField(step.id, field.id)}
-                onMoveUp={() => moveField(step.id, fIdx, -1)}
-                onMoveDown={() => moveField(step.id, fIdx, 1)}
-                canMoveUp={fIdx > 0}
-                canMoveDown={fIdx < step.fields.length - 1}
-              />
-            ))}
+            {step.fields.map((field, fIdx) => {
+              const ref = flat.find((r) => r.field.id === field.id)!;
+              const eligibleParents = flat
+                .filter(
+                  (r) =>
+                    r.position < ref.position &&
+                    isParentEligible(r.field) &&
+                    r.field.id !== field.id
+                )
+                .map((r) => r.field);
+              return (
+                <FieldEditor
+                  key={field.id}
+                  field={field}
+                  outcomes={outcomes}
+                  eligibleParents={eligibleParents}
+                  depth={fieldDepth(field.id, fieldsById)}
+                  onChange={(patch) => updateField(step.id, field.id, patch)}
+                  onRemove={() => removeField(step.id, field.id)}
+                  onMoveUp={() => moveField(step.id, fIdx, -1)}
+                  onMoveDown={() => moveField(step.id, fIdx, 1)}
+                  canMoveUp={fIdx > 0}
+                  canMoveDown={fIdx < step.fields.length - 1}
+                />
+              );
+            })}
             <button
               type="button"
               onClick={() => addField(step.id)}
@@ -325,7 +392,8 @@ export function FormBuilder({
             </button>
           </CardContent>
         </Card>
-      ))}
+        ));
+      })()}
 
       <button
         type="button"
@@ -412,6 +480,8 @@ function IconBtn({
 function FieldEditor({
   field,
   outcomes,
+  eligibleParents,
+  depth,
   onChange,
   onRemove,
   onMoveUp,
@@ -421,6 +491,8 @@ function FieldEditor({
 }: {
   field: FormField;
   outcomes: Outcome[];
+  eligibleParents: FormField[];
+  depth: number;
   onChange: (patch: Partial<FormField>) => void;
   onRemove: () => void;
   onMoveUp: () => void;
@@ -432,8 +504,26 @@ function FieldEditor({
   const isOutcome = field.type === "outcome";
   const isConsent = field.type === "consent";
 
+  const parent = field.parentFieldId
+    ? eligibleParents.find((p) => p.id === field.parentFieldId)
+    : undefined;
+  const parentValues = parent ? parentValueChoices(parent) : [];
+  // A previously-saved rule may point at a parent the user has since
+  // deleted or changed to an ineligible type. Surface that so they can
+  // fix it instead of wondering why their child field never appears.
+  const orphanedParentRef =
+    field.parentFieldId != null && !parent;
+
   return (
-    <div className="border rounded p-3 space-y-2 bg-muted/40">
+    <div
+      className="border rounded p-3 space-y-2 bg-muted/40"
+      style={depth > 0 ? { marginLeft: depth * 16 } : undefined}
+    >
+      {depth > 0 && (
+        <p className="text-[10px] uppercase tracking-wide text-muted-foreground -mt-1 mb-1">
+          ↳ conditional follow-up
+        </p>
+      )}
       <div className="flex items-center gap-2">
         <select
           value={field.type}
@@ -441,6 +531,7 @@ function FieldEditor({
             const type = e.target.value as FormFieldType;
             const patch: Partial<FormField> = { type };
             if (CHOICE_TYPES.includes(type) && !field.options) patch.options = ["Option 1"];
+            if (type === "yes_no") patch.options = ["Yes", "No"];
             onChange(patch);
           }}
           className="border rounded px-2 py-1 text-xs"
@@ -525,6 +616,72 @@ function FieldEditor({
           />
         </div>
       )}
+
+      {/* Conditional visibility — only show this field when an earlier
+          choice field has a particular answer. */}
+      <div className="text-xs border-t pt-2 mt-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-muted-foreground">Show only when</span>
+          <select
+            value={field.parentFieldId ?? ""}
+            onChange={(e) => {
+              const nextId = e.target.value || null;
+              const nextParent = nextId
+                ? eligibleParents.find((p) => p.id === nextId)
+                : undefined;
+              const choices = nextParent ? parentValueChoices(nextParent) : [];
+              onChange({
+                parentFieldId: nextId,
+                // Default the rule to the parent's first value so the
+                // condition is meaningful from the moment it's set.
+                showWhenValue: nextId ? choices[0] ?? null : null,
+              });
+            }}
+            className="border rounded px-1.5 py-0.5 text-xs max-w-[14rem]"
+          >
+            <option value="">— always show —</option>
+            {eligibleParents.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label || "(untitled)"}
+              </option>
+            ))}
+          </select>
+          {parent && parentValues.length > 0 && (
+            <>
+              <span className="text-muted-foreground">is</span>
+              <select
+                value={field.showWhenValue ?? ""}
+                onChange={(e) =>
+                  onChange({ showWhenValue: e.target.value || null })
+                }
+                className="border rounded px-1.5 py-0.5 text-xs"
+              >
+                {parent.type === "checkbox" ? (
+                  <option value="true">Checked</option>
+                ) : (
+                  parentValues.map((v) => (
+                    <option key={v} value={v}>
+                      {v}
+                    </option>
+                  ))
+                )}
+              </select>
+            </>
+          )}
+        </div>
+        {orphanedParentRef && (
+          <p className="text-amber-600 mt-1">
+            The parent question for this rule no longer exists — pick another
+            or clear the rule.
+          </p>
+        )}
+        {eligibleParents.length === 0 && (
+          <p className="text-muted-foreground italic mt-1">
+            Add a Yes/No, radio, dropdown, or checkbox field above this one to
+            enable conditional logic.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
