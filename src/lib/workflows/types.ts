@@ -45,7 +45,11 @@ export type DelayConfig = {
 };
 
 export type AssignLabelConfig = {
-  label_id: string;
+  // v2: assign one or more labels in a single step.
+  label_ids: string[];
+  // Legacy single-label shape — read-only for back-compat with rows saved
+  // before multi-label support. New saves always populate label_ids.
+  label_id?: string;
 };
 
 export type WorkflowStepConfig = SendEmailConfig | DelayConfig | AssignLabelConfig;

@@ -481,30 +481,43 @@ async function runAssignLabelStep(
     workflowId: string;
   }
 ): Promise<void> {
-  const labelId = args.cfg?.label_id;
-  if (!labelId) {
+  // Read multi-label list, falling back to the legacy single-label shape
+  // for workflows saved before multi-label support landed.
+  const labelIds = Array.isArray(args.cfg?.label_ids)
+    ? args.cfg.label_ids.filter((id): id is string => typeof id === "string" && id.length > 0)
+    : args.cfg?.label_id
+      ? [args.cfg.label_id]
+      : [];
+
+  if (labelIds.length === 0) {
     await recordStep(supabase, args.enrollmentId, args.step.id, "skipped", {
       reason: "no_label_id",
     });
     return;
   }
-  const added = await addLabelToContact(supabase, {
-    contact_id: args.contactId,
-    label_id: labelId,
-    added_via: `workflow:${args.workflowId}`,
-    added_by: null,
-  });
-  if (added.data) {
-    await logLabelAdded(supabase, {
-      contactId: args.contactId,
-      labelId,
-      addedVia: `workflow:${args.workflowId}`,
-      userId: null,
+
+  const applied: string[] = [];
+  for (const labelId of labelIds) {
+    const added = await addLabelToContact(supabase, {
+      contact_id: args.contactId,
+      label_id: labelId,
+      added_via: `workflow:${args.workflowId}`,
+      added_by: null,
     });
+    if (added.data) {
+      await logLabelAdded(supabase, {
+        contactId: args.contactId,
+        labelId,
+        addedVia: `workflow:${args.workflowId}`,
+        userId: null,
+      });
+    }
+    applied.push(labelId);
   }
+
   await recordStep(supabase, args.enrollmentId, args.step.id, "done", {
     type: "assign_label",
-    label_id: labelId,
+    label_ids: applied,
   });
 }
 

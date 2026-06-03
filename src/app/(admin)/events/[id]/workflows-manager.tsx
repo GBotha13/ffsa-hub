@@ -6,13 +6,30 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { ArrowDown, ArrowUp, Mail, Clock, Tag, Plus, Trash2, Pencil } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  Clock,
+  Mail,
+  Pencil,
+  Plus,
+  Tag,
+  Trash2,
+  X,
+} from "lucide-react";
 import { EmailBlockComposer } from "@/components/communications/email-block-composer";
 import type { CampaignBody } from "@/lib/campaigns/blocks";
 import type {
@@ -76,8 +93,23 @@ function rowToDraft(w: WorkflowRow): Draft {
     is_active: w.is_active,
     steps: [...w.workflow_steps]
       .sort((a, b) => a.sort_order - b.sort_order)
-      .map((s) => ({ step_type: s.step_type as WorkflowStepType, config: s.config ?? {} })),
+      .map((s) => ({
+        step_type: s.step_type as WorkflowStepType,
+        config: migrateStepConfig(s.step_type, s.config ?? {}),
+      })),
   };
+}
+
+// Promote legacy assign_label `{ label_id }` rows into the multi-label
+// `{ label_ids: [...] }` shape so the editor renders them correctly.
+function migrateStepConfig(
+  stepType: string,
+  config: Record<string, unknown>
+): Record<string, unknown> {
+  if (stepType !== "assign_label") return config;
+  if (Array.isArray(config.label_ids)) return config;
+  const legacy = typeof config.label_id === "string" ? config.label_id : null;
+  return { ...config, label_ids: legacy ? [legacy] : [] };
 }
 
 export function WorkflowsManager({
@@ -86,7 +118,7 @@ export function WorkflowsManager({
   outcomeName,
   outcomeLabelId,
   hasForm,
-  labelOptions,
+  labelOptions: initialLabelOptions,
   identityOptions,
   triggerFields,
   initialWorkflows,
@@ -94,8 +126,43 @@ export function WorkflowsManager({
   const router = useRouter();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
+  // Local copy so labels created inline from the picker appear in the
+  // dropdown immediately, without waiting for a router refresh.
+  const [labelOptions, setLabelOptions] = useState(initialLabelOptions);
 
   const base = `/api/events/${eventId}/outcomes/${outcomeId}/workflows`;
+
+  async function createLabel(name: string): Promise<{ id: string; name: string } | null> {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      toast.error("Give the label a name");
+      return null;
+    }
+    try {
+      const res = await fetch("/api/labels", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        id?: string;
+        name?: string;
+        error?: string;
+      };
+      if (!res.ok || !data.id || !data.name) {
+        throw new Error(data.error ?? "Create failed");
+      }
+      const next = { id: data.id, name: data.name };
+      setLabelOptions((prev) =>
+        prev.some((l) => l.id === next.id) ? prev : [...prev, next].sort((a, b) => a.name.localeCompare(b.name))
+      );
+      toast.success(`Label "${next.name}" created`);
+      return next;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Create failed");
+      return null;
+    }
+  }
 
   async function save() {
     if (!draft) return;
@@ -225,6 +292,7 @@ export function WorkflowsManager({
                 onChange={(steps) => setDraft({ ...draft, steps })}
                 labelOptions={labelOptions}
                 identityOptions={identityOptions}
+                onCreateLabel={createLabel}
               />
 
               <label className="flex items-center gap-2 text-sm select-none">
@@ -350,11 +418,13 @@ function StepsEditor({
   onChange,
   labelOptions,
   identityOptions,
+  onCreateLabel,
 }: {
   steps: StepDraft[];
   onChange: (s: StepDraft[]) => void;
   labelOptions: Array<{ id: string; name: string }>;
   identityOptions: Array<{ id: string; label: string }>;
+  onCreateLabel: (name: string) => Promise<{ id: string; name: string } | null>;
 }) {
   const add = (step_type: WorkflowStepType) => {
     const config: Record<string, unknown> =
@@ -362,7 +432,7 @@ function StepsEditor({
         ? { subject: "", body: { version: 1, blocks: [] } }
         : step_type === "delay"
           ? { days: 14 }
-          : { label_id: labelOptions[0]?.id ?? "" };
+          : { label_ids: [] };
     onChange([...steps, { step_type, config }]);
   };
   const patch = (i: number, config: Record<string, unknown>) =>
@@ -458,18 +528,12 @@ function StepsEditor({
             )}
 
             {step.step_type === "assign_label" && (
-              <select
-                className={selectClass}
-                value={(step.config.label_id as string) ?? ""}
-                onChange={(e) => patch(i, { ...step.config, label_id: e.target.value })}
-              >
-                <option value="">Select a label…</option>
-                {labelOptions.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.name}
-                  </option>
-                ))}
-              </select>
+              <MultiLabelPicker
+                labelOptions={labelOptions}
+                selectedIds={readLabelIds(step.config)}
+                onChange={(ids) => patch(i, { ...step.config, label_ids: ids, label_id: undefined })}
+                onCreateLabel={onCreateLabel}
+              />
             )}
           </div>
         ))}
@@ -487,6 +551,156 @@ function StepsEditor({
         </div>
       </div>
     </Field>
+  );
+}
+
+// ── Multi-label picker ───────────────────────────────────────
+// Reads either the new `label_ids` array or the legacy `label_id` scalar so
+// in-flight edits of older workflows don't lose their selection.
+function readLabelIds(config: Record<string, unknown>): string[] {
+  if (Array.isArray(config.label_ids)) {
+    return config.label_ids.filter((id): id is string => typeof id === "string");
+  }
+  if (typeof config.label_id === "string" && config.label_id) return [config.label_id];
+  return [];
+}
+
+function MultiLabelPicker({
+  labelOptions,
+  selectedIds,
+  onChange,
+  onCreateLabel,
+}: {
+  labelOptions: Array<{ id: string; name: string }>;
+  selectedIds: string[];
+  onChange: (ids: string[]) => void;
+  onCreateLabel: (name: string) => Promise<{ id: string; name: string } | null>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  const selected = selectedIds
+    .map((id) => labelOptions.find((o) => o.id === id))
+    .filter((o): o is { id: string; name: string } => !!o);
+
+  const toggle = (id: string) => {
+    onChange(
+      selectedIds.includes(id)
+        ? selectedIds.filter((x) => x !== id)
+        : [...selectedIds, id]
+    );
+  };
+
+  const remove = (id: string) => onChange(selectedIds.filter((x) => x !== id));
+
+  const handleCreate = async () => {
+    if (!newName.trim() || creating) return;
+    setCreating(true);
+    const created = await onCreateLabel(newName);
+    setCreating(false);
+    if (created) {
+      if (!selectedIds.includes(created.id)) {
+        onChange([...selectedIds, created.id]);
+      }
+      setNewName("");
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-2 text-sm hover:bg-accent/40"
+          >
+            <span className={selected.length ? "" : "text-muted-foreground"}>
+              {selected.length === 0
+                ? "Select labels…"
+                : `${selected.length} label${selected.length === 1 ? "" : "s"} selected`}
+            </span>
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-72 p-0" align="start">
+          <div className="max-h-60 overflow-y-auto p-2">
+            {labelOptions.length === 0 ? (
+              <p className="px-2 py-3 text-xs text-muted-foreground">
+                No labels yet — create one below.
+              </p>
+            ) : (
+              <ul className="space-y-0.5">
+                {labelOptions.map((o) => {
+                  const checked = selectedIds.includes(o.id);
+                  return (
+                    <li key={o.id}>
+                      <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent">
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => toggle(o.id)}
+                        />
+                        <span className="truncate">{o.name}</span>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+          <div className="border-t p-2">
+            <p className="px-1 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              Create new label
+            </p>
+            <div className="flex gap-1.5">
+              <Input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void handleCreate();
+                  }
+                }}
+                placeholder="Label name"
+                className="h-8 text-sm"
+                disabled={creating}
+              />
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleCreate}
+                disabled={creating || !newName.trim()}
+              >
+                {creating ? "…" : <Plus className="h-3.5 w-3.5" />}
+              </Button>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {selected.map((o) => (
+            <Badge
+              key={o.id}
+              variant="secondary"
+              className="gap-1 pr-1 text-xs font-normal"
+            >
+              {o.name}
+              <button
+                type="button"
+                onClick={() => remove(o.id)}
+                className="rounded-sm hover:bg-background/60"
+                aria-label={`Remove ${o.name}`}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
