@@ -29,8 +29,18 @@ const spaceMono = Space_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "FFSA Hub",
+  title: {
+    default: "FFSA Hub",
+    template: "%s · FFSA Hub",
+  },
   description: "Fire & Fragrance South Africa — Internal Operations Platform",
+  applicationName: "FFSA Hub",
+  openGraph: {
+    title: "FFSA Hub",
+    description: "Fire & Fragrance South Africa — Internal Operations Platform",
+    siteName: "FFSA Hub",
+    images: ["/brand/ff-wordmark-black.png"],
+  },
 };
 
 export default function RootLayout({

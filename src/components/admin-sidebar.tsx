@@ -62,28 +62,29 @@ function NavLink({
 }
 
 function SidebarLogo({ compact = false }: { compact?: boolean }) {
+  const width = compact ? 120 : 150;
   return (
     <Link href="/dashboard" className="block group">
       <Image
-        src="/ff-logo.png"
+        src="/brand/ff-wordmark-white.png"
         alt="Fire & Fragrance"
-        width={compact ? 90 : 110}
-        height={compact ? 24 : 28}
-        style={{ objectFit: "contain", objectPosition: "left" }}
+        width={width}
+        height={Math.round(width * 0.1185)}
+        style={{ objectFit: "contain", objectPosition: "left", display: "block" }}
         priority
       />
-      <div className="flex items-center gap-1.5 mt-1">
-        <div style={{ height: "1px", width: "10px", background: "hsl(42 95% 55%)" }} />
+      <div className="flex items-center gap-1.5 mt-2">
+        <div style={{ height: "1px", width: "12px", background: "hsl(42 95% 55%)" }} />
         <span
           style={{
-            fontSize: "7px",
-            letterSpacing: "0.28em",
+            fontSize: "8px",
+            letterSpacing: "0.32em",
             fontWeight: 700,
             color: "hsl(42 95% 55%)",
             textTransform: "uppercase",
           }}
         >
-          HUB
+          South Africa · Hub
         </span>
       </div>
     </Link>

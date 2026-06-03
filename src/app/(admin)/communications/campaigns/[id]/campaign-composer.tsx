@@ -1159,6 +1159,20 @@ function SegmentedPicker<T extends string>({
   );
 }
 
+/** Extract just the filename from an upload URL, falling back to a truncated path. */
+function filenameFromUrl(url: string): string {
+  if (!url) return "";
+  try {
+    const u = new URL(url);
+    const last = u.pathname.split("/").filter(Boolean).pop() ?? "";
+    // Storage paths often start with a timestamp like "1779776086052-7hka2j.jpg".
+    // Strip the leading "<digits>-" so the display is friendlier.
+    return last.replace(/^\d+-/, "") || url;
+  } catch {
+    return url;
+  }
+}
+
 function ImageBlockFields({
   block,
   disabled,
@@ -1202,8 +1216,13 @@ function ImageBlockFields({
             alt={block.alt || "Preview"}
             className="h-20 w-auto max-w-[160px] object-cover rounded"
           />
-          <div className="flex-1 space-y-1.5 text-xs">
-            <p className="text-muted-foreground truncate">{block.url}</p>
+          <div className="flex-1 min-w-0 space-y-1.5 text-xs">
+            <p
+              className="text-muted-foreground truncate"
+              title={block.url}
+            >
+              {filenameFromUrl(block.url)}
+            </p>
             <div className="flex gap-1.5">
               <Button
                 variant="ghost"

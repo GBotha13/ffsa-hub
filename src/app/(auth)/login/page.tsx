@@ -64,27 +64,27 @@ export default function LoginPage() {
       {/* Logo block */}
       <div className="relative mb-12 text-center animate-fade-up">
         <Image
-          src="/ff-logo.png"
+          src="/brand/ff-wordmark-white.png"
           alt="Fire & Fragrance"
-          width={180}
-          height={45}
-          style={{ objectFit: "contain", margin: "0 auto" }}
+          width={260}
+          height={31}
+          style={{ objectFit: "contain", margin: "0 auto", display: "block" }}
           priority
         />
-        <div className="flex items-center justify-center gap-4 mt-4">
-          <div style={{ height: "1px", flex: 1, maxWidth: "60px", background: "hsl(22 8% 20%)" }} />
+        <div className="flex items-center justify-center gap-4 mt-5">
+          <div style={{ height: "1px", flex: 1, maxWidth: "70px", background: "hsl(22 8% 20%)" }} />
           <span
             style={{
-              fontSize: "9px",
-              letterSpacing: "0.3em",
+              fontSize: "10px",
+              letterSpacing: "0.32em",
               fontWeight: 700,
               color: "hsl(42 95% 55%)",
               textTransform: "uppercase",
             }}
           >
-            HUB
+            South Africa · Hub
           </span>
-          <div style={{ height: "1px", flex: 1, maxWidth: "60px", background: "hsl(22 8% 20%)" }} />
+          <div style={{ height: "1px", flex: 1, maxWidth: "70px", background: "hsl(22 8% 20%)" }} />
         </div>
       </div>
 

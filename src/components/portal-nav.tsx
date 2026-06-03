@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils/cn";
@@ -22,8 +23,21 @@ export function PortalNav() {
   return (
     <header className="border-b bg-card">
       <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-6">
-        <Link href="/profile" className="text-lg font-bold tracking-tight">
-          FFSA
+        <Link href="/profile" className="flex items-center gap-2 group">
+          <Image
+            src="/brand/ff-mark-white.png"
+            alt="Fire & Fragrance"
+            width={28}
+            height={18}
+            style={{ objectFit: "contain", display: "block" }}
+            priority
+          />
+          <span
+            className="text-[10px] font-bold uppercase text-muted-foreground"
+            style={{ letterSpacing: "0.28em" }}
+          >
+            Hub
+          </span>
         </Link>
 
         <nav className="flex items-center gap-1">

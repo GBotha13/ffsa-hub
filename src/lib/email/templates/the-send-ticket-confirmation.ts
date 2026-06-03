@@ -221,7 +221,16 @@ export function theSendTicketEmailHtml(opts: {
             <p style="margin:0;font-family:${DISPLAY};font-size:24px;font-weight:900;color:${GOLD};letter-spacing:-0.01em;text-transform:uppercase;line-height:1;">
               THE&nbsp;SEND&nbsp;<span style="font-family:${BODY};font-size:22px;">&#10140;</span>
             </p>
-            <p style="margin:12px 0 0 0;font-family:${MONO};font-size:10px;color:${CREAM};letter-spacing:0.2em;text-transform:uppercase;opacity:0.85;">
+            <p style="margin:14px 0 10px 0;">
+              <img
+                src="${base}/brand/ff-wordmark-white@email.png"
+                alt="Fire &amp; Fragrance"
+                width="150"
+                height="18"
+                style="display:inline-block;width:150px;height:auto;opacity:0.85;"
+              />
+            </p>
+            <p style="margin:0;font-family:${MONO};font-size:10px;color:${CREAM};letter-spacing:0.2em;text-transform:uppercase;opacity:0.85;">
               ${escapeHtml(opts.eventTitle.toUpperCase())} &middot; Powered by FFSA Hub &middot; &copy;&nbsp;MMXXVI
             </p>
             <p style="margin:8px 0 0 0;font-family:${MONO};font-size:9px;color:${GOLD};letter-spacing:0.24em;text-transform:uppercase;opacity:0.7;">
