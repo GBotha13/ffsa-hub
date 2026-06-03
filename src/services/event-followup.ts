@@ -1,5 +1,5 @@
 import { getActiveSchedulingForEnrollment } from "./scheduling";
-import { fieldKey, type FormSchema } from "@/lib/forms/schema";
+import { fieldKey, type FormField, type FormSchema } from "@/lib/forms/schema";
 
 // Event Follow-up queue service. Reads workflow_enrollments joined to
 // contacts, workflows, outcomes, events, and assigned staff — then
@@ -594,12 +594,26 @@ export type EventFollowupExportRow = {
   assigned_staff_email: string | null;
   staff_notes: string | null;
   staff_notes_updated_at: string | null;
+  // Every question this person answered on the outcome's sign-up form,
+  // keyed by the human label (e.g. "What's your role?" → "Volunteer").
+  // The CSV emits one column per unique label seen across the event.
+  form_answers: Record<string, string>;
 };
 
 export async function getEventFollowupExport(
   supabase: Client,
   eventId: string
-): Promise<{ eventTitle: string; rows: EventFollowupExportRow[] } | null> {
+): Promise<
+  | {
+      eventTitle: string;
+      rows: EventFollowupExportRow[];
+      // First-seen-order list of every form question label seen in the
+      // event's submissions. Used by the CSV route to emit dynamic
+      // columns in a stable, schema-aware order.
+      formAnswerColumns: string[];
+    }
+  | null
+> {
   const { data: event } = await supabase
     .from("events")
     .select("id, title")
@@ -612,7 +626,7 @@ export async function getEventFollowupExport(
     .select(
       `
         id, enrolled_at, completed_at, status, current_step, next_run_at,
-        marked_finished_at, staff_notes, staff_notes_updated_at,
+        marked_finished_at, staff_notes, staff_notes_updated_at, form_submission_id,
         contact:contacts!workflow_enrollments_contact_id_fkey(
           first_name, last_name, preferred_name, email, phone
         ),
@@ -640,6 +654,7 @@ export async function getEventFollowupExport(
     marked_finished_at: string | null;
     staff_notes: string | null;
     staff_notes_updated_at: string | null;
+    form_submission_id: string | null;
     contact: {
       first_name: string | null;
       last_name: string | null;
@@ -669,7 +684,7 @@ export async function getEventFollowupExport(
   );
 
   if (filtered.length === 0) {
-    return { eventTitle: event.title, rows: [] };
+    return { eventTitle: event.title, rows: [], formAnswerColumns: [] };
   }
 
   const workflowIds = Array.from(
@@ -702,6 +717,101 @@ export async function getEventFollowupExport(
     if (!latestRunByEnrollment.has(r.enrollment_id)) {
       latestRunByEnrollment.set(r.enrollment_id, r);
     }
+  }
+
+  // ── Form-submission answers, label-resolved via the form schema ──
+  // Every contact got onto this list by submitting an outcome form.
+  // For follow-up staff to walk into the first call with full context,
+  // every answer the person gave needs to ride along — including
+  // dropdowns, multiselects, consent, etc.
+  const submissionIds = filtered
+    .map((r) => r.form_submission_id)
+    .filter((id): id is string => !!id);
+
+  type SubRow = {
+    id: string;
+    form_id: string | null;
+    raw_data: Record<string, unknown> | null;
+  };
+  const submissionById = new Map<string, SubRow>();
+  if (submissionIds.length > 0) {
+    const { data: subsData } = await supabase
+      .from("form_submissions")
+      .select("id, form_id, raw_data")
+      .in("id", submissionIds);
+    for (const s of ((subsData ?? []) as SubRow[])) {
+      submissionById.set(s.id, s);
+    }
+  }
+
+  const formIds = Array.from(
+    new Set(
+      Array.from(submissionById.values())
+        .map((s) => s.form_id)
+        .filter((id): id is string => !!id)
+    )
+  );
+  const fieldsByFormId = new Map<string, FormField[]>();
+  if (formIds.length > 0) {
+    const { data: formsData } = await supabase
+      .from("forms")
+      .select("id, schema")
+      .in("id", formIds);
+    for (const f of ((formsData ?? []) as { id: string; schema: FormSchema | null }[])) {
+      const fields: FormField[] = [];
+      for (const step of f.schema?.steps ?? []) {
+        for (const field of step.fields ?? []) {
+          fields.push(field);
+        }
+      }
+      fieldsByFormId.set(f.id, fields);
+    }
+  }
+
+  // First-seen-order list of unique question labels seen across the
+  // event's enrollments. Walking enrollments in the upstream order
+  // (newest first) gives a stable, deterministic column order without
+  // having to alphabetize.
+  const columnOrder: string[] = [];
+  const seenColumns = new Set<string>();
+  const answersByEnrollmentId = new Map<string, Record<string, string>>();
+
+  for (const r of filtered) {
+    const subId = r.form_submission_id;
+    const sub = subId ? submissionById.get(subId) : null;
+    if (!sub || !sub.raw_data) {
+      answersByEnrollmentId.set(r.id, {});
+      continue;
+    }
+    const fields = sub.form_id ? fieldsByFormId.get(sub.form_id) ?? [] : [];
+    const answers: Record<string, string> = {};
+    // Walk the schema in order so labels accumulate in question order
+    // — this is what makes the CSV read naturally.
+    for (const field of fields) {
+      const key = fieldKey(field);
+      const value = sub.raw_data[key];
+      const label = field.label || key;
+      if (!seenColumns.has(label)) {
+        seenColumns.add(label);
+        columnOrder.push(label);
+      }
+      answers[label] = formatFormAnswer(value);
+    }
+    // Any keys present in raw_data but not described by the schema
+    // (legacy fields, deleted questions, contact column writes) still
+    // belong in the export — surface them under their raw key.
+    for (const [k, v] of Object.entries(sub.raw_data)) {
+      if (["_meta", "ip", "user_agent"].includes(k.toLowerCase())) continue;
+      const labelFromSchema = fields.find((f) => fieldKey(f) === k)?.label;
+      if (labelFromSchema) continue; // already handled above
+      const label = k.replaceAll("_", " ");
+      if (!seenColumns.has(label)) {
+        seenColumns.add(label);
+        columnOrder.push(label);
+      }
+      answers[label] = formatFormAnswer(v);
+    }
+    answersByEnrollmentId.set(r.id, answers);
   }
 
   const nowIso = new Date().toISOString();
@@ -746,8 +856,17 @@ export async function getEventFollowupExport(
       assigned_staff_email: staff?.email ?? null,
       staff_notes: r.staff_notes,
       staff_notes_updated_at: r.staff_notes_updated_at,
+      form_answers: answersByEnrollmentId.get(r.id) ?? {},
     };
   });
 
-  return { eventTitle: event.title, rows };
+  return { eventTitle: event.title, rows, formAnswerColumns: columnOrder };
+}
+
+function formatFormAnswer(v: unknown): string {
+  if (v === null || v === undefined || v === "") return "";
+  if (typeof v === "boolean") return v ? "Yes" : "No";
+  if (Array.isArray(v)) return v.map((x) => formatFormAnswer(x)).filter(Boolean).join("; ");
+  if (typeof v === "object") return JSON.stringify(v);
+  return String(v);
 }

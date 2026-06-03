@@ -66,7 +66,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Event not found" }, { status: 404 });
   }
 
-  const headers = [
+  // Static summary columns first, then one column per unique form
+  // question label seen across the event's enrollments (so follow-up
+  // staff have every answer the person gave when they signed up —
+  // dropdowns, multiselects, consent acknowledgements, the lot).
+  // Staff Notes intentionally lives at the very end so it doesn't push
+  // the question answers off-screen when there are many of them.
+  const summaryHeaders = [
     "Event",
     "First Name",
     "Last Name",
@@ -85,14 +91,18 @@ export async function GET(request: Request) {
     "Marked Finished At",
     "Assigned Staff",
     "Assigned Staff Email",
-    "Staff Notes",
-    "Staff Notes Updated At",
+  ];
+  const trailingHeaders = ["Staff Notes", "Staff Notes Updated At"];
+  const headers = [
+    ...summaryHeaders,
+    ...result.formAnswerColumns,
+    ...trailingHeaders,
   ];
 
   const lines = [headers.map(escapeCsvValue).join(",")];
 
   for (const r of result.rows) {
-    const row = [
+    const summary = [
       r.event_title,
       r.contact_first_name ?? "",
       r.contact_last_name ?? "",
@@ -111,10 +121,15 @@ export async function GET(request: Request) {
       formatDate(r.marked_finished_at),
       r.assigned_staff_name ?? "",
       r.assigned_staff_email ?? "",
+    ];
+    const answers = result.formAnswerColumns.map(
+      (label) => r.form_answers[label] ?? ""
+    );
+    const trailing = [
       r.staff_notes ?? "",
       formatDate(r.staff_notes_updated_at),
     ];
-    lines.push(row.map(escapeCsvValue).join(","));
+    lines.push([...summary, ...answers, ...trailing].map(escapeCsvValue).join(","));
   }
 
   const csv = lines.join("\n");
