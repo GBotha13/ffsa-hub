@@ -1,35 +1,135 @@
-import { renderEmailShell, escapeHtml, bodyParagraph, emphasis } from "../shell";
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 export function profileReminderEmailHtml({
   firstName,
   missingLabels,
   signInUrl,
-  siteUrl,
 }: {
   firstName?: string;
   missingLabels: string[];
   signInUrl: string;
-  siteUrl?: string | null;
 }): string {
   const greeting = firstName ? `Hi ${escapeHtml(firstName)},` : "Hi,";
   const missingList = missingLabels.length
-    ? `<ul style="margin:8px 0 16px 24px;padding:0;color:#B8A898;font-size:14px;line-height:1.7;">
+    ? `<ul style="margin:8px 0 24px 24px;padding:0;color:#B8A898;font-size:14px;line-height:1.7;">
         ${missingLabels.map((l) => `<li>${escapeHtml(l)}</li>`).join("")}
       </ul>`
     : "";
 
-  return renderEmailShell({
-    title: "Finish setting up your FFSA Hub profile",
-    preheader: "A few details still needed to unlock your account.",
-    eyebrow: "Profile Incomplete",
-    heading: "Finish your<br/>profile",
-    bodyHtml: `
-      ${bodyParagraph(greeting)}
-      ${bodyParagraph(`We noticed your ${emphasis("FFSA Hub")} profile is missing a few details. Once those are filled in you'll have full access to the hub.`)}
-      ${missingLabels.length ? `<p style="margin:16px 0 4px;font-size:14px;color:#F0EBE3;">Still needed:</p>${missingList}` : ""}
-      ${bodyParagraph("Click below to sign in and complete your profile — it should only take a minute.")}
-    `,
-    cta: { label: "Complete My Profile", url: signInUrl },
-    siteUrl,
-  });
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Finish setting up your FFSA Hub profile</title>
+</head>
+<body style="margin:0;padding:0;background-color:#0D0B09;font-family:'Roboto',Arial,sans-serif;">
+
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#0D0B09;padding:48px 16px;">
+    <tr>
+      <td align="center">
+
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background-color:#141210;border:1px solid #2a2420;border-radius:14px;overflow:hidden;">
+
+          <tr>
+            <td style="height:3px;background:linear-gradient(90deg,transparent,#F5C518,transparent);"></td>
+          </tr>
+
+          <tr>
+            <td align="center" style="padding:40px 40px 32px;">
+              <div style="font-size:28px;font-weight:900;letter-spacing:0.06em;color:#F0EBE3;font-family:Arial Black,Arial,sans-serif;line-height:1;">
+                FIRE &amp; FRAGRANCE
+              </div>
+              <div style="margin-top:8px;display:flex;align-items:center;justify-content:center;gap:8px;">
+                <span style="display:inline-block;width:20px;height:1px;background:#F5C518;vertical-align:middle;"></span>
+                <span style="font-size:9px;letter-spacing:0.3em;font-weight:700;color:#F5C518;text-transform:uppercase;">HUB</span>
+                <span style="display:inline-block;width:20px;height:1px;background:#F5C518;vertical-align:middle;"></span>
+              </div>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="height:1px;background:#2a2420;"></td>
+          </tr>
+
+          <tr>
+            <td style="padding:40px 40px 32px;">
+
+              <p style="margin:0 0 8px;font-size:11px;letter-spacing:0.25em;font-weight:700;color:#F5C518;text-transform:uppercase;">
+                Profile Incomplete
+              </p>
+
+              <h1 style="margin:0 0 20px;font-size:28px;font-weight:900;letter-spacing:0.03em;color:#F0EBE3;font-family:Arial Black,Arial,sans-serif;line-height:1.15;">
+                Finish your<br/>profile
+              </h1>
+
+              <p style="margin:0 0 12px;font-size:15px;color:#B8A898;line-height:1.65;">
+                ${greeting}
+              </p>
+
+              <p style="margin:0 0 12px;font-size:15px;color:#B8A898;line-height:1.65;">
+                We noticed your <strong style="color:#F0EBE3;">FFSA Hub</strong> profile is missing a few details. Once those are filled in you'll have full access to the hub.
+              </p>
+
+              ${missingLabels.length ? `<p style="margin:16px 0 4px;font-size:14px;color:#F0EBE3;">Still needed:</p>${missingList}` : ""}
+
+              <p style="margin:0 0 32px;font-size:15px;color:#B8A898;line-height:1.65;">
+                Click below to sign in and complete your profile — it should only take a minute.
+              </p>
+
+              <table cellpadding="0" cellspacing="0" style="margin-bottom:32px;">
+                <tr>
+                  <td align="center" style="background:#F5C518;border-radius:8px;box-shadow:0 4px 18px rgba(245,197,24,0.25);">
+                    <a href="${signInUrl}"
+                       style="display:inline-block;padding:14px 36px;font-size:11px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:#0D0B09;text-decoration:none;font-family:Arial,sans-serif;">
+                      Complete My Profile
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0 0 4px;font-size:12px;color:#5a4e44;line-height:1.6;">
+                If the button doesn't work, copy and paste this link into your browser:
+              </p>
+              <p style="margin:0;font-size:11px;color:#7a6e64;word-break:break-all;line-height:1.6;">
+                <a href="${signInUrl}" style="color:#F5C518;text-decoration:none;">${signInUrl}</a>
+              </p>
+
+            </td>
+          </tr>
+
+          <tr>
+            <td style="height:1px;background:#2a2420;"></td>
+          </tr>
+
+          <tr>
+            <td style="padding:24px 40px;" align="center">
+              <p style="margin:0 0 4px;font-size:10px;letter-spacing:0.25em;color:#3a3028;text-transform:uppercase;font-weight:700;">
+                CATALYSE A GENERATION · EVANGELISE THE WORLD
+              </p>
+              <p style="margin:0;font-size:11px;color:#3a3028;">
+                Fire &amp; Fragrance South Africa &mdash; ffsahub.com
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="height:2px;background:linear-gradient(90deg,transparent,#2a2420,transparent);"></td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>`;
 }
