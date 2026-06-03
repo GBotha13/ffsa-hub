@@ -47,23 +47,38 @@ export type FormField = {
 
 /**
  * Field types whose answer can drive a conditional child. Only choice-style
- * answers produce a single discrete value we can match against.
+ * answers produce a single discrete value we can match against. Boolean
+ * fields (checkbox / outcome / consent) collapse to a single "checked"
+ * rule.
  */
 export const PARENT_ELIGIBLE_TYPES: FormFieldType[] = [
   "yes_no",
   "radio",
   "dropdown",
   "checkbox",
+  "outcome",
+  "consent",
+];
+
+/** Parent types whose answer is a boolean (true when checked). */
+export const BOOLEAN_PARENT_TYPES: FormFieldType[] = [
+  "checkbox",
+  "outcome",
+  "consent",
 ];
 
 export function isParentEligible(field: Pick<FormField, "type">): boolean {
   return PARENT_ELIGIBLE_TYPES.includes(field.type);
 }
 
+export function isBooleanParentType(type: FormFieldType): boolean {
+  return BOOLEAN_PARENT_TYPES.includes(type);
+}
+
 /**
  * The set of values a parent of this type can produce, used to populate
- * the "Show when answer is…" picker in the builder. Checkbox has the
- * single sentinel "true" (checked).
+ * the "Show when answer is…" picker in the builder. Boolean parents have
+ * the single sentinel "true" (checked).
  */
 export function parentValueChoices(
   field: Pick<FormField, "type" | "options">
@@ -75,6 +90,8 @@ export function parentValueChoices(
     case "dropdown":
       return field.options ?? [];
     case "checkbox":
+    case "outcome":
+    case "consent":
       return ["true"];
     default:
       return [];
@@ -172,14 +189,13 @@ export function isFieldVisible(
     if (!parent) return false;
     const expected = current.showWhenValue ?? "";
     const rawParent = values[fieldKey(parent)];
-    const actual =
-      parent.type === "checkbox"
-        ? rawParent === true
-          ? "true"
-          : ""
-        : typeof rawParent === "string"
-        ? rawParent
-        : "";
+    const actual = isBooleanParentType(parent.type)
+      ? rawParent === true
+        ? "true"
+        : ""
+      : typeof rawParent === "string"
+      ? rawParent
+      : "";
     if (actual !== expected) return false;
     current = parent;
   }

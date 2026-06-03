@@ -11,6 +11,7 @@ import {
   CONTACT_FIELD_KEYS,
   newLocalId,
   isParentEligible,
+  isBooleanParentType,
   parentValueChoices,
 } from "@/lib/forms/schema";
 import { QrPanel } from "./qr-panel";
@@ -656,7 +657,7 @@ function FieldEditor({
                 }
                 className="border rounded px-1.5 py-0.5 text-xs"
               >
-                {parent.type === "checkbox" ? (
+                {isBooleanParentType(parent.type) ? (
                   <option value="true">Checked</option>
                 ) : (
                   parentValues.map((v) => (
@@ -669,6 +670,10 @@ function FieldEditor({
             </>
           )}
         </div>
+        <p className="text-muted-foreground italic mt-1 text-[11px]">
+          Eligible parents: Yes/No, radio, dropdown, checkbox, outcome
+          response, or consent fields placed above this one.
+        </p>
         {orphanedParentRef && (
           <p className="text-amber-600 mt-1">
             The parent question for this rule no longer exists — pick another
@@ -677,8 +682,7 @@ function FieldEditor({
         )}
         {eligibleParents.length === 0 && (
           <p className="text-muted-foreground italic mt-1">
-            Add a Yes/No, radio, dropdown, or checkbox field above this one to
-            enable conditional logic.
+            No eligible parent exists above this field yet.
           </p>
         )}
       </div>
