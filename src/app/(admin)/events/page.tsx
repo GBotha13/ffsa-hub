@@ -84,6 +84,7 @@ export default async function EventsPage({
               <TableHead>Date</TableHead>
               <TableHead>Location</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Brand</TableHead>
               <TableHead>Public</TableHead>
             </TableRow>
           </TableHeader>
@@ -91,7 +92,7 @@ export default async function EventsPage({
             {!events || events.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={5}
+                  colSpan={6}
                   className="text-center text-muted-foreground py-8"
                 >
                   No events found
@@ -124,6 +125,18 @@ export default async function EventsPage({
                     >
                       {event.status}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {event.brand === "the_send" ? (
+                      <Badge
+                        variant="outline"
+                        className="border-amber-500/40 text-amber-600 dark:text-amber-400 uppercase tracking-wider text-[10px]"
+                      >
+                        THE SEND
+                      </Badge>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">F&amp;F</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {event.is_public ? "Yes" : "No"}

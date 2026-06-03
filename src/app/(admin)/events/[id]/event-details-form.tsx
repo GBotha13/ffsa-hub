@@ -9,6 +9,26 @@ import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Lock, Pencil } from "lucide-react";
 
+type EventBrand = "ff" | "the_send";
+
+const BRAND_OPTIONS: Array<{ value: EventBrand; label: string; helper: string }> = [
+  {
+    value: "ff",
+    label: "Fire & Fragrance",
+    helper: "Standard F&F email template — black/gold workflow shell.",
+  },
+  {
+    value: "the_send",
+    label: "THE SEND",
+    helper:
+      "Bespoke navy/cream/gold template for every email tied to this event — workflow steps, ticket confirmations, and follow-ups.",
+  },
+];
+
+function normalizeBrand(raw: string | null | undefined): EventBrand {
+  return raw === "the_send" ? "the_send" : "ff";
+}
+
 type EventCore = {
   title: string;
   description: string | null;
@@ -20,6 +40,7 @@ type EventCore = {
   max_capacity: number | null;
   is_public: boolean;
   registration_required: boolean;
+  brand?: string | null;
 };
 
 type FormState = {
@@ -33,6 +54,7 @@ type FormState = {
   max_capacity: string;
   is_public: boolean;
   registration_required: boolean;
+  brand: EventBrand;
 };
 
 function toFormState(e: EventCore): FormState {
@@ -47,6 +69,7 @@ function toFormState(e: EventCore): FormState {
     max_capacity: e.max_capacity != null ? String(e.max_capacity) : "",
     is_public: !!e.is_public,
     registration_required: !!e.registration_required,
+    brand: normalizeBrand(e.brand ?? null),
   };
 }
 
@@ -103,6 +126,7 @@ export function EventDetailsForm({
         max_capacity: form.max_capacity ? parseInt(form.max_capacity, 10) : null,
         is_public: form.is_public,
         registration_required: form.registration_required,
+        brand: form.brand,
       }),
     });
     setBusy(false);
@@ -144,6 +168,13 @@ export function EventDetailsForm({
           <ReadRow
             label="Capacity"
             value={event.max_capacity != null ? String(event.max_capacity) : "Unlimited"}
+          />
+          <ReadRow
+            label="Email brand"
+            value={
+              BRAND_OPTIONS.find((o) => o.value === normalizeBrand(event.brand))?.label
+                ?? null
+            }
           />
           <p className="text-xs text-muted-foreground border-t pt-3">
             To edit any of these, use <strong>Revert to draft</strong> at the top
@@ -259,6 +290,27 @@ export function EventDetailsForm({
             />
             Registration required
           </label>
+        </div>
+
+        {/* Email brand — drives the template for every email tied
+            to this event (workflow steps, ticket confirmations, etc). */}
+        <div className="space-y-2 pt-1 border-t pt-4">
+          <Label htmlFor="ev-brand">Email brand</Label>
+          <select
+            id="ev-brand"
+            value={form.brand}
+            onChange={(e) => set("brand", e.target.value as EventBrand)}
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            {BRAND_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-muted-foreground">
+            {BRAND_OPTIONS.find((o) => o.value === form.brand)?.helper}
+          </p>
         </div>
 
         {err && <p className="text-xs text-red-600">{err}</p>}

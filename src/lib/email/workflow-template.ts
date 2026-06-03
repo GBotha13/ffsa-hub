@@ -17,6 +17,19 @@
 
 import sanitizeHtml from "sanitize-html";
 import type { CampaignBody, CampaignBlock } from "@/lib/campaigns/blocks";
+import {
+  SEND_COLORS,
+  SEND_FONTS,
+  sendEyebrow,
+  sendHeading,
+  sendButton,
+  sendQuote,
+  sendDivider,
+  sendSpacer,
+  sendImage,
+  sendEsc,
+  theSendChrome,
+} from "./the-send-shell";
 
 const BLACK = "#141414"; // masthead / footer
 const INK = "#1A1A1A"; // headings + body text
@@ -133,17 +146,29 @@ function renderBlock(b: CampaignBlock): string {
   }
 }
 
+export type WorkflowEmailBrand = "ff" | "the_send";
+
 export type WorkflowEmailOpts = {
   baseUrl: string; // e.g. https://www.ffsahub.com — for the logo assets
   prefsUrl: string; // manage-preferences / unsubscribe link
   previewText?: string;
   scheduler?: { url: string; label: string }; // optional "pick a time" button
+  /**
+   * Visual brand. Defaults to 'ff' (Fire & Fragrance — the existing
+   * workflow shell). 'the_send' wraps the same block content in the
+   * THE SEND chrome (navy/cream/gold), so workflow steps fired for
+   * THE SEND events match the storefront and ticket email.
+   */
+  brand?: WorkflowEmailBrand;
 };
 
 export function renderWorkflowEmail(
   body: CampaignBody | null | undefined,
   opts: WorkflowEmailOpts
 ): string {
+  if (opts.brand === "the_send") {
+    return renderTheSendWorkflowEmail(body, opts);
+  }
   const base = opts.baseUrl.replace(/\/$/, "");
   const blocks = (body?.blocks ?? []).map(renderBlock).join("");
 
@@ -198,4 +223,109 @@ ${preview}
 </td></tr>
 </table>
 </body></html>`;
+}
+
+// ============================================================
+// THE SEND variant — same block editor, swapped chrome + per-block
+// styling. Lives next to the F&F renderer so the two stay in lockstep
+// as block types are added.
+// ============================================================
+
+const S = SEND_COLORS;
+const SF = SEND_FONTS;
+
+// SEND-styled rich text — same allowed tags as F&F so the block editor
+// produces the same shape; only the inline styles differ (navy text,
+// gold underline on links, body font Helvetica).
+function sendRichText(html: string): string {
+  return sanitizeHtml(html, {
+    allowedTags: ["p", "br", "strong", "b", "em", "i", "a", "span", "ul", "ol", "li"],
+    allowedAttributes: { a: ["href", "target", "rel"] },
+    transformTags: {
+      a: (_t, attribs) => ({
+        tagName: "a",
+        attribs: {
+          ...attribs,
+          style: `color:${S.NAVY};text-decoration:underline;text-decoration-color:${S.GOLD};`,
+          target: "_blank",
+          rel: "noopener noreferrer",
+        },
+      }),
+      p: () => ({
+        tagName: "p",
+        attribs: {
+          style: `margin:0 0 4px;font-family:${SF.BODY};font-size:15px;line-height:1.65;color:${S.NAVY};`,
+        },
+      }),
+    },
+  });
+}
+
+function renderSendBlock(b: CampaignBlock): string {
+  switch (b.type) {
+    case "eyebrow":
+      return sendEyebrow(b.text);
+
+    case "heading":
+      return `${b.eyebrow ? sendEyebrow(b.eyebrow) : ""}${sendHeading(b.text)}`;
+
+    case "text":
+      return `<div style="margin:0 0 6px;font-family:${SF.BODY};font-size:15px;line-height:1.65;color:${S.NAVY};">${sendRichText(b.text)}</div>`;
+
+    case "button":
+      return sendButton(b.url, b.text, b.style ?? "filled");
+
+    case "image":
+      return sendImage(b.url, b.alt, b.caption);
+
+    case "quote":
+      return sendQuote(b.text, b.attribution);
+
+    case "divider":
+      return sendDivider(b.style ?? "rule");
+
+    case "spacer":
+      return sendSpacer(b.size ?? "md");
+
+    case "image-text":
+      return `${sendImage(b.url, b.alt)}${
+        b.heading
+          ? `<h2 style="margin:0 0 6px;font-family:${SF.DISPLAY};font-size:20px;line-height:1.1;font-weight:900;text-transform:uppercase;color:${S.NAVY};">${sendEsc(b.heading)}</h2>`
+          : ""
+      }<div style="margin:0 0 6px;font-family:${SF.BODY};font-size:15px;line-height:1.65;color:${S.NAVY};">${sendRichText(b.text)}</div>`;
+
+    default:
+      return "";
+  }
+}
+
+export function renderTheSendWorkflowEmail(
+  body: CampaignBody | null | undefined,
+  opts: WorkflowEmailOpts
+): string {
+  const blocks = (body?.blocks ?? []).map(renderSendBlock).join("");
+
+  // Scheduler — framed cream card with a navy pill button so it reads
+  // as an action inside the SEND aesthetic.
+  const schedulerBlock = opts.scheduler
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:24px 0 6px;"><tr><td style="background:${S.CREAM};border:2px solid ${S.NAVY};padding:22px;text-align:center;">
+<p style="margin:0 0 14px;font-family:${SF.MONO};font-size:11px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:${S.BLUE};">// Find a time to talk</p>
+${sendButton(opts.scheduler.url, opts.scheduler.label, "filled")}
+</td></tr></table>`
+    : "";
+
+  // Preferences link footer — appended INSIDE the chrome body so it
+  // sits on the cream paper above the navy footer. The chrome itself
+  // doesn't know about prefsUrl.
+  const prefsFooter = `<p style="margin:28px 0 0;padding-top:18px;border-top:2px dashed ${S.NAVY};font-family:${SF.MONO};font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:${S.NAVY};opacity:0.75;text-align:center;"><a href="${sendEsc(opts.prefsUrl)}" style="color:${S.NAVY};text-decoration:underline;">Manage email preferences</a></p>`;
+
+  const bodyHtml =
+    (blocks + schedulerBlock) ||
+    `<p style="font-family:${SF.BODY};font-size:15px;color:${S.NAVY};">&nbsp;</p>`;
+
+  return theSendChrome({
+    previewText: opts.previewText,
+    bodyHtml: bodyHtml + prefsFooter,
+    siteUrl: opts.baseUrl,
+  });
 }

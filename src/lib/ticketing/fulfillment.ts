@@ -21,12 +21,22 @@ import { ticketConfirmationEmailHtml } from "@/lib/email/templates/ticket-confir
 import { theSendTicketEmailHtml } from "@/lib/email/templates/the-send-ticket-confirmation";
 import { resolveOrderToCrm } from "./crm-resolution";
 
-// Bespoke email keyed by event slug/title — mirrors the storefront
-// detection so the email and landing page match aesthetically.
-function isTheSendEvent(slug: string | null | undefined, title: string | null | undefined) {
+// Bespoke email keyed by the event's brand flag (migration 077).
+// Falls back to the legacy slug/title heuristic so unmigrated rows
+// (and any future event whose admin hasn't picked a brand yet) still
+// route to THE SEND template if the slug/title is unambiguous. Once
+// every event row has its brand set deliberately, the heuristic can
+// be dropped.
+function isTheSendBrand(event: {
+  brand?: string | null;
+  public_slug?: string | null;
+  title?: string | null;
+}): boolean {
+  if (event.brand === "the_send") return true;
+  if (event.brand && event.brand !== "the_send") return false;
   return (
-    (slug ?? "").toLowerCase().includes("the-send") ||
-    (title ?? "").toLowerCase().includes("the send")
+    (event.public_slug ?? "").toLowerCase().includes("the-send") ||
+    (event.title ?? "").toLowerCase().includes("the send")
   );
 }
 
@@ -64,11 +74,11 @@ export async function fulfillOrder(
   supabase: Client,
   orderId: string
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  // 1. Load order + event.
+  // 1. Load order + event (brand drives the email template).
   const { data: order, error: orderErr } = await supabase
     .from("orders")
     .select(
-      "id, status, total_cents, buyer_first_name, buyer_last_name, buyer_email, lines, event_id, events(id, title, start_date, end_date, location, public_slug)"
+      "id, status, total_cents, buyer_first_name, buyer_last_name, buyer_email, lines, event_id, events(id, title, start_date, end_date, location, public_slug, brand)"
     )
     .eq("id", orderId)
     .maybeSingle();
@@ -161,10 +171,7 @@ export async function fulfillOrder(
     totalCents: order.total_cents,
     siteUrl,
   };
-  const isTheSend = isTheSendEvent(
-    order.events.public_slug,
-    order.events.title
-  );
+  const isTheSend = isTheSendBrand(order.events);
   const sendResult = await sendViaMailtrap({
     fromEmail,
     fromName: "Fire & Fragrance SA",

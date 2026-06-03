@@ -1741,6 +1741,7 @@ export type Database = {
       events: {
         Row: {
           base_label_id: string | null
+          brand: string
           created_at: string
           created_by: string
           description: string | null
@@ -1762,6 +1763,7 @@ export type Database = {
         }
         Insert: {
           base_label_id?: string | null
+          brand?: string
           created_at?: string
           created_by: string
           description?: string | null
@@ -1783,6 +1785,7 @@ export type Database = {
         }
         Update: {
           base_label_id?: string | null
+          brand?: string
           created_at?: string
           created_by?: string
           description?: string | null

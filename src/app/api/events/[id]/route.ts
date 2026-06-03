@@ -29,6 +29,7 @@ export async function PATCH(
     max_capacity?: number | null;
     is_public?: boolean;
     registration_required?: boolean;
+    brand?: string;
   };
   try {
     body = await request.json();
@@ -103,6 +104,17 @@ export async function PATCH(
   if ("is_public" in body) patch.is_public = !!body.is_public;
   if ("registration_required" in body)
     patch.registration_required = !!body.registration_required;
+
+  // Visual brand for every email tied to this event. Drives the
+  // template router used by workflow steps, ticket confirmations,
+  // and (future) other event-tied sends. Migration 077.
+  if ("brand" in body) {
+    const allowedBrands = ["ff", "the_send"];
+    if (!allowedBrands.includes(body.brand as string)) {
+      return NextResponse.json({ error: "Invalid brand" }, { status: 400 });
+    }
+    patch.brand = body.brand;
+  }
 
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: "No patchable fields provided" }, { status: 400 });

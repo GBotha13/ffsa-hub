@@ -147,11 +147,13 @@ async function loadWorkflowIdentity(
   labelId: string | null;
   identity: IdentityRow | null;
   createdBy: string | null;
+  /** Event brand (from outcome_workflows → event_outcomes → events.brand). */
+  brand: "ff" | "the_send";
 }> {
   const { data } = await supabase
     .from("outcome_workflows")
     .select(
-      "id, created_by, event_outcomes(label_id, labels(id, sending_identity_id, sending_identities(id, from_email, from_name, reply_to)))"
+      "id, created_by, event_outcomes(label_id, events(brand), labels(id, sending_identity_id, sending_identities(id, from_email, from_name, reply_to)))"
     )
     .eq("id", workflowId)
     .maybeSingle();
@@ -159,10 +161,13 @@ async function loadWorkflowIdentity(
   const outcome = data?.event_outcomes ?? null;
   const label = outcome?.labels ?? null;
   const identity = (label?.sending_identities ?? null) as IdentityRow | null;
+  const rawBrand = (outcome?.events?.brand as string | null | undefined) ?? "ff";
+  const brand: "ff" | "the_send" = rawBrand === "the_send" ? "the_send" : "ff";
   return {
     labelId: label?.id ?? null,
     identity,
     createdBy: (data?.created_by as string | null) ?? null,
+    brand,
   };
 }
 
@@ -289,6 +294,7 @@ export async function runEnrollment(
           outcomeLabelId: identityCtx.labelId,
           labelIdentity: identityCtx.identity,
           workflowCreatedBy: identityCtx.createdBy,
+          brand: identityCtx.brand,
           identityCache,
           getFallback,
         });
@@ -333,6 +339,8 @@ async function runEmailStep(
     outcomeLabelId: string | null;
     labelIdentity: IdentityRow | null;
     workflowCreatedBy: string | null;
+    /** Event brand resolved once up-front so every email step shares it. */
+    brand: "ff" | "the_send";
     identityCache: Map<string, IdentityRow | null>;
     getFallback: () => Promise<IdentityRow | null>;
   }
@@ -407,14 +415,16 @@ async function runEmailStep(
     }
   }
 
-  // Render inside the fixed Fire & Fragrance workflow shell; the block
-  // content is the only variable part.
+  // Render inside the brand-appropriate workflow shell. The block
+  // content is the only variable part — F&F vs THE SEND swaps the
+  // outer chrome and the per-block styling.
   const html = substituteFirstName(
     renderWorkflowEmail(body, {
       baseUrl: APP_URL,
       prefsUrl,
       previewText: subject,
       scheduler,
+      brand: args.brand,
     }),
     escapeHtml(firstName)
   );
