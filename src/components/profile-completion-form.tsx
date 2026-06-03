@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import type { FieldConfig } from "./profile-completion-gate";
+import type { FieldConfig } from "@/lib/users/profile-fields";
 
 export function ProfileCompletionForm({
   missingFields,
