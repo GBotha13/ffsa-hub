@@ -19,6 +19,7 @@ import { Check, CircleDashed, Clock, Mail, Tag, X } from "lucide-react";
 import type { FollowupQueueRow, FollowupDetail } from "@/services/event-followup";
 import type { AssignableFollowupHandler } from "@/lib/auth/assignable-followup-handlers";
 import { SchedulingSection } from "./scheduling-section";
+import { NotesSection } from "./notes-section";
 
 const UNASSIGNED = "__none__";
 
@@ -215,6 +216,16 @@ export function FollowupDrawer({
               for this event yet. Grant it under Users → Permissions.
             </p>
           )}
+        </div>
+
+        <div className="mt-6">
+          <NotesSection
+            enrollmentId={row.enrollment_id}
+            initialNotes={row.staff_notes}
+            updatedAt={row.staff_notes_updated_at}
+            updatedBy={row.staff_notes_updated_by}
+            onSaved={onChanged}
+          />
         </div>
 
         <div className="mt-6">

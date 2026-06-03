@@ -28,6 +28,16 @@ export type FollowupQueueRow = {
   staff_viewed_at: string | null;
   marked_finished_at: string | null;
 
+  staff_notes: string | null;
+  staff_notes_updated_at: string | null;
+  staff_notes_updated_by: {
+    id: string;
+    first_name: string | null;
+    last_name: string | null;
+    preferred_name: string | null;
+    email: string | null;
+  } | null;
+
   contact: {
     id: string;
     first_name: string | null;
@@ -166,6 +176,7 @@ export async function getFollowupQueue(
       `
         id, enrolled_at, status, current_step, next_run_at,
         assigned_staff_id, staff_assigned_at, staff_viewed_at, marked_finished_at,
+        staff_notes, staff_notes_updated_at,
         contact:contacts!workflow_enrollments_contact_id_fkey(
           id, first_name, last_name, preferred_name, email, phone
         ),
@@ -177,6 +188,9 @@ export async function getFollowupQueue(
           )
         ),
         assigned_staff:users!workflow_enrollments_assigned_staff_id_fkey(
+          id, first_name, last_name, preferred_name, email
+        ),
+        staff_notes_updated_by:users!workflow_enrollments_staff_notes_updated_by_fkey(
           id, first_name, last_name, preferred_name, email
         )
       `
@@ -200,6 +214,8 @@ export async function getFollowupQueue(
     staff_assigned_at: string | null;
     staff_viewed_at: string | null;
     marked_finished_at: string | null;
+    staff_notes: string | null;
+    staff_notes_updated_at: string | null;
     contact: FollowupQueueRow["contact"] | null;
     workflow: {
       id: string;
@@ -212,6 +228,7 @@ export async function getFollowupQueue(
       } | null;
     } | null;
     assigned_staff: FollowupQueueRow["assigned_staff"] | null;
+    staff_notes_updated_by: FollowupQueueRow["staff_notes_updated_by"] | null;
   };
 
   const raws = (data as Raw[]).filter((r) => {
@@ -279,6 +296,9 @@ export async function getFollowupQueue(
       staff_assigned_at: r.staff_assigned_at,
       staff_viewed_at: r.staff_viewed_at,
       marked_finished_at: r.marked_finished_at,
+      staff_notes: r.staff_notes,
+      staff_notes_updated_at: r.staff_notes_updated_at,
+      staff_notes_updated_by: r.staff_notes_updated_by,
       contact: r.contact!,
       workflow: { id: r.workflow!.id, name: r.workflow!.name },
       outcome: {
@@ -355,6 +375,7 @@ export async function getFollowupDetail(
       `
         id, enrolled_at, status, current_step, next_run_at, form_submission_id,
         assigned_staff_id, staff_assigned_at, staff_viewed_at, marked_finished_at,
+        staff_notes, staff_notes_updated_at,
         contact:contacts!workflow_enrollments_contact_id_fkey(
           id, first_name, last_name, preferred_name, email, phone
         ),
@@ -366,6 +387,9 @@ export async function getFollowupDetail(
           )
         ),
         assigned_staff:users!workflow_enrollments_assigned_staff_id_fkey(
+          id, first_name, last_name, preferred_name, email
+        ),
+        staff_notes_updated_by:users!workflow_enrollments_staff_notes_updated_by_fkey(
           id, first_name, last_name, preferred_name, email
         )
       `
@@ -386,6 +410,8 @@ export async function getFollowupDetail(
     staff_assigned_at: string | null;
     staff_viewed_at: string | null;
     marked_finished_at: string | null;
+    staff_notes: string | null;
+    staff_notes_updated_at: string | null;
     contact: FollowupQueueRow["contact"] | null;
     workflow: {
       id: string;
@@ -398,6 +424,7 @@ export async function getFollowupDetail(
       } | null;
     } | null;
     assigned_staff: FollowupQueueRow["assigned_staff"] | null;
+    staff_notes_updated_by: FollowupQueueRow["staff_notes_updated_by"] | null;
   };
 
   const e = enrollment as unknown as EnrollRaw;
@@ -491,6 +518,9 @@ export async function getFollowupDetail(
     staff_assigned_at: e.staff_assigned_at,
     staff_viewed_at: e.staff_viewed_at,
     marked_finished_at: e.marked_finished_at,
+    staff_notes: e.staff_notes,
+    staff_notes_updated_at: e.staff_notes_updated_at,
+    staff_notes_updated_by: e.staff_notes_updated_by,
     contact: e.contact,
     workflow: { id: e.workflow.id, name: e.workflow.name },
     outcome: { id: e.workflow.outcome.id, name: e.workflow.outcome.name },
@@ -533,4 +563,191 @@ export async function getFollowupDetail(
         }
       : null,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Per-event CSV export
+// ─────────────────────────────────────────────────────────────────
+// Unlike the queue, this returns EVERY enrollment for an event —
+// active, completed (workflow finished automatically), cancelled,
+// and manually marked finished. The CSV is meant to be a complete
+// record so staff can work outside the Hub.
+
+export type EventFollowupExportRow = {
+  event_title: string;
+  contact_first_name: string | null;
+  contact_last_name: string | null;
+  contact_preferred_name: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  outcome_name: string;
+  workflow_name: string;
+  status: "active" | "completed" | "cancelled";
+  stage_label: string;
+  steps_done: number;
+  total_steps: number;
+  days_in_pipeline: number;
+  enrolled_at: string;
+  completed_at: string | null;
+  marked_finished_at: string | null;
+  assigned_staff_name: string | null;
+  assigned_staff_email: string | null;
+  staff_notes: string | null;
+  staff_notes_updated_at: string | null;
+};
+
+export async function getEventFollowupExport(
+  supabase: Client,
+  eventId: string
+): Promise<{ eventTitle: string; rows: EventFollowupExportRow[] } | null> {
+  const { data: event } = await supabase
+    .from("events")
+    .select("id, title")
+    .eq("id", eventId)
+    .single();
+  if (!event) return null;
+
+  const { data: enrollments } = await supabase
+    .from("workflow_enrollments")
+    .select(
+      `
+        id, enrolled_at, completed_at, status, current_step, next_run_at,
+        marked_finished_at, staff_notes, staff_notes_updated_at,
+        contact:contacts!workflow_enrollments_contact_id_fkey(
+          first_name, last_name, preferred_name, email, phone
+        ),
+        workflow:outcome_workflows!workflow_enrollments_workflow_id_fkey(
+          id, name,
+          outcome:event_outcomes!outcome_workflows_outcome_id_fkey(
+            id, name, event_id
+          )
+        ),
+        assigned_staff:users!workflow_enrollments_assigned_staff_id_fkey(
+          first_name, last_name, preferred_name, email
+        )
+      `
+    )
+    .order("enrolled_at", { ascending: false })
+    .limit(5000);
+
+  type Raw = {
+    id: string;
+    enrolled_at: string;
+    completed_at: string | null;
+    status: "active" | "completed" | "cancelled";
+    current_step: number;
+    next_run_at: string | null;
+    marked_finished_at: string | null;
+    staff_notes: string | null;
+    staff_notes_updated_at: string | null;
+    contact: {
+      first_name: string | null;
+      last_name: string | null;
+      preferred_name: string | null;
+      email: string | null;
+      phone: string | null;
+    } | null;
+    workflow: {
+      id: string;
+      name: string;
+      outcome: {
+        id: string;
+        name: string;
+        event_id: string;
+      } | null;
+    } | null;
+    assigned_staff: {
+      first_name: string | null;
+      last_name: string | null;
+      preferred_name: string | null;
+      email: string | null;
+    } | null;
+  };
+
+  const filtered = ((enrollments ?? []) as Raw[]).filter(
+    (r) => r.contact && r.workflow?.outcome?.event_id === eventId
+  );
+
+  if (filtered.length === 0) {
+    return { eventTitle: event.title, rows: [] };
+  }
+
+  const workflowIds = Array.from(
+    new Set(filtered.map((r) => r.workflow!.id))
+  );
+  const enrollmentIds = filtered.map((r) => r.id);
+
+  const { data: stepsData } = await supabase
+    .from("workflow_steps")
+    .select("id, workflow_id, sort_order, step_type, config")
+    .in("workflow_id", workflowIds)
+    .order("sort_order", { ascending: true });
+
+  const stepsByWorkflow = new Map<string, StepRow[]>();
+  for (const s of (stepsData ?? []) as StepRow[]) {
+    const arr = stepsByWorkflow.get(s.workflow_id) ?? [];
+    arr.push(s);
+    stepsByWorkflow.set(s.workflow_id, arr);
+  }
+
+  const { data: runsData } = await supabase
+    .from("workflow_step_runs")
+    .select("enrollment_id, step_id, status, ran_at")
+    .in("enrollment_id", enrollmentIds)
+    .eq("status", "done")
+    .order("ran_at", { ascending: false });
+
+  const latestRunByEnrollment = new Map<string, RunRow>();
+  for (const r of (runsData ?? []) as RunRow[]) {
+    if (!latestRunByEnrollment.has(r.enrollment_id)) {
+      latestRunByEnrollment.set(r.enrollment_id, r);
+    }
+  }
+
+  const nowIso = new Date().toISOString();
+  const rows: EventFollowupExportRow[] = filtered.map((r) => {
+    const steps = stepsByWorkflow.get(r.workflow!.id) ?? [];
+    const stage = synthesizeStageLabel({
+      status: r.status,
+      current_step: r.current_step,
+      next_run_at: r.next_run_at,
+      steps,
+      latestRun: latestRunByEnrollment.get(r.id) ?? null,
+      nowIso,
+    });
+
+    const staff = r.assigned_staff;
+    const staffName = staff
+      ? `${staff.preferred_name || staff.first_name || ""} ${staff.last_name || ""}`.trim() ||
+        staff.email ||
+        null
+      : null;
+
+    return {
+      event_title: event.title,
+      contact_first_name: r.contact!.first_name,
+      contact_last_name: r.contact!.last_name,
+      contact_preferred_name: r.contact!.preferred_name,
+      contact_email: r.contact!.email,
+      contact_phone: r.contact!.phone,
+      outcome_name: r.workflow!.outcome!.name,
+      workflow_name: r.workflow!.name,
+      status: r.marked_finished_at ? "completed" : r.status,
+      stage_label: r.marked_finished_at
+        ? "Marked finished by staff"
+        : stage.label,
+      steps_done: stage.done,
+      total_steps: stage.total,
+      days_in_pipeline: daysBetween(r.enrolled_at, nowIso),
+      enrolled_at: r.enrolled_at,
+      completed_at: r.completed_at,
+      marked_finished_at: r.marked_finished_at,
+      assigned_staff_name: staffName,
+      assigned_staff_email: staff?.email ?? null,
+      staff_notes: r.staff_notes,
+      staff_notes_updated_at: r.staff_notes_updated_at,
+    };
+  });
+
+  return { eventTitle: event.title, rows };
 }

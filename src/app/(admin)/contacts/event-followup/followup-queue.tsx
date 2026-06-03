@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Download, StickyNote } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -60,6 +61,31 @@ export function FollowupQueue({
     [queue, selectedId]
   );
 
+  // Group filtered rows by event so concurrent events stay separated.
+  // Sections are sorted alphabetically by event title; rows inside
+  // each section keep the upstream "enrolled_at DESC" order.
+  const groupedByEvent = useMemo(() => {
+    const groups = new Map<
+      string,
+      { id: string; title: string; rows: FollowupQueueRow[] }
+    >();
+    for (const r of filtered) {
+      const existing = groups.get(r.event.id);
+      if (existing) {
+        existing.rows.push(r);
+      } else {
+        groups.set(r.event.id, {
+          id: r.event.id,
+          title: r.event.title,
+          rows: [r],
+        });
+      }
+    }
+    return Array.from(groups.values()).sort((a, b) =>
+      a.title.localeCompare(b.title)
+    );
+  }, [filtered]);
+
   function onRowChanged() {
     router.refresh();
   }
@@ -83,115 +109,33 @@ export function FollowupQueue({
         }
       />
 
-      <div
-        className="overflow-hidden rounded-xl"
-        style={{
-          background: "hsl(22 10% 8%)",
-          border: "1px solid hsl(22 8% 14%)",
-        }}
-      >
-        <Table>
-          <TableHeader>
-            <TableRow style={{ borderColor: "hsl(22 8% 14%)" }}>
-              <TableHead style={th}>Person</TableHead>
-              <TableHead style={th}>Event / Outcome</TableHead>
-              <TableHead style={th}>Stage</TableHead>
-              <TableHead style={{ ...th, textAlign: "right" }}>Age</TableHead>
-              <TableHead style={th}>Assigned</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={5}
-                  style={{
-                    textAlign: "center",
-                    padding: "3rem 1rem",
-                    color: "hsl(30 8% 45%)",
-                    fontSize: "13px",
-                  }}
-                >
-                  No follow-ups match your filters.
-                </TableCell>
-              </TableRow>
-            ) : (
-              filtered.map((r) => (
-                <TableRow
-                  key={r.enrollment_id}
-                  onClick={() => setSelectedId(r.enrollment_id)}
-                  style={{
-                    cursor: "pointer",
-                    borderColor: "hsl(22 8% 12%)",
-                    background: r.is_unread
-                      ? "hsl(42 30% 8%)"
-                      : "transparent",
-                  }}
-                  className="hover:bg-white/5"
-                >
-                  <TableCell>
-                    <div style={{ color: "#F0EBE3", fontSize: "13px", fontWeight: 500 }}>
-                      {personLabel(r.contact)}
-                    </div>
-                    {r.contact.email && (
-                      <div style={{ color: "hsl(30 8% 50%)", fontSize: "11px" }}>
-                        {r.contact.email}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div style={{ color: "#F0EBE3", fontSize: "13px" }}>
-                      {r.event.title}
-                    </div>
-                    <div style={{ color: "hsl(30 8% 50%)", fontSize: "11px" }}>
-                      {r.outcome.name}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div style={{ color: "hsl(30 8% 70%)", fontSize: "12px" }}>
-                      {r.stage_label}
-                    </div>
-                    {r.total_steps > 0 && (
-                      <div
-                        style={{
-                          color: "hsl(30 8% 45%)",
-                          fontSize: "10px",
-                          letterSpacing: "0.05em",
-                          marginTop: "2px",
-                        }}
-                      >
-                        Step {Math.min(r.steps_done + 1, r.total_steps)} of {r.total_steps}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell style={{ textAlign: "right" }}>
-                    <AgeBadge days={r.days_in_pipeline} />
-                  </TableCell>
-                  <TableCell>
-                    {r.assigned_staff ? (
-                      <span style={{ color: "#F0EBE3", fontSize: "12px" }}>
-                        {personLabel(r.assigned_staff)}
-                      </span>
-                    ) : (
-                      <span
-                        style={{
-                          color: "hsl(42 95% 55%)",
-                          fontSize: "11px",
-                          fontWeight: 600,
-                          letterSpacing: "0.05em",
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        Unassigned
-                      </span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      {groupedByEvent.length === 0 ? (
+        <div
+          className="rounded-xl"
+          style={{
+            background: "hsl(22 10% 8%)",
+            border: "1px solid hsl(22 8% 14%)",
+            textAlign: "center",
+            padding: "3rem 1rem",
+            color: "hsl(30 8% 45%)",
+            fontSize: "13px",
+          }}
+        >
+          No follow-ups match your filters.
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {groupedByEvent.map((group) => (
+            <EventGroup
+              key={group.id}
+              eventId={group.id}
+              eventTitle={group.title}
+              rows={group.rows}
+              onRowClick={(id) => setSelectedId(id)}
+            />
+          ))}
+        </div>
+      )}
 
       <FollowupDrawer
         open={!!selected}
@@ -327,6 +271,174 @@ function FilterBar({
         </>
       )}
     </div>
+  );
+}
+
+function EventGroup({
+  eventId,
+  eventTitle,
+  rows,
+  onRowClick,
+}: {
+  eventId: string;
+  eventTitle: string;
+  rows: FollowupQueueRow[];
+  onRowClick: (enrollmentId: string) => void;
+}) {
+  const exportHref = `/api/contacts/event-followup/export?event_id=${encodeURIComponent(eventId)}`;
+  return (
+    <section
+      className="overflow-hidden rounded-xl"
+      style={{
+        background: "hsl(22 10% 8%)",
+        border: "1px solid hsl(22 8% 14%)",
+      }}
+    >
+      <header
+        className="flex items-center justify-between gap-4"
+        style={{
+          padding: "14px 18px",
+          borderBottom: "1px solid hsl(22 8% 14%)",
+          background: "hsl(22 12% 6%)",
+        }}
+      >
+        <div className="flex items-baseline gap-3">
+          <h2
+            style={{
+              color: "#F0EBE3",
+              fontSize: "15px",
+              fontWeight: 700,
+              letterSpacing: "0.01em",
+            }}
+          >
+            {eventTitle}
+          </h2>
+          <span
+            style={{
+              color: "hsl(30 8% 50%)",
+              fontSize: "11px",
+              letterSpacing: "0.15em",
+              textTransform: "uppercase",
+              fontWeight: 600,
+            }}
+          >
+            {rows.length} active · all data
+          </span>
+        </div>
+        <a
+          href={exportHref}
+          download
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+            fontSize: "12px",
+            fontWeight: 600,
+            padding: "6px 12px",
+            borderRadius: "999px",
+            border: "1px solid hsl(22 8% 18%)",
+            background: "hsl(22 10% 10%)",
+            color: "hsl(30 8% 70%)",
+            textDecoration: "none",
+          }}
+          title="Download a CSV of every follow-up for this event — active, finished, and cancelled."
+        >
+          <Download className="h-3.5 w-3.5" />
+          Download CSV
+        </a>
+      </header>
+      <Table>
+        <TableHeader>
+          <TableRow style={{ borderColor: "hsl(22 8% 14%)" }}>
+            <TableHead style={th}>Person</TableHead>
+            <TableHead style={th}>Outcome</TableHead>
+            <TableHead style={th}>Stage</TableHead>
+            <TableHead style={{ ...th, textAlign: "right" }}>Age</TableHead>
+            <TableHead style={th}>Assigned</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((r) => (
+            <TableRow
+              key={r.enrollment_id}
+              onClick={() => onRowClick(r.enrollment_id)}
+              style={{
+                cursor: "pointer",
+                borderColor: "hsl(22 8% 12%)",
+                background: r.is_unread ? "hsl(42 30% 8%)" : "transparent",
+              }}
+              className="hover:bg-white/5"
+            >
+              <TableCell>
+                <div
+                  className="flex items-center gap-2"
+                  style={{ color: "#F0EBE3", fontSize: "13px", fontWeight: 500 }}
+                >
+                  {personLabel(r.contact)}
+                  {r.staff_notes && (
+                    <span
+                      title="Has staff notes"
+                      style={{ color: "hsl(42 95% 60%)", display: "inline-flex" }}
+                    >
+                      <StickyNote className="h-3 w-3" />
+                    </span>
+                  )}
+                </div>
+                {r.contact.email && (
+                  <div style={{ color: "hsl(30 8% 50%)", fontSize: "11px" }}>
+                    {r.contact.email}
+                  </div>
+                )}
+              </TableCell>
+              <TableCell>
+                <div style={{ color: "hsl(30 8% 70%)", fontSize: "12px" }}>
+                  {r.outcome.name}
+                </div>
+              </TableCell>
+              <TableCell>
+                <div style={{ color: "hsl(30 8% 70%)", fontSize: "12px" }}>
+                  {r.stage_label}
+                </div>
+                {r.total_steps > 0 && (
+                  <div
+                    style={{
+                      color: "hsl(30 8% 45%)",
+                      fontSize: "10px",
+                      letterSpacing: "0.05em",
+                      marginTop: "2px",
+                    }}
+                  >
+                    Step {Math.min(r.steps_done + 1, r.total_steps)} of {r.total_steps}
+                  </div>
+                )}
+              </TableCell>
+              <TableCell style={{ textAlign: "right" }}>
+                <AgeBadge days={r.days_in_pipeline} />
+              </TableCell>
+              <TableCell>
+                {r.assigned_staff ? (
+                  <span style={{ color: "#F0EBE3", fontSize: "12px" }}>
+                    {personLabel(r.assigned_staff)}
+                  </span>
+                ) : (
+                  <span
+                    style={{
+                      color: "hsl(42 95% 55%)",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      letterSpacing: "0.05em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Unassigned
+                  </span>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </section>
   );
 }
 
