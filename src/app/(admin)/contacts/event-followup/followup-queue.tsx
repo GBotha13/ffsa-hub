@@ -286,15 +286,22 @@ function EventGroup({
   rows: FollowupQueueRow[];
   onRowClick: (enrollmentId: string) => void;
 }) {
-  // Distinct outcomes present in this event's rows, for the export's
-  // per-outcome scope. (Outcomes with only finished/cancelled follow-ups won't
-  // appear here, but "All outcomes" still exports every status.)
+  // Every outcome chosen by anyone in this event's queue (union of each
+  // contact's full form selection), for the outcome filter + per-outcome
+  // export — so all of the event's outcomes appear, not just the ones whose
+  // workflow is still active. Falls back to the row's own outcome.
   const outcomes: { id: string; name: string }[] = [];
   const seenOutcome = new Set<string>();
   for (const r of rows) {
-    if (!seenOutcome.has(r.outcome.id)) {
-      seenOutcome.add(r.outcome.id);
-      outcomes.push({ id: r.outcome.id, name: r.outcome.name });
+    const chosen = r.chosen_outcomes ?? [];
+    const list = chosen.length
+      ? chosen.map((o) => ({ id: o.id, name: o.name }))
+      : [{ id: r.outcome.id, name: r.outcome.name }];
+    for (const o of list) {
+      if (!seenOutcome.has(o.id)) {
+        seenOutcome.add(o.id);
+        outcomes.push(o);
+      }
     }
   }
   return (
@@ -393,8 +400,39 @@ function EventGroup({
                 )}
               </TableCell>
               <TableCell>
-                <div style={{ color: "hsl(30 8% 70%)", fontSize: "12px" }}>
-                  {r.outcome.name}
+                <div
+                  className="flex flex-wrap gap-1"
+                  style={{ maxWidth: "240px" }}
+                >
+                  {((r.chosen_outcomes ?? []).length
+                    ? r.chosen_outcomes ?? []
+                    : [{ id: r.outcome.id, name: r.outcome.name, active: true }]
+                  ).map((o) => (
+                    <span
+                      key={o.id}
+                      title={
+                        o.active
+                          ? "Active follow-up"
+                          : "Chosen on the form — workflow already finished"
+                      }
+                      style={{
+                        fontSize: "10.5px",
+                        fontWeight: 600,
+                        padding: "2px 7px",
+                        borderRadius: "999px",
+                        lineHeight: 1.35,
+                        background: o.active
+                          ? "hsl(42 80% 14%)"
+                          : "hsl(22 8% 13%)",
+                        color: o.active ? "hsl(42 95% 60%)" : "hsl(30 8% 55%)",
+                        border: o.active
+                          ? "1px solid hsl(42 80% 22%)"
+                          : "1px solid transparent",
+                      }}
+                    >
+                      {o.name}
+                    </span>
+                  ))}
                 </div>
               </TableCell>
               <TableCell>

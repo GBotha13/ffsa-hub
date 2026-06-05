@@ -51,6 +51,12 @@ export type FollowupQueueRow = {
   outcome: { id: string; name: string };
   event: { id: string; title: string };
 
+  // Every outcome this contact chose on the form for this event (their FULL
+  // selection, not just the active-workflow one). `active` = the outcome still
+  // has an active enrollment in the queue (vs a completed single-email one).
+  // Populated by the queue; the detail fetch leaves it undefined.
+  chosen_outcomes?: { id: string; name: string; active: boolean }[];
+
   assigned_staff: {
     id: string;
     first_name: string | null;
@@ -274,6 +280,34 @@ export async function getFollowupQueue(
     }
   }
 
+  // Every outcome each queued contact actually CHOSE on the form (from
+  // event_outcome_responses) — so a row can show the full selection, not just
+  // the outcome(s) whose workflow is still active. `active` is derived from the
+  // active enrollments already in `raws`.
+  const contactIds = Array.from(new Set(raws.map((r) => r.contact!.id)));
+  const activeOutcomeKeys = new Set(
+    raws.map((r) => `${r.contact!.id}:${r.workflow!.outcome!.id}`)
+  );
+  const chosenByContact = new Map<
+    string,
+    Array<{ id: string; name: string; event_id: string }>
+  >();
+  if (contactIds.length > 0) {
+    const { data: respData } = await supabase
+      .from("event_outcome_responses")
+      .select("contact_id, event_outcomes(id, name, event_id)")
+      .in("contact_id", contactIds);
+    for (const row of (respData ?? []) as Array<{
+      contact_id: string;
+      event_outcomes: { id: string; name: string; event_id: string } | null;
+    }>) {
+      if (!row.event_outcomes) continue;
+      const arr = chosenByContact.get(row.contact_id) ?? [];
+      arr.push(row.event_outcomes);
+      chosenByContact.set(row.contact_id, arr);
+    }
+  }
+
   const nowIso = new Date().toISOString();
   const rows: FollowupQueueRow[] = raws.map((r) => {
     const steps = stepsByWorkflow.get(r.workflow!.id) ?? [];
@@ -309,6 +343,13 @@ export async function getFollowupQueue(
         id: r.workflow!.outcome!.event!.id,
         title: r.workflow!.outcome!.event!.title,
       },
+      chosen_outcomes: (chosenByContact.get(r.contact!.id) ?? [])
+        .filter((o) => o.event_id === r.workflow!.outcome!.event!.id)
+        .map((o) => ({
+          id: o.id,
+          name: o.name,
+          active: activeOutcomeKeys.has(`${r.contact!.id}:${o.id}`),
+        })),
       assigned_staff: r.assigned_staff,
       stage_label: stage.label,
       total_steps: stage.total,
