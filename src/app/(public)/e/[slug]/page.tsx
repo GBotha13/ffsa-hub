@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getEventBySlug } from "@/services/events";
 import { listTicketTypesByEvent } from "@/services/ticketing";
 import { Storefront } from "./storefront";
@@ -22,7 +22,7 @@ export default async function PublicEventPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const { data: event } = await getEventBySlug(supabase, slug);
   if (
