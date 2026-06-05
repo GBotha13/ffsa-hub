@@ -29,7 +29,7 @@ export async function getFormById(supabase: Client, id: string) {
 export async function getFormBySlug(supabase: Client, slug: string) {
   return supabase
     .from("forms")
-    .select("*, events(id, title, logo_url), labels(id, slug, name)")
+    .select("*, events(id, title, logo_url, brand), labels(id, slug, name)")
     .eq("slug", slug)
     .maybeSingle();
 }

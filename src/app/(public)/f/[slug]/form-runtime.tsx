@@ -12,27 +12,30 @@ import { DateInput } from "@/components/ui/date-input";
 import {
   PublicFormShell,
   PublicFormInputStyles,
-  PUBLIC_SHELL_TOKENS,
+  tokensForBrand,
+  type PublicShellBrand,
 } from "@/components/public-form-shell";
 
 type Values = Record<string, unknown>;
-
-const T = PUBLIC_SHELL_TOKENS;
-// Always use the FF brand gold — accentColor in the form schema is now
-// ignored on the public surface so every form looks like one product.
-const ACCENT = T.yellow;
 
 export function FormRuntime({
   slug,
   schema,
   formName,
   eventLogoUrl,
+  brand = "ff",
 }: {
   slug: string;
   schema: FormSchema;
   formName: string;
   eventLogoUrl?: string | null;
+  brand?: PublicShellBrand;
 }) {
+  // Always use the brand-specific accent — accentColor in the form schema
+  // is intentionally ignored on the public surface so each event reads
+  // as one identity (storefront + form + email all agree).
+  const T = tokensForBrand(brand);
+  const ACCENT = T.yellow;
   // Event/form-specific logo is shown inside the card as a sub-brand, not
   // replacing the FF wordmark in the shell header.
   const subBrandLogoUrl = eventLogoUrl || schema.branding.logoUrl || null;
@@ -144,6 +147,7 @@ export function FormRuntime({
         eyebrow="Thank You"
         heading={schema.thankYou.heading}
         maxWidth={520}
+        brand={brand}
       >
         <p
           style={{
@@ -161,12 +165,13 @@ export function FormRuntime({
 
   return (
     <div className="ffsa-public">
-      <PublicFormInputStyles />
+      <PublicFormInputStyles brand={brand} />
       <PublicFormShell
         eyebrow={`Step ${stepIdx + 1} of ${steps.length}`}
         heading={step.title}
         maxWidth={520}
         footerNote={formName}
+        brand={brand}
       >
         {subBrandLogoUrl && (
           <div className="mb-6 flex justify-center">
@@ -206,6 +211,7 @@ export function FormRuntime({
                 value={values[fieldKey(field)]}
                 error={errors[fieldKey(field)]}
                 onChange={(v) => setValue(fieldKey(field), v)}
+                tokens={T}
               />
             );
           })}
@@ -257,11 +263,13 @@ function FieldInput({
   value,
   error,
   onChange,
+  tokens: T,
 }: {
   field: FormField;
   value: unknown;
   error?: string;
   onChange: (v: unknown) => void;
+  tokens: ReturnType<typeof tokensForBrand>;
 }) {
   const labelEl = (
     <label

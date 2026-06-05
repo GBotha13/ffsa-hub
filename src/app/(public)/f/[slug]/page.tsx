@@ -2,9 +2,16 @@ import { createClient } from "@/lib/supabase/server";
 import { getFormBySlug } from "@/services/forms";
 import { emptyFormSchema, type FormSchema } from "@/lib/forms/schema";
 import { FormRuntime } from "./form-runtime";
-import { PublicFormNotice } from "@/components/public-form-shell";
+import {
+  PublicFormNotice,
+  type PublicShellBrand,
+} from "@/components/public-form-shell";
 
 export const dynamic = "force-dynamic";
+
+function normalizeBrand(raw: unknown): PublicShellBrand {
+  return raw === "the_send" ? "the_send" : "ff";
+}
 
 export default async function PublicFormPage({
   params,
@@ -15,6 +22,9 @@ export default async function PublicFormPage({
   const supabase = await createClient();
   const { data: form } = await getFormBySlug(supabase, slug);
 
+  // For the unavailable-form notice we don't have the event yet, so the
+  // notice falls back to the F&F brand. Once the form is loaded we
+  // forward the event's brand to the runtime.
   if (!form || !form.is_active) {
     return (
       <PublicFormNotice
@@ -29,10 +39,17 @@ export default async function PublicFormPage({
       ? (form.schema as unknown as FormSchema)
       : emptyFormSchema();
 
+  const events =
+    form.events && typeof form.events === "object" ? form.events : null;
   const eventLogoUrl =
-    form.events && typeof form.events === "object" && "logo_url" in form.events
-      ? ((form.events as { logo_url: string | null }).logo_url ?? null)
+    events && "logo_url" in events
+      ? ((events as { logo_url: string | null }).logo_url ?? null)
       : null;
+  const brand: PublicShellBrand = normalizeBrand(
+    events && "brand" in events
+      ? (events as { brand: string | null }).brand
+      : null
+  );
 
   return (
     <FormRuntime
@@ -40,6 +57,7 @@ export default async function PublicFormPage({
       schema={schema}
       formName={form.name}
       eventLogoUrl={eventLogoUrl}
+      brand={brand}
     />
   );
 }

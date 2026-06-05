@@ -5,13 +5,23 @@ import { Storefront } from "./storefront";
 import { TheSendStorefront } from "./the-send-storefront";
 import { PublicFormNotice } from "@/components/public-form-shell";
 
-// Bespoke landing pages keyed by event slug. THE SEND gets its own
-// branded storefront; everything else uses the standard Storefront.
-// Both are intentionally event-bespoke and not migrated to the
-// shared dark form shell — see project notes if this changes.
-function isTheSend(slug: string, title: string): boolean {
-  const s = slug.toLowerCase();
-  return s.includes("the-send") || title.toLowerCase().includes("the send");
+// Bespoke landing pages keyed by the event's brand flag (migration 077).
+// THE SEND gets its own bespoke storefront; everything else uses the
+// standard Storefront. Both are intentionally event-bespoke and not
+// migrated to the shared dark form shell. Legacy slug/title heuristic
+// kept as a fallback so unmigrated rows still route correctly until
+// every event row has its brand set explicitly.
+function isTheSendBrand(event: {
+  brand?: string | null;
+  public_slug?: string | null;
+  title?: string | null;
+}): boolean {
+  if (event.brand === "the_send") return true;
+  if (event.brand && event.brand !== "the_send") return false;
+  return (
+    (event.public_slug ?? "").toLowerCase().includes("the-send") ||
+    (event.title ?? "").toLowerCase().includes("the send")
+  );
 }
 
 export const dynamic = "force-dynamic";
@@ -57,7 +67,7 @@ export default async function PublicEventPage({
     logo_url: event.logo_url ?? null,
   };
 
-  if (isTheSend(slug, event.title)) {
+  if (isTheSendBrand(event)) {
     return (
       <TheSendStorefront event={eventProps} ticketTypes={ticketTypes ?? []} />
     );
