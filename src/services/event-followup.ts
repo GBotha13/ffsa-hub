@@ -602,7 +602,8 @@ export type EventFollowupExportRow = {
 
 export async function getEventFollowupExport(
   supabase: Client,
-  eventId: string
+  eventId: string,
+  options: { outcomeId?: string | null } = {}
 ): Promise<
   | {
       eventTitle: string;
@@ -680,7 +681,10 @@ export async function getEventFollowupExport(
   };
 
   const filtered = ((enrollments ?? []) as Raw[]).filter(
-    (r) => r.contact && r.workflow?.outcome?.event_id === eventId
+    (r) =>
+      r.contact &&
+      r.workflow?.outcome?.event_id === eventId &&
+      (!options.outcomeId || r.workflow?.outcome?.id === options.outcomeId)
   );
 
   if (filtered.length === 0) {

@@ -2,7 +2,41 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { userCanHandleFollowupForEvent } from "@/lib/auth/check-followup-access";
-import { getEventFollowupExport } from "@/services/event-followup";
+import {
+  getEventFollowupExport,
+  type EventFollowupExportRow,
+} from "@/services/event-followup";
+import {
+  EXPORT_COLUMN_LABELS,
+  parseExportColumns,
+  type ExportColumnKey,
+} from "@/lib/event-followup/export-columns";
+
+// Value extractor for every scalar column (form_answers + staff_notes expand
+// dynamically and are handled separately).
+const SCALAR_VALUE: Record<
+  Exclude<ExportColumnKey, "form_answers" | "staff_notes">,
+  (r: EventFollowupExportRow) => string
+> = {
+  event: (r) => r.event_title,
+  first_name: (r) => r.contact_first_name ?? "",
+  last_name: (r) => r.contact_last_name ?? "",
+  preferred_name: (r) => r.contact_preferred_name ?? "",
+  email: (r) => r.contact_email ?? "",
+  phone: (r) => r.contact_phone ?? "",
+  outcome: (r) => r.outcome_name,
+  workflow: (r) => r.workflow_name,
+  status: (r) => r.status,
+  stage: (r) => r.stage_label,
+  step: (r) => String(r.steps_done),
+  total_steps: (r) => String(r.total_steps),
+  days_in_pipeline: (r) => String(r.days_in_pipeline),
+  enrolled_at: (r) => formatDate(r.enrolled_at),
+  completed_at: (r) => formatDate(r.completed_at),
+  marked_finished_at: (r) => formatDate(r.marked_finished_at),
+  assigned_staff: (r) => r.assigned_staff_name ?? "",
+  assigned_staff_email: (r) => r.assigned_staff_email ?? "",
+};
 
 function escapeCsvValue(value: string): string {
   if (
@@ -48,6 +82,8 @@ export async function GET(request: Request) {
       { status: 400 }
     );
   }
+  const outcomeId = searchParams.get("outcome_id");
+  const selectedColumns = parseExportColumns(searchParams.get("columns"));
 
   const allowed = await userCanHandleFollowupForEvent(
     supabase,
@@ -61,79 +97,50 @@ export async function GET(request: Request) {
   // Service-role read so we can return finished/cancelled rows too,
   // which RLS may scope down for non-admins.
   const adminSupabase = createAdminClient();
-  const result = await getEventFollowupExport(adminSupabase, eventId);
+  const result = await getEventFollowupExport(adminSupabase, eventId, {
+    outcomeId,
+  });
   if (!result) {
     return NextResponse.json({ error: "Event not found" }, { status: 404 });
   }
 
-  // Static summary columns first, then one column per unique form
-  // question label seen across the event's enrollments (so follow-up
-  // staff have every answer the person gave when they signed up —
-  // dropdowns, multiselects, consent acknowledgements, the lot).
-  // Staff Notes intentionally lives at the very end so it doesn't push
-  // the question answers off-screen when there are many of them.
-  const summaryHeaders = [
-    "Event",
-    "First Name",
-    "Last Name",
-    "Preferred Name",
-    "Email",
-    "Phone",
-    "Outcome",
-    "Workflow",
-    "Status",
-    "Stage",
-    "Step",
-    "Total Steps",
-    "Days In Pipeline",
-    "Enrolled At",
-    "Completed At",
-    "Marked Finished At",
-    "Assigned Staff",
-    "Assigned Staff Email",
-  ];
-  const trailingHeaders = ["Staff Notes", "Staff Notes Updated At"];
-  const headers = [
-    ...summaryHeaders,
-    ...result.formAnswerColumns,
-    ...trailingHeaders,
-  ];
+  // Build the CSV from the SELECTED columns, in canonical order. With nothing
+  // deselected this is identical to the historical output. The two "group"
+  // columns expand: form_answers → one column per unique signup question (so
+  // staff get every answer — dropdowns, multiselects, consent acks, the lot),
+  // staff_notes → "Staff Notes" + "Staff Notes Updated At".
+  const headers: string[] = [];
+  for (const key of selectedColumns) {
+    if (key === "form_answers") headers.push(...result.formAnswerColumns);
+    else if (key === "staff_notes")
+      headers.push("Staff Notes", "Staff Notes Updated At");
+    else headers.push(EXPORT_COLUMN_LABELS[key]);
+  }
 
   const lines = [headers.map(escapeCsvValue).join(",")];
 
   for (const r of result.rows) {
-    const summary = [
-      r.event_title,
-      r.contact_first_name ?? "",
-      r.contact_last_name ?? "",
-      r.contact_preferred_name ?? "",
-      r.contact_email ?? "",
-      r.contact_phone ?? "",
-      r.outcome_name,
-      r.workflow_name,
-      r.status,
-      r.stage_label,
-      String(r.steps_done),
-      String(r.total_steps),
-      String(r.days_in_pipeline),
-      formatDate(r.enrolled_at),
-      formatDate(r.completed_at),
-      formatDate(r.marked_finished_at),
-      r.assigned_staff_name ?? "",
-      r.assigned_staff_email ?? "",
-    ];
-    const answers = result.formAnswerColumns.map(
-      (label) => r.form_answers[label] ?? ""
-    );
-    const trailing = [
-      r.staff_notes ?? "",
-      formatDate(r.staff_notes_updated_at),
-    ];
-    lines.push([...summary, ...answers, ...trailing].map(escapeCsvValue).join(","));
+    const cells: string[] = [];
+    for (const key of selectedColumns) {
+      if (key === "form_answers") {
+        cells.push(
+          ...result.formAnswerColumns.map((label) => r.form_answers[label] ?? "")
+        );
+      } else if (key === "staff_notes") {
+        cells.push(r.staff_notes ?? "", formatDate(r.staff_notes_updated_at));
+      } else {
+        cells.push(SCALAR_VALUE[key](r));
+      }
+    }
+    lines.push(cells.map(escapeCsvValue).join(","));
   }
 
   const csv = lines.join("\n");
-  const filename = `event-followup-${slugify(result.eventTitle) || "event"}.csv`;
+  const outcomeSlug =
+    outcomeId && result.rows[0]?.outcome_name
+      ? `-${slugify(result.rows[0].outcome_name)}`
+      : "";
+  const filename = `event-followup-${slugify(result.eventTitle) || "event"}${outcomeSlug}.csv`;
 
   return new Response(csv, {
     headers: {

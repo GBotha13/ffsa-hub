@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Download, StickyNote } from "lucide-react";
+import { StickyNote } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -14,6 +14,7 @@ import {
 import type { FollowupQueueRow } from "@/services/event-followup";
 import type { AssignableFollowupHandler } from "@/lib/auth/assignable-followup-handlers";
 import { FollowupDrawer } from "./followup-drawer";
+import { ExportPanel } from "./export-panel";
 
 type AssignmentFilter = "all" | "unassigned" | "mine";
 type AgingFilter = "all" | "attention";
@@ -285,7 +286,17 @@ function EventGroup({
   rows: FollowupQueueRow[];
   onRowClick: (enrollmentId: string) => void;
 }) {
-  const exportHref = `/api/contacts/event-followup/export?event_id=${encodeURIComponent(eventId)}`;
+  // Distinct outcomes present in this event's rows, for the export's
+  // per-outcome scope. (Outcomes with only finished/cancelled follow-ups won't
+  // appear here, but "All outcomes" still exports every status.)
+  const outcomes: { id: string; name: string }[] = [];
+  const seenOutcome = new Set<string>();
+  for (const r of rows) {
+    if (!seenOutcome.has(r.outcome.id)) {
+      seenOutcome.add(r.outcome.id);
+      outcomes.push({ id: r.outcome.id, name: r.outcome.name });
+    }
+  }
   return (
     <section
       className="overflow-hidden rounded-xl"
@@ -325,27 +336,7 @@ function EventGroup({
             {rows.length} active · all data
           </span>
         </div>
-        <a
-          href={exportHref}
-          download
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "6px",
-            fontSize: "12px",
-            fontWeight: 600,
-            padding: "6px 12px",
-            borderRadius: "999px",
-            border: "1px solid hsl(22 8% 18%)",
-            background: "hsl(22 10% 10%)",
-            color: "hsl(30 8% 70%)",
-            textDecoration: "none",
-          }}
-          title="Download a CSV of every follow-up for this event — active, finished, and cancelled."
-        >
-          <Download className="h-3.5 w-3.5" />
-          Download CSV
-        </a>
+        <ExportPanel eventId={eventId} outcomes={outcomes} />
       </header>
       <Table>
         <TableHeader>
