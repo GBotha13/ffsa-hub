@@ -14,7 +14,7 @@ import {
 import type { FollowupQueueRow } from "@/services/event-followup";
 import type { AssignableFollowupHandler } from "@/lib/auth/assignable-followup-handlers";
 import { FollowupDrawer } from "./followup-drawer";
-import { ExportPanel } from "./export-panel";
+import { ExportPanel, OutcomeDownloadButtons } from "./export-panel";
 
 type AssignmentFilter = "all" | "unassigned" | "mine";
 type AgingFilter = "all" | "attention";
@@ -338,6 +338,17 @@ function EventGroup({
         </div>
         <ExportPanel eventId={eventId} outcomes={outcomes} />
       </header>
+      {outcomes.length > 0 && (
+        <div
+          style={{
+            padding: "10px 18px",
+            borderBottom: "1px solid hsl(22 8% 14%)",
+            background: "hsl(22 11% 7%)",
+          }}
+        >
+          <OutcomeDownloadButtons eventId={eventId} outcomes={outcomes} />
+        </div>
+      )}
       <Table>
         <TableHeader>
           <TableRow style={{ borderColor: "hsl(22 8% 14%)" }}>

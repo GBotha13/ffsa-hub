@@ -11,6 +11,47 @@ import {
 
 const STORAGE_KEY = "ef-export-columns";
 
+function loadSavedColumns(): ExportColumnKey[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const keys = (JSON.parse(raw) as string[]).filter((k): k is ExportColumnKey =>
+        (EXPORT_COLUMN_ORDER as string[]).includes(k)
+      );
+      if (keys.length) return keys;
+    }
+  } catch {
+    /* ignore */
+  }
+  return [...EXPORT_COLUMN_ORDER];
+}
+
+function buildExportHref(
+  eventId: string,
+  outcomeId: string | null,
+  cols: ExportColumnKey[]
+): string {
+  const params = new URLSearchParams({ event_id: eventId });
+  if (outcomeId) params.set("outcome_id", outcomeId);
+  // Only send columns for a partial set, so the default stays byte-for-byte.
+  if (cols.length !== EXPORT_COLUMN_ORDER.length) {
+    params.set(
+      "columns",
+      EXPORT_COLUMN_ORDER.filter((k) => cols.includes(k)).join(",")
+    );
+  }
+  return `/api/contacts/event-followup/export?${params.toString()}`;
+}
+
+function triggerDownload(href: string) {
+  const a = document.createElement("a");
+  a.href = href;
+  a.download = "";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
 export function ExportPanel({
   eventId,
   outcomes,
@@ -73,28 +114,19 @@ export function ExportPanel({
     persist(next);
   }
 
-  const href = useMemo(() => {
-    const params = new URLSearchParams({ event_id: eventId });
-    if (outcomeId) params.set("outcome_id", outcomeId);
-    // Only send columns when it's a partial set (keeps the URL clean and the
-    // default download byte-for-byte identical to before).
-    if (selected.size !== EXPORT_COLUMN_ORDER.length) {
-      params.set(
-        "columns",
-        EXPORT_COLUMN_ORDER.filter((k) => selected.has(k)).join(",")
-      );
-    }
-    return `/api/contacts/event-followup/export?${params.toString()}`;
-  }, [eventId, outcomeId, selected]);
+  const href = useMemo(
+    () =>
+      buildExportHref(
+        eventId,
+        outcomeId || null,
+        EXPORT_COLUMN_ORDER.filter((k) => selected.has(k))
+      ),
+    [eventId, outcomeId, selected]
+  );
 
   function download() {
     if (selected.size === 0) return;
-    const a = document.createElement("a");
-    a.href = href;
-    a.download = "";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    triggerDownload(href);
     setOpen(false);
   }
 
@@ -200,6 +232,59 @@ export function ExportPanel({
     </div>
   );
 }
+
+// One-click per-outcome download chips — each pulls just that outcome, using
+// whatever column selection the user last saved in the "Download ▾" panel.
+export function OutcomeDownloadButtons({
+  eventId,
+  outcomes,
+}: {
+  eventId: string;
+  outcomes: { id: string; name: string }[];
+}) {
+  if (outcomes.length === 0) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span style={perOutcomeLabel}>Download outcome</span>
+      {outcomes.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          onClick={() =>
+            triggerDownload(buildExportHref(eventId, o.id, loadSavedColumns()))
+          }
+          style={outcomeChip}
+          title={`Download ${o.name} follow-ups as a CSV (uses your saved column choice).`}
+        >
+          <Download className="h-3 w-3" />
+          {o.name}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const perOutcomeLabel: CSSProperties = {
+  fontSize: "10px",
+  letterSpacing: "0.12em",
+  textTransform: "uppercase",
+  fontWeight: 700,
+  color: "hsl(30 8% 45%)",
+  marginRight: "2px",
+};
+const outcomeChip: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "5px",
+  fontSize: "11px",
+  fontWeight: 600,
+  padding: "4px 9px",
+  borderRadius: "999px",
+  border: "1px solid hsl(22 8% 18%)",
+  background: "hsl(22 10% 10%)",
+  color: "hsl(30 8% 72%)",
+  cursor: "pointer",
+};
 
 const pill: CSSProperties = {
   display: "inline-flex",
