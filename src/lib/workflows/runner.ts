@@ -88,14 +88,24 @@ function deliverabilityHeaders(args: {
   fromEmail: string;
   contactId: string;
 }): Record<string, string> {
-  const domain = args.fromEmail.split("@")[1] ?? "ffsahub.com";
+  // These are 1:1, user-triggered first-touch emails. Keep one-click
+  // unsubscribe (good signal + compliant), but do NOT brand them as a bulk
+  // mailing list — Precedence:bulk + List-ID push Gmail toward the Promotions
+  // tab and read as marketing to the filters.
   return {
     "List-Unsubscribe": `<${args.prefsUrl}>`,
     "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-    "List-ID": `workflows.${domain} <workflow-${args.workflowId}.${domain}>`,
-    Precedence: "bulk",
     "X-Entity-Ref-ID": `workflow-${args.workflowId}:${args.contactId}`,
   };
+}
+
+// A distinct, body-derived preheader (the hidden inbox-preview text). Falls
+// back to the subject only when the body has no text. A preheader that just
+// duplicates the subject is a wasted/penalized signal.
+function derivePreheader(plainText: string, fallback: string): string {
+  const cleaned = plainText.replace(/\s+/g, " ").trim();
+  if (!cleaned) return fallback;
+  return cleaned.length > 110 ? `${cleaned.slice(0, 108)}…` : cleaned;
 }
 
 async function recordStep(
@@ -418,17 +428,19 @@ async function runEmailStep(
   // Render inside the brand-appropriate workflow shell. The block
   // content is the only variable part — F&F vs THE SEND swaps the
   // outer chrome and the per-block styling.
+  // Plain-text body first, so the preheader can be derived from real content
+  // rather than echoing the subject line.
+  const text = substituteFirstName(renderCampaignText(body, {}), firstName);
   const html = substituteFirstName(
     renderWorkflowEmail(body, {
       baseUrl: APP_URL,
       prefsUrl,
-      previewText: subject,
+      previewText: derivePreheader(text, subject),
       scheduler,
       brand: args.brand,
     }),
     escapeHtml(firstName)
   );
-  const text = substituteFirstName(renderCampaignText(body, {}), firstName);
 
   const res = await sendViaMailtrap({
     fromEmail: identity.from_email,
