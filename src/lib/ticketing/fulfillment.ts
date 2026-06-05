@@ -154,10 +154,25 @@ export async function fulfillOrder(
     );
     return { ok: true };
   }
+  const isTheSend = isTheSendBrand(order.events);
+  // Resolve From: + reply-to from sending_identities keyed by brand
+  // (migration 080). Admins can edit the inbox display name from
+  // /communications/identities without a code change. Env-var
+  // fallback preserves pre-migration behaviour if the row is missing.
+  const identitySlug = isTheSend ? "the-send" : "events";
+  const { data: identity } = await supabase
+    .from("sending_identities")
+    .select("from_email, from_name, reply_to")
+    .eq("slug", identitySlug)
+    .eq("is_active", true)
+    .maybeSingle();
   const fromEmail =
+    identity?.from_email ||
     process.env.MAILTRAP_FROM_EMAIL ||
     process.env.RESEND_FROM_EMAIL ||
     "noreply@ffsahub.com";
+  const fromName = identity?.from_name || "Fire & Fragrance SA";
+  const replyTo = identity?.reply_to ?? null;
   const emailArgs = {
     buyerFirstName: order.buyer_first_name,
     eventTitle: order.events.title,
@@ -171,10 +186,10 @@ export async function fulfillOrder(
     totalCents: order.total_cents,
     siteUrl,
   };
-  const isTheSend = isTheSendBrand(order.events);
   const sendResult = await sendViaMailtrap({
     fromEmail,
-    fromName: "Fire & Fragrance SA",
+    fromName,
+    replyTo,
     to: order.buyer_email,
     subject: isTheSend
       ? `You're in — ${order.events.title} →`
