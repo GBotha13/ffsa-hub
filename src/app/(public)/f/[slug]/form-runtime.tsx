@@ -38,7 +38,14 @@ export function FormRuntime({
   const ACCENT = T.yellow;
   // Event/form-specific logo is shown inside the card as a sub-brand, not
   // replacing the FF wordmark in the shell header.
-  const subBrandLogoUrl = eventLogoUrl || schema.branding.logoUrl || null;
+  //
+  // SEND skips the sub-brand — the THE SEND lockup is already in the
+  // page header, and a default FF wordmark renders white-on-cream
+  // (illegible) inside the card.
+  const subBrandLogoUrl =
+    brand === "the_send"
+      ? null
+      : eventLogoUrl || schema.branding.logoUrl || null;
   const steps = schema.steps;
   const [stepIdx, setStepIdx] = useState(0);
   const [values, setValues] = useState<Values>({});

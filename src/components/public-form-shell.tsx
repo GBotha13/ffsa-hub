@@ -116,7 +116,16 @@ export function PublicFormShell({
   return (
     <div
       className="min-h-screen px-4 py-10 sm:py-12"
-      style={{ background: tk.bg, color: tk.text, colorScheme: "dark" }}
+      style={{
+        background: tk.bg,
+        color: tk.text,
+        // F&F's card is dark so we tell the browser to render native
+        // form chrome in dark mode. SEND's card is cream paper, so we
+        // explicitly opt into light chrome — otherwise Safari forces
+        // dark fill/text on inputs that overrides our white background +
+        // navy text styling.
+        colorScheme: isTheSend ? "light" : "dark",
+      }}
     >
       <div className="mx-auto" style={{ maxWidth }}>
         <BrandLockup brand={brand} />
