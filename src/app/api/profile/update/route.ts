@@ -22,6 +22,8 @@ export async function PUT(request: Request) {
     "country", "postal_code",
     "emergency_contact_name", "emergency_contact_phone",
     "emergency_contact_relationship",
+    "health_insurance_provider", "health_insurance_policy_number",
+    "health_insurance_expiry_date",
   ];
 
   const updateData: Record<string, unknown> = {};

@@ -151,6 +151,54 @@ export default function OnboardingPage() {
   }
   function nullify(val: string) { return val.trim() === "" ? null : val.trim(); }
 
+  // Per-step validation. Returns an error message if the step is incomplete,
+  // or null if all required fields for the step are filled. Keep this in sync
+  // with the `*` markers in the JSX below.
+  function validateStep(s: number): string | null {
+    const blank = (v: string) => !v || !v.trim();
+    if (s === 2) {
+      if (blank(form.first_name)) return "First name is required.";
+      if (blank(form.last_name)) return "Last name is required.";
+      if (blank(form.date_of_birth)) return "Date of birth is required.";
+      if (blank(form.gender)) return "Gender is required.";
+      if (blank(form.marital_status)) return "Marital status is required.";
+      if (blank(form.nationality)) return "Nationality is required.";
+      if (blank(form.phone)) return "Phone number is required.";
+      return null;
+    }
+    if (s === 3) {
+      if (blank(form.address_line_1)) return "Address line 1 is required.";
+      if (blank(form.city)) return "City is required.";
+      if (blank(form.province)) return "Province / state is required.";
+      if (blank(form.country)) return "Country is required.";
+      if (blank(form.postal_code)) return "Postal code is required.";
+      return null;
+    }
+    if (s === 4) {
+      // Local South Africans can skip this step entirely. Only international
+      // staff need to fill in passport + visa details.
+      if (!form.is_international) return null;
+      if (blank(form.passport_country)) return "Passport country is required.";
+      if (blank(form.passport_number)) return "Passport number is required.";
+      if (blank(form.visa_category)) return "Please select a visa status.";
+      if (form.visa_category === "long_term") {
+        if (blank(form.visa_type)) return "Visa type is required.";
+        if (blank(form.visa_expiry_date)) return "Visa expiry date is required.";
+      }
+      return null;
+    }
+    if (s === 5) {
+      if (blank(form.emergency_contact_name)) return "Emergency contact name is required.";
+      if (blank(form.emergency_contact_phone)) return "Emergency contact phone is required.";
+      if (blank(form.emergency_contact_relationship)) return "Emergency contact relationship is required.";
+      if (blank(form.health_insurance_provider)) return "Health insurance provider is required.";
+      if (blank(form.health_insurance_policy_number)) return "Health insurance policy number is required.";
+      if (blank(form.health_insurance_expiry_date)) return "Health insurance expiry date is required.";
+      return null;
+    }
+    return null;
+  }
+
   async function handleFinish() {
     if (!userId) return;
     if (!consentAccepted) {
@@ -317,7 +365,7 @@ export default function OnboardingPage() {
                 <h2 style={{ fontFamily: "var(--font-bebas,'Arial Black',sans-serif)", fontSize: "2rem", letterSpacing: "0.04em", color: "#F0EBE3", lineHeight: 1 }}>
                   Address
                 </h2>
-                <p style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "4px" }}>Your current address or on-base address.</p>
+                <p style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "4px" }}>Your current address or on-base address. Fields marked * are required.</p>
               </>}
               {step === 4 && <>
                 <p className="page-eyebrow" style={{ marginBottom: "6px" }}>Step 4 of {TOTAL_STEPS}</p>
@@ -331,7 +379,7 @@ export default function OnboardingPage() {
                 <h2 style={{ fontFamily: "var(--font-bebas,'Arial Black',sans-serif)", fontSize: "2rem", letterSpacing: "0.04em", color: "#F0EBE3", lineHeight: 1 }}>
                   Emergency &amp; Health
                 </h2>
-                <p style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "4px" }}>Emergency contact and health insurance details.</p>
+                <p style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "4px" }}>Emergency contact and health insurance details. Fields marked * are required.</p>
               </>}
               {step === 6 && <>
                 <p className="page-eyebrow" style={{ marginBottom: "6px" }}>Step 6 of {TOTAL_STEPS}</p>
@@ -387,19 +435,19 @@ export default function OnboardingPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="date_of_birth">Date of Birth</Label>
+                      <Label htmlFor="date_of_birth">Date of Birth *</Label>
                       <DateInput id="date_of_birth" value={form.date_of_birth} onChange={(v) => set("date_of_birth", v)} />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="gender">Gender</Label>
-                      <Input id="gender" placeholder="e.g. Male, Female" value={form.gender} onChange={(e) => set("gender", e.target.value)} />
+                      <Label htmlFor="gender">Gender *</Label>
+                      <Input id="gender" placeholder="e.g. Male, Female" value={form.gender} onChange={(e) => set("gender", e.target.value)} required />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="marital_status">Marital Status</Label>
+                      <Label htmlFor="marital_status">Marital Status *</Label>
                       <select id="marital_status" value={form.marital_status} onChange={(e) => set("marital_status", e.target.value)}
-                        className="flex h-10 w-full rounded-md px-3 py-2 text-sm">
+                        className="flex h-10 w-full rounded-md px-3 py-2 text-sm" required>
                         <option value="">Select…</option>
                         <option value="single">Single</option>
                         <option value="married">Married</option>
@@ -408,13 +456,13 @@ export default function OnboardingPage() {
                       </select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="nationality">Nationality</Label>
-                      <Input id="nationality" placeholder="e.g. South African" value={form.nationality} onChange={(e) => set("nationality", e.target.value)} />
+                      <Label htmlFor="nationality">Nationality *</Label>
+                      <Input id="nationality" placeholder="e.g. South African" value={form.nationality} onChange={(e) => set("nationality", e.target.value)} required />
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number</Label>
-                    <Input id="phone" type="tel" placeholder="+27 71 234 5678" value={form.phone} onChange={(e) => set("phone", e.target.value)} />
+                    <Label htmlFor="phone">Phone Number *</Label>
+                    <Input id="phone" type="tel" placeholder="+27 71 234 5678" value={form.phone} onChange={(e) => set("phone", e.target.value)} required />
                   </div>
                 </>
               )}
@@ -423,8 +471,8 @@ export default function OnboardingPage() {
               {step === 3 && (
                 <>
                   <div className="space-y-2">
-                    <Label htmlFor="address_line_1">Address Line 1</Label>
-                    <Input id="address_line_1" placeholder="Street address" value={form.address_line_1} onChange={(e) => set("address_line_1", e.target.value)} />
+                    <Label htmlFor="address_line_1">Address Line 1 *</Label>
+                    <Input id="address_line_1" placeholder="Street address" value={form.address_line_1} onChange={(e) => set("address_line_1", e.target.value)} required />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="address_line_2">Address Line 2</Label>
@@ -432,22 +480,22 @@ export default function OnboardingPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="city">City</Label>
-                      <Input id="city" placeholder="e.g. Potchefstroom" value={form.city} onChange={(e) => set("city", e.target.value)} />
+                      <Label htmlFor="city">City *</Label>
+                      <Input id="city" placeholder="e.g. Potchefstroom" value={form.city} onChange={(e) => set("city", e.target.value)} required />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="province">Province / State</Label>
-                      <Input id="province" placeholder="e.g. North West" value={form.province} onChange={(e) => set("province", e.target.value)} />
+                      <Label htmlFor="province">Province / State *</Label>
+                      <Input id="province" placeholder="e.g. North West" value={form.province} onChange={(e) => set("province", e.target.value)} required />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="country">Country</Label>
-                      <Input id="country" placeholder="e.g. South Africa" value={form.country} onChange={(e) => set("country", e.target.value)} />
+                      <Label htmlFor="country">Country *</Label>
+                      <Input id="country" placeholder="e.g. South Africa" value={form.country} onChange={(e) => set("country", e.target.value)} required />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="postal_code">Postal Code</Label>
-                      <Input id="postal_code" placeholder="e.g. 2520" value={form.postal_code} onChange={(e) => set("postal_code", e.target.value)} />
+                      <Label htmlFor="postal_code">Postal Code *</Label>
+                      <Input id="postal_code" placeholder="e.g. 2520" value={form.postal_code} onChange={(e) => set("postal_code", e.target.value)} required />
                     </div>
                   </div>
                 </>
@@ -477,17 +525,17 @@ export default function OnboardingPage() {
                     <div className="space-y-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="passport_country">Passport Country</Label>
-                          <Input id="passport_country" placeholder="e.g. United States" value={form.passport_country} onChange={(e) => set("passport_country", e.target.value)} />
+                          <Label htmlFor="passport_country">Passport Country *</Label>
+                          <Input id="passport_country" placeholder="e.g. United States" value={form.passport_country} onChange={(e) => set("passport_country", e.target.value)} required />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="passport_number">Passport Number</Label>
-                          <Input id="passport_number" placeholder="e.g. A12345678" value={form.passport_number} onChange={(e) => set("passport_number", e.target.value)} />
+                          <Label htmlFor="passport_number">Passport Number *</Label>
+                          <Input id="passport_number" placeholder="e.g. A12345678" value={form.passport_number} onChange={(e) => set("passport_number", e.target.value)} required />
                         </div>
                       </div>
 
                       <div className="space-y-2">
-                        <Label>Visa Status</Label>
+                        <Label>Visa Status *</Label>
                         <div className="grid grid-cols-2 gap-3">
                           {[
                             { value: "90_day", label: "90-Day Visa", sub: "Short-term visitor" },
@@ -517,11 +565,11 @@ export default function OnboardingPage() {
                       {form.visa_category === "long_term" && (
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label htmlFor="visa_type">Visa Type</Label>
-                            <Input id="visa_type" placeholder="e.g. Religious, Study" value={form.visa_type} onChange={(e) => set("visa_type", e.target.value)} />
+                            <Label htmlFor="visa_type">Visa Type *</Label>
+                            <Input id="visa_type" placeholder="e.g. Religious, Study" value={form.visa_type} onChange={(e) => set("visa_type", e.target.value)} required />
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="visa_expiry_date">Visa Expiry Date</Label>
+                            <Label htmlFor="visa_expiry_date">Visa Expiry Date *</Label>
                             <DateInput id="visa_expiry_date" value={form.visa_expiry_date} onChange={(v) => set("visa_expiry_date", v)} />
                           </div>
                         </div>
@@ -535,17 +583,17 @@ export default function OnboardingPage() {
               {step === 5 && (
                 <>
                   <div className="space-y-2">
-                    <Label htmlFor="emergency_contact_name">Emergency Contact Name</Label>
-                    <Input id="emergency_contact_name" placeholder="Full name" value={form.emergency_contact_name} onChange={(e) => set("emergency_contact_name", e.target.value)} />
+                    <Label htmlFor="emergency_contact_name">Emergency Contact Name *</Label>
+                    <Input id="emergency_contact_name" placeholder="Full name" value={form.emergency_contact_name} onChange={(e) => set("emergency_contact_name", e.target.value)} required />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="emergency_contact_phone">Phone</Label>
-                      <Input id="emergency_contact_phone" type="tel" placeholder="+27 71 234 5678" value={form.emergency_contact_phone} onChange={(e) => set("emergency_contact_phone", e.target.value)} />
+                      <Label htmlFor="emergency_contact_phone">Phone *</Label>
+                      <Input id="emergency_contact_phone" type="tel" placeholder="+27 71 234 5678" value={form.emergency_contact_phone} onChange={(e) => set("emergency_contact_phone", e.target.value)} required />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="emergency_contact_relationship">Relationship</Label>
-                      <Input id="emergency_contact_relationship" placeholder="e.g. Parent, Spouse" value={form.emergency_contact_relationship} onChange={(e) => set("emergency_contact_relationship", e.target.value)} />
+                      <Label htmlFor="emergency_contact_relationship">Relationship *</Label>
+                      <Input id="emergency_contact_relationship" placeholder="e.g. Parent, Spouse" value={form.emergency_contact_relationship} onChange={(e) => set("emergency_contact_relationship", e.target.value)} required />
                     </div>
                   </div>
 
@@ -556,16 +604,16 @@ export default function OnboardingPage() {
                     <div className="space-y-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="health_insurance_provider">Provider</Label>
-                          <Input id="health_insurance_provider" placeholder="e.g. Discovery Health" value={form.health_insurance_provider} onChange={(e) => set("health_insurance_provider", e.target.value)} />
+                          <Label htmlFor="health_insurance_provider">Provider *</Label>
+                          <Input id="health_insurance_provider" placeholder="e.g. Discovery Health" value={form.health_insurance_provider} onChange={(e) => set("health_insurance_provider", e.target.value)} required />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="health_insurance_policy_number">Policy Number</Label>
-                          <Input id="health_insurance_policy_number" placeholder="e.g. 123456789" value={form.health_insurance_policy_number} onChange={(e) => set("health_insurance_policy_number", e.target.value)} />
+                          <Label htmlFor="health_insurance_policy_number">Policy Number *</Label>
+                          <Input id="health_insurance_policy_number" placeholder="e.g. 123456789" value={form.health_insurance_policy_number} onChange={(e) => set("health_insurance_policy_number", e.target.value)} required />
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="health_insurance_expiry_date">Expiry Date</Label>
+                        <Label htmlFor="health_insurance_expiry_date">Expiry Date *</Label>
                         <DateInput id="health_insurance_expiry_date" value={form.health_insurance_expiry_date} onChange={(v) => set("health_insurance_expiry_date", v)} />
                       </div>
                     </div>
@@ -661,8 +709,8 @@ export default function OnboardingPage() {
                       setStep((s) => s + 1);
                       return;
                     }
-                    if (step === 2 && !form.first_name.trim()) { setError("First name is required."); return; }
-                    if (step === 2 && !form.last_name.trim()) { setError("Last name is required."); return; }
+                    const stepError = validateStep(step);
+                    if (stepError) { setError(stepError); return; }
                     setStep((s) => s + 1);
                   }}
                 >

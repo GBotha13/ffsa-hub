@@ -16,6 +16,7 @@ export type FieldConfig = {
 };
 
 export const REQUIRED_PROFILE_FIELDS: FieldConfig[] = [
+  // ── Personal ─────────────────────────────────────────────
   { field: "first_name", label: "First Name", type: "text", placeholder: "Your first name" },
   { field: "last_name", label: "Last Name", type: "text", placeholder: "Your last name" },
   {
@@ -56,6 +57,24 @@ export const REQUIRED_PROFILE_FIELDS: FieldConfig[] = [
       { value: "woven", label: "Woven" },
     ],
   },
+  // ── Address ──────────────────────────────────────────────
+  // address_line_2 stays optional (apartment / unit number).
+  // Passport / visa fields are intentionally not enforced here —
+  // they only apply to international staff and the gate has no way
+  // to express that conditional. The onboarding form handles it.
+  { field: "address_line_1", label: "Address Line 1", type: "text", placeholder: "Street address" },
+  { field: "city", label: "City", type: "text", placeholder: "e.g. Potchefstroom" },
+  { field: "province", label: "Province / State", type: "text", placeholder: "e.g. North West" },
+  { field: "country", label: "Country", type: "text", placeholder: "e.g. South Africa" },
+  { field: "postal_code", label: "Postal Code", type: "text", placeholder: "e.g. 2520" },
+  // ── Emergency contact ────────────────────────────────────
+  { field: "emergency_contact_name", label: "Emergency Contact Name", type: "text", placeholder: "Full name" },
+  { field: "emergency_contact_phone", label: "Emergency Contact Phone", type: "tel", placeholder: "+27 71 234 5678" },
+  { field: "emergency_contact_relationship", label: "Emergency Contact Relationship", type: "text", placeholder: "e.g. Parent, Spouse" },
+  // ── Health insurance ─────────────────────────────────────
+  { field: "health_insurance_provider", label: "Health Insurance Provider", type: "text", placeholder: "e.g. Discovery Health" },
+  { field: "health_insurance_policy_number", label: "Health Insurance Policy Number", type: "text", placeholder: "e.g. 123456789" },
+  { field: "health_insurance_expiry_date", label: "Health Insurance Expiry Date", type: "date" },
 ];
 
 export function getMissingProfileFields(
