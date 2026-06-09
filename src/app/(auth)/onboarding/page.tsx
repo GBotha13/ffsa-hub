@@ -8,6 +8,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
+import { PhoneInput } from "@/components/ui/phone-input";
+import {
+  COUNTRY_OPTIONS,
+  NATIONALITY_OPTIONS,
+  SA_PROVINCES,
+  GENDER_OPTIONS,
+  RELATIONSHIP_OPTIONS,
+  INSURANCE_PROVIDERS,
+} from "@/lib/profile/options";
 import Image from "next/image";
 
 const TOTAL_STEPS = 6;
@@ -440,14 +449,20 @@ export default function OnboardingPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="gender">Gender *</Label>
-                      <Input id="gender" placeholder="e.g. Male, Female" value={form.gender} onChange={(e) => set("gender", e.target.value)} required />
+                      <select id="gender" value={form.gender} onChange={(e) => set("gender", e.target.value)}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" required>
+                        <option value="">Select…</option>
+                        {GENDER_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="marital_status">Marital Status *</Label>
                       <select id="marital_status" value={form.marital_status} onChange={(e) => set("marital_status", e.target.value)}
-                        className="flex h-10 w-full rounded-md px-3 py-2 text-sm" required>
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" required>
                         <option value="">Select…</option>
                         <option value="single">Single</option>
                         <option value="married">Married</option>
@@ -457,12 +472,18 @@ export default function OnboardingPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="nationality">Nationality *</Label>
-                      <Input id="nationality" placeholder="e.g. South African" value={form.nationality} onChange={(e) => set("nationality", e.target.value)} required />
+                      <select id="nationality" value={form.nationality} onChange={(e) => set("nationality", e.target.value)}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" required>
+                        <option value="">Select…</option>
+                        {NATIONALITY_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone">Phone Number *</Label>
-                    <Input id="phone" type="tel" placeholder="+27 71 234 5678" value={form.phone} onChange={(e) => set("phone", e.target.value)} required />
+                    <PhoneInput id="phone" value={form.phone} onChange={(v) => set("phone", v)} required />
                   </div>
                 </>
               )}
@@ -480,18 +501,34 @@ export default function OnboardingPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="city">City *</Label>
-                      <Input id="city" placeholder="e.g. Potchefstroom" value={form.city} onChange={(e) => set("city", e.target.value)} required />
+                      <Label htmlFor="country">Country *</Label>
+                      <select id="country" value={form.country} onChange={(e) => set("country", e.target.value)}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" required>
+                        <option value="">Select…</option>
+                        {COUNTRY_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="province">Province / State *</Label>
-                      <Input id="province" placeholder="e.g. North West" value={form.province} onChange={(e) => set("province", e.target.value)} required />
+                      <Label htmlFor="city">City *</Label>
+                      <Input id="city" placeholder="e.g. Potchefstroom" value={form.city} onChange={(e) => set("city", e.target.value)} required />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="country">Country *</Label>
-                      <Input id="country" placeholder="e.g. South Africa" value={form.country} onChange={(e) => set("country", e.target.value)} required />
+                      <Label htmlFor="province">Province / State *</Label>
+                      {form.country === "South Africa" ? (
+                        <select id="province" value={form.province} onChange={(e) => set("province", e.target.value)}
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" required>
+                          <option value="">Select…</option>
+                          {SA_PROVINCES.map((o) => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <Input id="province" placeholder="State / Province" value={form.province} onChange={(e) => set("province", e.target.value)} required />
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="postal_code">Postal Code *</Label>
@@ -526,7 +563,13 @@ export default function OnboardingPage() {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="passport_country">Passport Country *</Label>
-                          <Input id="passport_country" placeholder="e.g. United States" value={form.passport_country} onChange={(e) => set("passport_country", e.target.value)} required />
+                          <select id="passport_country" value={form.passport_country} onChange={(e) => set("passport_country", e.target.value)}
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" required>
+                            <option value="">Select…</option>
+                            {COUNTRY_OPTIONS.map((o) => (
+                              <option key={o.value} value={o.value}>{o.label}</option>
+                            ))}
+                          </select>
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="passport_number">Passport Number *</Label>
@@ -589,11 +632,17 @@ export default function OnboardingPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="emergency_contact_phone">Phone *</Label>
-                      <Input id="emergency_contact_phone" type="tel" placeholder="+27 71 234 5678" value={form.emergency_contact_phone} onChange={(e) => set("emergency_contact_phone", e.target.value)} required />
+                      <PhoneInput id="emergency_contact_phone" value={form.emergency_contact_phone} onChange={(v) => set("emergency_contact_phone", v)} required />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="emergency_contact_relationship">Relationship *</Label>
-                      <Input id="emergency_contact_relationship" placeholder="e.g. Parent, Spouse" value={form.emergency_contact_relationship} onChange={(e) => set("emergency_contact_relationship", e.target.value)} required />
+                      <select id="emergency_contact_relationship" value={form.emergency_contact_relationship} onChange={(e) => set("emergency_contact_relationship", e.target.value)}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" required>
+                        <option value="">Select…</option>
+                        {RELATIONSHIP_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
 
@@ -605,7 +654,45 @@ export default function OnboardingPage() {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="health_insurance_provider">Provider *</Label>
-                          <Input id="health_insurance_provider" placeholder="e.g. Discovery Health" value={form.health_insurance_provider} onChange={(e) => set("health_insurance_provider", e.target.value)} required />
+                          {(() => {
+                            // The DB stores the provider as a plain string. To
+                            // distinguish "Other (specify)" from a recognised
+                            // option, we check membership against the dropdown
+                            // list — anything off-list is treated as Other.
+                            const knownValues = new Set(INSURANCE_PROVIDERS.map((o) => o.value));
+                            const isOther = !!form.health_insurance_provider && !knownValues.has(form.health_insurance_provider);
+                            const selectValue = isOther ? "other" : form.health_insurance_provider;
+                            return (
+                              <>
+                                <select
+                                  id="health_insurance_provider"
+                                  value={selectValue}
+                                  onChange={(e) => {
+                                    // Selecting "other" clears the stored value
+                                    // so the follow-up input renders empty;
+                                    // selecting a known provider stores it
+                                    // directly.
+                                    set("health_insurance_provider", e.target.value === "other" ? "" : e.target.value);
+                                  }}
+                                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                  required
+                                >
+                                  <option value="">Select…</option>
+                                  {INSURANCE_PROVIDERS.map((o) => (
+                                    <option key={o.value} value={o.value}>{o.label}</option>
+                                  ))}
+                                </select>
+                                {(selectValue === "other" || isOther) && (
+                                  <Input
+                                    placeholder="Specify your provider"
+                                    value={isOther ? form.health_insurance_provider : ""}
+                                    onChange={(e) => set("health_insurance_provider", e.target.value)}
+                                    required
+                                  />
+                                )}
+                              </>
+                            );
+                          })()}
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="health_insurance_policy_number">Policy Number *</Label>

@@ -7,10 +7,29 @@
 //     Users admin table so super admins can see who's stuck
 // Add a field here and both surfaces pick it up automatically.
 
+import {
+  COUNTRY_OPTIONS,
+  NATIONALITY_OPTIONS,
+  SA_PROVINCES,
+  GENDER_OPTIONS,
+  RELATIONSHIP_OPTIONS,
+  INSURANCE_PROVIDERS,
+} from "@/lib/profile/options";
+
 export type FieldConfig = {
   field: string;
   label: string;
-  type: "text" | "select" | "date" | "tel";
+  // `phone`: country-code dropdown + digits.
+  // `select-with-other`: dropdown with an "Other" sentinel that
+  //   reveals a follow-up free-text input (used for province /
+  //   insurance provider where the curated list might miss someone).
+  type:
+    | "text"
+    | "select"
+    | "select-with-other"
+    | "date"
+    | "tel"
+    | "phone";
   placeholder?: string;
   options?: { value: string; label: string }[];
 };
@@ -19,15 +38,7 @@ export const REQUIRED_PROFILE_FIELDS: FieldConfig[] = [
   // ── Personal ─────────────────────────────────────────────
   { field: "first_name", label: "First Name", type: "text", placeholder: "Your first name" },
   { field: "last_name", label: "Last Name", type: "text", placeholder: "Your last name" },
-  {
-    field: "gender",
-    label: "Gender",
-    type: "select",
-    options: [
-      { value: "male", label: "Male" },
-      { value: "female", label: "Female" },
-    ],
-  },
+  { field: "gender", label: "Gender", type: "select", options: GENDER_OPTIONS },
   {
     field: "marital_status",
     label: "Marital Status",
@@ -40,8 +51,8 @@ export const REQUIRED_PROFILE_FIELDS: FieldConfig[] = [
     ],
   },
   { field: "date_of_birth", label: "Date of Birth", type: "date" },
-  { field: "nationality", label: "Nationality", type: "text", placeholder: "e.g. South African" },
-  { field: "phone", label: "Phone Number", type: "tel", placeholder: "+27 71 234 5678" },
+  { field: "nationality", label: "Nationality", type: "select", options: NATIONALITY_OPTIONS },
+  { field: "phone", label: "Phone Number", type: "phone" },
   {
     field: "department",
     label: "Department",
@@ -62,17 +73,17 @@ export const REQUIRED_PROFILE_FIELDS: FieldConfig[] = [
   // Passport / visa fields are intentionally not enforced here —
   // they only apply to international staff and the gate has no way
   // to express that conditional. The onboarding form handles it.
+  { field: "country", label: "Country", type: "select", options: COUNTRY_OPTIONS },
   { field: "address_line_1", label: "Address Line 1", type: "text", placeholder: "Street address" },
   { field: "city", label: "City", type: "text", placeholder: "e.g. Potchefstroom" },
-  { field: "province", label: "Province / State", type: "text", placeholder: "e.g. North West" },
-  { field: "country", label: "Country", type: "text", placeholder: "e.g. South Africa" },
+  { field: "province", label: "Province / State", type: "select-with-other", options: SA_PROVINCES },
   { field: "postal_code", label: "Postal Code", type: "text", placeholder: "e.g. 2520" },
   // ── Emergency contact ────────────────────────────────────
   { field: "emergency_contact_name", label: "Emergency Contact Name", type: "text", placeholder: "Full name" },
-  { field: "emergency_contact_phone", label: "Emergency Contact Phone", type: "tel", placeholder: "+27 71 234 5678" },
-  { field: "emergency_contact_relationship", label: "Emergency Contact Relationship", type: "text", placeholder: "e.g. Parent, Spouse" },
+  { field: "emergency_contact_phone", label: "Emergency Contact Phone", type: "phone" },
+  { field: "emergency_contact_relationship", label: "Emergency Contact Relationship", type: "select", options: RELATIONSHIP_OPTIONS },
   // ── Health insurance ─────────────────────────────────────
-  { field: "health_insurance_provider", label: "Health Insurance Provider", type: "text", placeholder: "e.g. Discovery Health" },
+  { field: "health_insurance_provider", label: "Health Insurance Provider", type: "select-with-other", options: INSURANCE_PROVIDERS },
   { field: "health_insurance_policy_number", label: "Health Insurance Policy Number", type: "text", placeholder: "e.g. 123456789" },
   { field: "health_insurance_expiry_date", label: "Health Insurance Expiry Date", type: "date" },
 ];

@@ -5,8 +5,17 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { PhoneInput } from "@/components/ui/phone-input";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import type { FieldConfig } from "@/lib/users/profile-fields";
+
+const OTHER_SENTINEL = "__other__";
 
 export function ProfileCompletionForm({
   missingFields,
@@ -15,6 +24,10 @@ export function ProfileCompletionForm({
 }) {
   const router = useRouter();
   const [values, setValues] = useState<Record<string, string>>({});
+  // For `select-with-other`: tracks whether the user has chosen "Other".
+  // Stored separately from `values` so we know to render the follow-up
+  // text input even before they've typed anything.
+  const [otherActive, setOtherActive] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,9 +39,11 @@ export function ProfileCompletionForm({
     e.preventDefault();
     setError(null);
 
-    // Validate all fields are filled
+    // Validate all fields are filled — but for select-with-other we
+    // need the follow-up text, not the sentinel.
     for (const f of missingFields) {
-      if (!values[f.field]?.trim()) {
+      const v = values[f.field]?.trim();
+      if (!v || v === OTHER_SENTINEL) {
         setError(`Please fill in: ${f.label}`);
         return;
       }
@@ -60,7 +75,7 @@ export function ProfileCompletionForm({
   }
 
   return (
-    <Card className="w-full max-w-md mx-4 shadow-2xl">
+    <Card className="w-full max-w-md mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
       <CardHeader className="text-center">
         <CardTitle className="text-xl">Complete Your Profile</CardTitle>
         <CardDescription>
@@ -70,35 +85,16 @@ export function ProfileCompletionForm({
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           {missingFields.map((f) => (
-            <div key={f.field} className="space-y-2">
-              <Label htmlFor={`gate-${f.field}`}>{f.label}</Label>
-
-              {f.type === "select" && f.options ? (
-                <select
-                  id={`gate-${f.field}`}
-                  value={values[f.field] ?? ""}
-                  onChange={(e) => setValue(f.field, e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  required
-                >
-                  <option value="">Select...</option>
-                  {f.options.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <Input
-                  id={`gate-${f.field}`}
-                  type={f.type === "date" ? "date" : f.type === "tel" ? "tel" : "text"}
-                  placeholder={f.placeholder}
-                  value={values[f.field] ?? ""}
-                  onChange={(e) => setValue(f.field, e.target.value)}
-                  required
-                />
-              )}
-            </div>
+            <FieldControl
+              key={f.field}
+              field={f}
+              value={values[f.field] ?? ""}
+              otherActive={!!otherActive[f.field]}
+              onValueChange={(v) => setValue(f.field, v)}
+              onOtherActiveChange={(active) =>
+                setOtherActive((prev) => ({ ...prev, [f.field]: active }))
+              }
+            />
           ))}
 
           {error && <p className="text-sm text-destructive">{error}</p>}
@@ -109,5 +105,112 @@ export function ProfileCompletionForm({
         </form>
       </CardContent>
     </Card>
+  );
+}
+
+function FieldControl({
+  field,
+  value,
+  otherActive,
+  onValueChange,
+  onOtherActiveChange,
+}: {
+  field: FieldConfig;
+  value: string;
+  otherActive: boolean;
+  onValueChange: (v: string) => void;
+  onOtherActiveChange: (active: boolean) => void;
+}) {
+  const id = `gate-${field.field}`;
+
+  if (field.type === "phone") {
+    return (
+      <div className="space-y-2">
+        <Label htmlFor={id}>{field.label}</Label>
+        <PhoneInput id={id} value={value} onChange={onValueChange} required />
+      </div>
+    );
+  }
+
+  if (field.type === "select" && field.options) {
+    return (
+      <div className="space-y-2">
+        <Label htmlFor={id}>{field.label}</Label>
+        <select
+          id={id}
+          value={value}
+          onChange={(e) => onValueChange(e.target.value)}
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          required
+        >
+          <option value="">Select...</option>
+          {field.options.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  }
+
+  if (field.type === "select-with-other" && field.options) {
+    // The dropdown drives the select-display. When the user picks
+    // "Other", we flip `otherActive` and reveal the follow-up input.
+    // The follow-up input writes directly into `value` so saving Just
+    // Works without per-field branching.
+    const selectValue = otherActive ? OTHER_SENTINEL : value;
+    return (
+      <div className="space-y-2">
+        <Label htmlFor={id}>{field.label}</Label>
+        <select
+          id={id}
+          value={selectValue}
+          onChange={(e) => {
+            if (e.target.value === OTHER_SENTINEL) {
+              onOtherActiveChange(true);
+              onValueChange("");
+            } else {
+              onOtherActiveChange(false);
+              onValueChange(e.target.value);
+            }
+          }}
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          required
+        >
+          <option value="">Select...</option>
+          {field.options.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+          <option value={OTHER_SENTINEL}>Other (enter manually)</option>
+        </select>
+        {otherActive && (
+          <Input
+            placeholder={`Enter ${field.label.toLowerCase()}`}
+            value={value}
+            onChange={(e) => onValueChange(e.target.value)}
+            required
+          />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{field.label}</Label>
+      <Input
+        id={id}
+        type={
+          field.type === "date" ? "date" : field.type === "tel" ? "tel" : "text"
+        }
+        placeholder={field.placeholder}
+        value={value}
+        onChange={(e) => onValueChange(e.target.value)}
+        required
+      />
+    </div>
   );
 }
