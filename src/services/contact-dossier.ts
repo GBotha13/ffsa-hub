@@ -9,6 +9,12 @@
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Client = any;
 
+// Per-section row cap. Without this, a long-tenured contact pulls every event,
+// email, call, order, and form they have ever touched on every profile load.
+// 50 is enough for the recent-history view; deeper history can move to a paged
+// drill-in later if needed.
+const DOSSIER_LIMIT = 50;
+
 export type DossierEvent = {
   eventId: string | null;
   title: string;
@@ -185,14 +191,21 @@ async function fetchEvents(
       q
         .select("status, registered_at, events(id, title, start_date)")
         .eq("contact_id", contactId)
+        .order("registered_at", { ascending: false, nullsFirst: false })
+        .limit(DOSSIER_LIMIT)
     ),
     safe(supabase, "attendance_records", (q: Client) =>
       q
         .select("status, checked_in_at, events(id, title, start_date)")
         .eq("contact_id", contactId)
+        .order("checked_in_at", { ascending: false, nullsFirst: false })
+        .limit(DOSSIER_LIMIT)
     ),
     safe(supabase, "event_roles", (q: Client) =>
-      q.select("role_name, events(id, title, start_date)").eq("contact_id", contactId)
+      q
+        .select("role_name, events(id, title, start_date)")
+        .eq("contact_id", contactId)
+        .limit(DOSSIER_LIMIT)
     ),
   ]);
 
@@ -221,6 +234,8 @@ async function fetchOutcomes(
     q
       .select("responded_at, event_outcomes(name, events(title))")
       .eq("contact_id", contactId)
+      .order("responded_at", { ascending: false, nullsFirst: false })
+      .limit(DOSSIER_LIMIT)
   );
   return rows
     .map((r: Client) => ({
@@ -243,6 +258,8 @@ async function fetchWorkflows(
         "id, status, current_step, enrolled_at, next_run_at, completed_at, workflow_id, outcome_workflows(name)"
       )
       .eq("contact_id", contactId)
+      .order("enrolled_at", { ascending: false, nullsFirst: false })
+      .limit(DOSSIER_LIMIT)
   );
   if (rows.length === 0) return [];
 
@@ -296,6 +313,8 @@ async function fetchEmails(
           "sent_at, opened_at, first_clicked_at, bounced_at, outcome_workflows(name)"
         )
         .eq("contact_id", contactId)
+        .order("sent_at", { ascending: false, nullsFirst: false })
+        .limit(DOSSIER_LIMIT)
     ),
     safe(supabase, "campaign_recipients", (q: Client) =>
       q
@@ -303,6 +322,8 @@ async function fetchEmails(
           "sent_at, opened_at, first_clicked_at, bounced_at, campaigns(name, subject)"
         )
         .eq("contact_id", contactId)
+        .order("sent_at", { ascending: false, nullsFirst: false })
+        .limit(DOSSIER_LIMIT)
     ),
   ]);
 
@@ -328,7 +349,9 @@ async function fetchEmails(
     })),
   ];
 
-  return emails.sort((a, b) => (b.sentAt ?? "").localeCompare(a.sentAt ?? ""));
+  return emails
+    .sort((a, b) => (b.sentAt ?? "").localeCompare(a.sentAt ?? ""))
+    .slice(0, DOSSIER_LIMIT);
 }
 
 async function fetchCalls(
@@ -341,6 +364,8 @@ async function fetchCalls(
         "status, duration_minutes, message, created_at, scheduling_slots(starts_at, is_chosen)"
       )
       .eq("contact_id", contactId)
+      .order("created_at", { ascending: false, nullsFirst: false })
+      .limit(DOSSIER_LIMIT)
   );
   return rows
     .map((r: Client) => {
@@ -366,6 +391,8 @@ async function fetchForms(
     q
       .select("id, submitted_at, raw_data, forms(name)")
       .eq("contact_id", contactId)
+      .order("submitted_at", { ascending: false, nullsFirst: false })
+      .limit(DOSSIER_LIMIT)
   );
   return rows
     .map((r: Client) => ({
@@ -387,6 +414,8 @@ async function fetchOrders(
     q
       .select("status, total_cents, currency, created_at, paid_at, events(title)")
       .eq("buyer_contact_id", contactId)
+      .order("created_at", { ascending: false, nullsFirst: false })
+      .limit(DOSSIER_LIMIT)
   );
   return rows
     .map((r: Client) => ({
@@ -445,12 +474,18 @@ async function fetchSchools(
 
   const [apps, enrolls] = await Promise.all([
     safe(supabase, "application_responses", (q: Client) =>
-      q.select("status, submitted_at, programs(name)").in("user_id", userIds)
+      q
+        .select("status, submitted_at, programs(name)")
+        .in("user_id", userIds)
+        .order("submitted_at", { ascending: false, nullsFirst: false })
+        .limit(DOSSIER_LIMIT)
     ),
     safe(supabase, "enrollments", (q: Client) =>
       q
         .select("status, enrolled_at, completed_at, programs(name)")
         .in("user_id", userIds)
+        .order("enrolled_at", { ascending: false, nullsFirst: false })
+        .limit(DOSSIER_LIMIT)
     ),
   ]);
 

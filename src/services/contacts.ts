@@ -5,6 +5,13 @@ type ContactUpdate = TablesUpdate<"contacts">;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Client = any;
 
+export type ContactSort =
+  | "newest"
+  | "oldest"
+  | "name_asc"
+  | "name_desc"
+  | "recent";
+
 export async function getContacts(
   supabase: Client,
   options?: {
@@ -12,6 +19,7 @@ export async function getContacts(
     search?: string;
     labelId?: string;
     marketingStatus?: string;
+    sort?: ContactSort;
     limit?: number;
     offset?: number;
   }
@@ -21,8 +29,33 @@ export async function getContacts(
     .select(
       "*, person_type_assignments(person_types(*)), contact_labels(labels(id, slug, name, color))",
       { count: "exact" }
-    )
-    .order("created_at", { ascending: false });
+    );
+
+  switch (options?.sort ?? "newest") {
+    case "oldest":
+      query = query.order("created_at", { ascending: true });
+      break;
+    case "name_asc":
+      query = query
+        .order("last_name", { ascending: true, nullsFirst: false })
+        .order("first_name", { ascending: true, nullsFirst: false });
+      break;
+    case "name_desc":
+      query = query
+        .order("last_name", { ascending: false, nullsFirst: false })
+        .order("first_name", { ascending: false, nullsFirst: false });
+      break;
+    case "recent":
+      query = query.order("last_interaction_at", {
+        ascending: false,
+        nullsFirst: false,
+      });
+      break;
+    case "newest":
+    default:
+      query = query.order("created_at", { ascending: false });
+      break;
+  }
 
   if (options?.status) {
     query = query.eq("status", options.status);
@@ -35,7 +68,7 @@ export async function getContacts(
   if (options?.search) {
     const term = `%${options.search}%`;
     query = query.or(
-      `first_name.ilike.${term},last_name.ilike.${term},email.ilike.${term},preferred_name.ilike.${term}`
+      `first_name.ilike.${term},last_name.ilike.${term},email.ilike.${term},phone.ilike.${term},preferred_name.ilike.${term}`
     );
   }
 

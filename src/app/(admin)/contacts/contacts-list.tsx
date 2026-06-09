@@ -1,11 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -17,7 +24,17 @@ import {
 import { Plus, Search } from "lucide-react";
 import type { Tables } from "@/types/database";
 import { getLabelColors } from "@/lib/label-color";
+import type { ContactSort } from "@/services/contacts";
+
 type PersonType = Tables<"person_types">;
+
+const SORT_LABELS: Record<ContactSort, string> = {
+  newest: "Newest first",
+  oldest: "Oldest first",
+  name_asc: "Name (A–Z)",
+  name_desc: "Name (Z–A)",
+  recent: "Recently interacted",
+};
 
 interface ContactsListProps {
   contacts: Array<{
@@ -51,6 +68,7 @@ interface ContactsListProps {
   pageSize: number;
   searchQuery?: string;
   statusFilter: string;
+  sort: ContactSort;
 }
 
 export function ContactsList({
@@ -60,26 +78,49 @@ export function ContactsList({
   pageSize,
   searchQuery,
   statusFilter,
+  sort,
 }: ContactsListProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [search, setSearch] = useState(searchQuery ?? "");
 
-  function handleSearch(e: React.FormEvent) {
-    e.preventDefault();
-    const params = new URLSearchParams(searchParams.toString());
-    if (search) {
-      params.set("search", search);
-    } else {
-      params.delete("search");
+  // Live debounced search — typing immediately filters after 300ms of idle.
+  // Skip the very first run so hydration doesn't bounce the URL just because
+  // the controlled input was initialised with the existing ?search= value.
+  const firstRender = useRef(true);
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
     }
-    params.delete("page");
-    router.push(`/contacts?${params.toString()}`);
-  }
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (search) {
+        params.set("search", search);
+      } else {
+        params.delete("search");
+      }
+      params.delete("page");
+      router.replace(`/contacts?${params.toString()}`);
+    }, 300);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
   function handleStatusFilter(status: string) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("status", status);
+    params.delete("page");
+    router.push(`/contacts?${params.toString()}`);
+  }
+
+  function handleSortChange(value: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value === "newest") {
+      params.delete("sort");
+    } else {
+      params.set("sort", value);
+    }
     params.delete("page");
     router.push(`/contacts?${params.toString()}`);
   }
@@ -95,21 +136,16 @@ export function ContactsList({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <form onSubmit={handleSearch} className="flex flex-1 items-center gap-2">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search by name or email..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-          <Button type="submit" variant="secondary" size="sm">
-            Search
-          </Button>
-        </form>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[220px] max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search by name, email, or phone..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
 
         <div className="flex items-center gap-1">
           {["active", "inactive", "archived"].map((status) => (
@@ -125,7 +161,20 @@ export function ContactsList({
           ))}
         </div>
 
-        <Link href="/contacts/new">
+        <Select value={sort} onValueChange={handleSortChange}>
+          <SelectTrigger className="h-9 w-[180px]">
+            <SelectValue placeholder="Sort by" />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(SORT_LABELS) as ContactSort[]).map((key) => (
+              <SelectItem key={key} value={key}>
+                {SORT_LABELS[key]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Link href="/contacts/new" className="ml-auto">
           <Button size="sm" className="gap-1">
             <Plus className="h-4 w-4" />
             Add Contact

@@ -1,8 +1,16 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { requireModuleAccess } from "@/lib/require-permission";
-import { getContacts } from "@/services/contacts";
+import { getContacts, type ContactSort } from "@/services/contacts";
 import { getPersonTypes } from "@/services/contacts";
+
+const VALID_SORTS: ContactSort[] = [
+  "newest",
+  "oldest",
+  "name_asc",
+  "name_desc",
+  "recent",
+];
 import { ContactsList } from "./contacts-list";
 import { ContactsTabsNav } from "./contacts-tabs-nav";
 import {
@@ -26,6 +34,9 @@ export default async function ContactsPage({
 
   const status = params.status ?? "active";
   const search = params.search;
+  const sort: ContactSort = VALID_SORTS.includes(params.sort as ContactSort)
+    ? (params.sort as ContactSort)
+    : "newest";
   const page = parseInt(params.page ?? "1", 10);
   const pageSize = 25;
 
@@ -35,6 +46,7 @@ export default async function ContactsPage({
     getContacts(supabase, {
       status,
       search,
+      sort,
       limit: pageSize,
       offset: (page - 1) * pageSize,
     }),
@@ -88,6 +100,7 @@ export default async function ContactsPage({
         pageSize={pageSize}
         searchQuery={search}
         statusFilter={status}
+        sort={sort}
       />
     </div>
   );
