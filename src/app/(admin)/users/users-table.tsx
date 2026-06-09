@@ -35,6 +35,7 @@ import {
   formatRelativeTime,
   type UserLifecycleStage,
 } from "@/lib/users/lifecycle";
+import { UserAvatar } from "@/components/ui/user-avatar";
 
 type UserRow = {
   id: string;
@@ -43,6 +44,7 @@ type UserRow = {
   last_name: string | null;
   preferred_name: string | null;
   email: string | null;
+  avatar_url: string | null;
   is_active: boolean;
   invited_at: string | null;
   accepted_at: string | null;
@@ -238,7 +240,14 @@ export function UsersTable({
                   onClick={() => router.push(`/users/${user.id}`)}
                 >
                   <TableCell className="font-medium">
-                    {displayName(user)}
+                    <div className="flex items-center gap-3">
+                      <UserAvatar
+                        src={user.avatar_url}
+                        name={user.preferred_name ?? user.first_name ?? user.email}
+                        size={28}
+                      />
+                      <span className="truncate">{displayName(user)}</span>
+                    </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {user.email ?? "—"}

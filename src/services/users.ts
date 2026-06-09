@@ -72,7 +72,11 @@ export async function getUserById(supabase: Client, id: string) {
 export async function updateUser(
   supabase: Client,
   id: string,
-  data: { display_name?: string; avatar_url?: string; is_active?: boolean }
+  data: {
+    display_name?: string | null;
+    avatar_url?: string | null;
+    is_active?: boolean;
+  }
 ) {
   return supabase.from("users").update(data).eq("id", id).select().single();
 }

@@ -1,11 +1,19 @@
+import { AvatarUploader } from "@/components/avatar-uploader";
+
 /**
  * Identity header shared between the Profile and Permissions tabs.
+ * The avatar is rendered via AvatarUploader so admins can change the
+ * user's photo inline. The API enforces the actual permission check
+ * (self or super_admin/admin), so it's safe to mount the uploader on
+ * every admin viewer — non-admins viewing this page is already
+ * blocked upstream in /users/[id]/page.tsx.
  */
 export function UserHeader({
   user,
   eyebrow,
 }: {
   user: {
+    id: string;
     first_name?: string | null;
     last_name?: string | null;
     preferred_name?: string | null;
@@ -13,6 +21,7 @@ export function UserHeader({
     email?: string | null;
     job_title?: string | null;
     status?: string | null;
+    avatar_url?: string | null;
   };
   eyebrow: string;
 }) {
@@ -34,26 +43,17 @@ export function UserHeader({
   };
   const s = statusColors[status] ?? statusColors.invited;
 
-  // Big initial-circle avatar — first letter of preferred/first name, else email.
-  const initial = (user.preferred_name ?? user.first_name ?? user.email ?? "?")
-    .trim()
-    .charAt(0)
-    .toUpperCase();
+  const avatarName =
+    user.preferred_name ?? user.first_name ?? user.email ?? "?";
 
   return (
     <div className="flex items-start gap-5">
-      <div
-        className="flex items-center justify-center shrink-0 rounded-full font-bold text-2xl"
-        style={{
-          width: 72,
-          height: 72,
-          background: "hsl(42 95% 55% / 0.12)",
-          border: "1px solid hsl(42 95% 55% / 0.3)",
-          color: "hsl(42 95% 65%)",
-        }}
-      >
-        {initial}
-      </div>
+      <AvatarUploader
+        userId={user.id}
+        initialSrc={user.avatar_url}
+        name={avatarName}
+        size={72}
+      />
       <div className="flex-1 min-w-0">
         <p className="page-eyebrow">{eyebrow}</p>
         <h1 className="page-title truncate">{name}</h1>

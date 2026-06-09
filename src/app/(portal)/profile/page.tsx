@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/services/users";
 import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { ProfileRecords } from "@/components/profile-records";
+import { AvatarUploader } from "@/components/avatar-uploader";
 
 export default async function ProfilePage() {
   const supabase = await createClient();
@@ -12,36 +13,23 @@ export default async function ProfilePage() {
 
   const roles = user.user_roles ?? [];
 
-  const initial = (
-    user.preferred_name ??
-    user.first_name ??
-    user.email ??
-    "?"
-  )
-    .trim()
-    .charAt(0)
-    .toUpperCase();
-
   const fullName =
     [user.preferred_name ?? user.first_name, user.last_name]
       .filter(Boolean)
       .join(" ") || user.email || "Profile";
 
+  const avatarName =
+    user.preferred_name ?? user.first_name ?? user.email ?? "?";
+
   return (
     <div className="space-y-8">
       <div className="flex items-start gap-5">
-        <div
-          className="flex items-center justify-center shrink-0 rounded-full font-bold text-2xl"
-          style={{
-            width: 72,
-            height: 72,
-            background: "hsl(42 95% 55% / 0.12)",
-            border: "1px solid hsl(42 95% 55% / 0.3)",
-            color: "hsl(42 95% 65%)",
-          }}
-        >
-          {initial}
-        </div>
+        <AvatarUploader
+          userId={user.id}
+          initialSrc={user.avatar_url}
+          name={avatarName}
+          size={72}
+        />
         <div className="flex-1 min-w-0">
           <p className="page-eyebrow">MY PROFILE</p>
           <h1 className="page-title truncate">{fullName}</h1>
