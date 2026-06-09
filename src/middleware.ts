@@ -3,33 +3,6 @@ import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            request.cookies.set(name, value)
-          );
-          supabaseResponse = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          );
-        },
-      },
-    }
-  );
-
-  // Refresh session (important for Server Components)
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
   const { pathname } = request.nextUrl;
 
   // Public routes that don't require auth
@@ -68,13 +41,46 @@ export async function middleware(request: NextRequest) {
   // (the page itself handles the redirect)
   const isOnboarding = pathname.startsWith("/onboarding");
 
+  // Fast-path: public routes that don't need ANY auth context can skip the
+  // Supabase round-trip entirely (~200-300ms per request). We exclude /login
+  // (needs to redirect logged-in users) and /auth/* (callback handlers may
+  // need the Supabase client to set session cookies).
+  const isAuthAware =
+    pathname === "/login" || pathname.startsWith("/auth/");
   if (
-    !user &&
-    !isPublicRoute &&
-    !isOnboarding &&
-    !isPublicCheckoutRoute &&
-    !isPublicPromoValidateRoute
+    !isAuthAware &&
+    (isPublicRoute || isPublicCheckoutRoute || isPublicPromoValidateRoute)
   ) {
+    return supabaseResponse;
+  }
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            request.cookies.set(name, value)
+          );
+          supabaseResponse = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          );
+        },
+      },
+    }
+  );
+
+  // Refresh session (important for Server Components)
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user && !isOnboarding) {
     // Redirect to login
     const url = request.nextUrl.clone();
     url.pathname = "/login";

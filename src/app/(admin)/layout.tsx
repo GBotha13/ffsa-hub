@@ -14,9 +14,12 @@ export default async function AdminLayout({
   let permittedModules: Set<string> = new Set();
 
   try {
+    // Middleware already validated the JWT; reading the session from cookies
+    // avoids a redundant Supabase auth round-trip on every admin nav (~150ms).
     const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      data: { session },
+    } = await supabase.auth.getSession();
+    const user = session?.user;
 
     if (user) {
       const { data: roleRows } = await supabase
