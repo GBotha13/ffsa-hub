@@ -9,6 +9,7 @@ import {
   assignLabel,
   removeLabel,
 } from "@/services/user-labels";
+import { revalidateLabelsCache } from "@/lib/cached-reads";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -64,6 +65,7 @@ export async function POST(request: Request) {
       category: body.category,
     });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    revalidateLabelsCache();
     return NextResponse.json(data);
   }
 
@@ -90,6 +92,7 @@ export async function DELETE(request: Request) {
   if (labelId) {
     const { error } = await deleteLabel(supabase, labelId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    revalidateLabelsCache();
     return NextResponse.json({ success: true });
   }
 

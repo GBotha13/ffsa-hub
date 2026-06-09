@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { requireModuleAccess } from "@/lib/require-permission";
 import { listCampaigns, listSendingIdentities } from "@/services/campaigns";
-import { getLabels } from "@/services/labels";
+import { getCachedActiveLabels } from "@/lib/cached-reads";
 import { CampaignsList } from "./campaigns-list";
 
 export default async function CommunicationsPage() {
@@ -16,7 +16,7 @@ export default async function CommunicationsPage() {
   const [{ data: campaigns }, { data: labels }, { data: identities }] =
     await Promise.all([
       listCampaigns(supabase, { limit: 100 }),
-      getLabels(supabase, { active: true }),
+      getCachedActiveLabels(),
       listSendingIdentities(supabase),
     ]);
 

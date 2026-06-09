@@ -24,12 +24,17 @@ export default async function EventsPage({
 }) {
   const params = await searchParams;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // Middleware already validated; read session from cookie.
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
   if (!user) redirect("/login");
-  await requireModuleAccess(supabase, user.id, "events");
-  const { data: events, count } = await getEvents(supabase, {
-    status: params.status,
-  });
+
+  // Permission check + data fetch don't depend on each other — run together.
+  const [, eventsResult] = await Promise.all([
+    requireModuleAccess(supabase, user.id, "events"),
+    getEvents(supabase, { status: params.status }),
+  ]);
+  const { data: events, count } = eventsResult;
 
   const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
     draft: "outline",

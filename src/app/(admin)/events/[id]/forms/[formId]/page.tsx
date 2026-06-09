@@ -3,7 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getFormById } from "@/services/forms";
 import { getEventOutcomes } from "@/services/event-outcomes";
-import { getLabels } from "@/services/labels";
+import { getCachedActiveLabels } from "@/lib/cached-reads";
 import { emptyFormSchema, type FormSchema } from "@/lib/forms/schema";
 import { FormBuilder } from "./form-builder";
 
@@ -24,7 +24,7 @@ export default async function FormBuilderPage({
 
   const [{ data: outcomes }, { data: labels }] = await Promise.all([
     getEventOutcomes(supabase, eventId),
-    getLabels(supabase, { active: true }),
+    getCachedActiveLabels(),
   ]);
 
   // Stored schema may be an older/empty shape — fall back to a fresh one.

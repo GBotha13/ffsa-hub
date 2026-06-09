@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getContactById } from "@/services/contacts";
-import { getContactLabels, getLabels } from "@/services/labels";
+import { getContactLabels } from "@/services/labels";
+import { getCachedActiveLabels } from "@/lib/cached-reads";
 import { getContactActivity } from "@/services/activity-events";
 import {
   listContactEmails,
@@ -52,7 +53,7 @@ export default async function ContactDetailPage({
     dossier,
   ] = await Promise.all([
     getContactLabels(supabase, id),
-    getLabels(supabase, { active: true }),
+    getCachedActiveLabels(),
     getContactActivity(supabase, id, { limit: 100 }),
     listContactEmails(admin, id),
     listContactPhones(admin, id),

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { findOrCreateLabel } from "@/services/labels";
+import { revalidateLabelsCache } from "@/lib/cached-reads";
 
 function slugify(input: string): string {
   return input
@@ -48,6 +49,8 @@ export async function POST(request: Request) {
   if (found.error || !found.data) {
     return NextResponse.json({ error: "Failed to create label" }, { status: 500 });
   }
+
+  revalidateLabelsCache();
 
   return NextResponse.json({
     id: found.data.id,

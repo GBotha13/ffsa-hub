@@ -5,7 +5,7 @@ import { getRegistrationsForEvent } from "@/services/registrations";
 import { getAttendanceForEvent } from "@/services/attendance";
 import { getEventOutcomes } from "@/services/event-outcomes";
 import { getEventRoles } from "@/services/event-roles";
-import { getLabels } from "@/services/labels";
+import { getCachedActiveLabels } from "@/lib/cached-reads";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -83,7 +83,7 @@ export default async function EventDetailPage({
     getAttendanceForEvent(supabase, id),
     getEventOutcomes(supabase, id),
     getEventRoles(supabase, id),
-    getLabels(supabase, { active: true }),
+    getCachedActiveLabels(),
     supabase
       .from("users")
       .select("id, first_name, last_name, email")

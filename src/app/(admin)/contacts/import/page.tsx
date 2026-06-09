@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { requireModuleAccess } from "@/lib/require-permission";
-import { getLabels } from "@/services/labels";
+import { getCachedActiveLabels } from "@/lib/cached-reads";
 import { listCsvImports } from "@/services/csv-imports";
 import {
   Table,
@@ -23,7 +23,7 @@ export default async function ContactsImportPage() {
   if (!user) redirect("/login");
   await requireModuleAccess(supabase, user.id, "contacts");
 
-  const labelsResult = await getLabels(supabase, { active: true });
+  const labelsResult = await getCachedActiveLabels();
   const importsResult = await listCsvImports(supabase, { limit: 10 });
 
   const labels = labelsResult.data ?? [];

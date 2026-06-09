@@ -8,14 +8,23 @@ import { headers } from "next/headers";
 
 export default async function UsersPage() {
   const supabase = await createClient();
-  const { data: users, count, error: usersError } = await getUsers(supabase);
+
+  // Middleware already validated; read session from cookie (no Supabase
+  // round-trip) and run the users-list fetch in parallel with the role check.
+  const [
+    usersResult,
+    {
+      data: { session },
+    },
+  ] = await Promise.all([
+    getUsers(supabase),
+    supabase.auth.getSession(),
+  ]);
+  const { data: users, count, error: usersError } = usersResult;
   if (usersError) {
     console.error("getUsers error:", JSON.stringify(usersError, null, 2));
   }
-
-  const {
-    data: { user: authUser },
-  } = await supabase.auth.getUser();
+  const authUser = session?.user;
 
   // Check if current user is super_admin
   let isSuperAdmin = false;

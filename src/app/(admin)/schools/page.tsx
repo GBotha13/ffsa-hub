@@ -11,16 +11,20 @@ export default async function SchoolsPage({
   searchParams: Promise<{ status?: string }>;
 }) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // Middleware already validated; read session from cookie.
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
   if (!user) redirect("/login");
-  await requireModuleAccess(supabase, user.id, "schools");
 
   const params = await searchParams;
   const statusFilter = params.status || "active";
 
-  const { data: programs, error } = await getPrograms(supabase, {
-    status: statusFilter,
-  });
+  // Permission check + programs fetch are independent — run together.
+  const [, programsResult] = await Promise.all([
+    requireModuleAccess(supabase, user.id, "schools"),
+    getPrograms(supabase, { status: statusFilter }),
+  ]);
+  const { data: programs, error } = programsResult;
 
   if (error) {
     console.error("getPrograms error:", JSON.stringify(error, null, 2));

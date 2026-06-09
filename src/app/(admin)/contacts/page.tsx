@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { requireModuleAccess } from "@/lib/require-permission";
 import { getContacts, type ContactSort } from "@/services/contacts";
-import { getPersonTypes } from "@/services/contacts";
+import { getCachedPersonTypes } from "@/lib/cached-reads";
 
 const VALID_SORTS: ContactSort[] = [
   "newest",
@@ -50,7 +50,7 @@ export default async function ContactsPage({
       limit: pageSize,
       offset: (page - 1) * pageSize,
     }),
-    getPersonTypes(supabase),
+    getCachedPersonTypes(),
     userCanAccessFollowupQueue(supabase, user.id),
   ]);
 

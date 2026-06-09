@@ -8,7 +8,7 @@ import {
   getCampaignLabelIds,
   listSendingIdentities,
 } from "@/services/campaigns";
-import { getLabels } from "@/services/labels";
+import { getCachedActiveLabels } from "@/lib/cached-reads";
 import { emptyCampaignBody, type CampaignBody } from "@/lib/campaigns/blocks";
 import { getEffectiveBrand } from "@/services/brand";
 import { CampaignComposer } from "./campaign-composer";
@@ -31,7 +31,7 @@ export default async function CampaignComposerPage({
 
   const [{ data: labels }, { data: identities }, audienceCount, labelIds, brand] =
     await Promise.all([
-      getLabels(supabase, { active: true }),
+      getCachedActiveLabels(),
       listSendingIdentities(supabase),
       getCampaignAudienceCount(supabase, id),
       getCampaignLabelIds(supabase, id),
