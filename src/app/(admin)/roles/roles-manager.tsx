@@ -3,7 +3,16 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, ArrowLeft, Users, Lock } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  ArrowLeft,
+  Users,
+  Lock,
+  ChevronDown,
+  ChevronRight,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -60,6 +69,7 @@ export function RolesManager({
   const [displayName, setDisplayName] = useState("");
   const [description, setDescription] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [showBuiltIns, setShowBuiltIns] = useState(false);
 
   const callerKeySet = useMemo(() => new Set(callerKeys), [callerKeys]);
 
@@ -248,6 +258,60 @@ export function RolesManager({
   }
 
   // ───────── List view ─────────
+  const jobTitles = roles.filter((r) => !r.is_system);
+  const superAdmin = roles.find((r) => r.name === "super_admin");
+  const otherBuiltIns = roles.filter((r) => r.is_system && r.name !== "super_admin");
+
+  const roleCard = (role: Role) => {
+    const bundle = bundles[role.id] ?? [];
+    const modules = Array.from(
+      new Set(bundle.map((id) => permById.get(id)?.module).filter(Boolean))
+    ) as string[];
+    const count = memberCounts[role.id] ?? 0;
+    return (
+      <div
+        key={role.id}
+        className="flex items-start justify-between gap-4 rounded-lg border bg-card p-4"
+      >
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-medium">{role.display_name}</span>
+            {role.is_system && (
+              <Badge variant="outline" className="text-[10px]">
+                System
+              </Badge>
+            )}
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <Users className="h-3 w-3" />
+              {count}
+            </span>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {modules.length === 0 ? (
+              <span className="text-xs text-muted-foreground">No capabilities yet</span>
+            ) : (
+              modules.map((m) => (
+                <Badge key={m} variant="outline" className="text-[10px]">
+                  {MODULE_LABELS[m] ?? m}
+                </Badge>
+              ))
+            )}
+          </div>
+        </div>
+        {!role.is_system && (
+          <div className="flex shrink-0 items-center gap-1">
+            <Button variant="ghost" size="sm" onClick={() => openEdit(role)}>
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => remove(role)}>
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -264,56 +328,45 @@ export function RolesManager({
       </div>
 
       <div className="space-y-3">
-        {roles.map((role) => {
-          const bundle = bundles[role.id] ?? [];
-          const modules = Array.from(
-            new Set(bundle.map((id) => permById.get(id)?.module).filter(Boolean))
-          ) as string[];
-          const count = memberCounts[role.id] ?? 0;
-          return (
-            <div
-              key={role.id}
-              className="flex items-start justify-between gap-4 rounded-lg border bg-card p-4"
-            >
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{role.display_name}</span>
-                  {role.is_system && (
-                    <Badge variant="outline" className="text-[10px]">
-                      System
-                    </Badge>
-                  )}
-                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                    <Users className="h-3 w-3" />
-                    {count}
-                  </span>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {modules.length === 0 ? (
-                    <span className="text-xs text-muted-foreground">No capabilities yet</span>
-                  ) : (
-                    modules.map((m) => (
-                      <Badge key={m} variant="outline" className="text-[10px]">
-                        {MODULE_LABELS[m] ?? m}
-                      </Badge>
-                    ))
-                  )}
-                </div>
-              </div>
-              {!role.is_system && (
-                <div className="flex shrink-0 items-center gap-1">
-                  <Button variant="ghost" size="sm" onClick={() => openEdit(role)}>
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => remove(role)}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {jobTitles.length === 0 ? (
+          <p className="rounded-lg border border-dashed bg-card/40 p-6 text-center text-sm text-muted-foreground">
+            No job titles yet. Create one with &ldquo;New role&rdquo;.
+          </p>
+        ) : (
+          jobTitles.map(roleCard)
+        )}
       </div>
+
+      {superAdmin && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Master key
+          </p>
+          {roleCard(superAdmin)}
+        </div>
+      )}
+
+      {otherBuiltIns.length > 0 && (
+        <div className="rounded-lg border bg-card/40">
+          <button
+            onClick={() => setShowBuiltIns((o) => !o)}
+            className="flex w-full items-center justify-between px-4 py-3 text-sm text-muted-foreground"
+          >
+            <span className="inline-flex items-center gap-2">
+              <Lock className="h-3.5 w-3.5" />
+              Built-in roles · read-only ({otherBuiltIns.length})
+            </span>
+            {showBuiltIns ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+          </button>
+          {showBuiltIns && (
+            <div className="space-y-3 border-t p-3">{otherBuiltIns.map(roleCard)}</div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
