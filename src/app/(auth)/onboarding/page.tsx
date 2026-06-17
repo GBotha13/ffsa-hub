@@ -87,6 +87,7 @@ export default function OnboardingPage() {
   const [passwordSet, setPasswordSet] = useState(false);
   const [consentAccepted, setConsentAccepted] = useState(false);
   const [agreementVersion, setAgreementVersion] = useState<string | null>(null);
+  const [programName, setProgramName] = useState<string | null>(null);
 
   useEffect(() => {
     // Users arriving from /join/[code] already set a password during signup,
@@ -148,6 +149,23 @@ export default function OnboardingPage() {
         }
       } catch {
         // Non-fatal; the consent step will display an error if no version is available.
+      }
+
+      // If they arrived via an accepted application, an enrollment was created
+      // at accept-time. Surface which program they were accepted into so the
+      // school link is visible while they build their profile.
+      try {
+        const { data: enr } = await (supabase as any)
+          .from("enrollments")
+          .select("programs(name)")
+          .eq("user_id", authUser.id)
+          .order("enrolled_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const prog = Array.isArray(enr?.programs) ? enr.programs[0] : enr?.programs;
+        if (prog?.name) setProgramName(prog.name);
+      } catch {
+        // Non-fatal; onboarding works fine without the program banner.
       }
 
       setLoading(false);
@@ -343,6 +361,28 @@ export default function OnboardingPage() {
       {/* Main content */}
       <div className="flex-1 flex items-start justify-center px-4 py-12">
         <div className="w-full max-w-lg">
+
+          {/* Acceptance context — only shown when an enrollment already exists
+              (i.e. they came in via an accepted application). */}
+          {programName && (
+            <div
+              style={{
+                marginBottom: "1rem",
+                padding: "0.875rem 1.25rem",
+                borderRadius: "12px",
+                background: "var(--yellow-dim)",
+                border: "1px solid var(--yellow-border)",
+              }}
+            >
+              <p style={{ fontSize: "9px", letterSpacing: "0.2em", fontWeight: 700, textTransform: "uppercase", color: "var(--yellow)", marginBottom: "3px" }}>
+                You&rsquo;ve been accepted
+              </p>
+              <p style={{ fontSize: "13px", color: "#F0EBE3", lineHeight: 1.4 }}>
+                Finish setting up your profile to join{" "}
+                <strong style={{ color: "#fff", fontWeight: 600 }}>{programName}</strong>.
+              </p>
+            </div>
+          )}
 
           {/* Step card */}
           <div
