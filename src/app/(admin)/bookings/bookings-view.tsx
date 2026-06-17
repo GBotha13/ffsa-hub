@@ -294,7 +294,11 @@ export function BookingsView({
           month={month}
         />
       ) : (
-        <BookingList bookings={bookings} clashIds={clashIds} />
+        <BookingList
+          bookings={bookings}
+          clashIds={clashIds}
+          canCreate={access.canRequest || access.canApprove || access.canManage}
+        />
       )}
     </div>
   );

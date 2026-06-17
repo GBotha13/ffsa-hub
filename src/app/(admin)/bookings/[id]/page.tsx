@@ -11,7 +11,7 @@ import {
 } from "@/services/bookings";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, AlertTriangle } from "lucide-react";
-import { StatusPill } from "../ui";
+import { BookingStatusProvider, LiveStatusPill } from "./status-context";
 import {
   dateRangeLabel,
   timeRangeLabel,
@@ -103,6 +103,7 @@ export default async function BookingDetailPage({
   const isClosed = booking.status === "cancelled";
 
   return (
+    <BookingStatusProvider initialStatus={booking.status}>
     <div className="max-w-3xl space-y-5">
       <Link
         href="/bookings"
@@ -128,7 +129,7 @@ export default async function BookingDetailPage({
             <h1 className="page-title">{booking.title}</h1>
           </div>
         </div>
-        <StatusPill status={booking.status} className="text-[11px] px-2.5 py-1" />
+        <LiveStatusPill className="text-[11px] px-2.5 py-1" />
       </div>
 
       {clashes.length > 0 && !isClosed && (
@@ -220,11 +221,11 @@ export default async function BookingDetailPage({
 
       <BookingActions
         bookingId={booking.id}
-        status={booking.status}
         hasSeries={!!booking.series_id}
         canApprove={access.canApprove}
         canCancel={canCancel}
       />
     </div>
+    </BookingStatusProvider>
   );
 }

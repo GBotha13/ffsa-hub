@@ -10,7 +10,13 @@ import {
 } from "@/services/bookings";
 import { BookingForm } from "../booking-form";
 
-export default async function NewBookingPage() {
+export default async function NewBookingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ date?: string }>;
+}) {
+  const { date } = await searchParams;
+  const defaultDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "";
   const supabase = await createClient();
   const {
     data: { session },
@@ -50,6 +56,7 @@ export default async function NewBookingPage() {
         venues={venues}
         ministries={ministries}
         defaultRequesterName={defaultRequesterName}
+        defaultDate={defaultDate}
       />
     </div>
   );

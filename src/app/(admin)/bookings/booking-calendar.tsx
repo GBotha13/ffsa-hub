@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { cn } from "@/lib/utils/cn";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Plus } from "lucide-react";
 import {
   monthGridDays,
   monthParam,
@@ -74,7 +74,7 @@ export function BookingCalendar({
               key={d}
               style={isToday ? { background: "hsl(42 95% 55% / 0.06)" } : undefined}
               className={cn(
-                "min-h-[7rem] border-b border-r border-[hsl(22_8%_12%)] p-1.5 transition-colors",
+                "group min-h-[7rem] border-b border-r border-[hsl(22_8%_12%)] p-1.5 transition-colors",
                 "[&:nth-child(7n)]:border-r-0",
                 i >= 35 && "border-b-0",
                 !inMonth
@@ -96,11 +96,20 @@ export function BookingCalendar({
                 >
                   {isoDay(d)}
                 </span>
-                {dayBookings.length > 0 && (
-                  <span className="text-[9px] font-semibold tabular-nums text-[hsl(30_6%_38%)]">
-                    {dayBookings.length}
-                  </span>
-                )}
+                <span className="relative flex h-4 w-5 items-center justify-center">
+                  {dayBookings.length > 0 && (
+                    <span className="text-[9px] font-semibold tabular-nums text-[hsl(30_6%_38%)] transition-opacity group-hover:opacity-0">
+                      {dayBookings.length}
+                    </span>
+                  )}
+                  <Link
+                    href={`/bookings/new?date=${d}`}
+                    aria-label="New booking on this day"
+                    className="absolute inset-0 flex items-center justify-center rounded opacity-0 transition-all text-[hsl(30_6%_42%)] hover:text-[hsl(42_95%_62%)] group-hover:opacity-100"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </Link>
+                </span>
               </div>
 
               <div className="space-y-0.5">

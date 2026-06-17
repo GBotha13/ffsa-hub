@@ -26,10 +26,12 @@ export function BookingForm({
   venues,
   ministries,
   defaultRequesterName,
+  defaultDate = "",
 }: {
   venues: Venue[];
   ministries: Ministry[];
   defaultRequesterName: string;
+  defaultDate?: string;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -44,7 +46,7 @@ export function BookingForm({
     point_person: "",
     requester_name: defaultRequesterName,
     recurrence: "none" as "none" | "weekly",
-    booking_date: "",
+    booking_date: defaultDate,
     end_date: "",
     weekday: "",
     series_start: "",

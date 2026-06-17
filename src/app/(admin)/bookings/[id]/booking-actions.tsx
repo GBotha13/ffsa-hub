@@ -7,21 +7,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Check, X, Ban } from "lucide-react";
+import { useBookingStatus } from "./status-context";
 
 export function BookingActions({
   bookingId,
-  status,
   hasSeries,
   canApprove,
   canCancel,
 }: {
   bookingId: string;
-  status: string;
   hasSeries: boolean;
   canApprove: boolean;
   canCancel: boolean;
 }) {
   const router = useRouter();
+  const { status, setStatus } = useBookingStatus();
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [applyToSeries, setApplyToSeries] = useState(false);
@@ -35,44 +35,60 @@ export function BookingActions({
   if (!showDecide && !showCancel) return null;
 
   async function decide(decision: "approved" | "denied") {
+    const prev = status;
     setBusy(decision);
-    const res = await fetch(`/api/bookings/${bookingId}/decision`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        decision,
-        note: note.trim() || null,
-        applyToSeries: hasSeries && applyToSeries,
-      }),
-    });
-    const json = await res.json().catch(() => ({}));
-    setBusy(null);
-    if (!res.ok) {
-      toast.error(json.error ?? "Could not update the booking.");
-      return;
+    setStatus(decision); // optimistic — pill flips + buttons collapse instantly
+    try {
+      const res = await fetch(`/api/bookings/${bookingId}/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          decision,
+          note: note.trim() || null,
+          applyToSeries: hasSeries && applyToSeries,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setStatus(prev);
+        setBusy(null);
+        toast.error(json.error ?? "Could not update the booking.");
+        return;
+      }
+      toast.success(decision === "approved" ? "Booking approved." : "Booking denied.");
+      router.refresh();
+    } catch {
+      setStatus(prev);
+      setBusy(null);
+      toast.error("Network error — please try again.");
     }
-    toast.success(
-      decision === "approved" ? "Booking approved." : "Booking denied."
-    );
-    router.refresh();
   }
 
   async function cancel(seriesWide: boolean) {
     if (seriesWide && !window.confirm("Cancel every date in this weekly series?")) return;
+    const prev = status;
     setBusy(seriesWide ? "cancel-series" : "cancel");
-    const res = await fetch(`/api/bookings/${bookingId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cancel: true, applyToSeries: seriesWide }),
-    });
-    const json = await res.json().catch(() => ({}));
-    setBusy(null);
-    if (!res.ok) {
-      toast.error(json.error ?? "Could not cancel the booking.");
-      return;
+    setStatus("cancelled"); // optimistic
+    try {
+      const res = await fetch(`/api/bookings/${bookingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cancel: true, applyToSeries: seriesWide }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setStatus(prev);
+        setBusy(null);
+        toast.error(json.error ?? "Could not cancel the booking.");
+        return;
+      }
+      toast.success(seriesWide ? "Series cancelled." : "Booking cancelled.");
+      router.refresh();
+    } catch {
+      setStatus(prev);
+      setBusy(null);
+      toast.error("Network error — please try again.");
     }
-    toast.success(seriesWide ? "Series cancelled." : "Booking cancelled.");
-    router.refresh();
   }
 
   return (

@@ -9,7 +9,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { AlertTriangle, CalendarRange } from "lucide-react";
+import { AlertTriangle, CalendarRange, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { statusColor } from "@/lib/bookings/status";
 import { dateRangeLabel, timeRangeLabel, timeLabel } from "@/lib/bookings/dates";
 import { StatusPill, ColorDot } from "./ui";
@@ -18,9 +19,11 @@ import type { BookingWithRefs } from "@/services/bookings";
 export function BookingList({
   bookings,
   clashIds,
+  canCreate,
 }: {
   bookings: BookingWithRefs[];
   clashIds: Set<string>;
+  canCreate: boolean;
 }) {
   if (bookings.length === 0) {
     return (
@@ -35,6 +38,14 @@ export function BookingList({
               Nothing matches this month and filter. Try another month or clear the filters.
             </p>
           </div>
+          {canCreate && (
+            <Link href="/bookings/new">
+              <Button size="sm" className="mt-1 gap-1">
+                <Plus className="h-4 w-4" />
+                New booking
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
     );
