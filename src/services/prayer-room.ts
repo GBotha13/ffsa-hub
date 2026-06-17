@@ -1,250 +1,50 @@
+// Prayer Room — schedule / sets / roster data access.
+//
+// Convention (see plan): READ functions that must show other people's names
+// are called by routes with the ADMIN client (after authenticating the caller),
+// selecting name-only fields — never contact info. WRITE functions are called
+// with the USER client so RLS enforces ownership / staff rules.
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Client = any;
 
+const NAME_FIELDS = "id, first_name, last_name, preferred_name";
+
+const SET_SELECT = `
+  *,
+  owner:owner_id(${NAME_FIELDS}),
+  slots:prayer_room_set_slots(
+    id, role, status, position, required_label_id, filled_user_id, invitee_id,
+    invited_at, responded_at,
+    filled:filled_user_id(${NAME_FIELDS}),
+    invitee:invitee_id(${NAME_FIELDS}),
+    required_label:required_label_id(id, name, category)
+  )
+`;
+
+/** Sunday (week start) for a given YYYY-MM-DD date, matching the DB convention. */
+export function weekStartOf(dateStr: string): string {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() - d.getDay()); // getDay(): 0 = Sunday
+  return d.toISOString().split("T")[0];
+}
+
 // ────────────────────────────────────────────────────────────
-// SERIES (sign-up requests / commitments)
+// SETS
 // ────────────────────────────────────────────────────────────
 
-export async function getSeries(
+export async function getSets(
   supabase: Client,
-  options?: { status?: string; userId?: string; commitmentType?: string }
+  options?: { dateFrom?: string; dateTo?: string; status?: string }
 ) {
   let query = supabase
-    .from("prayer_room_series")
-    .select("*, users:created_by(id, first_name, last_name, preferred_name)")
-    .order("created_at", { ascending: false });
-
-  if (options?.status) query = query.eq("status", options.status);
-  if (options?.userId) query = query.eq("created_by", options.userId);
-  if (options?.commitmentType) query = query.eq("commitment_type", options.commitmentType);
-
-  return query;
-}
-
-export async function getSeriesById(supabase: Client, id: string) {
-  return supabase
-    .from("prayer_room_series")
-    .select("*, users:created_by(id, first_name, last_name, preferred_name)")
-    .eq("id", id)
-    .single();
-}
-
-export async function createSeries(
-  supabase: Client,
-  data: {
-    created_by: string;
-    commitment_type: string;
-    title?: string;
-    day_of_week?: number;
-    start_time: string;
-    end_time: string;
-    start_date: string;
-    end_date?: string;
-  }
-) {
-  return supabase
-    .from("prayer_room_series")
-    .insert({ ...data, status: "pending" })
-    .select()
-    .single();
-}
-
-export async function updateSeries(
-  supabase: Client,
-  id: string,
-  data: Record<string, unknown>
-) {
-  return supabase
-    .from("prayer_room_series")
-    .update(data)
-    .eq("id", id)
-    .select()
-    .single();
-}
-
-export async function approveSeries(
-  supabase: Client,
-  id: string,
-  reviewedBy: string
-) {
-  // Update series status
-  const { data, error } = await supabase
-    .from("prayer_room_series")
-    .update({
-      status: "approved",
-      reviewed_by: reviewedBy,
-      reviewed_at: new Date().toISOString(),
-    })
-    .eq("id", id)
-    .select()
-    .single();
-
-  if (error) return { data, error };
-
-  // Generate slots
-  await generateSlotsForSeries(supabase, data);
-
-  return { data, error: null };
-}
-
-export async function rejectSeries(
-  supabase: Client,
-  id: string,
-  reviewedBy: string,
-  reason?: string
-) {
-  return supabase
-    .from("prayer_room_series")
-    .update({
-      status: "rejected",
-      reviewed_by: reviewedBy,
-      reviewed_at: new Date().toISOString(),
-      rejection_reason: reason ?? null,
-    })
-    .eq("id", id)
-    .select()
-    .single();
-}
-
-export async function cancelSeries(supabase: Client, id: string) {
-  // Cancel the series
-  await supabase
-    .from("prayer_room_series")
-    .update({ status: "cancelled" })
-    .eq("id", id);
-
-  // Cancel all future slots for this series
-  const today = new Date().toISOString().split("T")[0];
-  await supabase
-    .from("prayer_room_slots")
-    .update({ status: "cancelled" })
-    .eq("series_id", id)
-    .eq("status", "scheduled")
-    .gte("slot_date", today);
-
-  return { error: null };
-}
-
-// ────────────────────────────────────────────────────────────
-// SLOT GENERATION
-// ────────────────────────────────────────────────────────────
-
-async function generateSlotsForSeries(
-  supabase: Client,
-  series: {
-    id: string;
-    created_by: string;
-    commitment_type: string;
-    title?: string;
-    day_of_week?: number;
-    start_time: string;
-    end_time: string;
-    start_date: string;
-    end_date?: string;
-  }
-) {
-  const slots: {
-    series_id: string;
-    slot_date: string;
-    start_time: string;
-    end_time: string;
-    title: string | null;
-  }[] = [];
-
-  if (series.commitment_type === "one_off") {
-    slots.push({
-      series_id: series.id,
-      slot_date: series.start_date,
-      start_time: series.start_time,
-      end_time: series.end_time,
-      title: series.title ?? null,
-    });
-  } else {
-    // Weekly or quarterly — generate slots for each matching day
-    const startDate = new Date(series.start_date + "T00:00:00");
-    let endDate: Date;
-
-    if (series.end_date) {
-      endDate = new Date(series.end_date + "T00:00:00");
-    } else {
-      // Ongoing weekly — generate 1 year ahead
-      endDate = new Date(startDate);
-      endDate.setFullYear(endDate.getFullYear() + 1);
-    }
-
-    const targetDow = series.day_of_week ?? 0;
-    const current = new Date(startDate);
-
-    // Advance to the first matching day of week
-    while (current.getDay() !== targetDow) {
-      current.setDate(current.getDate() + 1);
-    }
-
-    while (current <= endDate) {
-      slots.push({
-        series_id: series.id,
-        slot_date: current.toISOString().split("T")[0],
-        start_time: series.start_time,
-        end_time: series.end_time,
-        title: series.title ?? null,
-      });
-      current.setDate(current.getDate() + 7);
-    }
-  }
-
-  if (slots.length > 0) {
-    const { data: insertedSlots, error: insertError } = await supabase
-      .from("prayer_room_slots")
-      .insert(slots)
-      .select("id");
-
-    if (insertError) {
-      console.error("[generateSlots] insert error:", insertError);
-      return 0;
-    }
-
-    // Auto-add the series creator as a member of each generated slot
-    if (insertedSlots && insertedSlots.length > 0) {
-      const memberRows = insertedSlots.map((s: { id: string }) => ({
-        slot_id: s.id,
-        user_id: series.created_by,
-        role: "worship_leader",
-        assigned_by: series.created_by,
-      }));
-      await supabase.from("prayer_room_slot_members").insert(memberRows);
-    }
-  }
-
-  return slots.length;
-}
-
-// ────────────────────────────────────────────────────────────
-// SLOTS (schedule entries)
-// ────────────────────────────────────────────────────────────
-
-export async function getSlots(
-  supabase: Client,
-  options?: {
-    dateFrom?: string;
-    dateTo?: string;
-    status?: string;
-  }
-) {
-  let query = supabase
-    .from("prayer_room_slots")
-    .select(`
-      *,
-      series:series_id(id, commitment_type, created_by),
-      members:prayer_room_slot_members(
-        id, user_id, role, instrument,
-        users!prayer_room_slot_members_user_id_fkey(id, first_name, last_name, preferred_name)
-      )
-    `)
-    .order("slot_date")
+    .from("prayer_room_sets")
+    .select(SET_SELECT)
+    .order("set_date")
     .order("start_time");
 
-  if (options?.dateFrom) query = query.gte("slot_date", options.dateFrom);
-  if (options?.dateTo) query = query.lte("slot_date", options.dateTo);
+  if (options?.dateFrom) query = query.gte("set_date", options.dateFrom);
+  if (options?.dateTo) query = query.lte("set_date", options.dateTo);
   if (options?.status) {
     query = query.eq("status", options.status);
   } else {
@@ -254,141 +54,297 @@ export async function getSlots(
   return query;
 }
 
-export async function getSlotById(supabase: Client, id: string) {
-  return supabase
-    .from("prayer_room_slots")
-    .select(`
-      *,
-      series:series_id(id, commitment_type, created_by),
-      members:prayer_room_slot_members(
-        id, user_id, role, instrument,
-        users!prayer_room_slot_members_user_id_fkey(id, first_name, last_name, preferred_name)
-      )
-    `)
-    .eq("id", id)
-    .single();
+export async function getSetById(supabase: Client, id: string) {
+  return supabase.from("prayer_room_sets").select(SET_SELECT).eq("id", id).single();
 }
 
-export async function updateSlot(
+export async function createSet(
   supabase: Client,
-  id: string,
-  data: Record<string, unknown>
-) {
-  return supabase
-    .from("prayer_room_slots")
-    .update(data)
-    .eq("id", id)
-    .select()
-    .single();
-}
-
-export async function completeSlot(
-  supabase: Client,
-  id: string,
-  notes?: string
-) {
-  return supabase
-    .from("prayer_room_slots")
-    .update({
-      status: "completed",
-      completed_at: new Date().toISOString(),
-      notes: notes ?? null,
-    })
-    .eq("id", id)
-    .select()
-    .single();
-}
-
-export async function getMySlots(
-  supabase: Client,
-  userId: string,
-  options?: { upcoming?: boolean }
-) {
-  const today = new Date().toISOString().split("T")[0];
-
-  let query = supabase
-    .from("prayer_room_slot_members")
-    .select(`
-      *,
-      slot:prayer_room_slots(
-        id, slot_date, start_time, end_time, title, status, notes, completed_at,
-        series:series_id(commitment_type)
-      )
-    `)
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false });
-
-  if (options?.upcoming) {
-    // Need to filter by slot date — use inner join filter
-    query = supabase
-      .from("prayer_room_slot_members")
-      .select(`
-        *,
-        slot:prayer_room_slots!inner(
-          id, slot_date, start_time, end_time, title, status, notes, completed_at,
-          series:series_id(commitment_type)
-        )
-      `)
-      .eq("user_id", userId)
-      .gte("prayer_room_slots.slot_date", today)
-      .eq("prayer_room_slots.status", "scheduled")
-      .order("created_at", { ascending: true });
+  data: {
+    owner_id: string;
+    created_by: string;
+    set_date: string;
+    start_time: string;
+    end_time: string;
+    title?: string | null;
+    theme?: string | null;
+    scripture?: string | null;
+    prayer_focus?: string | null;
+    setlist?: string | null;
   }
+) {
+  return supabase
+    .from("prayer_room_sets")
+    .insert({ ...data, week_start: weekStartOf(data.set_date) })
+    .select()
+    .single();
+}
 
+export async function updateSet(supabase: Client, id: string, data: Record<string, unknown>) {
+  return supabase.from("prayer_room_sets").update(data).eq("id", id).select().single();
+}
+
+export async function completeSet(supabase: Client, id: string) {
+  return supabase
+    .from("prayer_room_sets")
+    .update({ status: "completed", completed_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
+}
+
+export async function cancelSet(supabase: Client, id: string) {
+  return supabase
+    .from("prayer_room_sets")
+    .update({ status: "cancelled" })
+    .eq("id", id)
+    .select()
+    .single();
+}
+
+export async function deleteSet(supabase: Client, id: string) {
+  return supabase.from("prayer_room_sets").delete().eq("id", id);
+}
+
+// ────────────────────────────────────────────────────────────
+// "MY" VIEWS
+// ────────────────────────────────────────────────────────────
+
+/** Sets the user owns (most recent first). */
+export async function getOwnedSets(supabase: Client, userId: string, options?: { upcoming?: boolean }) {
+  let query = supabase
+    .from("prayer_room_sets")
+    .select(SET_SELECT)
+    .eq("owner_id", userId)
+    .neq("status", "cancelled")
+    .order("set_date", { ascending: false });
+  if (options?.upcoming) {
+    query = supabase
+      .from("prayer_room_sets")
+      .select(SET_SELECT)
+      .eq("owner_id", userId)
+      .eq("status", "scheduled")
+      .gte("set_date", today())
+      .order("set_date", { ascending: true });
+  }
   return query;
 }
 
+/** Slots the user is rostered into (filled), with the parent set. */
+export async function getMyRoster(supabase: Client, userId: string) {
+  return supabase
+    .from("prayer_room_set_slots")
+    .select(
+      `id, role, status, set:set_id(id, set_date, start_time, end_time, title, theme, status,
+        owner:owner_id(${NAME_FIELDS}))`
+    )
+    .eq("filled_user_id", userId)
+    .order("created_at", { ascending: false });
+}
+
+/** Open invitations awaiting the user's response. */
+export async function getMyInvites(supabase: Client, userId: string) {
+  return supabase
+    .from("prayer_room_set_slots")
+    .select(
+      `id, role, status, required_label:required_label_id(id, name),
+        set:set_id(id, set_date, start_time, end_time, title, theme,
+          owner:owner_id(${NAME_FIELDS}))`
+    )
+    .eq("invitee_id", userId)
+    .eq("status", "invited")
+    .order("invited_at", { ascending: true });
+}
+
 // ────────────────────────────────────────────────────────────
-// SLOT MEMBERS (team roster)
+// ROSTER SLOTS + THE INVITE / CLAIM LOOP
 // ────────────────────────────────────────────────────────────
 
-export async function addSlotMember(
-  supabase: Client,
-  data: {
-    slot_id: string;
-    user_id: string;
-    role: string;
-    instrument?: string;
-    assigned_by: string;
-  }
-) {
+export async function getSetSlots(supabase: Client, setId: string) {
   return supabase
-    .from("prayer_room_slot_members")
-    .insert(data)
-    .select("*, users(id, first_name, last_name, preferred_name)")
+    .from("prayer_room_set_slots")
+    .select(
+      `id, role, status, position, required_label_id, filled_user_id, invitee_id,
+        filled:filled_user_id(${NAME_FIELDS}),
+        invitee:invitee_id(${NAME_FIELDS}),
+        required_label:required_label_id(id, name, category)`
+    )
+    .eq("set_id", setId)
+    .order("role")
+    .order("position");
+}
+
+export async function addSlot(
+  supabase: Client,
+  data: { set_id: string; role: string; required_label_id?: string | null; position?: number }
+) {
+  return supabase.from("prayer_room_set_slots").insert(data).select().single();
+}
+
+export async function addSlots(
+  supabase: Client,
+  rows: Array<{ set_id: string; role: string; required_label_id?: string | null; position?: number }>
+) {
+  return supabase.from("prayer_room_set_slots").insert(rows);
+}
+
+export async function removeSlot(supabase: Client, slotId: string) {
+  return supabase.from("prayer_room_set_slots").delete().eq("id", slotId);
+}
+
+/** Role + parent set + owner (with email) — for post-accept owner notification. */
+export async function getSlotForNotify(supabase: Client, slotId: string) {
+  return supabase
+    .from("prayer_room_set_slots")
+    .select(
+      `role, set:set_id(set_date, start_time, end_time, title,
+        owner:owner_id(id, first_name, last_name, preferred_name, email))`
+    )
+    .eq("id", slotId)
     .single();
 }
 
-export async function removeSlotMember(
+export async function inviteToSlot(
   supabase: Client,
   slotId: string,
-  userId: string
+  data: { invitee_id: string; invited_by: string }
 ) {
   return supabase
-    .from("prayer_room_slot_members")
-    .delete()
-    .eq("slot_id", slotId)
-    .eq("user_id", userId);
+    .from("prayer_room_set_slots")
+    .update({
+      status: "invited",
+      invitee_id: data.invitee_id,
+      invited_by: data.invited_by,
+      invited_at: new Date().toISOString(),
+      filled_user_id: null,
+      responded_at: null,
+    })
+    .eq("id", slotId)
+    .select(`*, set:set_id(id, set_date, start_time, end_time, title, theme)`)
+    .single();
 }
 
-export async function getSlotMembers(supabase: Client, slotId: string) {
+/** Invitee accepts. Fills the slot; the DB EXCLUDE constraint blocks overlaps. */
+export async function acceptInvite(supabase: Client, slotId: string, userId: string) {
+  const res = await supabase
+    .from("prayer_room_set_slots")
+    .update({
+      status: "filled",
+      filled_user_id: userId,
+      responded_at: new Date().toISOString(),
+    })
+    .eq("id", slotId)
+    .eq("invitee_id", userId)
+    .select()
+    .single();
+
+  if (res.error?.code === "23P01") {
+    return {
+      data: null,
+      error: { message: "You're already serving in another set that overlaps this time." },
+    };
+  }
+  return res;
+}
+
+/** Invitee declines — reopens the slot cleanly. */
+export async function declineInvite(supabase: Client, slotId: string, userId: string) {
   return supabase
-    .from("prayer_room_slot_members")
-    .select("*, users(id, first_name, last_name, preferred_name)")
-    .eq("slot_id", slotId)
-    .order("role")
-    .order("created_at");
+    .from("prayer_room_set_slots")
+    .update({
+      status: "open",
+      invitee_id: null,
+      filled_user_id: null,
+      responded_at: new Date().toISOString(),
+    })
+    .eq("id", slotId)
+    .eq("invitee_id", userId)
+    .select()
+    .single();
+}
+
+/** Owner/staff removes a filled person — reopens the slot. */
+export async function vacateSlot(supabase: Client, slotId: string) {
+  return supabase
+    .from("prayer_room_set_slots")
+    .update({ status: "open", filled_user_id: null, invitee_id: null, invited_by: null })
+    .eq("id", slotId)
+    .select()
+    .single();
+}
+
+// ────────────────────────────────────────────────────────────
+// WEEK INSTANTIATION + COVERAGE
+// ────────────────────────────────────────────────────────────
+
+/** Idempotently create this week's sets from the active template (staff only). */
+export async function ensureWeek(supabase: Client, weekStart: string) {
+  return supabase.rpc("ensure_prayer_room_week", { p_week_start: weekStart });
+}
+
+/** Open (unfilled) slots across a week — coverage feed (UI lands in v2). */
+export async function getOpenSlots(supabase: Client, weekStart: string) {
+  return supabase
+    .from("prayer_room_open_slots")
+    .select("*")
+    .eq("week_start", weekStart)
+    .order("set_date")
+    .order("start_time");
+}
+
+// ────────────────────────────────────────────────────────────
+// TEMPLATE + SETTINGS (Manage tab)
+// ────────────────────────────────────────────────────────────
+
+export async function getSettings(supabase: Client) {
+  return supabase.from("prayer_room_settings").select("*").eq("id", true).single();
+}
+
+export async function updateSettings(supabase: Client, data: Record<string, unknown>) {
+  return supabase.from("prayer_room_settings").update(data).eq("id", true).select().single();
+}
+
+export async function getTemplateBlocks(supabase: Client) {
+  return supabase
+    .from("prayer_room_template_blocks")
+    .select("*")
+    .order("day_of_week")
+    .order("start_time");
+}
+
+export async function createTemplateBlock(
+  supabase: Client,
+  data: {
+    day_of_week: number;
+    start_time: string;
+    end_time: string;
+    title?: string | null;
+    role_needs?: Record<string, number>;
+  }
+) {
+  return supabase.from("prayer_room_template_blocks").insert(data).select().single();
+}
+
+export async function updateTemplateBlock(supabase: Client, id: string, data: Record<string, unknown>) {
+  return supabase.from("prayer_room_template_blocks").update(data).eq("id", id).select().single();
+}
+
+export async function deleteTemplateBlock(supabase: Client, id: string) {
+  return supabase.from("prayer_room_template_blocks").delete().eq("id", id);
 }
 
 // ────────────────────────────────────────────────────────────
 // STATS
 // ────────────────────────────────────────────────────────────
 
-export async function getPendingCount(supabase: Client) {
+export async function getPendingApplicationCount(supabase: Client) {
   const { count } = await supabase
-    .from("prayer_room_series")
+    .from("prayer_room_applications")
     .select("id", { count: "exact", head: true })
-    .eq("status", "pending");
-
+    .in("status", ["applied", "assigned", "evaluated"]);
   return count ?? 0;
+}
+
+function today(): string {
+  return new Date().toISOString().split("T")[0];
 }

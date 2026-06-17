@@ -1,7 +1,7 @@
 // Unified "everything attached to this user" fetcher.
 // Combines historical CSV records (library_*) with in-app rows
 // (application_responses, enrollments, student_payments, orders/tickets,
-// reference_requests, consent_records, prayer_room_slot_members) into a
+// reference_requests, consent_records, prayer_room_set_slots) into a
 // single tagged feed that the profile UI groups and renders.
 
 import { getUserHistory } from "./records-library";
@@ -53,6 +53,29 @@ const EMPTY: ProfileAttachments = {
   consents: [],
   prayerRoom: [],
 };
+
+// day_of_week is 0=Sunday..6=Saturday (matches prayer_room template blocks).
+const DAY_PLURAL = [
+  "Sundays",
+  "Mondays",
+  "Tuesdays",
+  "Wednesdays",
+  "Thursdays",
+  "Fridays",
+  "Saturdays",
+] as const;
+
+/** "07:00:00" → "07:00"; renders a start–end range, or whichever side exists. */
+function formatTimeRange(
+  start: string | null,
+  end: string | null
+): string | null {
+  const hhmm = (s: string | null) => (s ? s.slice(0, 5) : null);
+  const a = hhmm(start);
+  const b = hhmm(end);
+  if (a && b) return `${a}–${b}`;
+  return a ?? b ?? null;
+}
 
 export async function getProfileAttachments(
   supabase: Client,
@@ -124,12 +147,15 @@ export async function getProfileAttachments(
       )
       .eq("application_responses.user_id", userId)
       .order("created_at", { ascending: false }),
+    // Prayer room: the sessions this user is rostered into (filled roster
+    // slots), each joined to its parent set and that set's weekly template
+    // block — so a recurring serve can collapse into one summary row.
     supabase
-      .from("prayer_room_slot_members")
+      .from("prayer_room_set_slots")
       .select(
-        "id, role, instrument, created_at, prayer_room_slots:slot_id(slot_date, start_time)"
+        "id, role, set:set_id(set_date, start_time, end_time, title, template_block_id, block:template_block_id(day_of_week, start_time, end_time, title))"
       )
-      .eq("user_id", userId)
+      .eq("filled_user_id", userId)
       .order("created_at", { ascending: false }),
   ]);
 
@@ -271,15 +297,63 @@ export async function getProfileAttachments(
   }
 
   // ── Prayer room (app only) ────────────────────────────────
-  for (const r of (prayerRes.data ?? []) as AppPrayerRoomMember[]) {
-    const slot = r.prayer_room_slots;
+  // Each filled roster slot is one session. A weekly serve produces many
+  // near-identical sessions, so collapse them into ONE row per recurring
+  // commitment — grouped by the set's weekly template block + role. Ad-hoc
+  // sets (no template block) stay as individual one-off rows.
+  type PrayerGroup = {
+    role: string;
+    dayOfWeek: number | null;
+    startTime: string | null;
+    endTime: string | null;
+    label: string | null;
+    dates: string[];
+  };
+  const prayerGroups = new Map<string, PrayerGroup>();
+  for (const r of (prayerRes.data ?? []) as AppPrayerRosterSlot[]) {
+    const set = r.set;
+    if (!set) continue;
+    const block = set.template_block_id ? set.block : null;
+    // Recurring sessions from the same template block + role fold together;
+    // ad-hoc sets each get a unique key so they never merge.
+    const key = `${r.role}|${set.template_block_id ?? `adhoc:${r.id}`}`;
+    const existing = prayerGroups.get(key);
+    if (existing) {
+      if (set.set_date) existing.dates.push(set.set_date);
+    } else {
+      prayerGroups.set(key, {
+        role: r.role,
+        dayOfWeek: block?.day_of_week ?? null,
+        startTime: block?.start_time ?? set.start_time,
+        endTime: block?.end_time ?? set.end_time,
+        label: block?.title ?? set.title,
+        dates: set.set_date ? [set.set_date] : [],
+      });
+    }
+  }
+  const todayStr = new Date().toISOString().split("T")[0];
+  for (const [key, g] of prayerGroups) {
+    const sorted = [...g.dates].sort();
+    const next = sorted.find((d) => d >= todayStr);
+    const recurrence =
+      g.dayOfWeek != null ? `Weekly · ${DAY_PLURAL[g.dayOfWeek]}` : null;
+    const times = formatTimeRange(g.startTime, g.endTime);
+    const subtitle =
+      [
+        g.label,
+        recurrence,
+        times,
+        g.dates.length > 1 ? `${g.dates.length} sessions` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ") || null;
     out.prayerRoom.push({
       source: "app",
-      id: `app:${r.id}`,
-      title: r.role.replace(/_/g, " "),
-      subtitle: [r.instrument, slot?.start_time].filter(Boolean).join(" · ") || null,
-      date: slot?.slot_date ?? r.created_at,
-      dateLabel: "Slot",
+      id: `app:prayer:${key}`,
+      title: g.role.replace(/_/g, " "),
+      subtitle,
+      date: next ?? sorted[sorted.length - 1] ?? null,
+      dateLabel: next ? "Next" : "Last",
     });
   }
 
@@ -431,13 +505,20 @@ type AppConsent = {
   source: string;
   accepted_at: string;
 };
-type AppPrayerRoomMember = {
+type AppPrayerRosterSlot = {
   id: string;
   role: string;
-  instrument: string | null;
-  created_at: string;
-  prayer_room_slots: {
-    slot_date: string | null;
+  set: {
+    set_date: string | null;
     start_time: string | null;
+    end_time: string | null;
+    title: string | null;
+    template_block_id: string | null;
+    block: {
+      day_of_week: number | null;
+      start_time: string | null;
+      end_time: string | null;
+      title: string | null;
+    } | null;
   } | null;
 };

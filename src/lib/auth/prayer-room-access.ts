@@ -1,0 +1,54 @@
+// Prayer Room authorization helpers for route handlers.
+//
+// RLS enforces these rules for WRITES via the user client. These helpers
+// re-check authorization in routes that read via the ADMIN client (which
+// bypasses RLS) or that perform privileged multi-step writes.
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Client = any;
+
+const STAFF_ROLES = ["super_admin", "admin", "prayer_room_admin"];
+
+/** Coordinator/staff: a managing role OR the prayer_room.manage permission. */
+export async function isPrayerRoomStaff(supabase: Client, userId: string): Promise<boolean> {
+  const { data: roles } = await supabase
+    .from("user_roles")
+    .select("roles!inner(name)")
+    .eq("user_id", userId)
+    .in("roles.name", STAFF_ROLES)
+    .limit(1);
+  if (roles && roles.length > 0) return true;
+
+  const { data: perms } = await supabase
+    .from("user_permissions")
+    .select("permissions!inner(key)")
+    .eq("user_id", userId)
+    .eq("permissions.key", "prayer_room.manage")
+    .limit(1);
+  return !!(perms && perms.length > 0);
+}
+
+/** Active, approved prayer-room team member. */
+export async function isApprovedMember(supabase: Client, userId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from("prayer_room_members")
+    .select("user_id")
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .limit(1);
+  return !!(data && data.length > 0);
+}
+
+/** True if the user is the assigned evaluator on the given application. */
+export async function isAssignedEvaluator(
+  supabase: Client,
+  userId: string,
+  applicationId: string
+): Promise<boolean> {
+  const { data } = await supabase
+    .from("prayer_room_applications")
+    .select("evaluator_id")
+    .eq("id", applicationId)
+    .maybeSingle();
+  return !!data && data.evaluator_id === userId;
+}

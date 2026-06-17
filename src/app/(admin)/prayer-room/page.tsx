@@ -1,4 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
+import { isPrayerRoomStaff } from "@/lib/auth/prayer-room-access";
+import { getPendingApplicationCount } from "@/services/prayer-room";
+import { getMemberFlags } from "@/services/prayer-room-members";
 import PrayerRoomClient from "./prayer-room-client";
 
 export default async function PrayerRoomPage() {
@@ -6,24 +9,28 @@ export default async function PrayerRoomPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
   if (!user) return null;
 
-  // Check if user has prayer_room_admin role
-  const { data: roleRows } = await supabase
-    .from("user_roles")
-    .select("roles(name)")
-    .eq("user_id", user.id);
+  const [isStaff, memberRes] = await Promise.all([
+    isPrayerRoomStaff(supabase, user.id),
+    getMemberFlags(supabase, user.id),
+  ]);
 
-  const userRoles: string[] = (roleRows ?? []).flatMap((r: Record<string, unknown>) => {
-    const role = r.roles as { name: string } | null;
-    return role ? [role.name] : [];
-  });
+  const member = memberRes.data as
+    | { status: string; is_evaluator: boolean; is_coordinator: boolean }
+    | null;
+  const isMember = member?.status === "active";
+  const isEvaluator = !!member?.is_evaluator;
 
-  const isAdmin =
-    userRoles.includes("super_admin") ||
-    userRoles.includes("admin") ||
-    userRoles.includes("prayer_room_admin");
+  const pendingCount = isStaff ? await getPendingApplicationCount(supabase) : 0;
 
-  return <PrayerRoomClient userId={user.id} isAdmin={isAdmin} />;
+  return (
+    <PrayerRoomClient
+      userId={user.id}
+      isStaff={isStaff}
+      isMember={isMember}
+      isEvaluator={isEvaluator}
+      pendingCount={pendingCount}
+    />
+  );
 }

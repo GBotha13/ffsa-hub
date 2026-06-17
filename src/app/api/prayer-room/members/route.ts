@@ -1,118 +1,81 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { addSlotMember, removeSlotMember, getSlotMembers } from "@/services/prayer-room";
+import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  getMembers,
+  getContactCard,
+  listEvaluators,
+  setMemberStatus,
+  setEvaluator,
+  setCoordinator,
+} from "@/services/prayer-room-members";
+import { isPrayerRoomStaff, isApprovedMember } from "@/lib/auth/prayer-room-access";
 
-async function isSlotLeader(supabase: ReturnType<typeof Object>, slotId: string, userId: string): Promise<boolean> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data } = await (supabase as any)
-    .from("prayer_room_slot_members")
-    .select("role")
-    .eq("slot_id", slotId)
-    .eq("user_id", userId)
-    .in("role", ["worship_leader", "prayer_leader"])
-    .maybeSingle();
-
-  return !!data;
-}
-
+// GET — the team directory. Names + skills are for staff and approved members
+// (not the public schedule). Contact details require the same and are returned
+// only when explicitly requested for one person.
 export async function GET(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
+  const staff = await isPrayerRoomStaff(supabase, user.id);
+  const trusted = staff || (await isApprovedMember(supabase, user.id));
+  if (!trusted) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+
   const url = new URL(request.url);
-  const slotId = url.searchParams.get("slotId");
-  if (!slotId) return NextResponse.json({ error: "slotId is required" }, { status: 400 });
+  const admin = createAdminClient();
 
-  const { data, error } = await getSlotMembers(supabase, slotId);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
-}
-
-export async function POST(request: Request) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-
-  const body = await request.json();
-  const { slot_id, user_id, role, instrument } = body;
-
-  if (!slot_id || !user_id || !role) {
-    return NextResponse.json(
-      { error: "slot_id, user_id, and role are required" },
-      { status: 400 }
-    );
+  // contact card for a single person (sensitive)
+  const contactFor = url.searchParams.get("contactFor");
+  if (contactFor) {
+    const { data, error } = await getContactCard(admin, contactFor);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(data);
   }
 
-  // Allow if user is admin or a leader on this slot
-  const leader = await isSlotLeader(supabase, slot_id, user.id);
-  if (!leader) {
-    // Check if admin via role
-    const { data: userRoles } = await supabase
-      .from("user_roles")
-      .select("roles(name)")
-      .eq("user_id", user.id);
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const roleNames = (userRoles ?? []).flatMap((r: any) => {
-      if (Array.isArray(r.roles)) return r.roles.map((role: { name: string }) => role.name);
-      if (r.roles?.name) return [r.roles.name];
-      return [];
-    });
-    const isAdmin = roleNames.includes("admin") || roleNames.includes("prayer_room_admin");
-
-    if (!isAdmin) {
-      return NextResponse.json({ error: "Not authorized to manage this slot's team" }, { status: 403 });
-    }
+  // evaluator picker (staff only)
+  if (url.searchParams.get("evaluators") === "true") {
+    if (!staff) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+    const { data, error } = await listEvaluators(admin);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(data);
   }
 
-  const { data, error } = await addSlotMember(supabase, {
-    slot_id,
-    user_id,
-    role,
-    instrument: instrument ?? undefined,
-    assigned_by: user.id,
+  const { data, error } = await getMembers(admin, {
+    status: url.searchParams.get("status") ?? undefined,
+    labelId: url.searchParams.get("labelId") ?? undefined,
+    search: url.searchParams.get("search") ?? undefined,
   });
-
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data);
 }
 
-export async function DELETE(request: Request) {
+// PUT — staff manage a member's status / evaluator / coordinator flags.
+export async function PUT(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-  const url = new URL(request.url);
-  const slotId = url.searchParams.get("slotId");
-  const targetUserId = url.searchParams.get("userId");
-
-  if (!slotId || !targetUserId) {
-    return NextResponse.json({ error: "slotId and userId are required" }, { status: 400 });
+  if (!(await isPrayerRoomStaff(supabase, user.id))) {
+    return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
-  // Allow if user is admin or a leader on this slot
-  const leader = await isSlotLeader(supabase, slotId, user.id);
-  if (!leader) {
-    const { data: userRoles } = await supabase
-      .from("user_roles")
-      .select("roles(name)")
-      .eq("user_id", user.id);
+  const body = await request.json().catch(() => ({}));
+  const { user_id, action, value } = body as { user_id?: string; action?: string; value?: unknown };
+  if (!user_id || !action) return NextResponse.json({ error: "user_id and action are required" }, { status: 400 });
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const roleNames = (userRoles ?? []).flatMap((r: any) => {
-      if (Array.isArray(r.roles)) return r.roles.map((role: { name: string }) => role.name);
-      if (r.roles?.name) return [r.roles.name];
-      return [];
-    });
-    const isAdmin = roleNames.includes("admin") || roleNames.includes("prayer_room_admin");
-
-    if (!isAdmin) {
-      return NextResponse.json({ error: "Not authorized to manage this slot's team" }, { status: 403 });
-    }
+  let result;
+  if (action === "status") {
+    result = await setMemberStatus(supabase, user_id, String(value));
+  } else if (action === "evaluator") {
+    result = await setEvaluator(supabase, user_id, value === true);
+  } else if (action === "coordinator") {
+    result = await setCoordinator(supabase, user_id, value === true);
+  } else {
+    return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   }
 
-  const { error } = await removeSlotMember(supabase, slotId, targetUserId);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ success: true });
+  if (result.error) return NextResponse.json({ error: result.error.message }, { status: 403 });
+  return NextResponse.json(result.data);
 }

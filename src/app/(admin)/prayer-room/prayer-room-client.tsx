@@ -2,23 +2,26 @@
 
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CalendarDays, PlusCircle, User, Settings, DoorOpen } from "lucide-react";
+import { CalendarDays, User, BookOpen, Settings, ClipboardCheck, DoorOpen } from "lucide-react";
 import ScheduleView from "./components/schedule-view";
-import SignupForm from "./components/signup-form";
-import MyDevoSets from "./components/my-devo-sets";
+import MySets from "./components/my-sets";
+import ApplyForm from "./components/apply-form";
+import Directory from "./components/directory";
+import Evaluations from "./components/evaluations";
 import AdminPanel from "./components/admin-panel";
-import JoinTheRoomForm from "./components/join-the-room-form";
 
-interface PrayerRoomClientProps {
+interface Props {
   userId: string;
-  isAdmin: boolean;
+  isStaff: boolean;
+  isMember: boolean;
+  isEvaluator: boolean;
+  pendingCount: number;
 }
 
-export default function PrayerRoomClient({
-  userId,
-  isAdmin,
-}: PrayerRoomClientProps) {
+export default function PrayerRoomClient({ userId, isStaff, isMember, isEvaluator, pendingCount }: Props) {
   const [activeTab, setActiveTab] = useState("schedule");
+  const showEvaluations = isEvaluator || isStaff;
+  const showDirectory = isMember || isStaff;
 
   return (
     <div>
@@ -28,50 +31,80 @@ export default function PrayerRoomClient({
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
+        <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="schedule" className="gap-1.5">
             <CalendarDays className="h-4 w-4" />
             Schedule
           </TabsTrigger>
-          <TabsTrigger value="signup" className="gap-1.5">
-            <PlusCircle className="h-4 w-4" />
-            Sign Up
-          </TabsTrigger>
-          <TabsTrigger value="my-sets" className="gap-1.5">
-            <User className="h-4 w-4" />
-            My Devo Sets
-          </TabsTrigger>
-          <TabsTrigger value="join-the-room" className="gap-1.5">
-            <DoorOpen className="h-4 w-4" />
-            Join the Room
-          </TabsTrigger>
-          {isAdmin && (
-            <TabsTrigger value="admin" className="gap-1.5">
+
+          {isMember ? (
+            <TabsTrigger value="my-sets" className="gap-1.5">
+              <User className="h-4 w-4" />
+              My Sets
+            </TabsTrigger>
+          ) : (
+            <TabsTrigger value="apply" className="gap-1.5">
+              <DoorOpen className="h-4 w-4" />
+              Join the Room
+            </TabsTrigger>
+          )}
+
+          {showDirectory && (
+            <TabsTrigger value="directory" className="gap-1.5">
+              <BookOpen className="h-4 w-4" />
+              Directory
+            </TabsTrigger>
+          )}
+
+          {showEvaluations && (
+            <TabsTrigger value="evaluations" className="gap-1.5">
+              <ClipboardCheck className="h-4 w-4" />
+              Evaluations
+            </TabsTrigger>
+          )}
+
+          {isStaff && (
+            <TabsTrigger value="manage" className="gap-1.5">
               <Settings className="h-4 w-4" />
-              Admin
+              Manage
+              {pendingCount > 0 && (
+                <span className="ml-1 rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
+                  {pendingCount}
+                </span>
+              )}
             </TabsTrigger>
           )}
         </TabsList>
 
-        <TabsContent value="schedule">
-          <ScheduleView userId={userId} isAdmin={isAdmin} />
+        <TabsContent value="schedule" className="mt-4">
+          <ScheduleView userId={userId} isStaff={isStaff} isMember={isMember} />
         </TabsContent>
 
-        <TabsContent value="signup">
-          <SignupForm userId={userId} />
-        </TabsContent>
+        {isMember ? (
+          <TabsContent value="my-sets" className="mt-4">
+            <MySets userId={userId} isStaff={isStaff} />
+          </TabsContent>
+        ) : (
+          <TabsContent value="apply" className="mt-4">
+            <ApplyForm />
+          </TabsContent>
+        )}
 
-        <TabsContent value="my-sets">
-          <MyDevoSets userId={userId} />
-        </TabsContent>
+        {showDirectory && (
+          <TabsContent value="directory" className="mt-4">
+            <Directory />
+          </TabsContent>
+        )}
 
-        <TabsContent value="join-the-room">
-          <JoinTheRoomForm userId={userId} />
-        </TabsContent>
+        {showEvaluations && (
+          <TabsContent value="evaluations" className="mt-4">
+            <Evaluations userId={userId} />
+          </TabsContent>
+        )}
 
-        {isAdmin && (
-          <TabsContent value="admin">
-            <AdminPanel userId={userId} />
+        {isStaff && (
+          <TabsContent value="manage" className="mt-4">
+            <AdminPanel />
           </TabsContent>
         )}
       </Tabs>
