@@ -4,11 +4,7 @@ import {
   createSendingIdentity,
   type SendingIdentityInsert,
 } from "@/services/sending-identities";
-import {
-  getAuthedUser,
-  hasAnyRole,
-  COMMS_MANAGE_ROLES,
-} from "@/lib/api-auth";
+import { getAuthedUser, canManageComms } from "@/lib/api-auth";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -17,7 +13,7 @@ export async function POST(request: Request) {
   const user = await getAuthedUser(supabase);
   if (!user)
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  if (!(await hasAnyRole(supabase, user.id, COMMS_MANAGE_ROLES))) {
+  if (!(await canManageComms(supabase, user.id))) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 

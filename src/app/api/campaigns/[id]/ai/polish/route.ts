@@ -2,11 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getCampaignById } from "@/services/campaigns";
 import { polishBlockText } from "@/lib/ai/campaign-ai";
-import {
-  getAuthedUser,
-  hasAnyRole,
-  COMMS_MANAGE_ROLES,
-} from "@/lib/api-auth";
+import { getAuthedUser, canManageComms } from "@/lib/api-auth";
 
 // POST /api/campaigns/[id]/ai/polish
 // Body: { html: string }
@@ -23,7 +19,7 @@ export async function POST(
   const user = await getAuthedUser(supabase);
   if (!user)
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  if (!(await hasAnyRole(supabase, user.id, COMMS_MANAGE_ROLES))) {
+  if (!(await canManageComms(supabase, user.id))) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 

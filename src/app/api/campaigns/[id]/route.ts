@@ -11,7 +11,7 @@ import {
   type CampaignBody,
 } from "@/lib/campaigns/blocks";
 import { getEffectiveBrand } from "@/services/brand";
-import { getAuthedUser, hasAnyRole, COMMS_MANAGE_ROLES } from "@/lib/api-auth";
+import { getAuthedUser, canManageComms } from "@/lib/api-auth";
 import type { Json } from "@/types/database";
 
 export async function GET(
@@ -37,7 +37,7 @@ export async function PATCH(
   const supabase = await createClient();
   const user = await getAuthedUser(supabase);
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  if (!(await hasAnyRole(supabase, user.id, COMMS_MANAGE_ROLES))) {
+  if (!(await canManageComms(supabase, user.id))) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
@@ -117,7 +117,7 @@ export async function DELETE(
   const supabase = await createClient();
   const user = await getAuthedUser(supabase);
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  if (!(await hasAnyRole(supabase, user.id, COMMS_MANAGE_ROLES))) {
+  if (!(await canManageComms(supabase, user.id))) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 

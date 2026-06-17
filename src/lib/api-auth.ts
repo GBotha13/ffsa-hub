@@ -86,3 +86,31 @@ export async function canManageEvents(
   if (await hasAnyRole(supabase, userId, EVENTS_MANAGE_ROLES)) return true;
   return hasAnyPermission(supabase, userId, perms);
 }
+
+// Granular communications permissions that imply "can manage / can send".
+export const COMMS_MANAGE_PERMS = [
+  "communications.send_emails",
+  "communications.send_announcements",
+  "communications.manage_templates",
+  "campaigns.draft",
+];
+export const COMMS_SEND_PERMS = [
+  "communications.send_emails",
+  "communications.send_announcements",
+  "campaigns.send",
+];
+
+/**
+ * True if the user may manage communications — either via a comms role
+ * (COMMS_MANAGE_ROLES) or a granular communications permission. Mirrors the
+ * campaigns RLS (migration 091). Defaults to the "manage" capability; pass
+ * COMMS_SEND_PERMS for the send / test-send routes.
+ */
+export async function canManageComms(
+  supabase: Client,
+  userId: string,
+  perms: string[] = COMMS_MANAGE_PERMS
+): Promise<boolean> {
+  if (await hasAnyRole(supabase, userId, COMMS_MANAGE_ROLES)) return true;
+  return hasAnyPermission(supabase, userId, perms);
+}

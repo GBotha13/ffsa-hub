@@ -8,11 +8,7 @@ import {
   type CampaignBody,
 } from "@/lib/campaigns/blocks";
 import { sendViaMailtrap } from "@/lib/email/mailtrap";
-import {
-  getAuthedUser,
-  hasAnyRole,
-  COMMS_MANAGE_ROLES,
-} from "@/lib/api-auth";
+import { getAuthedUser, canManageComms, COMMS_SEND_PERMS } from "@/lib/api-auth";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.ffsahub.com";
 
@@ -35,7 +31,7 @@ export async function POST(
   const user = await getAuthedUser(supabase);
   if (!user)
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  if (!(await hasAnyRole(supabase, user.id, COMMS_MANAGE_ROLES))) {
+  if (!(await canManageComms(supabase, user.id, COMMS_SEND_PERMS))) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 

@@ -6,11 +6,7 @@ import {
   type SocialLink,
   type SocialPlatform,
 } from "@/services/brand";
-import {
-  getAuthedUser,
-  hasAnyRole,
-  COMMS_MANAGE_ROLES,
-} from "@/lib/api-auth";
+import { getAuthedUser, canManageComms } from "@/lib/api-auth";
 
 function isHexColor(s: unknown): s is string {
   return typeof s === "string" && /^#[0-9a-fA-F]{6}$/.test(s);
@@ -55,7 +51,7 @@ export async function PATCH(
   const user = await getAuthedUser(supabase);
   if (!user)
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  if (!(await hasAnyRole(supabase, user.id, COMMS_MANAGE_ROLES))) {
+  if (!(await canManageComms(supabase, user.id))) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
