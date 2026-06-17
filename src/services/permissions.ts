@@ -137,3 +137,36 @@ export async function getScopeOptions(supabase: Client): Promise<ScopeOption[]> 
 export function getPermittedModules(userPermissions: UserPermission[]): Set<string> {
   return new Set(userPermissions.map((up) => up.permissions.module));
 }
+
+/**
+ * {module, key} pairs a user receives via the bundles of the roles
+ * assigned to them (user_roles -> role_permissions -> permissions).
+ * Mirrors the shape of direct user_permissions so callers can treat
+ * role-derived and direct access identically.
+ */
+export async function getRoleDerivedPermissionRows(
+  supabase: Client,
+  userId: string
+): Promise<{ module: string; key: string }[]> {
+  const { data: roleRows } = await supabase
+    .from("user_roles")
+    .select("role_id")
+    .eq("user_id", userId);
+
+  const roleIds = (roleRows ?? []).map((r: { role_id: string }) => r.role_id);
+  if (roleIds.length === 0) return [];
+
+  const { data: permRows } = await supabase
+    .from("role_permissions")
+    .select("permissions!inner(module, key)")
+    .in("role_id", roleIds);
+
+  const rows: { module: string; key: string }[] = [];
+  for (const row of permRows ?? []) {
+    const perm = Array.isArray(row.permissions)
+      ? row.permissions[0]
+      : row.permissions;
+    if (perm?.module) rows.push({ module: perm.module, key: perm.key });
+  }
+  return rows;
+}

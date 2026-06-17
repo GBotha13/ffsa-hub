@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AdminSidebar } from "@/components/admin-sidebar";
 import { ProfileCompletionGate } from "@/components/profile-completion-gate";
 import { AutoRefresh } from "@/components/auto-refresh";
+import { getRoleDerivedPermissionRows } from "@/services/permissions";
 
 export default async function AdminLayout({
   children,
@@ -59,6 +60,12 @@ export default async function AdminLayout({
             // permission, so they need access to the Users page.
             if (perm?.key === "schools.manage") permittedModules.add("users");
           }
+        }
+
+        // Also count modules reachable through assigned roles' bundles
+        for (const perm of await getRoleDerivedPermissionRows(supabase, user.id)) {
+          permittedModules.add(perm.module);
+          if (perm.key === "schools.manage") permittedModules.add("users");
         }
       }
     }

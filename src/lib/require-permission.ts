@@ -26,7 +26,7 @@ export async function requireModuleAccess(
 
   if ((adminCheck?.length ?? 0) > 0) return;
 
-  // Check user has at least one permission for this module
+  // Direct permission grant for this module
   const { data: permCheck } = await supabase
     .from("user_permissions")
     .select("permissions!inner(module)")
@@ -34,7 +34,26 @@ export async function requireModuleAccess(
     .eq("permissions.module", module)
     .limit(1);
 
-  if (!permCheck || permCheck.length === 0) {
-    redirect("/dashboard");
+  if (permCheck && permCheck.length > 0) return;
+
+  // Or access granted through an assigned role's bundle
+  // (user_roles -> role_permissions -> permissions for this module)
+  const { data: roleRows } = await supabase
+    .from("user_roles")
+    .select("role_id")
+    .eq("user_id", userId);
+
+  const roleIds = (roleRows ?? []).map((r: { role_id: string }) => r.role_id);
+  if (roleIds.length > 0) {
+    const { data: rolePermCheck } = await supabase
+      .from("role_permissions")
+      .select("permissions!inner(module)")
+      .in("role_id", roleIds)
+      .eq("permissions.module", module)
+      .limit(1);
+
+    if (rolePermCheck && rolePermCheck.length > 0) return;
   }
+
+  redirect("/dashboard");
 }
