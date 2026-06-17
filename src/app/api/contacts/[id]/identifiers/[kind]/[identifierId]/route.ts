@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { canWriteContacts } from "@/lib/api-auth";
 import {
   removeContactEmail,
   removeContactPhone,
@@ -47,23 +48,4 @@ export async function DELETE(
     );
   }
   return NextResponse.json({ ok: true, contactId });
-}
-
-async function canWriteContacts(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any,
-  userId: string
-): Promise<boolean> {
-  const { data } = await supabase
-    .from("user_roles")
-    .select("roles!inner(name)")
-    .eq("user_id", userId)
-    .in("roles.name", [
-      "super_admin",
-      "admin",
-      "comms_admin",
-      "contacts_admin",
-    ])
-    .limit(1);
-  return !!data && data.length > 0;
 }
