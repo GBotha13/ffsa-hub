@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { updatePromoCode, deletePromoCode } from "@/services/ticketing";
-import { getAuthedUser, hasAnyRole, EVENTS_MANAGE_ROLES } from "@/lib/api-auth";
+import { getAuthedUser, canManageEvents } from "@/lib/api-auth";
 
 // PATCH /api/events/[id]/promo-codes/[promoCodeId]
 // Partial update. Does NOT allow changing `kind` — delete + recreate
@@ -16,7 +16,7 @@ export async function PATCH(
   if (!user) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
-  if (!(await hasAnyRole(supabase, user.id, EVENTS_MANAGE_ROLES))) {
+  if (!(await canManageEvents(supabase, user.id))) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
@@ -105,7 +105,7 @@ export async function DELETE(
   if (!user) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
-  if (!(await hasAnyRole(supabase, user.id, EVENTS_MANAGE_ROLES))) {
+  if (!(await canManageEvents(supabase, user.id))) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 

@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import {
-  getAuthedUser,
-  hasAnyRole,
-  EVENTS_MANAGE_ROLES,
-} from "@/lib/api-auth";
+import { getAuthedUser, canManageEvents } from "@/lib/api-auth";
 import { logActivity } from "@/services/activity-events";
 
 // POST /api/events/[id]/check-in
@@ -25,7 +21,7 @@ export async function POST(
   if (!user) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
-  if (!(await hasAnyRole(supabase, user.id, EVENTS_MANAGE_ROLES))) {
+  if (!(await canManageEvents(supabase, user.id, ["events.manage_attendance"]))) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 

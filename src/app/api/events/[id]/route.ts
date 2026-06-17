@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { updateEvent } from "@/services/events";
-import { getAuthedUser, hasAnyRole, EVENTS_MANAGE_ROLES } from "@/lib/api-auth";
+import { getAuthedUser, canManageEvents } from "@/lib/api-auth";
 
 // PATCH /api/events/[id] — update event-level CRM fields (base label, etc.)
 export async function PATCH(
@@ -12,7 +12,7 @@ export async function PATCH(
   const supabase = await createClient();
   const user = await getAuthedUser(supabase);
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  if (!(await hasAnyRole(supabase, user.id, EVENTS_MANAGE_ROLES))) {
+  if (!(await canManageEvents(supabase, user.id))) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 

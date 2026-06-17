@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { updateEvent } from "@/services/events";
-import { getAuthedUser, hasAnyRole, EVENTS_MANAGE_ROLES } from "@/lib/api-auth";
+import { getAuthedUser, canManageEvents } from "@/lib/api-auth";
 
 // Slugs that show up at /e/<slug> on the public storefront.
 // Lowercase a-z, 0-9, dashes; can't start or end with a dash.
@@ -19,7 +19,7 @@ export async function PATCH(
   if (!user) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
-  if (!(await hasAnyRole(supabase, user.id, EVENTS_MANAGE_ROLES))) {
+  if (!(await canManageEvents(supabase, user.id))) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 

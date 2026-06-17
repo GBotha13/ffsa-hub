@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createTicketType } from "@/services/ticketing";
 import { computeDisplayPriceCents } from "@/lib/payments/ticket-pricing";
-import { getAuthedUser, hasAnyRole, EVENTS_MANAGE_ROLES } from "@/lib/api-auth";
+import { getAuthedUser, canManageEvents } from "@/lib/api-auth";
 
 // POST /api/events/[id]/ticket-types
 // Body: { name, description?, pricing_mode?, target_net_cents,
@@ -18,7 +18,7 @@ export async function POST(
   if (!user) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
-  if (!(await hasAnyRole(supabase, user.id, EVENTS_MANAGE_ROLES))) {
+  if (!(await canManageEvents(supabase, user.id))) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 

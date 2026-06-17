@@ -70,3 +70,19 @@ export async function canWriteContacts(
   if (await hasAnyRole(supabase, userId, CONTACTS_WRITE_ROLES)) return true;
   return hasAnyPermission(supabase, userId, CONTACTS_WRITE_PERMS);
 }
+
+/**
+ * True if the user may manage events — either via a managing role
+ * (EVENTS_MANAGE_ROLES) or a granular events permission. Mirrors the events
+ * RLS (migration 086). Defaults to the "Create / Edit Events" capability
+ * (events.create); pass a different key for registration/attendance routes
+ * (e.g. ["events.manage_registrations"], ["events.manage_attendance"]).
+ */
+export async function canManageEvents(
+  supabase: Client,
+  userId: string,
+  perms: string[] = ["events.create"]
+): Promise<boolean> {
+  if (await hasAnyRole(supabase, userId, EVENTS_MANAGE_ROLES)) return true;
+  return hasAnyPermission(supabase, userId, perms);
+}

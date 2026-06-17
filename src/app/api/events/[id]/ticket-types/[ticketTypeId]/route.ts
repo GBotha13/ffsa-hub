@@ -6,7 +6,7 @@ import {
   deleteTicketType,
 } from "@/services/ticketing";
 import { computeDisplayPriceCents } from "@/lib/payments/ticket-pricing";
-import { getAuthedUser, hasAnyRole, EVENTS_MANAGE_ROLES } from "@/lib/api-auth";
+import { getAuthedUser, canManageEvents } from "@/lib/api-auth";
 
 // PATCH /api/events/[id]/ticket-types/[ticketTypeId]
 // Partial update. If target_net_cents or pricing_mode changes, the
@@ -21,7 +21,7 @@ export async function PATCH(
   if (!user) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
-  if (!(await hasAnyRole(supabase, user.id, EVENTS_MANAGE_ROLES))) {
+  if (!(await canManageEvents(supabase, user.id))) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
@@ -113,7 +113,7 @@ export async function DELETE(
   if (!user) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
-  if (!(await hasAnyRole(supabase, user.id, EVENTS_MANAGE_ROLES))) {
+  if (!(await canManageEvents(supabase, user.id))) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
