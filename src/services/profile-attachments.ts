@@ -103,6 +103,7 @@ export async function getProfileAttachments(
     consentsRes,
     refsRes,
     prayerRes,
+    prayerOwnedRes,
   ] = await Promise.all([
     getUserHistory(supabase, userId),
     supabase
@@ -147,16 +148,26 @@ export async function getProfileAttachments(
       )
       .eq("application_responses.user_id", userId)
       .order("created_at", { ascending: false }),
-    // Prayer room: the sessions this user is rostered into (filled roster
-    // slots), each joined to its parent set and that set's weekly template
-    // block — so a recurring serve can collapse into one summary row.
+    // Prayer room (1/2): sessions this user is rostered INTO (filled roster
+    // slots), joined to the parent set and its weekly template block so a
+    // recurring serve collapses into one summary row.
     supabase
       .from("prayer_room_set_slots")
       .select(
-        "id, role, set:set_id(set_date, start_time, end_time, title, template_block_id, block:template_block_id(day_of_week, start_time, end_time, title))"
+        "id, role, set:set_id(id, set_date, start_time, end_time, title, template_block_id, block:template_block_id(day_of_week, start_time, end_time, title))"
       )
       .eq("filled_user_id", userId)
       .order("created_at", { ascending: false }),
+    // Prayer room (2/2): sets this user OWNS (leads) — so a session you
+    // scheduled shows up even before you've rostered yourself into a role.
+    supabase
+      .from("prayer_room_sets")
+      .select(
+        "id, set_date, start_time, end_time, title, template_block_id, block:template_block_id(day_of_week, start_time, end_time, title)"
+      )
+      .eq("owner_id", userId)
+      .neq("status", "cancelled")
+      .order("set_date", { ascending: false }),
   ]);
 
   const out: ProfileAttachments = { ...EMPTY };
@@ -297,62 +308,78 @@ export async function getProfileAttachments(
   }
 
   // ── Prayer room (app only) ────────────────────────────────
-  // Each filled roster slot is one session. A weekly serve produces many
-  // near-identical sessions, so collapse them into ONE row per recurring
-  // commitment — grouped by the set's weekly template block + role. Ad-hoc
-  // sets (no template block) stay as individual one-off rows.
+  // Two relationships surface here: sets the user OWNS (leads) and roster
+  // slots the user is FILLED into (serves). Both fold into ONE row per
+  // recurring commitment — grouped by weekly template block, or per set for
+  // ad-hoc ones — so a weekly serve/lead doesn't render as N near-identical
+  // rows. The row title states the relationship ("Leading", the role, or both).
   type PrayerGroup = {
-    role: string;
+    isOwner: boolean;
+    roles: Set<string>;
     dayOfWeek: number | null;
     startTime: string | null;
     endTime: string | null;
-    label: string | null;
-    dates: string[];
+    dates: Set<string>;
   };
   const prayerGroups = new Map<string, PrayerGroup>();
+  const prayerGroup = (
+    key: string,
+    block: AppPrayerBlock | null,
+    src: { start_time: string | null; end_time: string | null }
+  ): PrayerGroup => {
+    let g = prayerGroups.get(key);
+    if (!g) {
+      g = {
+        isOwner: false,
+        roles: new Set<string>(),
+        dayOfWeek: block?.day_of_week ?? null,
+        startTime: block?.start_time ?? src.start_time,
+        endTime: block?.end_time ?? src.end_time,
+        dates: new Set<string>(),
+      };
+      prayerGroups.set(key, g);
+    }
+    return g;
+  };
+  // Sets the user owns (leads). Ad-hoc sets (no template block) key by set id;
+  // template-born sets key by block so recurring weeks fold together.
+  for (const s of (prayerOwnedRes.data ?? []) as AppPrayerOwnedSet[]) {
+    const block = s.template_block_id ? s.block : null;
+    const g = prayerGroup(s.template_block_id ?? `adhoc:${s.id}`, block, s);
+    g.isOwner = true;
+    if (s.set_date) g.dates.add(s.set_date);
+  }
+  // Roster slots the user is filled into (serves) — merges with an owned group
+  // when it's the same set/block (so leading + serving show on one row).
   for (const r of (prayerRes.data ?? []) as AppPrayerRosterSlot[]) {
     const set = r.set;
     if (!set) continue;
     const block = set.template_block_id ? set.block : null;
-    // Recurring sessions from the same template block + role fold together;
-    // ad-hoc sets each get a unique key so they never merge.
-    const key = `${r.role}|${set.template_block_id ?? `adhoc:${r.id}`}`;
-    const existing = prayerGroups.get(key);
-    if (existing) {
-      if (set.set_date) existing.dates.push(set.set_date);
-    } else {
-      prayerGroups.set(key, {
-        role: r.role,
-        dayOfWeek: block?.day_of_week ?? null,
-        startTime: block?.start_time ?? set.start_time,
-        endTime: block?.end_time ?? set.end_time,
-        label: block?.title ?? set.title,
-        dates: set.set_date ? [set.set_date] : [],
-      });
-    }
+    const g = prayerGroup(set.template_block_id ?? `adhoc:${set.id}`, block, set);
+    g.roles.add(r.role);
+    if (set.set_date) g.dates.add(set.set_date);
   }
   const todayStr = new Date().toISOString().split("T")[0];
   for (const [key, g] of prayerGroups) {
-    const sorted = [...g.dates].sort();
-    const next = sorted.find((d) => d >= todayStr);
+    const dates = [...g.dates].sort();
+    const next = dates.find((d) => d >= todayStr);
     const recurrence =
       g.dayOfWeek != null ? `Weekly · ${DAY_PLURAL[g.dayOfWeek]}` : null;
     const times = formatTimeRange(g.startTime, g.endTime);
+    const relationship =
+      [g.isOwner ? "Leading" : null, ...[...g.roles].map((r) => r.replace(/_/g, " "))]
+        .filter(Boolean)
+        .join(" · ") || "Prayer room";
     const subtitle =
-      [
-        g.label,
-        recurrence,
-        times,
-        g.dates.length > 1 ? `${g.dates.length} sessions` : null,
-      ]
+      [recurrence, times, dates.length > 1 ? `${dates.length} sessions` : null]
         .filter(Boolean)
         .join(" · ") || null;
     out.prayerRoom.push({
       source: "app",
       id: `app:prayer:${key}`,
-      title: g.role.replace(/_/g, " "),
+      title: relationship,
       subtitle,
-      date: next ?? sorted[sorted.length - 1] ?? null,
+      date: next ?? dates[dates.length - 1] ?? null,
       dateLabel: next ? "Next" : "Last",
     });
   }
@@ -505,20 +532,31 @@ type AppConsent = {
   source: string;
   accepted_at: string;
 };
+type AppPrayerBlock = {
+  day_of_week: number | null;
+  start_time: string | null;
+  end_time: string | null;
+  title: string | null;
+};
 type AppPrayerRosterSlot = {
   id: string;
   role: string;
   set: {
+    id: string;
     set_date: string | null;
     start_time: string | null;
     end_time: string | null;
     title: string | null;
     template_block_id: string | null;
-    block: {
-      day_of_week: number | null;
-      start_time: string | null;
-      end_time: string | null;
-      title: string | null;
-    } | null;
+    block: AppPrayerBlock | null;
   } | null;
+};
+type AppPrayerOwnedSet = {
+  id: string;
+  set_date: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  title: string | null;
+  template_block_id: string | null;
+  block: AppPrayerBlock | null;
 };
