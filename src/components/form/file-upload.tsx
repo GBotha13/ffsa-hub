@@ -6,82 +6,14 @@ import { Upload, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FieldWrapper } from "./field-wrapper";
 import type { FormQuestion, FileValue } from "@/lib/form-types";
+import {
+  compressImageToMaxBytes,
+  detectImageType,
+  sanitizeFilename,
+} from "@/lib/image";
 
 const MAX_SIZE = 25 * 1024 * 1024; // 25MB raw — we'll compress before upload
 const COMPRESS_THRESHOLD = 2 * 1024 * 1024; // 2MB — compress anything bigger than this
-const MAX_DIMENSION = 1600; // resize so the longest side is 1600px max
-const COMPRESS_QUALITY = 0.85;
-
-// Detect image type from filename extension when file.type is missing/weird
-function detectImageType(file: File): string | null {
-  if (file.type && file.type.startsWith("image/")) return file.type;
-  const name = file.name.toLowerCase();
-  if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "image/jpeg";
-  if (name.endsWith(".png")) return "image/png";
-  if (name.endsWith(".webp")) return "image/webp";
-  if (name.endsWith(".gif")) return "image/gif";
-  if (name.endsWith(".heic")) return "image/heic";
-  if (name.endsWith(".heif")) return "image/heif";
-  return null;
-}
-
-// Strip everything except letters/numbers/dot/dash so storage paths stay clean
-function sanitizeFilename(name: string): string {
-  const lastDot = name.lastIndexOf(".");
-  const base = lastDot >= 0 ? name.substring(0, lastDot) : name;
-  const ext = lastDot >= 0 ? name.substring(lastDot) : "";
-  const cleanBase = base.replace(/[^a-zA-Z0-9-]/g, "_").slice(0, 50);
-  const cleanExt = ext.replace(/[^a-zA-Z0-9.]/g, "");
-  return `${cleanBase}${cleanExt || ".jpg"}`;
-}
-
-// Compress image client-side using canvas. Falls back to original on failure.
-async function compressImage(file: File): Promise<File> {
-  // Skip compression for HEIC — canvas can't render it in most browsers
-  const type = detectImageType(file) || file.type;
-  if (type === "image/heic" || type === "image/heif") return file;
-
-  try {
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => reject(new Error("FileReader failed"));
-      reader.readAsDataURL(file);
-    });
-
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const i = new Image();
-      i.onload = () => resolve(i);
-      i.onerror = () => reject(new Error("Image load failed"));
-      i.src = dataUrl;
-    });
-
-    let { width, height } = img;
-    if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
-      const scale = MAX_DIMENSION / Math.max(width, height);
-      width = Math.round(width * scale);
-      height = Math.round(height * scale);
-    }
-
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return file;
-    ctx.drawImage(img, 0, 0, width, height);
-
-    const blob = await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob((b) => resolve(b), "image/jpeg", COMPRESS_QUALITY);
-    });
-
-    if (!blob) return file;
-
-    const newName = file.name.replace(/\.[^.]+$/, ".jpg");
-    return new File([blob], newName, { type: "image/jpeg" });
-  } catch {
-    return file;
-  }
-}
 
 export function FileUpload({
   question,
@@ -125,10 +57,16 @@ export function FileUpload({
       setUploading(true);
 
       try {
-        // Compress large images (skip HEIC since canvas can't decode it)
+        // Compress large images down to ~1600px before upload (shared helper
+        // with the avatar uploader). HEIC is decoded to JPEG inside the helper;
+        // the generous maxBytes keeps it a one-shot resize at this quality.
         let file = rawFile;
         if (rawFile.size > COMPRESS_THRESHOLD) {
-          file = await compressImage(rawFile);
+          file = await compressImageToMaxBytes(rawFile, {
+            maxDimension: 1600,
+            maxBytes: MAX_SIZE,
+            startQuality: 0.85,
+          });
         }
 
         const contentType = detectImageType(file) || "image/jpeg";
