@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound, redirect } from "next/navigation";
 import { getUserById } from "@/services/users";
+import { getAuthSignIn } from "@/lib/users/auth-signins";
 import {
   getPermissions,
   getUserPermissions,
@@ -46,7 +47,10 @@ export default async function UserPermissionsPage({
 
   if (!isSuperAdmin && !hasAnySchoolsManage) redirect(`/users/${id}`);
 
-  const { data: targetUser, error } = await getUserById(supabase, id);
+  const [{ data: targetUser, error }, authLastSignInAt] = await Promise.all([
+    getUserById(supabase, id),
+    getAuthSignIn(id),
+  ]);
   if (error || !targetUser) notFound();
 
   const canManageRoles = await callerCanManageRoles(supabase, authUser.id);
@@ -118,7 +122,11 @@ export default async function UserPermissionsPage({
 
   return (
     <div className="space-y-6">
-      <UserHeader user={targetUser} eyebrow="ACCESS MANAGEMENT" />
+      <UserHeader
+        user={targetUser}
+        authLastSignInAt={authLastSignInAt}
+        eyebrow="ACCESS MANAGEMENT"
+      />
       <UserTabs userId={id} active="permissions" showPermissions={true} />
 
       <RoleAssignment

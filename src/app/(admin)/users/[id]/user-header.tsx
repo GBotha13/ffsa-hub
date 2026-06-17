@@ -1,4 +1,9 @@
 import { AvatarUploader } from "@/components/avatar-uploader";
+import {
+  deriveUserLifecycle,
+  type UserLifecycleInput,
+  type UserLifecycleStage,
+} from "@/lib/users/lifecycle";
 
 /**
  * Identity header shared between the Profile and Permissions tabs.
@@ -11,8 +16,9 @@ import { AvatarUploader } from "@/components/avatar-uploader";
 export function UserHeader({
   user,
   eyebrow,
+  authLastSignInAt,
 }: {
-  user: {
+  user: UserLifecycleInput & {
     id: string;
     first_name?: string | null;
     last_name?: string | null;
@@ -20,10 +26,11 @@ export function UserHeader({
     display_name?: string | null;
     email?: string | null;
     job_title?: string | null;
-    status?: string | null;
     avatar_url?: string | null;
   };
   eyebrow: string;
+  /** Real sign-in time from Supabase Auth — the app's mirror column is unmaintained. */
+  authLastSignInAt?: string | null;
 }) {
   const name =
     user.display_name ??
@@ -31,17 +38,22 @@ export function UserHeader({
       ? `${user.preferred_name ?? user.first_name} ${user.last_name ?? ""}`.trim()
       : user.email ?? "Unknown User");
 
-  const status = user.status ?? "invited";
-  const statusColors: Record<string, { bg: string; fg: string; label: string }> = {
-    active: { bg: "hsl(142 60% 20%)", fg: "hsl(142 60% 55%)", label: "Active" },
-    pending_approval: {
-      bg: "hsl(42 80% 18%)",
-      fg: "hsl(42 95% 55%)",
-      label: "Pending Approval",
-    },
-    invited: { bg: "hsl(22 8% 15%)", fg: "hsl(30 8% 55%)", label: "Invited" },
+  // Status is DERIVED (same logic as the Users list), not read from the raw
+  // `status` column — which is inconsistent across users. A real Supabase Auth
+  // sign-in counts as acceptance, so the page passes authLastSignInAt in (the
+  // app's own last_sign_in_at column is unmaintained / null).
+  const lifecycle = deriveUserLifecycle({
+    ...user,
+    last_sign_in_at: authLastSignInAt ?? user.last_sign_in_at ?? null,
+  });
+  const stageColors: Record<UserLifecycleStage, { bg: string; fg: string }> = {
+    active: { bg: "hsl(142 60% 20%)", fg: "hsl(142 60% 55%)" },
+    profile_incomplete: { bg: "hsl(28 70% 16%)", fg: "hsl(32 90% 60%)" },
+    pending_approval: { bg: "hsl(42 80% 18%)", fg: "hsl(42 95% 55%)" },
+    invited: { bg: "hsl(22 8% 15%)", fg: "hsl(30 8% 55%)" },
+    inactive: { bg: "hsl(0 45% 16%)", fg: "hsl(0 70% 62%)" },
   };
-  const s = statusColors[status] ?? statusColors.invited;
+  const s = stageColors[lifecycle.stage];
 
   const avatarName =
     user.preferred_name ?? user.first_name ?? user.email ?? "?";
@@ -78,7 +90,7 @@ export function UserHeader({
               color: s.fg,
             }}
           >
-            {s.label}
+            {lifecycle.label}
           </span>
         </div>
       </div>

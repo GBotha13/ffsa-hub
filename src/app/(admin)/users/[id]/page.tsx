@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound, redirect } from "next/navigation";
 import { getUserById } from "@/services/users";
+import { getAuthSignIn } from "@/lib/users/auth-signins";
 import { getSchoolsManageScopes } from "@/lib/auth/schools-manage-scopes";
 import { ProfileRecords } from "@/components/profile-records";
 import { UserHeader } from "./user-header";
@@ -46,12 +47,19 @@ export default async function UserProfilePage({
 
   if (!canManagePermissions) redirect("/dashboard");
 
-  const { data: targetUser, error } = await getUserById(supabase, id);
+  const [{ data: targetUser, error }, authLastSignInAt] = await Promise.all([
+    getUserById(supabase, id),
+    getAuthSignIn(id),
+  ]);
   if (error || !targetUser) notFound();
 
   return (
     <div className="space-y-6">
-      <UserHeader user={targetUser} eyebrow="STAFF PROFILE" />
+      <UserHeader
+        user={targetUser}
+        authLastSignInAt={authLastSignInAt}
+        eyebrow="STAFF PROFILE"
+      />
       <UserTabs
         userId={id}
         active="profile"

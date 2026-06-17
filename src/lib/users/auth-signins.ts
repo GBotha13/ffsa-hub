@@ -30,3 +30,11 @@ export async function getAuthSignIns(): Promise<Map<string, string | null>> {
   }
   return map;
 }
+
+/** One user's Supabase Auth last_sign_in_at (ISO string), or null if never. */
+export async function getAuthSignIn(userId: string): Promise<string | null> {
+  const admin = createAdminClient();
+  const { data, error } = await admin.auth.admin.getUserById(userId);
+  if (error || !data?.user) return null;
+  return data.user.last_sign_in_at ?? null;
+}
