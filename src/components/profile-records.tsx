@@ -89,33 +89,33 @@ export async function ProfileRecords({
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <BigStat
           label="Applications"
-          value={attachments.applications.length}
+          value={tileCount(attachments.applications)}
           icon={FileText}
           tint="blue"
         />
         <BigStat
           label="Enrollments"
-          value={attachments.enrollments.length}
+          value={tileCount(attachments.enrollments)}
           icon={GraduationCap}
           tint="emerald"
         />
         <BigStat
           label="Payments"
-          value={attachments.payments.length}
+          value={tileCount(attachments.payments)}
           icon={Receipt}
           tint="amber"
         />
         <BigStat
           label="Tickets"
-          value={attachments.tickets.length}
+          value={tileCount(attachments.tickets)}
           icon={Ticket}
           tint="violet"
         />
       </div>
 
-      {/* Stats above show distinct records after CSV dedup. The Sections
-          below render the underlying total (e.g. 2 / 14) when CSV rows
-          were collapsed. */}
+      {/* Tiles show the real on-file count: in-app multiples (e.g. 16 tickets)
+          count in full; CSV re-imports count once. The Sections below show
+          "distinct / total" (e.g. 3 / 16) when identical rows were collapsed. */}
 
       {linkedPersons.length > 0 && (
         <div className="rounded-xl border overflow-hidden">
@@ -276,7 +276,7 @@ function Row({ r }: { r: AttachmentRow }) {
           {r.count && r.count > 1 && (
             <span
               className="text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded border bg-muted text-muted-foreground"
-              title={`${r.count} identical records — likely re-imports of the same CSV`}
+              title={`${r.count} identical records combined into one row`}
             >
               ×{r.count}
             </span>
@@ -374,6 +374,15 @@ function formatDate(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+function tileCount(rows: AttachmentRow[]): number {
+  // In-app multiples count in full (16 tickets → 16); CSV rows count once
+  // each, since a CSV re-imported N times is still one real record.
+  return rows.reduce(
+    (sum, r) => sum + (r.source === "csv" ? 1 : (r.count ?? 1)),
+    0
+  );
 }
 
 function BigStat({

@@ -392,35 +392,38 @@ export async function getProfileAttachments(
     return a.date > b.date ? -1 : a.date < b.date ? 1 : 0;
   };
 
-  // Collapse visually-identical CSV rows (typically caused by re-importing
-  // the same CSV) into a single row with a count badge. In-app rows are
-  // never deduped — they're authoritative individual records.
-  out.applications = dedupCsvRows(out.applications).sort(byDateDesc);
-  out.enrollments = dedupCsvRows(out.enrollments).sort(byDateDesc);
-  out.payments = dedupCsvRows(out.payments).sort(byDateDesc);
-  out.tickets.sort(byDateDesc);
-  out.documents = dedupCsvRows(out.documents).sort(byDateDesc);
-  out.references.sort(byDateDesc);
-  out.consents.sort(byDateDesc);
-  out.prayerRoom.sort(byDateDesc);
+  // Collapse visually-identical rows into one ×N row so no section balloons
+  // into duplicate lines — CSV re-imports AND genuine multiples (e.g. many
+  // identical event tickets). Applied to every section. See collapseDuplicates.
+  out.applications = collapseDuplicates(out.applications).sort(byDateDesc);
+  out.enrollments = collapseDuplicates(out.enrollments).sort(byDateDesc);
+  out.payments = collapseDuplicates(out.payments).sort(byDateDesc);
+  out.tickets = collapseDuplicates(out.tickets).sort(byDateDesc);
+  out.documents = collapseDuplicates(out.documents).sort(byDateDesc);
+  out.references = collapseDuplicates(out.references).sort(byDateDesc);
+  out.consents = collapseDuplicates(out.consents).sort(byDateDesc);
+  out.prayerRoom = collapseDuplicates(out.prayerRoom).sort(byDateDesc);
 
   return out;
 }
 
 /**
- * Collapse rows with the same source=csv, libraryPersonId, title, subtitle,
- * dateLabel, date and fileUrl into a single row carrying a `count`. Leaves
- * in-app rows alone — they're authoritative.
+ * Collapse visually-identical rows into a single row carrying a `count`
+ * (rendered as a ×N badge). Rows match when their source, libraryPersonId,
+ * title, subtitle, dateLabel, date and fileUrl are all equal — i.e. they'd
+ * render the exact same line.
+ *
+ * Applies to BOTH in-app and CSV rows: a CSV record re-imported N times and a
+ * genuine multiple (e.g. several identical event tickets) both collapse, so no
+ * section ever balloons into a wall of duplicate lines. `source` is part of the
+ * key, so an Imported row never merges with an In-app one (their badges differ).
  */
-function dedupCsvRows(rows: AttachmentRow[]): AttachmentRow[] {
+function collapseDuplicates(rows: AttachmentRow[]): AttachmentRow[] {
   const byKey = new Map<string, AttachmentRow>();
   const out: AttachmentRow[] = [];
   for (const row of rows) {
-    if (row.source !== "csv") {
-      out.push(row);
-      continue;
-    }
     const key = [
+      row.source,
       row.libraryPersonId ?? "",
       row.title ?? "",
       row.subtitle ?? "",
