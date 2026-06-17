@@ -43,16 +43,23 @@ export type ProfileAttachments = {
   prayerRoom: AttachmentRow[];
 };
 
-const EMPTY: ProfileAttachments = {
-  applications: [],
-  enrollments: [],
-  payments: [],
-  tickets: [],
-  documents: [],
-  references: [],
-  consents: [],
-  prayerRoom: [],
-};
+// MUST return a brand-new object with NEW arrays on every call. A shared
+// module-level constant here is fatal: the out.X.push(...) calls below mutate
+// it in place, so on a warm server the arrays accumulate across every request
+// (and across users) — that was the cause of the ever-growing ×N counts and
+// potential cross-user record bleed.
+function emptyAttachments(): ProfileAttachments {
+  return {
+    applications: [],
+    enrollments: [],
+    payments: [],
+    tickets: [],
+    documents: [],
+    references: [],
+    consents: [],
+    prayerRoom: [],
+  };
+}
 
 // day_of_week is 0=Sunday..6=Saturday (matches prayer_room template blocks).
 const DAY_PLURAL = [
@@ -170,7 +177,7 @@ export async function getProfileAttachments(
       .order("set_date", { ascending: false }),
   ]);
 
-  const out: ProfileAttachments = { ...EMPTY };
+  const out: ProfileAttachments = emptyAttachments();
 
   // ── Applications (CSV + app) ──────────────────────────────
   for (const r of csv.applications as CsvApp[]) {
