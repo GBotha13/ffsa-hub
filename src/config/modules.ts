@@ -12,6 +12,7 @@ import {
   Heart,
   Archive,
   History,
+  Building2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -67,6 +68,14 @@ export const ADMIN_MODULES: ModuleDefinition[] = [
     requiredRoles: ["super_admin", "admin", "events_admin"],
   },
   {
+    id: "bookings",
+    label: "Space Bookings",
+    href: "/bookings",
+    icon: Building2,
+    description: "Venue & space booking requests and approvals",
+    requiredRoles: ["super_admin", "admin"], // others via bookings.* permissions
+  },
+  {
     id: "schools",
     label: "Schools",
     href: "/schools",
@@ -95,7 +104,7 @@ export const ADMIN_MODULES: ModuleDefinition[] = [
     label: "Prayer Room",
     href: "/prayer-room",
     icon: Heart,
-    description: "Devo set schedule, sign-ups, and team roster",
+    description: "Weekly devo schedule, rosters, directory, and team applications",
     requiredRoles: [], // visible to ALL authenticated users
   },
   {
