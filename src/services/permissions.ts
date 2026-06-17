@@ -170,3 +170,25 @@ export async function getRoleDerivedPermissionRows(
   }
   return rows;
 }
+
+/**
+ * Capability keys hidden from the role builder + the granular grid because
+ * they're legacy duplicates of a canonical key. Keep-and-honor kept every key
+ * for RLS, but the UI shouldn't show two of the same thing.
+ */
+export const HIDDEN_PERMISSION_KEYS = new Set<string>([
+  "contacts.view", // → contacts.read  ("View contacts")
+  "contacts.create", // → contacts.write ("Create / edit contacts")
+  "contacts.edit", // → contacts.write
+  "contacts.delete", // → contacts.write
+]);
+
+/** Drop hidden / legacy-duplicate permissions from a by-module catalog. */
+export function curatePermissions(byModule: PermissionsByModule): PermissionsByModule {
+  const out: PermissionsByModule = {};
+  for (const mod of Object.keys(byModule)) {
+    const kept = byModule[mod].filter((p) => !HIDDEN_PERMISSION_KEYS.has(p.key));
+    if (kept.length > 0) out[mod] = kept;
+  }
+  return out;
+}

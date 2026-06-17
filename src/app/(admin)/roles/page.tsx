@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getPermissions } from "@/services/permissions";
+import { getPermissions, curatePermissions } from "@/services/permissions";
 import { getRoleMemberCounts } from "@/services/roles";
 import {
   callerIsSuperAdmin,
@@ -47,7 +47,7 @@ export default async function RolesPage() {
   return (
     <RolesManager
       roles={rolesRes.data ?? []}
-      permissionsByModule={permissionsByModule}
+      permissionsByModule={curatePermissions(permissionsByModule)}
       memberCounts={memberCounts}
       bundles={bundles}
       callerKeys={callerKeys}

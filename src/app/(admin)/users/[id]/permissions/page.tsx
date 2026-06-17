@@ -5,9 +5,13 @@ import {
   getPermissions,
   getUserPermissions,
   getScopeOptions,
+  curatePermissions,
 } from "@/services/permissions";
 import { getSchoolsManageScopes } from "@/lib/auth/schools-manage-scopes";
+import { callerCanManageRoles } from "@/lib/auth/check-role-grant";
 import { PermissionManager } from "../permission-manager";
+import { RoleAssignment, type AssignedRole } from "../role-assignment";
+import { AdvancedAccess } from "../advanced-access";
 import { UserTabs } from "../user-tabs";
 import { UserHeader } from "../user-header";
 
@@ -24,7 +28,7 @@ export default async function UserPermissionsPage({
   } = await supabase.auth.getUser();
   if (!authUser) redirect("/login");
 
-  // Same gate as before: super_admin or anyone with schools.manage.
+  // super_admin or anyone with schools.manage may view this page.
   const { data: superCheck } = await supabase
     .from("user_roles")
     .select("roles!inner(name)")
@@ -45,41 +49,100 @@ export default async function UserPermissionsPage({
   const { data: targetUser, error } = await getUserById(supabase, id);
   if (error || !targetUser) notFound();
 
-  const [permissionsByModule, userPermissions, scopeOptions, targetSuperCheck] =
-    await Promise.all([
-      getPermissions(supabase),
-      getUserPermissions(supabase, id),
-      getScopeOptions(supabase),
-      supabase
-        .from("user_roles")
-        .select("roles!inner(name)")
-        .eq("user_id", id)
-        .eq("roles.name", "super_admin")
-        .limit(1),
-    ]);
+  const canManageRoles = await callerCanManageRoles(supabase, authUser.id);
+
+  const [
+    permissionsByModule,
+    userPermissions,
+    scopeOptions,
+    targetSuperCheck,
+    assignedRolesRes,
+    assignableRolesRes,
+  ] = await Promise.all([
+    getPermissions(supabase),
+    getUserPermissions(supabase, id),
+    getScopeOptions(supabase),
+    supabase
+      .from("user_roles")
+      .select("roles!inner(name)")
+      .eq("user_id", id)
+      .eq("roles.name", "super_admin")
+      .limit(1),
+    supabase
+      .from("user_roles")
+      .select("id, role_id, scope_type, scope_id, roles!inner(display_name, is_system)")
+      .eq("user_id", id),
+    supabase
+      .from("roles")
+      .select("id, display_name")
+      .eq("is_system", false)
+      .order("display_name", { ascending: true }),
+  ]);
 
   const isTargetSuperAdmin = (targetSuperCheck.data?.length ?? 0) > 0;
   const isSelf = authUser.id === id;
+
+  // Granular grid uses the curated catalog (legacy duplicates hidden).
+  const curated = curatePermissions(permissionsByModule);
+
+  // Job-title chips: the person's non-system roles only. (super_admin has its
+  // own toggle in the Advanced panel; other system roles are legacy.)
+  const assigned: AssignedRole[] = (assignedRolesRes.data ?? [])
+    .map((r) => {
+      const role = Array.isArray(r.roles) ? r.roles[0] : r.roles;
+      return {
+        id: r.id as string,
+        role_id: r.role_id as string,
+        scope_type: (r.scope_type as string | null) ?? null,
+        scope_id: (r.scope_id as string | null) ?? null,
+        display_name: (role?.display_name as string) ?? "Role",
+        is_system: !!role?.is_system,
+      };
+    })
+    .filter((r) => !r.is_system)
+    .map((r) => ({
+      id: r.id,
+      role_id: r.role_id,
+      scope_type: r.scope_type,
+      scope_id: r.scope_id,
+      display_name: r.display_name,
+    }));
+
+  const assignable = (assignableRolesRes.data ?? []).map((r) => ({
+    id: r.id as string,
+    display_name: r.display_name as string,
+  }));
+
+  const scopeLabels: Record<string, string> = {};
+  for (const s of scopeOptions) scopeLabels[s.id] = s.label;
 
   return (
     <div className="space-y-6">
       <UserHeader user={targetUser} eyebrow="ACCESS MANAGEMENT" />
       <UserTabs userId={id} active="permissions" showPermissions={true} />
 
-      <PermissionManager
+      <RoleAssignment
         userId={id}
-        currentStatus={targetUser.status ?? "invited"}
-        currentJobTitle={targetUser.job_title ?? ""}
-        permissionsByModule={permissionsByModule}
-        userPermissions={userPermissions}
-        scopeOptions={scopeOptions}
-        isSuperAdmin={isSuperAdmin}
-        managedProgramIds={
-          manageScopes.hasGlobal ? null : manageScopes.programIds
-        }
-        isTargetSuperAdmin={isTargetSuperAdmin}
-        isSelf={isSelf}
+        assigned={assigned}
+        assignable={assignable}
+        scopeLabels={scopeLabels}
+        canManage={isSuperAdmin || canManageRoles}
       />
+
+      <AdvancedAccess>
+        <PermissionManager
+          userId={id}
+          currentStatus={targetUser.status ?? "invited"}
+          currentJobTitle={targetUser.job_title ?? ""}
+          permissionsByModule={curated}
+          userPermissions={userPermissions}
+          scopeOptions={scopeOptions}
+          isSuperAdmin={isSuperAdmin}
+          managedProgramIds={manageScopes.hasGlobal ? null : manageScopes.programIds}
+          isTargetSuperAdmin={isTargetSuperAdmin}
+          isSelf={isSelf}
+        />
+      </AdvancedAccess>
     </div>
   );
 }
