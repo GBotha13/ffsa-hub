@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { compressImageToMaxBytes } from "@/lib/image";
 
 /**
  * Avatar + click-to-upload affordance. Used on the self-profile page
@@ -28,14 +29,21 @@ export function AvatarUploader({
   const inputRef = useRef<HTMLInputElement>(null);
   const [src, setSrc] = useState<string | null>(initialSrc ?? null);
   const [uploading, setUploading] = useState(false);
+  const [busyLabel, setBusyLabel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function handleFile(file: File) {
     setError(null);
     setUploading(true);
     try {
+      // Resize + re-encode in the browser so we store a small JPEG and never
+      // trip the 1 MB avatars-bucket limit. Falls back to the original file
+      // if anything goes wrong (the server still validates size/type).
+      setBusyLabel("Optimizing…");
+      const prepared = await compressImageToMaxBytes(file);
+      setBusyLabel("Uploading…");
       const fd = new FormData();
-      fd.append("file", file);
+      fd.append("file", prepared);
       const res = await fetch(`/api/users/${userId}/avatar`, {
         method: "POST",
         body: fd,
@@ -51,6 +59,7 @@ export function AvatarUploader({
       setError("Network error");
     } finally {
       setUploading(false);
+      setBusyLabel(null);
       if (inputRef.current) inputRef.current.value = "";
     }
   }
@@ -114,7 +123,7 @@ export function AvatarUploader({
           className="text-muted-foreground hover:text-foreground underline underline-offset-2"
           style={{ letterSpacing: "0.08em" }}
         >
-          {uploading ? "Uploading…" : src ? "Change photo" : "Upload photo"}
+          {uploading ? (busyLabel ?? "Uploading…") : src ? "Change photo" : "Upload photo"}
         </button>
         {src && !uploading && (
           <>
@@ -135,7 +144,7 @@ export function AvatarUploader({
       <input
         ref={inputRef}
         type="file"
-        accept="image/png,image/jpeg,image/webp"
+        accept="image/png,image/jpeg,image/webp,image/heic,image/heif,.heic,.heif"
         className="sr-only"
         onChange={(e) => {
           const file = e.target.files?.[0];
