@@ -17,13 +17,12 @@ import {
   Settings2,
   CalendarDays,
   List as ListIcon,
+  AlertTriangle,
 } from "lucide-react";
-import {
-  monthParam,
-  monthLabel,
-  shiftMonth,
-} from "@/lib/bookings/dates";
+import { cn } from "@/lib/utils/cn";
+import { monthParam, monthLabel, shiftMonth } from "@/lib/bookings/dates";
 import { conflictingIds, type BookingWindow } from "@/lib/bookings/conflicts";
+import { statusColor, statusLabel } from "@/lib/bookings/status";
 import type {
   BookingAccess,
   BookingWithRefs,
@@ -32,6 +31,7 @@ import type {
 } from "@/services/bookings";
 import { BookingCalendar } from "./booking-calendar";
 import { BookingList } from "./booking-list";
+import { ColorDot } from "./ui";
 
 type Filters = { venue: string; ministry: string; status: string };
 
@@ -86,6 +86,24 @@ export function BookingsView({
 
   const clashIds = conflictingIds(bookings as unknown as BookingWindow[]);
 
+  // Summary counts for the visible window.
+  const counts = { pending: 0, approved: 0, denied: 0, cancelled: 0 };
+  for (const b of bookings) counts[b.status] = (counts[b.status] ?? 0) + 1;
+
+  const stats: {
+    key: string;
+    label: string;
+    value: number;
+    color?: string;
+    status?: string;
+  }[] = [
+    { key: "all", label: "In view", value: bookings.length, status: "all" },
+    { key: "pending", label: "Pending", value: counts.pending, color: statusColor("pending"), status: "pending" },
+    { key: "approved", label: "Approved", value: counts.approved, color: statusColor("approved"), status: "approved" },
+    { key: "denied", label: "Denied", value: counts.denied, color: statusColor("denied"), status: "denied" },
+    { key: "clashes", label: "Clashes", value: clashIds.size, color: "hsl(0 70% 62%)" },
+  ];
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -93,14 +111,11 @@ export function BookingsView({
         <div>
           <p className="page-eyebrow">VENUE SCHEDULING</p>
           <h1 className="page-title">Space Bookings</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {bookings.length} booking{bookings.length === 1 ? "" : "s"} in view
-          </p>
         </div>
         <div className="flex items-center gap-2">
           {access.canManage && (
             <Link href="/bookings/venues">
-              <Button variant="outline" size="sm" className="gap-1">
+              <Button variant="outline" size="sm" className="gap-1.5">
                 <Settings2 className="h-4 w-4" />
                 Manage venues
               </Button>
@@ -108,13 +123,65 @@ export function BookingsView({
           )}
           {(access.canRequest || access.canApprove || access.canManage) && (
             <Link href="/bookings/new">
-              <Button size="sm" className="gap-1">
+              <Button size="sm" className="gap-1.5">
                 <Plus className="h-4 w-4" />
                 New booking
               </Button>
             </Link>
           )}
         </div>
+      </div>
+
+      {/* Summary stat strip */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+        {stats.map((s) => {
+          const active = s.status && filters.status === s.status;
+          const isClashes = s.key === "clashes";
+          const inner = (
+            <>
+              <div
+                className="text-2xl font-bold tabular-nums leading-none"
+                style={{ color: s.value === 0 && isClashes ? undefined : s.color }}
+              >
+                {s.value}
+              </div>
+              <div className="mt-1.5 flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                {isClashes && s.value > 0 && (
+                  <AlertTriangle className="h-3 w-3 text-[hsl(0_70%_62%)]" />
+                )}
+                {s.label}
+              </div>
+            </>
+          );
+          const base =
+            "rounded-xl border bg-card px-3.5 py-3 text-left transition-all";
+          if (isClashes) {
+            return (
+              <div
+                key={s.key}
+                className={cn(
+                  base,
+                  s.value > 0 && "border-destructive/40"
+                )}
+              >
+                {inner}
+              </div>
+            );
+          }
+          return (
+            <Link
+              key={s.key}
+              href={buildHref({ status: s.status })}
+              className={cn(
+                base,
+                "hover:-translate-y-px hover:border-[hsl(22_8%_20%)]",
+                active && "border-primary/55 ring-1 ring-primary/30"
+              )}
+            >
+              {inner}
+            </Link>
+          );
+        })}
       </div>
 
       {/* Controls */}
@@ -129,7 +196,7 @@ export function BookingsView({
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <div className="min-w-[10rem] text-center text-sm font-semibold">
+          <div className="min-w-[9.5rem] text-center text-base font-semibold tracking-wide">
             {monthLabel(year, month)}
           </div>
           <Button
@@ -152,7 +219,6 @@ export function BookingsView({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Venue filter */}
           <Select value={filters.venue} onValueChange={(v) => go({ venue: v })}>
             <SelectTrigger className="h-8 w-[9.5rem] text-xs">
               <SelectValue placeholder="Venue" />
@@ -167,7 +233,6 @@ export function BookingsView({
             </SelectContent>
           </Select>
 
-          {/* Ministry filter */}
           <Select value={filters.ministry} onValueChange={(v) => go({ ministry: v })}>
             <SelectTrigger className="h-8 w-[9.5rem] text-xs">
               <SelectValue placeholder="Ministry" />
@@ -182,26 +247,11 @@ export function BookingsView({
             </SelectContent>
           </Select>
 
-          {/* Status filter */}
-          <Select value={filters.status} onValueChange={(v) => go({ status: v })}>
-            <SelectTrigger className="h-8 w-[8rem] text-xs">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="approved">Approved</SelectItem>
-              <SelectItem value="denied">Denied</SelectItem>
-              <SelectItem value="cancelled">Cancelled</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* View toggle */}
-          <div className="flex items-center rounded-md border bg-card p-0.5">
+          <div className="flex items-center rounded-lg border bg-card p-0.5">
             <Button
               variant={view === "calendar" ? "secondary" : "ghost"}
               size="sm"
-              className="h-7 gap-1 px-2"
+              className="h-7 gap-1 px-2.5"
               onClick={() => go({ view: "calendar" })}
             >
               <CalendarDays className="h-4 w-4" />
@@ -210,7 +260,7 @@ export function BookingsView({
             <Button
               variant={view === "list" ? "secondary" : "ghost"}
               size="sm"
-              className="h-7 gap-1 px-2"
+              className="h-7 gap-1 px-2.5"
               onClick={() => go({ view: "list" })}
             >
               <ListIcon className="h-4 w-4" />
@@ -219,6 +269,21 @@ export function BookingsView({
           </div>
         </div>
       </div>
+
+      {/* Legend (calendar only) */}
+      {view === "calendar" && (
+        <div className="flex items-center justify-end gap-4 text-[10px] text-muted-foreground -mt-1">
+          {["pending", "approved", "denied", "cancelled"].map((s) => (
+            <span key={s} className="inline-flex items-center gap-1.5">
+              <ColorDot color={statusColor(s)} className="h-2 w-2" />
+              {statusLabel(s)}
+            </span>
+          ))}
+          <span className="hidden sm:inline text-[hsl(30_6%_34%)]">
+            · bar = venue
+          </span>
+        </div>
+      )}
 
       {view === "calendar" ? (
         <BookingCalendar

@@ -103,23 +103,30 @@ export function BookingActions({
               </label>
             )}
             <div className="flex gap-2">
-              <Button
+              <button
+                type="button"
                 onClick={() => decide("approved")}
                 disabled={!!busy}
-                className="gap-1 bg-emerald-600 hover:bg-emerald-600/90"
+                className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-[11px] tracking-[0.1em] transition-all hover:brightness-110 disabled:opacity-50"
+                style={{ background: "hsl(142 48% 32%)", color: "hsl(142 60% 90%)" }}
               >
                 <Check className="h-4 w-4" />
                 {busy === "approved" ? "Approving…" : "Approve"}
-              </Button>
-              <Button
+              </button>
+              <button
+                type="button"
                 onClick={() => decide("denied")}
                 disabled={!!busy}
-                variant="outline"
-                className="gap-1 border-red-500/40 text-red-600 hover:bg-red-500/10 dark:text-red-400"
+                className="inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-[11px] tracking-[0.1em] transition-all hover:brightness-110 disabled:opacity-50"
+                style={{
+                  background: "hsl(0 65% 30% / 0.30)",
+                  color: "hsl(0 75% 78%)",
+                  borderColor: "hsl(0 70% 52% / 0.4)",
+                }}
               >
                 <X className="h-4 w-4" />
                 {busy === "denied" ? "Denying…" : "Deny"}
-              </Button>
+              </button>
             </div>
           </div>
         )}

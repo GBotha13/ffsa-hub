@@ -9,11 +9,9 @@ import {
   getVenueBookingsBetween,
   getBookingAccess,
 } from "@/services/bookings";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, AlertTriangle } from "lucide-react";
-import { cn } from "@/lib/utils/cn";
-import { statusBadgeClass, statusLabel } from "@/lib/bookings/status";
+import { StatusPill } from "../ui";
 import {
   dateRangeLabel,
   timeRangeLabel,
@@ -115,27 +113,27 @@ export default async function BookingDetailPage({
       </Link>
 
       <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <div className="flex items-center gap-2">
-            <span
-              className="h-3 w-3 rounded-full"
-              style={{ backgroundColor: booking.venue?.color ?? "#64748b" }}
-            />
-            <p className="page-eyebrow">{booking.venue?.name ?? "Venue"}</p>
+        <div className="flex items-start gap-3">
+          <span
+            className="mt-1.5 h-11 w-1 shrink-0 rounded-full"
+            style={{ backgroundColor: booking.venue?.color ?? "#64748b" }}
+          />
+          <div>
+            <p className="page-eyebrow">
+              {booking.venue?.name ?? "Venue"}
+              {booking.venue?.building ? (
+                <span className="text-[hsl(30_6%_34%)]"> · {booking.venue.building}</span>
+              ) : null}
+            </p>
+            <h1 className="page-title">{booking.title}</h1>
           </div>
-          <h1 className="page-title">{booking.title}</h1>
         </div>
-        <Badge
-          variant="outline"
-          className={cn("capitalize text-sm", statusBadgeClass(booking.status))}
-        >
-          {statusLabel(booking.status)}
-        </Badge>
+        <StatusPill status={booking.status} className="text-[11px] px-2.5 py-1" />
       </div>
 
       {clashes.length > 0 && !isClosed && (
-        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-          <p className="flex items-center gap-2 font-medium text-amber-700 dark:text-amber-400">
+        <div className="rounded-lg border border-primary/35 bg-primary/10 p-3 text-sm">
+          <p className="flex items-center gap-2 font-semibold text-primary">
             <AlertTriangle className="h-4 w-4" />
             Clashes with {clashes.length} other booking{clashes.length === 1 ? "" : "s"} in this venue
           </p>

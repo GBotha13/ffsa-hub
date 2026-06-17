@@ -1,6 +1,7 @@
-// Shared booking-status vocabulary + styling, so the calendar, list, and
-// detail views all render statuses identically (mirrors the green / amber /
-// red colouring of the original spreadsheet).
+// Shared booking-status vocabulary + styling. Everything maps onto the FFSA
+// Hub brand tokens (the .status-green/yellow/red/grey pills in globals.css and
+// the gold/green/red hues), so bookings read identically to the rest of the app
+// and mirror the green / amber / red language of the original spreadsheet.
 
 export const BOOKING_STATUSES = [
   "pending",
@@ -26,34 +27,66 @@ export function statusLabel(status: string): string {
   }
 }
 
-/** Tailwind classes for a status pill (use with Badge variant="outline"). */
-export function statusBadgeClass(status: string): string {
+/** Brand status-pill class (defined in globals.css @layer components). */
+export function statusBrandClass(status: string): string {
   switch (status) {
     case "approved":
-      return "border-emerald-500/30 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400";
+      return "status-green";
     case "pending":
-      return "border-amber-500/30 bg-amber-500/15 text-amber-600 dark:text-amber-400";
+      return "status-yellow";
     case "denied":
-      return "border-red-500/30 bg-red-500/15 text-red-600 dark:text-red-400";
+      return "status-red";
     case "cancelled":
-      return "border-border bg-muted text-muted-foreground line-through";
+      return "status-grey";
     default:
-      return "border-border bg-muted text-muted-foreground";
+      return "status-grey";
   }
 }
 
-/** A faint left-border / background tint for calendar chips by status. */
-export function statusChipClass(status: string): string {
+/** Solid accent colour for a status — used for left-bars, dots, stat numbers. */
+export function statusColor(status: string): string {
   switch (status) {
     case "approved":
-      return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300";
+      return "hsl(142 55% 52%)";
     case "pending":
-      return "bg-amber-500/15 text-amber-700 dark:text-amber-300";
+      return "hsl(42 95% 58%)";
     case "denied":
-      return "bg-red-500/10 text-red-700/70 dark:text-red-300/70 line-through";
+      return "hsl(0 70% 62%)";
     case "cancelled":
-      return "bg-muted text-muted-foreground line-through";
+      return "hsl(30 6% 46%)";
     default:
-      return "bg-muted text-muted-foreground";
+      return "hsl(30 6% 46%)";
+  }
+}
+
+/** Inline style for a calendar chip, tinted by status (kept off Tailwind to
+ *  avoid arbitrary-value/opacity parsing pitfalls). */
+export function statusChipStyle(status: string): {
+  background: string;
+  color: string;
+  textDecoration?: string;
+  opacity?: number;
+} {
+  switch (status) {
+    case "approved":
+      return { background: "hsl(142 50% 30% / 0.30)", color: "hsl(142 52% 74%)" };
+    case "pending":
+      return { background: "hsl(42 95% 55% / 0.15)", color: "hsl(42 90% 70%)" };
+    case "denied":
+      return {
+        background: "hsl(0 70% 52% / 0.15)",
+        color: "hsl(0 70% 74%)",
+        textDecoration: "line-through",
+        opacity: 0.85,
+      };
+    case "cancelled":
+      return {
+        background: "hsl(22 8% 16%)",
+        color: "hsl(30 6% 52%)",
+        textDecoration: "line-through",
+        opacity: 0.7,
+      };
+    default:
+      return { background: "hsl(22 8% 16%)", color: "hsl(30 6% 60%)" };
   }
 }

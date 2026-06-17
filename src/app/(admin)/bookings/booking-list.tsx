@@ -9,11 +9,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { AlertTriangle } from "lucide-react";
-import { cn } from "@/lib/utils/cn";
-import { statusBadgeClass, statusLabel } from "@/lib/bookings/status";
+import { AlertTriangle, CalendarRange } from "lucide-react";
+import { statusColor } from "@/lib/bookings/status";
 import { dateRangeLabel, timeRangeLabel, timeLabel } from "@/lib/bookings/dates";
+import { StatusPill, ColorDot } from "./ui";
 import type { BookingWithRefs } from "@/services/bookings";
 
 export function BookingList({
@@ -23,8 +22,26 @@ export function BookingList({
   bookings: BookingWithRefs[];
   clashIds: Set<string>;
 }) {
+  if (bookings.length === 0) {
+    return (
+      <div className="rounded-xl border bg-card">
+        <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[hsl(22_8%_12%)]">
+            <CalendarRange className="h-5 w-5 text-[hsl(30_6%_42%)]" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-foreground">No bookings here</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Nothing matches this month and filter. Try another month or clear the filters.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="rounded-lg border bg-card overflow-x-auto">
+    <div className="rounded-xl border bg-card overflow-x-auto shadow-[0_2px_16px_rgba(0,0,0,0.35)]">
       <Table>
         <TableHeader>
           <TableRow>
@@ -40,89 +57,68 @@ export function BookingList({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {bookings.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
-                No bookings in this view
-              </TableCell>
-            </TableRow>
-          ) : (
-            bookings.map((b) => {
-              const clash = clashIds.has(b.id);
-              return (
-                <TableRow key={b.id}>
-                  <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={cn("capitalize", statusBadgeClass(b.status))}
-                    >
-                      {statusLabel(b.status)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap">
+          {bookings.map((b) => {
+            const clash = clashIds.has(b.id);
+            return (
+              <TableRow key={b.id}>
+                <TableCell style={{ boxShadow: `inset 3px 0 0 ${statusColor(b.status)}` }}>
+                  <StatusPill status={b.status} />
+                </TableCell>
+                <TableCell className="whitespace-nowrap">
+                  <span className="inline-flex items-center gap-1.5 text-foreground">
+                    <ColorDot color={b.venue?.color ?? "#64748b"} />
+                    {b.venue?.name ?? "—"}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <Link
+                    href={`/bookings/${b.id}`}
+                    className="font-medium text-foreground hover:text-[hsl(42_95%_62%)] transition-colors"
+                  >
+                    {b.title}
+                  </Link>
+                  {b.series_id && (
+                    <span className="ml-1.5 text-[9px] font-bold uppercase tracking-wider text-[hsl(42_90%_58%)]">
+                      weekly
+                    </span>
+                  )}
+                </TableCell>
+                <TableCell className="whitespace-nowrap">
+                  {b.ministry ? (
                     <span className="inline-flex items-center gap-1.5">
-                      <span
-                        className="h-2.5 w-2.5 rounded-full"
-                        style={{ backgroundColor: b.venue?.color ?? "#64748b" }}
+                      <ColorDot color={b.ministry.color} />
+                      {b.ministry.name}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+                <TableCell className="whitespace-nowrap">
+                  <span className="inline-flex items-center gap-1.5">
+                    {clash && (
+                      <AlertTriangle
+                        className="h-3.5 w-3.5 text-[hsl(0_70%_64%)]"
+                        aria-label="Clashes with another booking"
                       />
-                      {b.venue?.name ?? "—"}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <Link
-                      href={`/bookings/${b.id}`}
-                      className="font-medium hover:underline"
-                    >
-                      {b.title}
-                    </Link>
-                    {b.series_id && (
-                      <span className="ml-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                        · weekly
-                      </span>
                     )}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    {b.ministry ? (
-                      <span className="inline-flex items-center gap-1.5 text-sm">
-                        <span
-                          className="h-2.5 w-2.5 rounded-full"
-                          style={{ backgroundColor: b.ministry.color }}
-                        />
-                        {b.ministry.name}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1">
-                      {clash && (
-                        <AlertTriangle
-                          className="h-3.5 w-3.5 text-red-500"
-                          aria-label="Clashes with another booking"
-                        />
-                      )}
-                      {dateRangeLabel(b.booking_date, b.end_date)}
-                    </span>
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">
-                    {timeRangeLabel(b.start_time, b.end_time)}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">
-                    {timeLabel(b.setup_time)}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">
-                    {timeLabel(b.setdown_time)}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    {b.point_person || (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              );
-            })
-          )}
+                    {dateRangeLabel(b.booking_date, b.end_date)}
+                  </span>
+                </TableCell>
+                <TableCell className="whitespace-nowrap tabular-nums">
+                  {timeRangeLabel(b.start_time, b.end_time)}
+                </TableCell>
+                <TableCell className="whitespace-nowrap tabular-nums">
+                  {timeLabel(b.setup_time)}
+                </TableCell>
+                <TableCell className="whitespace-nowrap tabular-nums">
+                  {timeLabel(b.setdown_time)}
+                </TableCell>
+                <TableCell className="whitespace-nowrap">
+                  {b.point_person || <span className="text-muted-foreground">—</span>}
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </div>

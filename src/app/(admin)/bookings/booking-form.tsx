@@ -16,7 +16,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AlertTriangle } from "lucide-react";
-import { cn } from "@/lib/utils/cn";
 import { WEEKDAY_OPTIONS } from "@/lib/bookings/recurrence";
 import { humanDate } from "@/lib/bookings/dates";
 import type { Venue, Ministry } from "@/services/bookings";
@@ -319,6 +318,12 @@ export function BookingForm({
           </div>
 
           {/* Times */}
+          <div className="flex items-center gap-3 pt-1">
+            <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[hsl(30_6%_46%)]">
+              Times &amp; set-up
+            </span>
+            <span className="h-px flex-1 bg-[hsl(22_8%_14%)]" />
+          </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="space-y-2">
               <Label htmlFor="start_time">Event start</Label>
@@ -360,8 +365,8 @@ export function BookingForm({
 
           {/* Clash warning */}
           {hasConflicts && (
-            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-              <p className="flex items-center gap-2 font-medium text-amber-700 dark:text-amber-400">
+            <div className="rounded-lg border border-primary/35 bg-primary/10 p-3 text-sm">
+              <p className="flex items-center gap-2 font-semibold text-primary">
                 <AlertTriangle className="h-4 w-4" />
                 This {form.recurrence === "weekly" ? "series clashes" : "booking clashes"} with
                 an existing booking in this venue
@@ -384,7 +389,7 @@ export function BookingForm({
           {error && <p className="text-sm text-destructive">{error}</p>}
 
           <div className="flex gap-3 pt-1">
-            <Button type="submit" disabled={loading} className={cn(hasConflicts && "bg-amber-600 hover:bg-amber-600/90")}>
+            <Button type="submit" disabled={loading}>
               {loading
                 ? "Working…"
                 : hasConflicts
