@@ -141,3 +141,49 @@ export async function compressImageToMaxBytes(
     return file;
   }
 }
+
+// Build a displayable object URL for a picked file, decoding HEIC/HEIF to JPEG
+// first (browsers can't render HEIC). The caller owns the URL and must
+// URL.revokeObjectURL() it when done.
+export async function fileToDisplayUrl(file: File): Promise<string> {
+  const blob = isHeic(file) ? await heicToJpeg(file) : file;
+  return URL.createObjectURL(blob);
+}
+
+function loadImageFromSrc(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("Image load failed"));
+    img.src = src;
+  });
+}
+
+// Pixel rectangle in source-image coordinates (matches react-easy-crop's Area).
+export type PixelCrop = { x: number; y: number; width: number; height: number };
+
+/**
+ * Render a crop region to a square `size`×`size` JPEG File. Used by the avatar
+ * cropper; the result is still run through compressImageToMaxBytes afterwards
+ * for the final under-1 MB guarantee.
+ */
+export async function getCroppedJpegFile(
+  imageSrc: string,
+  crop: PixelCrop,
+  size = DEFAULT_MAX_DIMENSION,
+  filename = "avatar.jpg"
+): Promise<File> {
+  const img = await loadImageFromSrc(imageSrc);
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas unavailable");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, size, size);
+  ctx.drawImage(img, crop.x, crop.y, crop.width, crop.height, 0, 0, size, size);
+
+  const blob = await canvasToBlob(canvas, 0.9);
+  if (!blob) throw new Error("Could not export the cropped image");
+  return new File([blob], filename, { type: "image/jpeg" });
+}

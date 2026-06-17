@@ -3,14 +3,16 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { UserAvatar } from "@/components/ui/user-avatar";
-import { compressImageToMaxBytes } from "@/lib/image";
+import { AvatarCropModal } from "@/components/avatar-crop-modal";
+import { compressImageToMaxBytes, fileToDisplayUrl } from "@/lib/image";
 
 /**
  * Avatar + click-to-upload affordance. Used on the self-profile page
- * and the admin user-detail header. Re-renders the new image inline
- * (no full reload needed) but also calls router.refresh() so any
- * other server-rendered avatar on the page (sidebar, breadcrumb)
- * picks up the new URL on the next paint.
+ * and the admin user-detail header. Picking a photo opens a crop/zoom
+ * modal (Facebook/Instagram style); only the cropped square is uploaded.
+ * Re-renders the new image inline (no full reload needed) but also calls
+ * router.refresh() so any other server-rendered avatar on the page
+ * (sidebar, breadcrumb) picks up the new URL on the next paint.
  */
 export function AvatarUploader({
   userId,
@@ -31,14 +33,47 @@ export function AvatarUploader({
   const [uploading, setUploading] = useState(false);
   const [busyLabel, setBusyLabel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
 
-  async function handleFile(file: File) {
+  // Step 1: a file was picked — decode it for display (HEIC needs converting)
+  // and open the crop/zoom modal. Nothing is uploaded until the user saves.
+  async function handleSelected(file: File) {
+    setError(null);
+    setUploading(true);
+    setBusyLabel("Preparing…");
+    try {
+      const url = await fileToDisplayUrl(file);
+      setCropSrc(url);
+    } catch {
+      setError("Could not read that image");
+    } finally {
+      setUploading(false);
+      setBusyLabel(null);
+      // Reset so picking the same file again re-opens the cropper.
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  function closeCrop() {
+    setCropSrc((cur) => {
+      if (cur) URL.revokeObjectURL(cur);
+      return null;
+    });
+  }
+
+  // Step 2: the user saved their crop — upload the cropped square.
+  function handleCropConfirm(file: File) {
+    closeCrop();
+    void uploadFile(file);
+  }
+
+  async function uploadFile(file: File) {
     setError(null);
     setUploading(true);
     try {
-      // Resize + re-encode in the browser so we store a small JPEG and never
-      // trip the 1 MB avatars-bucket limit. Falls back to the original file
-      // if anything goes wrong (the server still validates size/type).
+      // Re-encode to a small JPEG so we never trip the 1 MB avatars-bucket
+      // limit. Falls back to the original file if anything goes wrong (the
+      // server still validates size/type).
       setBusyLabel("Optimizing…");
       const prepared = await compressImageToMaxBytes(file);
       setBusyLabel("Uploading…");
@@ -60,7 +95,6 @@ export function AvatarUploader({
     } finally {
       setUploading(false);
       setBusyLabel(null);
-      if (inputRef.current) inputRef.current.value = "";
     }
   }
 
@@ -148,8 +182,14 @@ export function AvatarUploader({
         className="sr-only"
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) handleFile(file);
+          if (file) handleSelected(file);
         }}
+      />
+      <AvatarCropModal
+        key={cropSrc ?? "closed"}
+        src={cropSrc}
+        onCancel={closeCrop}
+        onConfirm={handleCropConfirm}
       />
     </div>
   );
