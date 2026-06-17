@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getEventById } from "@/services/events";
-import { hasAnyRole, EVENTS_MANAGE_ROLES } from "@/lib/api-auth";
+import { canManageEvents } from "@/lib/api-auth";
 import { Scanner } from "./scanner";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +18,7 @@ export default async function CheckInPage({
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  if (!(await hasAnyRole(supabase, user.id, EVENTS_MANAGE_ROLES))) {
+  if (!(await canManageEvents(supabase, user.id, ["events.manage_attendance"]))) {
     return (
       <div className="p-6 text-center text-sm text-red-600">
         You don't have permission to check tickets in for this event.
