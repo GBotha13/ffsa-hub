@@ -71,6 +71,56 @@ export function todayISO(): string {
   return `${n.getFullYear()}-${pad(n.getMonth() + 1)}-${pad(n.getDate())}`;
 }
 
+export function parseDateParam(param?: string): string {
+  if (param && /^\d{4}-\d{2}-\d{2}$/.test(param)) return param;
+  return todayISO();
+}
+
+export function shiftDays(iso: string, n: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/** The 7 ISO dates (Sun→Sat) of the week containing `iso`. */
+export function weekDays(iso: string): string[] {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - d.getUTCDay());
+  const out: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    out.push(d.toISOString().slice(0, 10));
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return out;
+}
+
+export function weekdayShortFor(iso: string): string {
+  const dt = new Date(`${iso}T00:00:00Z`);
+  return WD_SHORT[dt.getUTCDay()];
+}
+
+export function weekRangeLabel(iso: string): string {
+  const days = weekDays(iso);
+  const a = days[0];
+  const b = days[6];
+  const aMon = parseInt(a.slice(5, 7), 10);
+  const bMon = parseInt(b.slice(5, 7), 10);
+  const aDay = parseInt(a.slice(8, 10), 10);
+  const bDay = parseInt(b.slice(8, 10), 10);
+  const bYear = parseInt(b.slice(0, 4), 10);
+  if (aMon === bMon) return `${aDay}–${bDay} ${MON_SHORT[bMon - 1]} ${bYear}`;
+  return `${aDay} ${MON_SHORT[aMon - 1]} – ${bDay} ${MON_SHORT[bMon - 1]} ${bYear}`;
+}
+
+const WD_LONG = [
+  "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
+];
+
+export function dayHeadingLabel(iso: string): string {
+  const dt = new Date(`${iso}T00:00:00Z`);
+  return `${WD_LONG[dt.getUTCDay()]} ${shortDate(iso)}`;
+}
+
 export const WEEKDAY_HEADERS = WD_SHORT;
 
 function shortDate(iso: string): string {

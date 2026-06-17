@@ -86,16 +86,18 @@ export function BookingCalendar({
               )}
             >
               <div className="mb-1 flex items-center justify-between px-0.5">
-                <span
+                <Link
+                  href={`/bookings?view=day&date=${d}`}
+                  title="Open day view"
                   className={cn(
-                    "flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-semibold tabular-nums",
+                    "flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-semibold tabular-nums transition-all hover:ring-1 hover:ring-primary/50",
                     !inMonth && "text-[hsl(30_6%_30%)]",
-                    inMonth && !isToday && "text-[hsl(38_12%_72%)]",
+                    inMonth && !isToday && "text-[hsl(38_12%_72%)] hover:text-[hsl(42_95%_62%)]",
                     isToday && "bg-[hsl(42_95%_55%)] text-[#0D0B09]"
                   )}
                 >
                   {isoDay(d)}
-                </span>
+                </Link>
                 <span className="relative flex h-4 w-5 items-center justify-center">
                   {dayBookings.length > 0 && (
                     <span className="text-[9px] font-semibold tabular-nums text-[hsl(30_6%_38%)] transition-opacity group-hover:opacity-0">

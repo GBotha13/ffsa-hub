@@ -10,14 +10,22 @@ import {
   type Venue,
   type Ministry,
 } from "@/services/bookings";
-import { parseMonthParam, monthGridDays } from "@/lib/bookings/dates";
+import { parseDateParam, monthGridDays, weekDays } from "@/lib/bookings/dates";
 import { BookingsView } from "./bookings-view";
+
+type ViewKind = "month" | "week" | "day" | "list";
+
+function normalizeView(v?: string): ViewKind {
+  if (v === "week" || v === "day" || v === "list") return v;
+  return "month"; // also handles the legacy "calendar" value
+}
 
 export default async function BookingsPage({
   searchParams,
 }: {
   searchParams: Promise<{
     view?: string;
+    date?: string;
     month?: string;
     venue?: string;
     ministry?: string;
@@ -37,10 +45,28 @@ export default async function BookingsPage({
     getBookingAccess(supabase, user.id),
   ]);
 
-  const { year, month } = parseMonthParam(params.month);
-  const grid = monthGridDays(year, month);
-  const from = grid[0];
-  const to = grid[grid.length - 1];
+  const view = normalizeView(params.view);
+  // Unified focus date; falls back to a legacy ?month, then today.
+  const focus = parseDateParam(
+    params.date ?? (params.month ? `${params.month}-01` : undefined)
+  );
+  const year = parseInt(focus.slice(0, 4), 10);
+  const month = parseInt(focus.slice(5, 7), 10);
+
+  let from: string;
+  let to: string;
+  if (view === "week") {
+    const wd = weekDays(focus);
+    from = wd[0];
+    to = wd[6];
+  } else if (view === "day") {
+    from = focus;
+    to = focus;
+  } else {
+    const grid = monthGridDays(year, month);
+    from = grid[0];
+    to = grid[grid.length - 1];
+  }
 
   const venueId = params.venue && params.venue !== "all" ? params.venue : undefined;
   const ministryId =
@@ -63,7 +89,8 @@ export default async function BookingsPage({
       venues={venues}
       ministries={ministries}
       access={access}
-      view={params.view === "list" ? "list" : "calendar"}
+      view={view}
+      date={focus}
       year={year}
       month={month}
       filters={{

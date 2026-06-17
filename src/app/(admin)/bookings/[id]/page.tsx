@@ -10,7 +10,8 @@ import {
   getBookingAccess,
 } from "@/services/bookings";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, AlertTriangle } from "lucide-react";
+import { ArrowLeft, AlertTriangle, Pencil } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { BookingStatusProvider, LiveStatusPill } from "./status-context";
 import {
   dateRangeLabel,
@@ -100,6 +101,8 @@ export default async function BookingDetailPage({
   const isOwner = booking.requested_by === user.id;
   const canCancel =
     access.isAdmin || access.canManage || access.canApprove || isOwner;
+  const canEdit =
+    canCancel && (booking.status === "pending" || booking.status === "approved");
   const isClosed = booking.status === "cancelled";
 
   return (
@@ -129,7 +132,17 @@ export default async function BookingDetailPage({
             <h1 className="page-title">{booking.title}</h1>
           </div>
         </div>
-        <LiveStatusPill className="text-[11px] px-2.5 py-1" />
+        <div className="flex flex-col items-end gap-2">
+          <LiveStatusPill className="text-[11px] px-2.5 py-1" />
+          {canEdit && (
+            <Link href={`/bookings/${booking.id}/edit`}>
+              <Button variant="outline" size="sm" className="h-7 gap-1">
+                <Pencil className="h-3.5 w-3.5" />
+                Edit
+              </Button>
+            </Link>
+          )}
+        </div>
       </div>
 
       {clashes.length > 0 && !isClosed && (

@@ -9,7 +9,7 @@ import {
   updateSeriesOccurrences,
 } from "@/services/bookings";
 
-const EDITABLE_TEXT = ["title", "description", "point_person", "ministry_id"] as const;
+const EDITABLE_TEXT = ["venue_id", "title", "description", "point_person", "ministry_id"] as const;
 const EDITABLE_DATETIME = [
   "booking_date",
   "end_date",
@@ -65,12 +65,11 @@ export async function PATCH(
   const patch: Record<string, unknown> = {};
 
   for (const key of EDITABLE_TEXT) {
-    if (key in body) {
-      const raw = typeof body[key] === "string" ? (body[key] as string).trim() : null;
-      // Don't allow blanking the title.
-      if (key === "title" && !raw) continue;
-      patch[key] = raw && raw.length ? raw : key === "title" ? raw : null;
-    }
+    if (!(key in body)) continue;
+    const raw = typeof body[key] === "string" ? (body[key] as string).trim() : null;
+    // Required fields can't be blanked — skip them instead of nulling.
+    if ((key === "title" || key === "venue_id") && !raw) continue;
+    patch[key] = raw && raw.length ? raw : null;
   }
   for (const key of EDITABLE_DATETIME) {
     if (key in body) {
