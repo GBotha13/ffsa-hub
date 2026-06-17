@@ -1,75 +1,57 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getRoles } from "@/services/roles";
-import type { Tables } from "@/types/database";
-type Role = Tables<"roles">;
-import { Badge } from "@/components/ui/badge";
+import { getPermissions } from "@/services/permissions";
+import { getRoleMemberCounts } from "@/services/roles";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  callerIsSuperAdmin,
+  callerCanManageRoles,
+  getEffectivePermissionKeys,
+} from "@/lib/auth/check-role-grant";
+import { RolesManager } from "./roles-manager";
 
 export default async function RolesPage() {
   const supabase = await createClient();
-  const { data: roles } = await getRoles(supabase);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  // Only super_admin or holders of administration.manage_roles may manage roles.
+  if (!(await callerCanManageRoles(supabase, user.id))) {
+    redirect("/dashboard");
+  }
+
+  const isSuperAdmin = await callerIsSuperAdmin(supabase, user.id);
+  const callerKeys = Array.from(await getEffectivePermissionKeys(supabase, user.id));
+
+  const [rolesRes, permissionsByModule, memberCounts] = await Promise.all([
+    supabase
+      .from("roles")
+      .select("id, name, display_name, description, is_system")
+      .order("is_system", { ascending: true })
+      .order("display_name", { ascending: true }),
+    getPermissions(supabase),
+    getRoleMemberCounts(supabase),
+  ]);
+
+  // role_id -> permission_ids (the bundles)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rolePerms } = await (supabase as any)
+    .from("role_permissions")
+    .select("role_id, permission_id");
+  const bundles: Record<string, string[]> = {};
+  for (const rp of (rolePerms ?? []) as { role_id: string; permission_id: string }[]) {
+    (bundles[rp.role_id] ||= []).push(rp.permission_id);
+  }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="page-eyebrow">SYSTEM SETTINGS</p>
-        <h1 className="page-title">Roles</h1>
-      </div>
-
-      <div className="rounded-lg border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Role</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead>System</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {!roles || roles.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={4}
-                  className="text-center text-muted-foreground py-8"
-                >
-                  No roles found. Run the seed migration to create default roles.
-                </TableCell>
-              </TableRow>
-            ) : (
-              (roles as Role[]).map((role) => (
-                <TableRow key={role.id}>
-                  <TableCell className="font-medium">
-                    {role.display_name}
-                  </TableCell>
-                  <TableCell>
-                    <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
-                      {role.name}
-                    </code>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground max-w-md">
-                    {role.description ?? "—"}
-                  </TableCell>
-                  <TableCell>
-                    {role.is_system && (
-                      <Badge variant="outline" className="text-xs">
-                        System
-                      </Badge>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
+    <RolesManager
+      roles={rolesRes.data ?? []}
+      permissionsByModule={permissionsByModule}
+      memberCounts={memberCounts}
+      bundles={bundles}
+      callerKeys={callerKeys}
+      isSuperAdmin={isSuperAdmin}
+    />
   );
 }
