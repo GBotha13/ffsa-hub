@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUsers } from "@/services/users";
+import { getAuthSignIns } from "@/lib/users/auth-signins";
 import { UsersTable } from "./users-table";
 import { InviteUserForm } from "./invite-user-form";
 import { PublicSignupLinkCard } from "./public-signup-link-card";
@@ -16,15 +17,26 @@ export default async function UsersPage() {
     {
       data: { session },
     },
+    authSignIns,
   ] = await Promise.all([
     getUsers(supabase),
     supabase.auth.getSession(),
+    getAuthSignIns(),
   ]);
   const { data: users, count, error: usersError } = usersResult;
   if (usersError) {
     console.error("getUsers error:", JSON.stringify(usersError, null, 2));
   }
   const authUser = session?.user;
+
+  // The public.users.last_sign_in_at mirror is unmaintained (always null), so
+  // overlay the authoritative value from Supabase Auth. This drives the status
+  // badge: anyone who has actually signed in is past the "Invited" stage.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const usersWithSignIn = (users ?? []).map((u: any) => ({
+    ...u,
+    last_sign_in_at: authSignIns.get(u.id) ?? u.last_sign_in_at ?? null,
+  }));
 
   // Check if current user is super_admin
   let isSuperAdmin = false;
@@ -76,7 +88,7 @@ export default async function UsersPage() {
         />
       )}
 
-      <UsersTable users={users ?? []} currentUserId={authUser?.id ?? ""} />
+      <UsersTable users={usersWithSignIn} currentUserId={authUser?.id ?? ""} />
     </div>
   );
 }

@@ -66,8 +66,12 @@ function computeStage(
   // Inactive trumps everything — an admin has actively turned this user off.
   if (user.is_active === false) return "inactive";
 
-  // Never accepted the invite — they haven't clicked the link or finished signup.
-  if (!user.accepted_at) return "invited";
+  // Hasn't joined yet: no acceptance recorded AND never signed in. A real
+  // sign-in is itself proof of acceptance, so the caller should supply
+  // last_sign_in_at from Supabase Auth (the app's accepted_at / last_sign_in_at
+  // columns were historically left unset for founder/seed accounts, which made
+  // active users — including super admins — wrongly read as "Invited").
+  if (!user.accepted_at && !user.last_sign_in_at) return "invited";
 
   // Accepted but the profile-completion-gate would still block them.
   if (missingCount > 0) return "profile_incomplete";
