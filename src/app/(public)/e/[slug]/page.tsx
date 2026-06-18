@@ -4,6 +4,7 @@ import { listTicketTypesByEvent } from "@/services/ticketing";
 import { Storefront } from "./storefront";
 import { TheSendStorefront } from "./the-send-storefront";
 import { PublicFormNotice } from "@/components/public-form-shell";
+import type { FormField } from "@/lib/forms/schema";
 
 // Bespoke landing pages keyed by the event's brand flag (migration 077).
 // THE SEND gets its own bespoke storefront; everything else uses the
@@ -67,11 +68,24 @@ export default async function PublicEventPage({
     logo_url: event.logo_url ?? null,
   };
 
+  const checkoutQuestions =
+    (event.checkout_questions as FormField[] | null) ?? [];
+
   if (isTheSendBrand(event)) {
     return (
-      <TheSendStorefront event={eventProps} ticketTypes={ticketTypes ?? []} />
+      <TheSendStorefront
+        event={eventProps}
+        ticketTypes={ticketTypes ?? []}
+        checkoutQuestions={checkoutQuestions}
+      />
     );
   }
 
-  return <Storefront event={eventProps} ticketTypes={ticketTypes ?? []} />;
+  return (
+    <Storefront
+      event={eventProps}
+      ticketTypes={ticketTypes ?? []}
+      checkoutQuestions={checkoutQuestions}
+    />
+  );
 }

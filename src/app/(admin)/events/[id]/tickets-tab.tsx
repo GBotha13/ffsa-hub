@@ -1,7 +1,9 @@
 import { TicketingSettings } from "./ticketing-settings";
 import { TicketTypesManager } from "./ticket-types-manager";
 import { PromoCodesManager } from "./promo-codes-manager";
+import { CheckoutQuestionsManager } from "./checkout-questions-manager";
 import type { FeeProfile } from "@/lib/payments/pricing";
+import type { FormField } from "@/lib/forms/schema";
 
 // Composer for the Tickets tab on the event detail page. The
 // individual sub-managers handle their own CRUD via API routes;
@@ -19,6 +21,7 @@ export function TicketsTab({
   ticketTypes,
   promoCodes,
   feeProfiles,
+  checkoutQuestions,
 }: {
   eventId: string;
   ticketingEnabled: boolean;
@@ -26,6 +29,7 @@ export function TicketsTab({
   ticketTypes: TicketTypeRow[];
   promoCodes: PromoCodeRow[];
   feeProfiles: FeeProfile[];
+  checkoutQuestions: FormField[];
 }) {
   return (
     <div className="space-y-6">
@@ -43,6 +47,10 @@ export function TicketsTab({
         eventId={eventId}
         promoCodes={promoCodes}
         ticketTypes={ticketTypes.map((t) => ({ id: t.id, name: t.name }))}
+      />
+      <CheckoutQuestionsManager
+        eventId={eventId}
+        initialQuestions={checkoutQuestions}
       />
     </div>
   );

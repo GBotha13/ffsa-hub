@@ -3,6 +3,29 @@
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import type { FormField } from "@/lib/forms/schema";
+import { validateCheckoutAnswers } from "@/lib/ticketing/checkout-questions";
+import {
+  CheckoutQuestionFields,
+  type CheckoutFieldClasses,
+} from "./checkout-questions-fields";
+
+// Custom checkout questions render with the storefront's native input
+// styling — globals.css covers inputs/selects/textareas, so plain
+// utility classes match the buyer fields above.
+const FF_CHECKOUT_CLASSES: CheckoutFieldClasses = {
+  field: "",
+  label: "",
+  required: "",
+  input: "w-full mt-1 px-3 py-2",
+  textarea: "w-full mt-1 px-3 py-2",
+  select: "w-full mt-1 px-3 py-2",
+  optionRow:
+    "flex items-center gap-2 cursor-pointer text-sm normal-case tracking-normal",
+  optionText: "text-foreground/80 normal-case tracking-normal",
+  help: "text-xs text-muted-foreground mt-1 normal-case tracking-normal",
+  error: "text-sm text-red-500 mt-1 normal-case tracking-normal",
+};
 
 type TicketType = {
   id: string;
@@ -72,9 +95,11 @@ function remaining(t: TicketType): number | null {
 export function Storefront({
   event,
   ticketTypes,
+  checkoutQuestions,
 }: {
   event: PublicEvent;
   ticketTypes: TicketType[];
+  checkoutQuestions: FormField[];
 }) {
   const now = useMemo(() => new Date(), []);
   const visibleTickets = useMemo(
@@ -92,6 +117,8 @@ export function Storefront({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [marketingConsent, setMarketingConsent] = useState(false);
+  const [customAnswers, setCustomAnswers] = useState<Record<string, unknown>>({});
+  const [customErrors, setCustomErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState<"payfast" | "stripe" | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -230,6 +257,15 @@ export function Storefront({
       setErr("Please complete your name and a valid email.");
       return;
     }
+    if (checkoutQuestions.length > 0) {
+      const v = validateCheckoutAnswers(checkoutQuestions, customAnswers);
+      if (!v.valid) {
+        setCustomErrors(v.errors);
+        setErr("Please complete the required questions below.");
+        return;
+      }
+      setCustomErrors({});
+    }
     setSubmitting(provider);
     setErr(null);
 
@@ -251,6 +287,7 @@ export function Storefront({
           phone: phone.trim() || null,
         },
         marketing_consent: marketingConsent,
+        custom_answers: customAnswers,
         payment_provider: provider,
       }),
     });
@@ -585,6 +622,19 @@ export function Storefront({
                 className="w-full mt-1 px-3 py-2"
               />
             </div>
+            {checkoutQuestions.length > 0 && (
+              <div className="space-y-4 border-t pt-4">
+                <CheckoutQuestionFields
+                  questions={checkoutQuestions}
+                  values={customAnswers}
+                  errors={customErrors}
+                  onChange={(k, val) =>
+                    setCustomAnswers((prev) => ({ ...prev, [k]: val }))
+                  }
+                  classes={FF_CHECKOUT_CLASSES}
+                />
+              </div>
+            )}
             <label className="flex items-start gap-2 cursor-pointer pt-1">
               <input
                 type="checkbox"
