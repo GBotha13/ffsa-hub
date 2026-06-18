@@ -10,7 +10,9 @@ import {
 export const dynamic = "force-dynamic";
 
 function normalizeBrand(raw: unknown): PublicShellBrand {
-  return raw === "the_send" ? "the_send" : "ff";
+  if (raw === "the_send") return "the_send";
+  if (raw === "ffsa_camps") return "ffsa_camps";
+  return "ff";
 }
 
 export default async function PublicFormPage({
