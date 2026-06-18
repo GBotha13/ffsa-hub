@@ -80,8 +80,10 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user && !isOnboarding) {
-    // Redirect to login
+  if (!user && !isPublicRoute && !isOnboarding) {
+    // Redirect to login. Skip for public routes — notably /login itself and
+    // /auth/* — which are auth-aware (they bypass the fast-path above) but must
+    // never redirect-loop back to /login when there's no session.
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("redirect", pathname);
