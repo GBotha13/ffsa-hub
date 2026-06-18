@@ -53,6 +53,12 @@ export default function ResetPasswordPage() {
       setError(upErr.message);
       return;
     }
+    // Record it for the admin security view BEFORE we drop the session.
+    await fetch("/api/account/security-event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "password_changed" }),
+    }).catch(() => {});
     // Security: revoke every session everywhere, then have them sign in fresh.
     await supabase.auth.signOut({ scope: "global" });
     setSaving(false);

@@ -2,8 +2,10 @@ import { createClient } from "@/lib/supabase/server";
 import { notFound, redirect } from "next/navigation";
 import { getUserById } from "@/services/users";
 import { getAuthSignIn } from "@/lib/users/auth-signins";
+import { getUserSecurityEvents } from "@/lib/users/security-events";
 import { getSchoolsManageScopes } from "@/lib/auth/schools-manage-scopes";
 import { ProfileRecords } from "@/components/profile-records";
+import { SecurityActivityCard } from "@/components/security-activity-card";
 import { UserHeader } from "./user-header";
 import { UserTabs } from "./user-tabs";
 
@@ -47,10 +49,12 @@ export default async function UserProfilePage({
 
   if (!canManagePermissions) redirect("/dashboard");
 
-  const [{ data: targetUser, error }, authLastSignInAt] = await Promise.all([
-    getUserById(supabase, id),
-    getAuthSignIn(id),
-  ]);
+  const [{ data: targetUser, error }, authLastSignInAt, securityEvents] =
+    await Promise.all([
+      getUserById(supabase, id),
+      getAuthSignIn(id),
+      getUserSecurityEvents(id),
+    ]);
   if (error || !targetUser) notFound();
 
   return (
@@ -105,6 +109,13 @@ export default async function UserProfilePage({
             </p>
           )}
         </InfoCard>
+      </section>
+
+      <section>
+        <SecurityActivityCard
+          events={securityEvents}
+          lastSignInAt={authLastSignInAt}
+        />
       </section>
 
       <section className="space-y-3">

@@ -11,6 +11,8 @@ export async function middleware(request: NextRequest) {
     "/forgot-password", // public: request a password-reset link
     "/reset-password", // public: set a new password from a recovery link
     "/api/auth/forgot-password", // public endpoint that issues the reset email
+    "/account/confirm-email", // public: confirm an email change from the emailed link
+    "/api/account/confirm-email", // public endpoint that applies the email change
     "/auth/callback",
     "/auth/confirm",
     "/apply",
