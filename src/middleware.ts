@@ -8,6 +8,9 @@ export async function middleware(request: NextRequest) {
   // Public routes that don't require auth
   const publicRoutes = [
     "/login",
+    "/forgot-password", // public: request a password-reset link
+    "/reset-password", // public: set a new password from a recovery link
+    "/api/auth/forgot-password", // public endpoint that issues the reset email
     "/auth/callback",
     "/auth/confirm",
     "/apply",

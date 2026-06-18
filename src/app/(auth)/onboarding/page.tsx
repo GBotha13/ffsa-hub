@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { updateUserProfile, completeOnboarding } from "@/services/users";
+import { validatePassword } from "@/lib/auth/password";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/ui/date-input";
@@ -826,7 +827,7 @@ export default function OnboardingPage() {
                   onClick={async () => {
                     setError(null);
                     if (step === 1 && !passwordSet) {
-                      if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
+                      const validationError = validatePassword(password); if (validationError) { setError(validationError); return; }
                       if (password !== confirmPassword) { setError("Passwords do not match."); return; }
                       setSaving(true);
                       const { error: pwError } = await supabase.auth.updateUser({ password });

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils/cn";
-import { LogOut, Menu } from "lucide-react";
+import { LogOut, Menu, KeyRound } from "lucide-react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -180,6 +180,13 @@ function NavContent({
               />
             );
           })}
+          <NavLink
+            href="/account/security"
+            isActive={pathname.startsWith("/account/security")}
+            icon={KeyRound}
+            label="Change password"
+            onClick={onNavClick}
+          />
         </div>
       </div>
 

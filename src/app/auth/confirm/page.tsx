@@ -14,6 +14,10 @@ export default function AuthConfirmPage() {
       const searchParams = new URLSearchParams(window.location.search);
       const code = searchParams.get("code");
       const errorParam = searchParams.get("error");
+      // Recovery (password-reset) links carry ?flow=recovery and/or a
+      // type=recovery token — either one routes the user to set a new password
+      // instead of onboarding/dashboard.
+      const isRecovery = searchParams.get("flow") === "recovery";
 
       if (errorParam) {
         router.replace("/login?error=invite_expired");
@@ -26,7 +30,7 @@ export default function AuthConfirmPage() {
           router.replace("/login?error=invite_expired");
           return;
         }
-        router.replace("/onboarding");
+        router.replace(isRecovery ? "/reset-password" : "/onboarding");
         return;
       }
 
@@ -49,7 +53,9 @@ export default function AuthConfirmPage() {
             router.replace("/login?error=invite_expired");
             return;
           }
-          router.replace("/onboarding");
+          router.replace(
+            isRecovery || type === "recovery" ? "/reset-password" : "/onboarding"
+          );
           return;
         }
 
@@ -63,8 +69,10 @@ export default function AuthConfirmPage() {
             router.replace("/login?error=invite_expired");
             return;
           }
-          // For invite type, send to onboarding; otherwise dashboard
-          if (type === "invite" || type === "signup") {
+          // Recovery → set a new password; invite/signup → onboarding; else dashboard.
+          if (isRecovery || type === "recovery") {
+            router.replace("/reset-password");
+          } else if (type === "invite" || type === "signup") {
             router.replace("/onboarding");
           } else {
             router.replace("/dashboard");
@@ -94,7 +102,7 @@ export default function AuthConfirmPage() {
             textTransform: "uppercase",
           }}
         >
-          Verifying your invite…
+          Verifying…
         </p>
       </div>
     </div>

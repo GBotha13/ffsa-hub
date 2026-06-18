@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Image from "next/image";
+import Link from "next/link";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -201,6 +202,15 @@ export default function LoginPage() {
           >
             {loading ? "Signing in..." : "Sign In"}
           </Button>
+
+          <div style={{ textAlign: "center", marginTop: "0.25rem" }}>
+            <Link
+              href="/forgot-password"
+              style={{ fontSize: "11px", letterSpacing: "0.06em", color: "hsl(30 8% 45%)", textDecoration: "none" }}
+            >
+              Forgot your password?
+            </Link>
+          </div>
         </form>
       </div>
 
