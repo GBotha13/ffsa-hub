@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils/cn";
-import { LogOut, Menu, KeyRound } from "lucide-react";
+import { LogOut, Menu, KeyRound, RefreshCw } from "lucide-react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -19,6 +19,9 @@ import {
 interface AdminSidebarProps {
   userRoles: string[];
   permittedModules?: Set<string>;
+  /** Set when the user is signed in but their menu couldn't be loaded — shows a
+   *  refresh prompt instead of a misleading empty menu. */
+  menuLoadFailed?: boolean;
 }
 
 function NavLink({
@@ -112,22 +115,52 @@ function Divider() {
   return <div style={{ height: "1px", background: "hsl(22 8% 12%)" }} />;
 }
 
+function MenuLoadNotice({ onRefresh }: { onRefresh: () => void }) {
+  return (
+    <div
+      className="mx-1 mb-2 rounded-lg px-3 py-2.5"
+      style={{
+        background: "hsl(42 95% 55% / 0.08)",
+        border: "1px solid hsl(42 95% 55% / 0.22)",
+      }}
+    >
+      <p className="text-xs leading-snug text-muted-foreground">
+        We couldn&apos;t load your menu just now — usually a momentary hiccup, not
+        a change to your access.
+      </p>
+      <button
+        onClick={onRefresh}
+        className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold"
+        style={{ color: "hsl(42 95% 60%)" }}
+      >
+        <RefreshCw className="h-3.5 w-3.5" />
+        Refresh menu
+      </button>
+    </div>
+  );
+}
+
 function NavContent({
   visibleModules,
   visibleSystem,
   pathname,
   onNavClick,
   onSignOut,
+  menuLoadFailed,
+  onRefresh,
 }: {
   visibleModules: typeof ADMIN_MODULES;
   visibleSystem: typeof SYSTEM_MODULES;
   pathname: string;
   onNavClick?: () => void;
   onSignOut: () => void;
+  menuLoadFailed?: boolean;
+  onRefresh?: () => void;
 }) {
   return (
     <>
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
+        {menuLoadFailed && onRefresh && <MenuLoadNotice onRefresh={onRefresh} />}
         {visibleModules.map((mod) => {
           const isActive = pathname === mod.href || pathname.startsWith(mod.href + "/");
           return (
@@ -205,7 +238,11 @@ function NavContent({
   );
 }
 
-export function AdminSidebar({ userRoles, permittedModules }: AdminSidebarProps) {
+export function AdminSidebar({
+  userRoles,
+  permittedModules,
+  menuLoadFailed,
+}: AdminSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
@@ -216,6 +253,8 @@ export function AdminSidebar({ userRoles, permittedModules }: AdminSidebarProps)
     router.push("/login");
     router.refresh();
   }
+
+  const handleRefresh = () => router.refresh();
 
   const visibleModules = getAccessibleModules(ADMIN_MODULES, userRoles, permittedModules);
   const visibleSystem = getAccessibleModules(SYSTEM_MODULES, userRoles, permittedModules);
@@ -238,6 +277,8 @@ export function AdminSidebar({ userRoles, permittedModules }: AdminSidebarProps)
           visibleSystem={visibleSystem}
           pathname={pathname}
           onSignOut={handleSignOut}
+          menuLoadFailed={menuLoadFailed}
+          onRefresh={handleRefresh}
         />
       </aside>
 
@@ -279,6 +320,8 @@ export function AdminSidebar({ userRoles, permittedModules }: AdminSidebarProps)
               pathname={pathname}
               onNavClick={() => setMobileOpen(false)}
               onSignOut={handleSignOut}
+              menuLoadFailed={menuLoadFailed}
+              onRefresh={handleRefresh}
             />
           </div>
         </SheetContent>
