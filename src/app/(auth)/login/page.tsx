@@ -14,12 +14,24 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [failCount, setFailCount] = useState(0);
+  const [cooldownUntil, setCooldownUntil] = useState(0);
   const router = useRouter();
   const supabase = createClient();
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    // Soft client-side speed bump after repeated failures. It resets on reload,
+    // so it can never lock anyone out — it just slows rapid retries. Supabase's
+    // own server-side rate limits are the real backstop.
+    if (cooldownUntil > Date.now()) {
+      const secs = Math.ceil((cooldownUntil - Date.now()) / 1000);
+      setError(`Too many attempts. Please wait ${secs}s and try again.`);
+      return;
+    }
+
     setLoading(true);
 
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -27,8 +39,20 @@ export default function LoginPage() {
     if (error) {
       setError(error.message);
       setLoading(false);
+      const next = failCount + 1;
+      setFailCount(next);
+      // Best-effort: log the failed attempt for the admin security view.
+      // Fire-and-forget and fail-open — never blocks or delays the user.
+      fetch("/api/auth/login-attempt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      }).catch(() => {});
+      if (next >= 5) setCooldownUntil(Date.now() + 30000);
       return;
     }
+
+    setFailCount(0);
 
     const { data: userRoles } = await supabase
       .from("user_roles")

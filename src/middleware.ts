@@ -13,6 +13,7 @@ export async function middleware(request: NextRequest) {
     "/api/auth/forgot-password", // public endpoint that issues the reset email
     "/account/confirm-email", // public: confirm an email change from the emailed link
     "/api/account/confirm-email", // public endpoint that applies the email change
+    "/api/auth/login-attempt", // public: records failed sign-in attempts (best-effort)
     "/auth/callback",
     "/auth/confirm",
     "/apply",
