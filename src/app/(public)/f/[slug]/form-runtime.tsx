@@ -39,11 +39,11 @@ export function FormRuntime({
   // Event/form-specific logo is shown inside the card as a sub-brand, not
   // replacing the FF wordmark in the shell header.
   //
-  // SEND skips the sub-brand — the THE SEND lockup is already in the
-  // page header, and a default FF wordmark renders white-on-cream
-  // (illegible) inside the card.
+  // SEND + FFSA Camps skip the sub-brand — their lockup is already in the
+  // page header, and a default FF wordmark renders illegibly on their
+  // cream cards.
   const subBrandLogoUrl =
-    brand === "the_send"
+    brand === "the_send" || brand === "ffsa_camps"
       ? null
       : eventLogoUrl || schema.branding.logoUrl || null;
   const steps = schema.steps;

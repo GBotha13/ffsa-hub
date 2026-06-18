@@ -9,7 +9,7 @@ import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Lock, Pencil } from "lucide-react";
 
-type EventBrand = "ff" | "the_send";
+type EventBrand = "ff" | "the_send" | "ffsa_camps";
 
 const BRAND_OPTIONS: Array<{ value: EventBrand; label: string; helper: string }> = [
   {
@@ -23,10 +23,18 @@ const BRAND_OPTIONS: Array<{ value: EventBrand; label: string; helper: string }>
     helper:
       "Bespoke navy/cream/gold template for every email tied to this event — workflow steps, ticket confirmations, and follow-ups.",
   },
+  {
+    value: "ffsa_camps",
+    label: "FFSA Camps",
+    helper:
+      "Bespoke blue/cream FFSA Camps template — storefront, workflow steps, ticket confirmations, and follow-ups all read as one Camps identity.",
+  },
 ];
 
 function normalizeBrand(raw: string | null | undefined): EventBrand {
-  return raw === "the_send" ? "the_send" : "ff";
+  if (raw === "the_send") return "the_send";
+  if (raw === "ffsa_camps") return "ffsa_camps";
+  return "ff";
 }
 
 type EventCore = {

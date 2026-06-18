@@ -3,25 +3,32 @@ import { getEventBySlug } from "@/services/events";
 import { listTicketTypesByEvent } from "@/services/ticketing";
 import { Storefront } from "./storefront";
 import { TheSendStorefront } from "./the-send-storefront";
+import { CampsStorefront } from "./camps-storefront";
 import { PublicFormNotice } from "@/components/public-form-shell";
 
-// Bespoke landing pages keyed by the event's brand flag (migration 077).
-// THE SEND gets its own bespoke storefront; everything else uses the
-// standard Storefront. Both are intentionally event-bespoke and not
-// migrated to the shared dark form shell. Legacy slug/title heuristic
-// kept as a fallback so unmigrated rows still route correctly until
-// every event row has its brand set explicitly.
-function isTheSendBrand(event: {
+type EventBrand = "ff" | "the_send" | "ffsa_camps";
+
+// Bespoke landing pages keyed by the event's brand flag (migration 077 +
+// the ffsa_camps follow-up). THE SEND and FFSA Camps each get their own
+// bespoke storefront; everything else uses the standard Storefront. All
+// are intentionally event-bespoke and not migrated to the shared dark
+// form shell. An explicit brand always wins; the legacy slug/title
+// heuristic only runs for unmigrated rows (brand null/empty) so they
+// still route correctly until every event row has its brand set.
+function resolveEventBrand(event: {
   brand?: string | null;
   public_slug?: string | null;
   title?: string | null;
-}): boolean {
-  if (event.brand === "the_send") return true;
-  if (event.brand && event.brand !== "the_send") return false;
-  return (
-    (event.public_slug ?? "").toLowerCase().includes("the-send") ||
-    (event.title ?? "").toLowerCase().includes("the send")
-  );
+}): EventBrand {
+  if (event.brand === "the_send") return "the_send";
+  if (event.brand === "ffsa_camps") return "ffsa_camps";
+  if (event.brand) return "ff";
+  const slug = (event.public_slug ?? "").toLowerCase();
+  const title = (event.title ?? "").toLowerCase();
+  if (slug.includes("the-send") || title.includes("the send")) return "the_send";
+  if (slug.includes("ffsa-camps") || slug.includes("camps") || title.includes("camps"))
+    return "ffsa_camps";
+  return "ff";
 }
 
 export const dynamic = "force-dynamic";
@@ -67,10 +74,14 @@ export default async function PublicEventPage({
     logo_url: event.logo_url ?? null,
   };
 
-  if (isTheSendBrand(event)) {
+  const brand = resolveEventBrand(event);
+  if (brand === "the_send") {
     return (
       <TheSendStorefront event={eventProps} ticketTypes={ticketTypes ?? []} />
     );
+  }
+  if (brand === "ffsa_camps") {
+    return <CampsStorefront event={eventProps} ticketTypes={ticketTypes ?? []} />;
   }
 
   return <Storefront event={eventProps} ticketTypes={ticketTypes ?? []} />;

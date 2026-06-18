@@ -19,25 +19,31 @@ import { randomBytes } from "node:crypto";
 import { sendViaMailtrap } from "@/lib/email/mailtrap";
 import { ticketConfirmationEmailHtml } from "@/lib/email/templates/ticket-confirmation";
 import { theSendTicketEmailHtml } from "@/lib/email/templates/the-send-ticket-confirmation";
+import { campsTicketEmailHtml } from "@/lib/email/templates/ffsa-camps-ticket-confirmation";
 import { resolveOrderToCrm } from "./crm-resolution";
 
-// Bespoke email keyed by the event's brand flag (migration 077).
-// Falls back to the legacy slug/title heuristic so unmigrated rows
-// (and any future event whose admin hasn't picked a brand yet) still
-// route to THE SEND template if the slug/title is unambiguous. Once
-// every event row has its brand set deliberately, the heuristic can
-// be dropped.
-function isTheSendBrand(event: {
+type EventBrand = "ff" | "the_send" | "ffsa_camps";
+
+// Bespoke email keyed by the event's brand flag (migration 077 + the
+// ffsa_camps follow-up). An explicit brand always wins. Falls back to a
+// slug/title heuristic only for unmigrated rows (brand null/empty) so
+// they still route to a bespoke template when the slug/title is
+// unambiguous. Once every event row has its brand set deliberately, the
+// heuristic can be dropped.
+function resolveEventBrand(event: {
   brand?: string | null;
   public_slug?: string | null;
   title?: string | null;
-}): boolean {
-  if (event.brand === "the_send") return true;
-  if (event.brand && event.brand !== "the_send") return false;
-  return (
-    (event.public_slug ?? "").toLowerCase().includes("the-send") ||
-    (event.title ?? "").toLowerCase().includes("the send")
-  );
+}): EventBrand {
+  if (event.brand === "the_send") return "the_send";
+  if (event.brand === "ffsa_camps") return "ffsa_camps";
+  if (event.brand) return "ff"; // explicit (incl. 'ff' / unknown) → no heuristic
+  const slug = (event.public_slug ?? "").toLowerCase();
+  const title = (event.title ?? "").toLowerCase();
+  if (slug.includes("the-send") || title.includes("the send")) return "the_send";
+  if (slug.includes("ffsa-camps") || slug.includes("camps") || title.includes("camps"))
+    return "ffsa_camps";
+  return "ff";
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -154,12 +160,17 @@ export async function fulfillOrder(
     );
     return { ok: true };
   }
-  const isTheSend = isTheSendBrand(order.events);
+  const brand = resolveEventBrand(order.events);
   // Resolve From: + reply-to from sending_identities keyed by brand
-  // (migration 080). Admins can edit the inbox display name from
-  // /communications/identities without a code change. Env-var
-  // fallback preserves pre-migration behaviour if the row is missing.
-  const identitySlug = isTheSend ? "the-send" : "events";
+  // (migration 080 + the ffsa-camps identity). Admins can edit the inbox
+  // display name from /communications/identities without a code change.
+  // Env-var fallback preserves pre-migration behaviour if the row is missing.
+  const identitySlug =
+    brand === "the_send"
+      ? "the-send"
+      : brand === "ffsa_camps"
+        ? "ffsa-camps"
+        : "events";
   const { data: identity } = await supabase
     .from("sending_identities")
     .select("from_email, from_name, reply_to")
@@ -191,12 +202,18 @@ export async function fulfillOrder(
     fromName,
     replyTo,
     to: order.buyer_email,
-    subject: isTheSend
-      ? `You're in — ${order.events.title} →`
-      : `Your tickets for ${order.events.title}`,
-    html: isTheSend
-      ? theSendTicketEmailHtml(emailArgs)
-      : ticketConfirmationEmailHtml(emailArgs),
+    subject:
+      brand === "the_send"
+        ? `You're in — ${order.events.title} →`
+        : brand === "ffsa_camps"
+          ? `you're in 🤞 — ${order.events.title}`
+          : `Your tickets for ${order.events.title}`,
+    html:
+      brand === "the_send"
+        ? theSendTicketEmailHtml(emailArgs)
+        : brand === "ffsa_camps"
+          ? campsTicketEmailHtml(emailArgs)
+          : ticketConfirmationEmailHtml(emailArgs),
     category: "ticket_confirmation",
   });
   if (sendResult.error) {

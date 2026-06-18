@@ -26,7 +26,7 @@ import {
 } from "@/services/workflows";
 import { sendViaMailtrap } from "@/lib/email/mailtrap";
 import { renderCampaignText, type CampaignBody } from "@/lib/campaigns/blocks";
-import { renderWorkflowEmail } from "@/lib/email/workflow-template";
+import { renderWorkflowEmail, type WorkflowEmailBrand } from "@/lib/email/workflow-template";
 import { signPrefsToken } from "@/lib/tokens/unsubscribe";
 import { substituteFirstName, escapeHtml } from "@/lib/email/placeholders";
 import type {
@@ -158,7 +158,7 @@ async function loadWorkflowIdentity(
   identity: IdentityRow | null;
   createdBy: string | null;
   /** Event brand (from outcome_workflows → event_outcomes → events.brand). */
-  brand: "ff" | "the_send";
+  brand: WorkflowEmailBrand;
 }> {
   const { data } = await supabase
     .from("outcome_workflows")
@@ -172,7 +172,12 @@ async function loadWorkflowIdentity(
   const label = outcome?.labels ?? null;
   const identity = (label?.sending_identities ?? null) as IdentityRow | null;
   const rawBrand = (outcome?.events?.brand as string | null | undefined) ?? "ff";
-  const brand: "ff" | "the_send" = rawBrand === "the_send" ? "the_send" : "ff";
+  const brand: WorkflowEmailBrand =
+    rawBrand === "the_send"
+      ? "the_send"
+      : rawBrand === "ffsa_camps"
+        ? "ffsa_camps"
+        : "ff";
   return {
     labelId: label?.id ?? null,
     identity,
@@ -350,7 +355,7 @@ async function runEmailStep(
     labelIdentity: IdentityRow | null;
     workflowCreatedBy: string | null;
     /** Event brand resolved once up-front so every email step shares it. */
-    brand: "ff" | "the_send";
+    brand: WorkflowEmailBrand;
     identityCache: Map<string, IdentityRow | null>;
     getFallback: () => Promise<IdentityRow | null>;
   }

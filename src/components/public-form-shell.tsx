@@ -14,7 +14,7 @@ import type { CSSProperties } from "react";
 // event's brand so workflow emails, the form page, and the storefront
 // all read as one continuous identity.
 
-export type PublicShellBrand = "ff" | "the_send";
+export type PublicShellBrand = "ff" | "the_send" | "ffsa_camps";
 
 export const PUBLIC_SHELL_TOKENS = {
   bg: "#0D0B09",
@@ -53,8 +53,32 @@ export const THE_SEND_SHELL_TOKENS = {
   red: "#FA0015",
 } as const;
 
+// FFSA CAMPS token set — same shape/key names as the others so consumers
+// swap with a single `tokensForBrand(brand)` call. The accent slot
+// (`yellow`) carries the brand blue, so every generic `T.yellow` reference
+// (buttons, focus rings, progress bar, selected cards) reads as blue.
+// Inside-card tokens (text, textDim) target the cream paper; outside-card
+// tokens (textDimmer, textFaint) target the deep-ink page surround.
+export const FFSA_CAMPS_SHELL_TOKENS = {
+  bg: "#14224A", // deep-ink blue page surround
+  card: "#F2E8CC", // cream paper card
+  cardElev: "#FFFFFF", // elevated card / input fields
+  border: "#2F65E8", // bright blue
+  borderSoft: "rgba(47,101,232,0.22)",
+  text: "#14224A", // ink body text (on cream)
+  textDim: "rgba(20,34,74,0.72)",
+  textDimmer: "rgba(242,232,204,0.6)",
+  textFaint: "rgba(242,232,204,0.32)",
+  yellow: "#2F65E8", // accent slot = brand blue
+  yellowHover: "#5683EC",
+  green: "#2F65E8",
+  red: "#D92D20",
+} as const;
+
 export function tokensForBrand(brand: PublicShellBrand) {
-  return brand === "the_send" ? THE_SEND_SHELL_TOKENS : PUBLIC_SHELL_TOKENS;
+  if (brand === "the_send") return THE_SEND_SHELL_TOKENS;
+  if (brand === "ffsa_camps") return FFSA_CAMPS_SHELL_TOKENS;
+  return PUBLIC_SHELL_TOKENS;
 }
 
 const T = PUBLIC_SHELL_TOKENS;
@@ -81,20 +105,25 @@ export function PublicFormShell({
   brand?: PublicShellBrand;
 }) {
   const isTheSend = brand === "the_send";
+  const isCamps = brand === "ffsa_camps";
   const tk = tokensForBrand(brand);
-  // Brand-specific defaults so existing F&F callers keep their tagline
-  // and SEND callers get the SEND ticker line out of the box.
+  // Brand-specific defaults so existing F&F callers keep their tagline,
+  // SEND callers get the SEND ticker line, and FFSA Camps gets its slogan
+  // out of the box.
   const resolvedTagline =
     tagline === undefined
       ? isTheSend
         ? "THE WAR ON INACTION HAS BEGUN"
-        : "CATALYSE A GENERATION · EVANGELISE THE WORLD"
+        : isCamps
+          ? "PERMISSION GRANTED"
+          : "CATALYSE A GENERATION · EVANGELISE THE WORLD"
       : tagline;
 
-  // SEND uses a flat cream card with a thick navy border and no shadow —
-  // matches the bespoke storefront + the ticket email. F&F keeps the
-  // rounded dark card with a soft shadow.
-  const cardStyle: CSSProperties = isTheSend
+  // SEND + FFSA Camps use a flat cream card with a thick coloured border
+  // and no shadow — matches their bespoke storefront + ticket email. F&F
+  // keeps the rounded dark card with a soft shadow.
+  const flatCard = isTheSend || isCamps;
+  const cardStyle: CSSProperties = flatCard
     ? {
         background: tk.card,
         border: `3px solid ${tk.border}`,
@@ -107,11 +136,14 @@ export function PublicFormShell({
           "0 1px 2px rgba(0,0,0,0.4), 0 24px 40px -24px rgba(0,0,0,0.6)",
       };
 
-  // Heading font: F&F uses Bebas (web-loaded); SEND uses Arial Black
-  // so it lines up exactly with the email + storefront masthead.
+  // Heading font: F&F uses Bebas (web-loaded); SEND uses Arial Black; FFSA
+  // Camps uses the heavy italic Aileron stack (falls back to Helvetica/
+  // Arial), so each lines up with its email + storefront masthead.
   const headingFontFamily = isTheSend
     ? "'Arial Black','Helvetica Neue',Arial,sans-serif"
-    : "var(--font-bebas, 'Arial Black', sans-serif)";
+    : isCamps
+      ? "'Aileron','Helvetica Neue',Arial,sans-serif"
+      : "var(--font-bebas, 'Arial Black', sans-serif)";
 
   return (
     <div
@@ -120,22 +152,23 @@ export function PublicFormShell({
         background: tk.bg,
         color: tk.text,
         // F&F's card is dark so we tell the browser to render native
-        // form chrome in dark mode. SEND's card is cream paper, so we
-        // explicitly opt into light chrome — otherwise Safari forces
-        // dark fill/text on inputs that overrides our white background +
-        // navy text styling.
-        colorScheme: isTheSend ? "light" : "dark",
+        // form chrome in dark mode. SEND + FFSA Camps cards are cream
+        // paper, so we explicitly opt into light chrome — otherwise
+        // Safari forces dark fill/text on inputs that overrides our white
+        // background + dark text styling.
+        colorScheme: flatCard ? "light" : "dark",
       }}
     >
       <div className="mx-auto" style={{ maxWidth }}>
         <BrandLockup brand={brand} />
 
         <div
-          className={isTheSend ? "overflow-hidden" : "rounded-2xl overflow-hidden"}
+          className={flatCard ? "overflow-hidden" : "rounded-2xl overflow-hidden"}
           style={cardStyle}
         >
           {/* Top accent rail — F&F: soft gradient gold; SEND: solid gold
-              ticker that mirrors the email header. */}
+              ticker; FFSA Camps: solid blue "PERMISSION GRANTED" ticker.
+              Each mirrors that brand's email header. */}
           {isTheSend ? (
             <div
               style={{
@@ -157,6 +190,26 @@ export function PublicFormShell({
               <span style={{ color: tk.red }}>→</span>
               &nbsp;THE WAR ON INACTION HAS BEGUN&nbsp;
               <span style={{ color: tk.red }}>→</span>
+            </div>
+          ) : isCamps ? (
+            <div
+              style={{
+                background: tk.yellow,
+                padding: "8px 14px",
+                fontFamily: "'Aileron','Helvetica Neue',Arial,sans-serif",
+                fontStyle: "italic",
+                fontSize: 13,
+                fontWeight: 900,
+                color: tk.card,
+                letterSpacing: "0.16em",
+                textTransform: "uppercase",
+                lineHeight: 1.2,
+                textAlign: "center",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+              }}
+            >
+              PERMISSION GRANTED&nbsp;&nbsp;&#10022;&nbsp;&nbsp;PERMISSION GRANTED
             </div>
           ) : (
             <div
@@ -193,8 +246,14 @@ export function PublicFormShell({
                       fontFamily: headingFontFamily,
                       fontSize: "2.25rem",
                       lineHeight: 1.05,
-                      letterSpacing: isTheSend ? "0.005em" : "0.03em",
-                      textTransform: isTheSend ? "uppercase" : undefined,
+                      letterSpacing: isTheSend
+                        ? "0.005em"
+                        : isCamps
+                          ? "0.01em"
+                          : "0.03em",
+                      textTransform: isTheSend || isCamps ? "uppercase" : undefined,
+                      fontStyle: isCamps ? "italic" : undefined,
+                      fontWeight: isCamps ? 900 : undefined,
                       color: tk.text,
                       margin: eyebrow ? "8px 0 0" : 0,
                     }}
@@ -270,6 +329,41 @@ function BrandLockup({ brand }: { brand: PublicShellBrand }) {
       </div>
     );
   }
+  if (brand === "ffsa_camps") {
+    const tk = FFSA_CAMPS_SHELL_TOKENS;
+    return (
+      <div className="flex flex-col items-center mb-6">
+        <p
+          style={{
+            margin: 0,
+            fontFamily: "'Aileron','Helvetica Neue',Arial,sans-serif",
+            fontStyle: "italic",
+            fontSize: 30,
+            fontWeight: 900,
+            color: tk.card,
+            letterSpacing: "-0.01em",
+            textTransform: "uppercase",
+            lineHeight: 1,
+          }}
+        >
+          FFSA&nbsp;CAMPS
+        </p>
+        <p
+          style={{
+            margin: "10px 0 0",
+            fontFamily: "'Helvetica Neue',Helvetica,Arial,sans-serif",
+            fontSize: 10,
+            fontWeight: 700,
+            color: tk.textDimmer,
+            letterSpacing: "0.22em",
+            textTransform: "uppercase",
+          }}
+        >
+          SOUTH&nbsp;AFRICA &middot; MMXXVI
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col items-center mb-6">
       <Image
@@ -331,6 +425,7 @@ function Footer({
 }) {
   const tk = tokensForBrand(brand);
   const isTheSend = brand === "the_send";
+  const isCamps = brand === "ffsa_camps";
   return (
     <div className="text-center mt-6 mb-2 space-y-2">
       {footerNote && (
@@ -354,11 +449,14 @@ function Footer({
           style={{
             fontFamily: isTheSend
               ? "'Arial Black','Helvetica Neue',Arial,sans-serif"
-              : undefined,
-            fontSize: isTheSend ? 11 : 10,
-            letterSpacing: isTheSend ? "0.18em" : "0.25em",
-            fontWeight: isTheSend ? 900 : 700,
-            color: isTheSend ? tk.yellow : tk.textFaint,
+              : isCamps
+                ? "'Aileron','Helvetica Neue',Arial,sans-serif"
+                : undefined,
+            fontStyle: isCamps ? "italic" : undefined,
+            fontSize: isTheSend || isCamps ? 11 : 10,
+            letterSpacing: isTheSend ? "0.18em" : isCamps ? "0.16em" : "0.25em",
+            fontWeight: isTheSend || isCamps ? 900 : 700,
+            color: isTheSend ? tk.yellow : isCamps ? tk.card : tk.textFaint,
             textTransform: "uppercase",
             margin: 0,
           }}
@@ -378,7 +476,9 @@ function Footer({
           textTransform: isTheSend ? "uppercase" : undefined,
         }}
       >
-        {isTheSend ? "Powered by FFSA Hub" : "Fire & Fragrance South Africa"}
+        {isTheSend || isCamps
+          ? "Powered by FFSA Hub"
+          : "Fire & Fragrance South Africa"}
         {" — "}
         <a
           href="https://www.ffsahub.com"
@@ -567,6 +667,125 @@ export function PublicFormInputStyles({
   font-weight: 700;
   color: ${tk.text};
   letter-spacing: 0.18em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.ffsa-public-label-required::after {
+  content: ' *';
+  color: ${tk.red};
+}
+`;
+    return <style dangerouslySetInnerHTML={{ __html: css }} />;
+  }
+
+  if (brand === "ffsa_camps") {
+    const tk = FFSA_CAMPS_SHELL_TOKENS;
+    // Chevron stroke hard-coded to brand blue so it reads on the white
+    // input background. URI-encoded directly.
+    const chevronSvg =
+      "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' fill='none' stroke='%232F65E8' stroke-width='2'%3E%3Cpath d='M1 1l5 5 5-5'/%3E%3C/svg%3E";
+    const css = `
+.ffsa-public input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="submit"]):not([type="button"]),
+.ffsa-public textarea,
+.ffsa-public select {
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: 0;
+  border: 2px solid ${tk.border};
+  background: ${tk.cardElev};
+  color: ${tk.text};
+  font-family: Helvetica,Arial,sans-serif;
+  font-size: 15px;
+  outline: none;
+  transition: border-color .15s ease, box-shadow .15s ease;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+.ffsa-public select {
+  background-image: url("data:image/svg+xml,${chevronSvg}");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 12px 8px;
+  padding-right: 36px;
+}
+.ffsa-public input:focus, .ffsa-public textarea:focus, .ffsa-public select:focus {
+  border-color: ${tk.border};
+  box-shadow: 0 0 0 3px ${tk.yellow}40;
+}
+.ffsa-public input::placeholder, .ffsa-public textarea::placeholder {
+  color: ${tk.textDim};
+}
+.ffsa-public label {
+  color: ${tk.text};
+}
+.ffsa-public-btn-primary {
+  background: ${tk.border};
+  color: ${tk.cardElev};
+  font-family: 'Aileron','Helvetica Neue',Arial,sans-serif;
+  font-style: italic;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: 13px;
+  padding: 14px 30px;
+  border-radius: 0;
+  border: 2px solid ${tk.border};
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease, transform .04s ease;
+}
+.ffsa-public-btn-primary:hover:not(:disabled) {
+  background: ${tk.card};
+  color: ${tk.border};
+}
+.ffsa-public-btn-primary:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.ffsa-public-btn-primary:disabled {
+  background: ${tk.borderSoft};
+  color: ${tk.textDim};
+  border-color: ${tk.borderSoft};
+  cursor: not-allowed;
+}
+.ffsa-public-btn-ghost {
+  background: transparent;
+  color: ${tk.text};
+  font-family: Helvetica,Arial,sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 10px 14px;
+  border: none;
+  cursor: pointer;
+  transition: color .15s ease;
+}
+.ffsa-public-btn-ghost:hover:not(:disabled) {
+  color: ${tk.textDim};
+}
+.ffsa-public-card {
+  background: ${tk.cardElev};
+  border: 2px solid ${tk.border};
+  border-radius: 0;
+  padding: 14px 16px;
+}
+.ffsa-public-card.is-selected {
+  border-color: ${tk.border};
+  background: ${tk.yellow}1f;
+}
+.ffsa-public-error {
+  color: ${tk.red};
+  font-family: Helvetica,Arial,sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  margin-top: 6px;
+}
+.ffsa-public-label {
+  display: block;
+  font-family: Helvetica,Arial,sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: ${tk.text};
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   margin-bottom: 8px;
 }

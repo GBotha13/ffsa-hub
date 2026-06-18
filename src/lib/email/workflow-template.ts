@@ -30,6 +30,19 @@ import {
   sendEsc,
   theSendChrome,
 } from "./the-send-shell";
+import {
+  CAMPS_COLORS,
+  CAMPS_FONTS,
+  campsEyebrow,
+  campsHeading,
+  campsButton,
+  campsQuote,
+  campsDivider,
+  campsSpacer,
+  campsImage,
+  campsEsc,
+  campsChrome,
+} from "./ffsa-camps-shell";
 
 const BLACK = "#141414"; // masthead / footer
 const INK = "#1A1A1A"; // headings + body text
@@ -146,7 +159,7 @@ function renderBlock(b: CampaignBlock): string {
   }
 }
 
-export type WorkflowEmailBrand = "ff" | "the_send";
+export type WorkflowEmailBrand = "ff" | "the_send" | "ffsa_camps";
 
 export type WorkflowEmailOpts = {
   baseUrl: string; // e.g. https://www.ffsahub.com — for the logo assets
@@ -156,8 +169,9 @@ export type WorkflowEmailOpts = {
   /**
    * Visual brand. Defaults to 'ff' (Fire & Fragrance — the existing
    * workflow shell). 'the_send' wraps the same block content in the
-   * THE SEND chrome (navy/cream/gold), so workflow steps fired for
-   * THE SEND events match the storefront and ticket email.
+   * THE SEND chrome (navy/cream/gold); 'ffsa_camps' wraps it in the
+   * FFSA Camps chrome (blue/cream). Either makes workflow steps fired
+   * for that event match its storefront and ticket email.
    */
   brand?: WorkflowEmailBrand;
 };
@@ -166,6 +180,9 @@ export function renderWorkflowEmail(
   body: CampaignBody | null | undefined,
   opts: WorkflowEmailOpts
 ): string {
+  if (opts.brand === "ffsa_camps") {
+    return renderCampsWorkflowEmail(body, opts);
+  }
   if (opts.brand === "the_send") {
     return renderTheSendWorkflowEmail(body, opts);
   }
@@ -324,6 +341,113 @@ ${sendButton(opts.scheduler.url, opts.scheduler.label, "filled")}
     `<p style="font-family:${SF.BODY};font-size:15px;color:${S.NAVY};">&nbsp;</p>`;
 
   return theSendChrome({
+    previewText: opts.previewText,
+    bodyHtml: bodyHtml + prefsFooter,
+    siteUrl: opts.baseUrl,
+  });
+}
+
+// ============================================================
+// FFSA CAMPS variant — same block editor, swapped chrome + per-block
+// styling. Lives next to the F&F + SEND renderers so all three stay in
+// lockstep as block types are added. Blue/cream palette, heavy italic
+// display, no mono device.
+// ============================================================
+
+const CC = CAMPS_COLORS;
+const CF = CAMPS_FONTS;
+const CAMPS_DISPLAY = `font-family:${CF.DISPLAY};font-style:italic;font-weight:900;`;
+
+// Camps-styled rich text — same allowed tags as F&F/SEND so the block
+// editor produces the same shape; only the inline styles differ (ink
+// text, blue underline on links, body font Helvetica).
+function campsRichText(html: string): string {
+  return sanitizeHtml(html, {
+    allowedTags: ["p", "br", "strong", "b", "em", "i", "a", "span", "ul", "ol", "li"],
+    allowedAttributes: { a: ["href", "target", "rel"] },
+    transformTags: {
+      a: (_t, attribs) => ({
+        tagName: "a",
+        attribs: {
+          ...attribs,
+          style: `color:${CC.BLUE};text-decoration:underline;text-decoration-color:${CC.BLUE};`,
+          target: "_blank",
+          rel: "noopener noreferrer",
+        },
+      }),
+      p: () => ({
+        tagName: "p",
+        attribs: {
+          style: `margin:0 0 4px;font-family:${CF.BODY};font-size:15px;line-height:1.65;color:${CC.INK};`,
+        },
+      }),
+    },
+  });
+}
+
+function renderCampsBlock(b: CampaignBlock): string {
+  switch (b.type) {
+    case "eyebrow":
+      return campsEyebrow(b.text);
+
+    case "heading":
+      return `${b.eyebrow ? campsEyebrow(b.eyebrow) : ""}${campsHeading(b.text)}`;
+
+    case "text":
+      return `<div style="margin:0 0 6px;font-family:${CF.BODY};font-size:15px;line-height:1.65;color:${CC.INK};">${campsRichText(b.text)}</div>`;
+
+    case "button":
+      return campsButton(b.url, b.text, b.style ?? "filled");
+
+    case "image":
+      return campsImage(b.url, b.alt, b.caption);
+
+    case "quote":
+      return campsQuote(b.text, b.attribution);
+
+    case "divider":
+      return campsDivider(b.style ?? "rule");
+
+    case "spacer":
+      return campsSpacer(b.size ?? "md");
+
+    case "image-text":
+      return `${campsImage(b.url, b.alt)}${
+        b.heading
+          ? `<h2 style="margin:0 0 6px;${CAMPS_DISPLAY}font-size:20px;line-height:1.05;text-transform:uppercase;color:${CC.INK};">${campsEsc(b.heading)}</h2>`
+          : ""
+      }<div style="margin:0 0 6px;font-family:${CF.BODY};font-size:15px;line-height:1.65;color:${CC.INK};">${campsRichText(b.text)}</div>`;
+
+    default:
+      return "";
+  }
+}
+
+export function renderCampsWorkflowEmail(
+  body: CampaignBody | null | undefined,
+  opts: WorkflowEmailOpts
+): string {
+  const blocks = (body?.blocks ?? []).map(renderCampsBlock).join("");
+
+  // Scheduler — framed cream card with a blue pill button so it reads
+  // as an action inside the FFSA Camps aesthetic.
+  const schedulerBlock = opts.scheduler
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:24px 0 6px;"><tr><td style="background:${CC.WHITE};border:2px solid ${CC.BLUE};padding:22px;text-align:center;">
+<p style="margin:0 0 14px;font-family:${CF.BODY};font-size:11px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:${CC.BLUE};">Find a time to talk</p>
+${campsButton(opts.scheduler.url, opts.scheduler.label, "filled")}
+</td></tr></table>`
+    : "";
+
+  // Preferences link footer — appended INSIDE the chrome body so it
+  // sits on the cream paper above the blue footer. The chrome itself
+  // doesn't know about prefsUrl.
+  const prefsFooter = `<p style="margin:28px 0 0;padding-top:18px;border-top:2px dashed ${CC.BLUE};font-family:${CF.BODY};font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:${CC.INK};opacity:0.75;text-align:center;"><a href="${campsEsc(opts.prefsUrl)}" style="color:${CC.INK};text-decoration:underline;">Manage email preferences</a></p>`;
+
+  const bodyHtml =
+    (blocks + schedulerBlock) ||
+    `<p style="font-family:${CF.BODY};font-size:15px;color:${CC.INK};">&nbsp;</p>`;
+
+  return campsChrome({
     previewText: opts.previewText,
     bodyHtml: bodyHtml + prefsFooter,
     siteUrl: opts.baseUrl,
