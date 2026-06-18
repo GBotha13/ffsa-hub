@@ -19,7 +19,7 @@ import { CURATED_TOOLS, executeTool } from "./tools";
 import { buildSystemPrompt } from "./prompt";
 import { logSlackBotQuery, resolveHubUserBySlackId } from "@/services/slack-bot";
 
-const HAIKU_MODEL = "claude-3-5-haiku-latest";
+const HAIKU_MODEL = "claude-haiku-4-5-20251001"; // current Haiku (3.5-latest is EOL)
 const SONNET_MODEL = "claude-sonnet-4-5-20250929"; // same pin as campaign-ai.ts
 
 const MAX_TURNS = 6;
