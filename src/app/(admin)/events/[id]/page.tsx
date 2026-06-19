@@ -23,7 +23,7 @@ import { BaseLabelPicker } from "./base-label-picker";
 import { FormsTab } from "./forms-tab";
 import { WorkflowsManager } from "./workflows-manager";
 import { OutcomeFormLink } from "./outcome-form-link";
-import { fieldKey, type FormSchema } from "@/lib/forms/schema";
+import { fieldKey, type FormSchema, type FormField } from "@/lib/forms/schema";
 import { EventLogo } from "./event-logo";
 import { EventStatusControl } from "./event-status-control";
 import { EventDetailsForm } from "./event-details-form";
@@ -201,6 +201,9 @@ export default async function EventDetailPage({
           ticketTypes={ticketTypes ?? []}
           promoCodes={promoCodes ?? []}
           feeProfiles={feeProfiles}
+          checkoutQuestions={
+            (event.checkout_questions as FormField[] | null) ?? []
+          }
         />
       )}
 

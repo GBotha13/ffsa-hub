@@ -5,6 +5,7 @@ import { Storefront } from "./storefront";
 import { TheSendStorefront } from "./the-send-storefront";
 import { CampsStorefront } from "./camps-storefront";
 import { PublicFormNotice } from "@/components/public-form-shell";
+import type { FormField } from "@/lib/forms/schema";
 
 type EventBrand = "ff" | "the_send" | "ffsa_camps";
 
@@ -75,14 +76,33 @@ export default async function PublicEventPage({
   };
 
   const brand = resolveEventBrand(event);
+  const checkoutQuestions =
+    (event.checkout_questions as FormField[] | null) ?? [];
+
   if (brand === "the_send") {
     return (
-      <TheSendStorefront event={eventProps} ticketTypes={ticketTypes ?? []} />
+      <TheSendStorefront
+        event={eventProps}
+        ticketTypes={ticketTypes ?? []}
+        checkoutQuestions={checkoutQuestions}
+      />
     );
   }
   if (brand === "ffsa_camps") {
-    return <CampsStorefront event={eventProps} ticketTypes={ticketTypes ?? []} />;
+    return (
+      <CampsStorefront
+        event={eventProps}
+        ticketTypes={ticketTypes ?? []}
+        checkoutQuestions={checkoutQuestions}
+      />
+    );
   }
 
-  return <Storefront event={eventProps} ticketTypes={ticketTypes ?? []} />;
+  return (
+    <Storefront
+      event={eventProps}
+      ticketTypes={ticketTypes ?? []}
+      checkoutQuestions={checkoutQuestions}
+    />
+  );
 }

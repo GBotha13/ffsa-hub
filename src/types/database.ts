@@ -1742,6 +1742,7 @@ export type Database = {
         Row: {
           base_label_id: string | null
           brand: string
+          checkout_questions: Json
           created_at: string
           created_by: string
           description: string | null
@@ -1764,6 +1765,7 @@ export type Database = {
         Insert: {
           base_label_id?: string | null
           brand?: string
+          checkout_questions?: Json
           created_at?: string
           created_by: string
           description?: string | null
@@ -1786,6 +1788,7 @@ export type Database = {
         Update: {
           base_label_id?: string | null
           brand?: string
+          checkout_questions?: Json
           created_at?: string
           created_by?: string
           description?: string | null
@@ -2637,6 +2640,7 @@ export type Database = {
           contact_resolution: string
           created_at: string
           currency: string
+          custom_answers: Json
           discount_cents: number
           donation_cents: number
           event_id: string
@@ -2667,6 +2671,7 @@ export type Database = {
           contact_resolution?: string
           created_at?: string
           currency?: string
+          custom_answers?: Json
           discount_cents?: number
           donation_cents?: number
           event_id: string
@@ -2697,6 +2702,7 @@ export type Database = {
           contact_resolution?: string
           created_at?: string
           currency?: string
+          custom_answers?: Json
           discount_cents?: number
           donation_cents?: number
           event_id?: string

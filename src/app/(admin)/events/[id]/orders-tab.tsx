@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -12,6 +12,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  formatAnswerValue,
+  type CheckoutAnswerSnapshot,
+} from "@/lib/ticketing/checkout-questions";
 
 type Order = {
   id: string;
@@ -24,7 +28,14 @@ type Order = {
   paid_at: string | null;
   created_at: string;
   contact_resolution: string;
+  custom_answers?: unknown;
 };
+
+function answersForOrder(o: Order): CheckoutAnswerSnapshot[] {
+  return Array.isArray(o.custom_answers)
+    ? (o.custom_answers as CheckoutAnswerSnapshot[])
+    : [];
+}
 
 function rands(cents: number): string {
   return `R${(cents / 100).toFixed(2)}`;
@@ -53,6 +64,7 @@ export function OrdersTab({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [recentlySentId, setRecentlySentId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const paid = orders.filter((o) => o.status === "paid");
@@ -150,10 +162,31 @@ export function OrdersTab({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {orders.map((o) => (
-                    <TableRow key={o.id}>
+                  {orders.map((o) => {
+                    const answers = answersForOrder(o);
+                    const expanded = expandedId === o.id;
+                    return (
+                    <Fragment key={o.id}>
+                    <TableRow>
                       <TableCell className="font-mono text-xs">
-                        {o.id.slice(0, 8)}
+                        {answers.length > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedId(expanded ? null : o.id)
+                            }
+                            className="inline-flex items-center gap-1 hover:text-foreground"
+                            aria-expanded={expanded}
+                            title={`${answers.length} checkout answer${answers.length === 1 ? "" : "s"}`}
+                          >
+                            <span className="text-muted-foreground">
+                              {expanded ? "▾" : "▸"}
+                            </span>
+                            {o.id.slice(0, 8)}
+                          </button>
+                        ) : (
+                          o.id.slice(0, 8)
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
@@ -215,7 +248,32 @@ export function OrdersTab({
                         )}
                       </TableCell>
                     </TableRow>
-                  ))}
+                    {expanded && answers.length > 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="bg-muted/30">
+                          <div className="py-1 space-y-2">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                              Checkout answers
+                            </p>
+                            <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+                              {answers.map((a, i) => (
+                                <div key={a.id ?? i} className="flex flex-col">
+                                  <dt className="text-xs text-muted-foreground">
+                                    {a.label}
+                                  </dt>
+                                  <dd className="text-sm whitespace-pre-wrap">
+                                    {formatAnswerValue(a.value) || "—"}
+                                  </dd>
+                                </div>
+                              ))}
+                            </dl>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    </Fragment>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </>

@@ -3,6 +3,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { payfastProvider } from "@/lib/payments/payfast";
 import { stripeProvider } from "@/lib/payments/stripe";
 import type { PaymentProvider } from "@/lib/payments/provider";
+import type { Json } from "@/types/database";
+import type { FormField } from "@/lib/forms/schema";
+import {
+  validateCheckoutAnswers,
+  snapshotAnswers,
+} from "@/lib/ticketing/checkout-questions";
 
 // POST /api/events/[id]/checkout
 //
@@ -30,6 +36,7 @@ type Body = {
     phone?: string | null;
   };
   marketing_consent?: boolean;
+  custom_answers?: Record<string, unknown>;
   payment_provider?: "payfast" | "stripe";
 };
 
@@ -119,7 +126,7 @@ export async function POST(
   // ── Event ────────────────────────────────────────────────────
   const { data: event, error: eventErr } = await supabase
     .from("events")
-    .select("id, title, status, ticketing_enabled, public_slug")
+    .select("id, title, status, ticketing_enabled, public_slug, checkout_questions")
     .eq("id", eventId)
     .maybeSingle();
   if (eventErr || !event) {
@@ -135,6 +142,30 @@ export async function POST(
       { status: 409 }
     );
   }
+
+  // ── Custom checkout questions (optional, per event) ──────────
+  // Validated before any inventory is reserved, so a bad/missing answer
+  // returns a clean 400 with no rollback. Answers are snapshotted
+  // (label + value) onto the order.
+  const checkoutQuestions =
+    (event.checkout_questions as FormField[] | null) ?? [];
+  const customAnswersInput =
+    body.custom_answers && typeof body.custom_answers === "object"
+      ? (body.custom_answers as Record<string, unknown>)
+      : {};
+  if (checkoutQuestions.length > 0) {
+    const v = validateCheckoutAnswers(checkoutQuestions, customAnswersInput);
+    if (!v.valid) {
+      return NextResponse.json(
+        { error: "Please answer the required questions.", fieldErrors: v.errors },
+        { status: 400 }
+      );
+    }
+  }
+  const customAnswersSnapshot = snapshotAnswers(
+    checkoutQuestions,
+    customAnswersInput
+  );
 
   // ── Line items ───────────────────────────────────────────────
   const rawLines = Array.isArray(body.lines) ? body.lines : [];
@@ -386,6 +417,9 @@ export async function POST(
         qty: r.qty,
         per_ticket_cents: r.perTicketCents,
       })),
+      // Snapshot values originate from the parsed JSON request body, so
+      // they're already JSON-serializable; cast past the `unknown` value type.
+      custom_answers: customAnswersSnapshot as unknown as Json,
       expires_at: expiresAt,
     })
     .select("id")

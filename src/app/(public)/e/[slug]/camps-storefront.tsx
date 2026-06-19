@@ -1,6 +1,26 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { FormField } from "@/lib/forms/schema";
+import { validateCheckoutAnswers } from "@/lib/ticketing/checkout-questions";
+import {
+  CheckoutQuestionFields,
+  type CheckoutFieldClasses,
+} from "./checkout-questions-fields";
+
+// Custom checkout questions, themed to FFSA Camps' scoped `.cmp-*` classes.
+const CAMPS_CHECKOUT_CLASSES: CheckoutFieldClasses = {
+  field: "cmp-field",
+  label: "cmp-label",
+  required: "",
+  input: "cmp-input",
+  textarea: "cmp-input",
+  select: "cmp-input",
+  optionRow: "cmp-opt-row",
+  optionText: "",
+  help: "cmp-checkout-help",
+  error: "cmp-promo-error",
+};
 
 // ──────────────────────────────────────────────────────────────
 // FFSA CAMPS
@@ -83,9 +103,11 @@ const STAR = "✦"; // ✦ — brand mark used as a separator
 export function CampsStorefront({
   event,
   ticketTypes,
+  checkoutQuestions,
 }: {
   event: PublicEvent;
   ticketTypes: TicketType[];
+  checkoutQuestions: FormField[];
 }) {
   const now = useMemo(() => new Date(), []);
   // Only show tiers whose sales window is currently open. Tiers scheduled for
@@ -105,6 +127,8 @@ export function CampsStorefront({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [marketingConsent, setMarketingConsent] = useState(false);
+  const [customAnswers, setCustomAnswers] = useState<Record<string, unknown>>({});
+  const [customErrors, setCustomErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState<"payfast" | "stripe" | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -250,6 +274,18 @@ export function CampsStorefront({
         ?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
+    if (checkoutQuestions.length > 0) {
+      const v = validateCheckoutAnswers(checkoutQuestions, customAnswers);
+      if (!v.valid) {
+        setCustomErrors(v.errors);
+        setErr("Answer the required questions to lock it in.");
+        document
+          .getElementById("cmp-buyer")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+      setCustomErrors({});
+    }
     setSubmitting(provider);
     setErr(null);
 
@@ -271,6 +307,7 @@ export function CampsStorefront({
           phone: phone.trim() || null,
         },
         marketing_consent: marketingConsent,
+        custom_answers: customAnswers,
         payment_provider: provider,
       }),
     });
@@ -562,6 +599,17 @@ export function CampsStorefront({
               className="cmp-input cmp-input-mono"
             />
           </div>
+          {checkoutQuestions.length > 0 && (
+            <CheckoutQuestionFields
+              questions={checkoutQuestions}
+              values={customAnswers}
+              errors={customErrors}
+              onChange={(k, val) =>
+                setCustomAnswers((prev) => ({ ...prev, [k]: val }))
+              }
+              classes={CAMPS_CHECKOUT_CLASSES}
+            />
+          )}
           <label className="cmp-consent">
             <input
               type="checkbox"
@@ -935,6 +983,24 @@ const scopedCss = `
   accent-color:var(--blue) !important;padding:0 !important;
   border:2px solid var(--blue) !important;border-radius:0 !important;
   background:var(--white) !important;
+}
+/* Checkout-question controls — globals don't reach select/textarea, and
+   the input reset above is input-only, so theme them to match. */
+.cmp select, .cmp textarea{
+  width:100%;padding:13px 14px;border-radius:0;
+  border:2px solid var(--blue);background:var(--white);color:var(--ink);
+  font-family:var(--body);font-size:15px;
+  -webkit-appearance:none;-moz-appearance:none;appearance:none;
+}
+.cmp select:focus, .cmp textarea:focus{
+  outline:none;border-color:var(--blue);box-shadow:4px 4px 0 var(--blue);
+}
+.cmp-opt-row{
+  display:flex;gap:10px;align-items:center;cursor:pointer;
+  font-size:13px;letter-spacing:.02em;color:var(--ink);
+}
+.cmp-checkout-help{
+  font-size:11px;letter-spacing:.04em;margin:6px 0 0;color:var(--ink);opacity:.65;
 }
 
 /* ── TICKER ── */
