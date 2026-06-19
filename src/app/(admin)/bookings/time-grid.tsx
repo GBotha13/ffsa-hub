@@ -7,6 +7,7 @@ import { packLanes } from "@/lib/bookings/timegrid";
 import { statusChipStyle } from "@/lib/bookings/status";
 import { timeRangeLabel } from "@/lib/bookings/dates";
 import type { BookingWithRefs } from "@/services/bookings";
+import { BookingPopover } from "./booking-popover";
 
 const HOUR_H = 46; // px per hour
 const MIN_BLOCK = 16;
@@ -150,15 +151,16 @@ export function TimeGrid({
               {allDay.length > 0 && (
                 <div className="absolute inset-x-1 top-1 z-20 space-y-0.5">
                   {allDay.map((b) => (
-                    <Link
-                      key={b.id}
-                      href={`/bookings/${b.id}`}
-                      title={`${b.title} · all day`}
-                      style={statusChipStyle(b.status)}
-                      className="block truncate rounded border-l-2 px-1.5 py-0.5 text-[10px] font-medium"
-                    >
-                      {b.title}
-                    </Link>
+                    <BookingPopover key={b.id} booking={b}>
+                      <button
+                        type="button"
+                        title={`${b.title} · all day`}
+                        style={statusChipStyle(b.status)}
+                        className="block w-full truncate rounded border-l-2 px-1.5 py-0.5 text-left text-[10px] normal-case font-medium tracking-normal"
+                      >
+                        {b.title}
+                      </button>
+                    </BookingPopover>
                   ))}
                 </div>
               )}
@@ -171,32 +173,33 @@ export function TimeGrid({
                 const leftPct = p.lane * widthPct;
                 const clash = clashIds.has(p.item.id);
                 return (
-                  <Link
-                    key={p.item.id}
-                    href={`/bookings/${p.item.id}`}
-                    title={`${p.item.title} · ${timeRangeLabel(p.item.start_time, p.item.end_time)}`}
-                    style={{
-                      ...statusChipStyle(p.item.status),
-                      top,
-                      height,
-                      left: `calc(${leftPct}% + 2px)`,
-                      width: `calc(${widthPct}% - 4px)`,
-                      borderLeft: `2px solid ${colorOf(p.item)}`,
-                    }}
-                    className="absolute z-10 overflow-hidden rounded-md px-1.5 py-0.5 text-[10px] leading-tight transition-all hover:z-40 hover:brightness-110"
-                  >
-                    <div className="flex items-center gap-0.5 font-semibold">
-                      {clash && (
-                        <AlertTriangle className="h-2.5 w-2.5 shrink-0 text-[hsl(0_70%_66%)]" />
-                      )}
-                      <span className="truncate">{p.item.title}</span>
-                    </div>
-                    {height > 26 && (
-                      <div className="truncate tabular-nums opacity-75">
-                        {timeRangeLabel(p.item.start_time, p.item.end_time)}
+                  <BookingPopover key={p.item.id} booking={p.item}>
+                    <button
+                      type="button"
+                      title={`${p.item.title} · ${timeRangeLabel(p.item.start_time, p.item.end_time)}`}
+                      style={{
+                        ...statusChipStyle(p.item.status),
+                        top,
+                        height,
+                        left: `calc(${leftPct}% + 2px)`,
+                        width: `calc(${widthPct}% - 4px)`,
+                        borderLeft: `2px solid ${colorOf(p.item)}`,
+                      }}
+                      className="absolute z-10 overflow-hidden rounded-md px-1.5 py-0.5 text-left text-[10px] normal-case leading-tight tracking-normal transition-all hover:z-40 hover:brightness-110"
+                    >
+                      <div className="flex items-center gap-0.5 font-semibold">
+                        {clash && (
+                          <AlertTriangle className="h-2.5 w-2.5 shrink-0 text-[hsl(0_70%_66%)]" />
+                        )}
+                        <span className="truncate">{p.item.title}</span>
                       </div>
-                    )}
-                  </Link>
+                      {height > 26 && (
+                        <div className="truncate tabular-nums opacity-75">
+                          {timeRangeLabel(p.item.start_time, p.item.end_time)}
+                        </div>
+                      )}
+                    </button>
+                  </BookingPopover>
                 );
               })}
             </div>

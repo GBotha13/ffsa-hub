@@ -15,6 +15,7 @@ import {
 } from "@/lib/bookings/dates";
 import { statusChipStyle } from "@/lib/bookings/status";
 import type { BookingWithRefs, Venue } from "@/services/bookings";
+import { BookingPopover } from "./booking-popover";
 
 const MAX_CHIPS = 3;
 
@@ -120,29 +121,30 @@ export function BookingCalendar({
                   const color = venueColor.get(b.venue_id) ?? "#64748b";
                   const t = timeLabel(b.start_time);
                   return (
-                    <Link
-                      key={`${b.id}-${d}`}
-                      href={`/bookings/${b.id}`}
-                      title={`${b.title} · ${b.venue?.name ?? ""}`}
-                      style={statusChipStyle(b.status)}
-                      className="flex items-center gap-1 rounded-[5px] px-1.5 py-[3px] text-[11px] leading-tight transition-all hover:brightness-125 hover:-translate-y-px"
-                    >
-                      <span
-                        className="h-3 w-[3px] shrink-0 rounded-full"
-                        style={{ backgroundColor: color }}
-                      />
-                      {clash && (
-                        <AlertTriangle className="h-3 w-3 shrink-0 text-[hsl(0_70%_66%)]" />
-                      )}
-                      <span className="truncate">
-                        {t !== "—" && (
-                          <span className="font-semibold tabular-nums opacity-70">
-                            {t}{" "}
-                          </span>
+                    <BookingPopover key={`${b.id}-${d}`} booking={b}>
+                      <button
+                        type="button"
+                        title={`${b.title} · ${b.venue?.name ?? ""}`}
+                        style={statusChipStyle(b.status)}
+                        className="flex w-full items-center gap-1 rounded-[5px] px-1.5 py-[3px] text-left text-[11px] normal-case leading-tight tracking-normal transition-all hover:brightness-125 hover:-translate-y-px"
+                      >
+                        <span
+                          className="h-3 w-[3px] shrink-0 rounded-full"
+                          style={{ backgroundColor: color }}
+                        />
+                        {clash && (
+                          <AlertTriangle className="h-3 w-3 shrink-0 text-[hsl(0_70%_66%)]" />
                         )}
-                        {b.title}
-                      </span>
-                    </Link>
+                        <span className="truncate">
+                          {t !== "—" && (
+                            <span className="font-semibold tabular-nums opacity-70">
+                              {t}{" "}
+                            </span>
+                          )}
+                          {b.title}
+                        </span>
+                      </button>
+                    </BookingPopover>
                   );
                 })}
                 {extra > 0 && (
