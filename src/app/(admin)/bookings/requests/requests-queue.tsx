@@ -22,7 +22,7 @@ export function RequestsQueue({
   clashInfo,
 }: {
   initial: BookingWithRefs[];
-  clashInfo: Record<string, string>;
+  clashInfo: Record<string, { title: string; time: string }>;
 }) {
   const router = useRouter();
   const [rows, setRows] = useState(initial);
@@ -86,7 +86,10 @@ export function RequestsQueue({
             const clash = clashInfo[b.id];
             return (
               <TableRow key={b.id}>
-                <TableCell className="whitespace-nowrap">
+                <TableCell
+                  className="whitespace-nowrap"
+                  style={clash ? { boxShadow: "inset 3px 0 0 hsl(0 72% 55%)" } : undefined}
+                >
                   <Link
                     href={`/bookings?view=day&date=${b.booking_date}`}
                     className="hover:text-[hsl(42_95%_62%)]"
@@ -114,9 +117,9 @@ export function RequestsQueue({
                     </span>
                   )}
                   {clash && (
-                    <div className="mt-0.5 flex items-center gap-1 text-[10px] text-[hsl(0_70%_66%)]">
+                    <div className="mt-1 inline-flex items-center gap-1 rounded border border-destructive/40 bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold text-[hsl(0_72%_72%)]">
                       <AlertTriangle className="h-3 w-3 shrink-0" />
-                      Clashes with {clash}
+                      Overlaps approved: {clash.title} · {clash.time}
                     </div>
                   )}
                 </TableCell>

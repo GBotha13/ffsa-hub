@@ -10,6 +10,7 @@ import {
 } from "@/services/bookings";
 import { ArrowLeft } from "lucide-react";
 import { findConflicts, type BookingWindow } from "@/lib/bookings/conflicts";
+import { timeRangeLabel } from "@/lib/bookings/dates";
 import { RequestsQueue } from "./requests-queue";
 
 export default async function RequestsPage() {
@@ -30,7 +31,7 @@ export default async function RequestsPage() {
   const pending = (pendingRes.data ?? []) as BookingWithRefs[];
 
   // Flag any request that overlaps an already-approved booking.
-  const clashInfo: Record<string, string> = {};
+  const clashInfo: Record<string, { title: string; time: string }> = {};
   if (pending.length > 0) {
     const dates = pending
       .flatMap((p) => [p.booking_date, p.end_date ?? p.booking_date])
@@ -44,7 +45,11 @@ export default async function RequestsPage() {
     for (const p of pending) {
       const hits = findConflicts(p as unknown as BookingWindow, approvedWindows);
       if (hits.length > 0) {
-        clashInfo[p.id] = (hits[0] as { title?: string }).title ?? "an approved booking";
+        const h = hits[0] as BookingWindow & { title?: string };
+        clashInfo[p.id] = {
+          title: h.title ?? "an approved booking",
+          time: timeRangeLabel(h.start_time, h.end_time),
+        };
       }
     }
   }
