@@ -57,6 +57,7 @@ export default async function NewBookingPage({
         ministries={ministries}
         defaultRequesterName={defaultRequesterName}
         defaultDate={defaultDate}
+        canApprove={access.canApprove}
       />
     </div>
   );

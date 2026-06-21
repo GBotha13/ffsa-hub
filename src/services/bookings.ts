@@ -17,6 +17,7 @@ export type Venue = {
   capacity: number | null;
   color: string;
   is_active: boolean;
+  requires_approval: boolean;
   sort_order: number;
   created_by: string | null;
   created_at: string;
@@ -124,6 +125,15 @@ export async function createVenue(supabase: Client, data: Partial<Venue>) {
   return supabase.from("venues").insert(data).select().single();
 }
 
+/** Just a venue's approval setting — used by the create-booking route. */
+export async function getVenueApproval(supabase: Client, id: string) {
+  return supabase
+    .from("venues")
+    .select("requires_approval")
+    .eq("id", id)
+    .single();
+}
+
 export async function updateVenue(
   supabase: Client,
   id: string,
@@ -219,7 +229,7 @@ export async function getVenueBookingsBetween(
   return supabase
     .from("venue_bookings")
     .select(
-      "id,venue_id,title,booking_date,end_date,setup_time,start_time,end_time,setdown_time,status"
+      "id,venue_id,title,booking_date,end_date,setup_time,start_time,end_time,setdown_time,status,requester_name"
     )
     .eq("venue_id", venueId)
     .lte("booking_date", to)

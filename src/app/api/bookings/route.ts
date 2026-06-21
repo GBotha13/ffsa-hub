@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getAuthedUser } from "@/lib/api-auth";
 import {
   getBookingAccess,
+  getVenueApproval,
   getVenueBookingsBetween,
   insertBooking,
   insertBookings,
@@ -11,6 +12,7 @@ import {
 } from "@/services/bookings";
 import { weeklyOccurrenceDates } from "@/lib/bookings/recurrence";
 import { findConflicts, type BookingWindow } from "@/lib/bookings/conflicts";
+import { humanDate, timeRangeLabel, timeLabel } from "@/lib/bookings/dates";
 
 type CreateBody = {
   dryRun?: boolean;
@@ -32,11 +34,53 @@ type CreateBody = {
   series_end?: string;
 };
 
-type Conflict = { date: string; existingId: string; existingTitle: string };
+type Conflict = {
+  date: string;
+  existingId: string;
+  existingTitle: string;
+  existingTime: string; // "18:00 – 21:00" or "all day"
+  occupiedUntil: string; // "21:30" (set-down/end) or "the end of the day"
+  who: string | null; // requester_name of the existing booking
+};
 
 function nn(v: string | null | undefined): string | null {
   const t = (v ?? "").trim();
   return t.length ? t : null;
+}
+
+// Existing rows from getVenueBookingsBetween carry these display fields on top
+// of the BookingWindow shape used for clash maths.
+type ExistingRow = BookingWindow & {
+  title?: string;
+  requester_name?: string | null;
+};
+
+// How a clashing booking is described back to the requester: who holds the
+// slot and until when, so they can adjust if it's only a small overlap.
+function describeConflict(date: string, b: ExistingRow): Conflict {
+  const multiDay = b.end_date != null && b.end_date > b.booking_date;
+  const hasTimes = !multiDay && (b.start_time || b.setup_time);
+  const until = b.setdown_time ?? b.end_time;
+  return {
+    date,
+    existingId: b.id,
+    existingTitle: b.title ?? "another booking",
+    existingTime: hasTimes ? timeRangeLabel(b.start_time, b.end_time) : "all day",
+    occupiedUntil: !multiDay && until ? timeLabel(until) : "the end of the day",
+    who: b.requester_name ?? null,
+  };
+}
+
+// One-line lead for the hard-block message on auto-confirm spaces.
+function blockLead(conflicts: Conflict[]): string {
+  if (conflicts.length === 1) {
+    const c = conflicts[0];
+    const who = c.who ? ` (${c.who})` : "";
+    return `That time is already booked — “${c.existingTitle}”${who} has this space on ${humanDate(
+      c.date
+    )} until ${c.occupiedUntil}. Pick another time, or adjust yours so it doesn't overlap.`;
+  }
+  return `This space is already booked at ${conflicts.length} of those times. See the clashes below, then pick times that don't overlap.`;
 }
 
 // POST /api/bookings — create a one-off or recurring-weekly booking request.
@@ -64,6 +108,12 @@ export async function POST(request: Request) {
   const title = nn(body.title);
   if (!venueId) return NextResponse.json({ error: "venue_id is required" }, { status: 400 });
   if (!title) return NextResponse.json({ error: "title is required" }, { status: 400 });
+
+  // Approval routing: a space auto-confirms unless it's flagged as needing
+  // approval. Managers / approvers always auto-confirm their own bookings.
+  const { data: venue } = await getVenueApproval(supabase, venueId);
+  if (!venue) return NextResponse.json({ error: "Venue not found" }, { status: 400 });
+  const willAutoConfirm = !venue.requires_approval || access.canApprove;
 
   const recurrence = body.recurrence === "weekly" ? "weekly" : "none";
   const times = {
@@ -122,7 +172,7 @@ export async function POST(request: Request) {
     rangeFrom,
     rangeTo
   );
-  const existing = (existingRaw ?? []) as (BookingWindow & { title?: string })[];
+  const existing = (existingRaw ?? []) as ExistingRow[];
 
   const conflicts: Conflict[] = [];
   for (const occ of occurrences) {
@@ -135,16 +185,24 @@ export async function POST(request: Request) {
       ...times,
     };
     for (const c of findConflicts(candidate, existing)) {
-      conflicts.push({
-        date: occ.booking_date,
-        existingId: c.id,
-        existingTitle: (c as { title?: string }).title ?? "another booking",
-      });
+      conflicts.push(describeConflict(occ.booking_date, c as ExistingRow));
     }
   }
 
+  // On an auto-confirm space there's no manager to catch a clash, so a clash is
+  // a HARD BLOCK (no silent double-booking). On approval-required spaces a clash
+  // stays a warning — the manager reviews it in the queue.
+  const blocked = willAutoConfirm && conflicts.length > 0;
+
   if (body.dryRun) {
-    return NextResponse.json({ ok: true, conflicts });
+    return NextResponse.json({ ok: true, conflicts, autoConfirm: willAutoConfirm, blocked });
+  }
+
+  if (blocked) {
+    return NextResponse.json(
+      { error: blockLead(conflicts), conflicts, blocked: true },
+      { status: 409 }
+    );
   }
 
   // ── Persist ──
@@ -168,13 +226,25 @@ export async function POST(request: Request) {
     ...times,
   };
 
+  // Status + audit stamp applied to each booking row when auto-confirming.
+  const status = willAutoConfirm ? "approved" : "pending";
+  const decision = willAutoConfirm
+    ? {
+        decided_by: user.id,
+        decided_at: new Date().toISOString(),
+        decision_note: venue.requires_approval
+          ? "Auto-approved (booked by a manager)."
+          : "Auto-confirmed — this space does not require approval.",
+      }
+    : {};
+
   if (recurrence === "weekly") {
     const { data: series, error: seriesErr } = await insertSeries(supabase, {
       ...shared,
       weekday,
       series_start: seriesStart,
       series_end: seriesEnd,
-      status: "pending",
+      status,
       created_by: user.id,
     });
 
@@ -190,7 +260,8 @@ export async function POST(request: Request) {
       series_id: series.id,
       booking_date: o.booking_date,
       end_date: null,
-      status: "pending",
+      status,
+      ...decision,
       requested_by: user.id,
       requester_name: requesterName,
     }));
@@ -207,6 +278,7 @@ export async function POST(request: Request) {
       seriesId: series.id,
       count: rows.length,
       conflicts,
+      autoConfirm: willAutoConfirm,
     });
   }
 
@@ -215,7 +287,8 @@ export async function POST(request: Request) {
     ...shared,
     booking_date: occurrences[0].booking_date,
     end_date: occurrences[0].end_date,
-    status: "pending",
+    status,
+    ...decision,
     requested_by: user.id,
     requester_name: requesterName,
   });
@@ -227,5 +300,10 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({ ok: true, bookingId: booking.id, conflicts });
+  return NextResponse.json({
+    ok: true,
+    bookingId: booking.id,
+    conflicts,
+    autoConfirm: willAutoConfirm,
+  });
 }
