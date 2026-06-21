@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -59,6 +60,7 @@ function ApplicationsManager() {
   const [evaluators, setEvaluators] = useState<Evaluator[]>([]);
   const [loading, setLoading] = useState(true);
   const [pick, setPick] = useState<Record<string, string>>({});
+  const [note, setNote] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -99,6 +101,25 @@ function ApplicationsManager() {
     }
   }
 
+  // Manager can decide directly — with or without an evaluator assigned.
+  async function decide(id: string, approve: boolean) {
+    setBusy(id);
+    try {
+      const res = await fetch(`/api/prayer-room/applications/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "decide", approve, decision_note: note[id] || null }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed");
+      toast.success(approve ? "Approved — welcome them in!" : "Marked not approved");
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   if (loading) return <p className="py-12 text-center text-muted-foreground">Loading…</p>;
 
   const pending = apps.filter((a) => a.status === "applied");
@@ -130,7 +151,7 @@ function ApplicationsManager() {
                         <SelectValue placeholder="Choose evaluator" />
                       </SelectTrigger>
                       <SelectContent>
-                        {evaluators.length === 0 && <div className="px-2 py-1.5 text-xs text-muted-foreground">No evaluators yet — designate some under Members.</div>}
+                        {evaluators.length === 0 && <div className="px-2 py-1.5 text-xs text-muted-foreground">No evaluators yet — grant the “Evaluate Prayer Room Applicants” permission to someone.</div>}
                         {evaluators.map((ev) => (
                           <SelectItem key={ev.user_id} value={ev.user_id}>
                             {fullName(ev.user)}
@@ -143,6 +164,14 @@ function ApplicationsManager() {
                     </Button>
                   </div>
                 </div>
+                <DecideControls
+                  id={a.id}
+                  note={note}
+                  setNote={setNote}
+                  busy={busy === a.id}
+                  onDecide={decide}
+                  hint="Or decide now — no evaluator needed."
+                />
               </div>
             ))}
           </div>
@@ -154,11 +183,14 @@ function ApplicationsManager() {
           <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">With evaluators</h3>
           <div className="space-y-2">
             {inProgress.map((a) => (
-              <div key={a.id} className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-sm">
-                <span>{fullName(a.applicant)}</span>
-                <span className="text-xs text-muted-foreground">
-                  {APPLICATION_STATUS_LABELS[a.status]} · {fullName(a.evaluator)}
-                </span>
+              <div key={a.id} className="rounded-lg border border-border bg-card p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium">{fullName(a.applicant)}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {APPLICATION_STATUS_LABELS[a.status]} · {fullName(a.evaluator)}
+                  </span>
+                </div>
+                <DecideControls id={a.id} note={note} setNote={setNote} busy={busy === a.id} onDecide={decide} />
               </div>
             ))}
           </div>
@@ -178,6 +210,43 @@ function ApplicationsManager() {
           </div>
         </section>
       )}
+    </div>
+  );
+}
+
+// Shared approve/deny control for the manager — usable on any open application.
+function DecideControls({
+  id,
+  note,
+  setNote,
+  busy,
+  onDecide,
+  hint,
+}: {
+  id: string;
+  note: Record<string, string>;
+  setNote: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  busy: boolean;
+  onDecide: (id: string, approve: boolean) => void;
+  hint?: string;
+}) {
+  return (
+    <div className="mt-3 space-y-2 border-t border-border pt-3">
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      <Label className="text-xs">Decision note (optional, shared with applicant)</Label>
+      <Textarea
+        value={note[id] ?? ""}
+        onChange={(e) => setNote((n) => ({ ...n, [id]: e.target.value }))}
+        rows={2}
+      />
+      <div className="flex gap-2">
+        <Button size="sm" disabled={busy} onClick={() => onDecide(id, true)}>
+          Approve
+        </Button>
+        <Button size="sm" variant="outline" className="text-destructive" disabled={busy} onClick={() => onDecide(id, false)}>
+          Deny
+        </Button>
+      </div>
     </div>
   );
 }
@@ -383,7 +452,6 @@ function TemplateManager() {
 interface Member {
   user_id: string;
   status: string;
-  is_evaluator: boolean;
   is_coordinator: boolean;
   user: Person;
 }
@@ -434,7 +502,6 @@ function MembersManager() {
           <span className="font-medium">{fullName(m.user)}</span>
           <div className="flex flex-wrap items-center gap-2">
             <ToggleChip label="Coordinator" on={m.is_coordinator} busy={busy === m.user_id + "coordinator"} onClick={() => update(m.user_id, "coordinator", !m.is_coordinator)} />
-            <ToggleChip label="Evaluator" on={m.is_evaluator} busy={busy === m.user_id + "evaluator"} onClick={() => update(m.user_id, "evaluator", !m.is_evaluator)} />
             <Select value={m.status} onValueChange={(v) => update(m.user_id, "status", v)}>
               <SelectTrigger className="h-8 w-32">
                 <SelectValue />

@@ -6,7 +6,6 @@ import {
   getContactCard,
   listEvaluators,
   setMemberStatus,
-  setEvaluator,
   setCoordinator,
 } from "@/services/prayer-room-members";
 import { isPrayerRoomStaff, isApprovedMember } from "@/lib/auth/prayer-room-access";
@@ -68,8 +67,6 @@ export async function PUT(request: Request) {
   let result;
   if (action === "status") {
     result = await setMemberStatus(supabase, user_id, String(value));
-  } else if (action === "evaluator") {
-    result = await setEvaluator(supabase, user_id, value === true);
   } else if (action === "coordinator") {
     result = await setCoordinator(supabase, user_id, value === true);
   } else {

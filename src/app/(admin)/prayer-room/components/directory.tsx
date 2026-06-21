@@ -12,7 +12,6 @@ import { fullName, MEMBER_STATUS_LABELS, type Person } from "./helpers";
 interface Member {
   user_id: string;
   status: string;
-  is_evaluator: boolean;
   is_coordinator: boolean;
   user: Person;
   skills: { id: string; name: string; category: string }[];
@@ -119,7 +118,6 @@ export default function Directory() {
                   <div className="flex items-center gap-1.5">
                     <span className="font-medium">{fullName(m.user)}</span>
                     {m.is_coordinator && <Badge variant="outline" className="text-[10px]">Coordinator</Badge>}
-                    {m.is_evaluator && <Badge variant="outline" className="text-[10px]">Evaluator</Badge>}
                   </div>
                   {m.status !== "active" && (
                     <span className="text-xs text-muted-foreground">{MEMBER_STATUS_LABELS[m.status]}</span>
