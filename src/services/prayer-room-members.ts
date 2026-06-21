@@ -81,29 +81,38 @@ export async function getMemberFlags(supabase: Client, userId: string) {
     .maybeSingle();
 }
 
-/** Active members flagged as evaluators — for the "assign evaluator" picker. */
-export async function listEvaluators(supabase: Client) {
-  return supabase
-    .from("prayer_room_members")
-    .select(`user_id, is_coordinator, user:user_id(${NAME_FIELDS})`)
-    .eq("is_evaluator", true)
-    .eq("status", "active")
-    .order("created_at");
+/**
+ * Holders of the `prayer_room.evaluate` permission (direct or via a role) —
+ * for the "assign evaluator" picker. Evaluator status now lives in the central
+ * permissions section rather than a per-member toggle. Returns the same
+ * { user_id, user } shape the picker expects.
+ */
+export async function listEvaluators(adminClient: Client) {
+  const { data: rows, error } = await adminClient.rpc("users_with_permission", {
+    required_permission: "prayer_room.evaluate",
+  });
+  if (error) return { data: null, error };
+
+  const ids: string[] = (rows ?? []).map((r: { user_id: string }) => r.user_id);
+  if (ids.length === 0) return { data: [], error: null };
+
+  const { data: users, error: usersErr } = await adminClient
+    .from("users")
+    .select(NAME_FIELDS)
+    .in("id", ids)
+    .order("first_name");
+  if (usersErr) return { data: null, error: usersErr };
+
+  return {
+    data: (users ?? []).map((u: { id: string }) => ({ user_id: u.id, user: u })),
+    error: null,
+  };
 }
 
 export async function setMemberStatus(supabase: Client, userId: string, status: string) {
   return supabase
     .from("prayer_room_members")
     .update({ status })
-    .eq("user_id", userId)
-    .select()
-    .single();
-}
-
-export async function setEvaluator(supabase: Client, userId: string, value: boolean) {
-  return supabase
-    .from("prayer_room_members")
-    .update({ is_evaluator: value })
     .eq("user_id", userId)
     .select()
     .single();
