@@ -85,7 +85,7 @@ export function BookingPopover({
 
         <div className="border-t border-[hsl(22_8%_14%)] p-1.5">
           <Link
-            href={`/bookings/${booking.id}`}
+            href={`/bookings/spaces/${booking.id}`}
             className="flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[hsl(42_95%_62%)] transition-colors hover:bg-[hsl(22_8%_14%)]"
           >
             Open full details

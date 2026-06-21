@@ -191,7 +191,7 @@ export function BookingForm({
       toast.success("Booking request submitted for approval.");
     }
 
-    router.push(res.json.bookingId ? `/bookings/${res.json.bookingId}` : "/bookings");
+    router.push(res.json.bookingId ? `/bookings/spaces/${res.json.bookingId}` : "/bookings/spaces");
     router.refresh();
   }
 

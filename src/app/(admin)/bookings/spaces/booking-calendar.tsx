@@ -88,7 +88,7 @@ export function BookingCalendar({
             >
               <div className="mb-1 flex items-center justify-between px-0.5">
                 <Link
-                  href={`/bookings?view=day&date=${d}`}
+                  href={`/bookings/spaces?view=day&date=${d}`}
                   title="Open day view"
                   className={cn(
                     "flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-semibold tabular-nums transition-all hover:ring-1 hover:ring-primary/50",
@@ -106,7 +106,7 @@ export function BookingCalendar({
                     </span>
                   )}
                   <Link
-                    href={`/bookings/new?date=${d}`}
+                    href={`/bookings/spaces/new?date=${d}`}
                     aria-label="New booking on this day"
                     className="absolute inset-0 flex items-center justify-center rounded opacity-0 transition-all text-[hsl(30_6%_42%)] hover:text-[hsl(42_95%_62%)] group-hover:opacity-100"
                   >
@@ -149,7 +149,7 @@ export function BookingCalendar({
                 })}
                 {extra > 0 && (
                   <Link
-                    href={`/bookings?view=list&month=${monthParam(year, month)}`}
+                    href={`/bookings/spaces?view=list&month=${monthParam(year, month)}`}
                     className="block px-1.5 text-[10px] font-semibold uppercase tracking-wide text-[hsl(30_6%_42%)] transition-colors hover:text-[hsl(42_95%_60%)]"
                   >
                     +{extra} more
