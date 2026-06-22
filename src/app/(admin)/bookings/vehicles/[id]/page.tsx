@@ -30,7 +30,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { StatusPill, AssignedVehicles } from "../ui";
 import { statusColor } from "@/lib/vehicles/status";
 import { dateRangeLabel } from "@/lib/bookings/dates";
+import { countries } from "@/lib/countries";
 import { VehicleBookingActions } from "./booking-actions";
+
+function countryLabel(iso2: string | null): string {
+  if (!iso2) return "—";
+  const c = countries.find((x) => x.iso2 === iso2);
+  return c ? `${c.flag} ${c.name}` : iso2;
+}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -224,6 +231,12 @@ export default async function VehicleBookingDetail({
           <Field label="Email">{b.requester_email ?? "—"}</Field>
           <Field label="WhatsApp">{b.requester_phone ?? "—"}</Field>
           <Field label="People">{b.num_people ?? "—"}</Field>
+          <Field label="Home country / Xero">
+            {countryLabel(b.home_country)}
+            <span className="ml-1 text-xs text-muted-foreground">
+              ({(b.home_country ?? "").toUpperCase() === "US" ? "US" : "SA"} Xero)
+            </span>
+          </Field>
           <Field label="Assigned vehicles">
             <AssignedVehicles assignments={b.assignments} />
           </Field>
@@ -294,6 +307,7 @@ export default async function VehicleBookingDetail({
           bookingId={b.id}
           paymentReceived={b.payment_received}
           total={b.total_amount}
+          currency={b.currency}
           latestStatus={latestPayment?.status ?? null}
           xeroInvoiceNumber={latestPayment?.xero_invoice_number ?? null}
           canPay={isManager || isOwner}
@@ -355,6 +369,7 @@ export default async function VehicleBookingDetail({
           currency: b.currency,
           payment_required: b.payment_required,
           payment_received: b.payment_received,
+          home_country: b.home_country,
         }}
         vehicles={vehicles}
         assignedIds={assignedIds}

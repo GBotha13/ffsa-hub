@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Plus, Trash2 } from "lucide-react";
 import { PURPOSE_OPTIONS, dayCount, type Vehicle } from "@/services/vehicles";
+import { CountryPicker } from "./country-picker";
 
 type DriverRow = {
   name: string;
@@ -54,6 +55,7 @@ export function VehicleBookingForm({
     requester_name: defaultRequesterName,
     requester_email: defaultRequesterEmail,
     requester_phone: "",
+    home_country: "ZA",
     num_people: "",
     checkout_date: "",
     return_date: "",
@@ -153,6 +155,7 @@ export function VehicleBookingForm({
         num_people: form.num_people ? parseInt(form.num_people, 10) : null,
         checkout_date: form.checkout_date,
         return_date: form.return_date,
+        home_country: form.home_country || null,
         notes: form.notes.trim() || null,
         vehicle_ids: vehicleIds,
         drivers: cleanDrivers,
@@ -247,6 +250,19 @@ export function VehicleBookingForm({
                 placeholder="+27…"
               />
             </div>
+          </div>
+
+          {/* Home country (drives the Xero org) */}
+          <div className="space-y-2 max-w-xs">
+            <Label htmlFor="home_country">Renter&apos;s home country</Label>
+            <CountryPicker
+              id="home_country"
+              value={form.home_country}
+              onChange={(v) => update("home_country", v)}
+            />
+            <p className="text-xs text-muted-foreground">
+              US renters are billed in FFSA&apos;s US Xero; everyone else in SA Xero.
+            </p>
           </div>
 
           {/* When + people */}

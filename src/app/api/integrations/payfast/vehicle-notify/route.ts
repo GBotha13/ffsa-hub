@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { payfastProvider } from "@/lib/payments/payfast";
-import { createScheduledInvoice } from "@/services/xero";
+import { createScheduledInvoice, getXeroRegionForStudent } from "@/services/xero";
 import {
   getVehiclePaymentById,
   getVehicleBookingPaymentInfo,
@@ -10,6 +10,7 @@ import {
   markBookingPaid,
   updateVehiclePayment,
 } from "@/services/vehicles";
+import { VEHICLE_XERO_ITEM_CODE } from "@/lib/vehicles/pricing";
 
 // POST /api/integrations/payfast/vehicle-notify
 //
@@ -81,15 +82,18 @@ export async function POST(request: Request) {
         );
         if (booking?.requester_email) {
           const today = new Date().toISOString().split("T")[0];
+          // Home country drives the Xero org: US renters → US Xero (1040 /
+          // Tax-Exempt), everyone else → SA Xero (1050 / No-VAT).
+          const region = getXeroRegionForStudent(booking.home_country ?? null);
           const invoice = await createScheduledInvoice(admin, {
-            region: "za",
+            region,
             studentEmail: booking.requester_email,
             studentName: booking.requester_name ?? booking.booking_name,
             dueDate: today,
             reference: `FFSA-VEH-${payment.id.slice(0, 8)}`,
             lineItems: [
               {
-                itemCode: payment.xero_item_code,
+                itemCode: payment.xero_item_code ?? VEHICLE_XERO_ITEM_CODE,
                 description:
                   payment.description ?? `Vehicle rental — ${booking.booking_name}`,
                 amount: payment.amount_cents / 100,

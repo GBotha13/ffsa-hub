@@ -28,6 +28,7 @@ type CreateBody = {
   num_people?: number;
   checkout_date?: string;
   return_date?: string;
+  home_country?: string;
   vehicle_ids?: string[];
   drivers?: DriverInput[];
   notes?: string;
@@ -144,6 +145,7 @@ export async function POST(request: Request) {
         : null,
     checkout_date: checkout,
     return_date: ret,
+    home_country: nn(body.home_country),
     status: "pending",
     notes: nn(body.notes),
     requested_by: user.id,

@@ -58,6 +58,7 @@ export type VehicleBooking = {
   payment_required: boolean;
   payment_received: boolean;
   payment_received_at: string | null;
+  home_country: string | null;
   notes: string | null;
   requested_by: string | null;
   decided_by: string | null;
@@ -464,6 +465,8 @@ export type VehiclePayment = {
   vehicle_booking_id: string;
   amount_cents: number;
   currency: string;
+  fx_rate: number | null;
+  usd_amount: number | null;
   status: VehiclePaymentStatus;
   payment_provider: string;
   provider_reference: string | null;
@@ -523,7 +526,7 @@ export async function getVehicleBookingPaymentInfo(supabase: Client, id: string)
   return supabase
     .from("vehicle_bookings")
     .select(
-      "id, booking_name, requester_name, requester_email, total_amount, payment_received, requested_by, status"
+      "id, booking_name, requester_name, requester_email, total_amount, payment_received, requested_by, status, home_country"
     )
     .eq("id", id)
     .maybeSingle();

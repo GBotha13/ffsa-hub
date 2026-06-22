@@ -27,6 +27,7 @@ type PatchBody = {
   num_people?: number;
   checkout_date?: string;
   return_date?: string;
+  home_country?: string;
   notes?: string;
   status?: string; // "cancelled" here; approve/deny/complete via /decision
   // manager-only
@@ -85,6 +86,7 @@ export async function PATCH(
         ? body.num_people
         : null;
   if (body.notes !== undefined) update.notes = nn(body.notes);
+  if (body.home_country !== undefined) update.home_country = nn(body.home_country);
   if (body.checkout_date !== undefined) update.checkout_date = nn(body.checkout_date);
   if (body.return_date !== undefined) update.return_date = nn(body.return_date);
   if (body.status === "cancelled") update.status = "cancelled";

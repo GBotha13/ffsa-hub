@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Check, X, Ban, CheckCheck } from "lucide-react";
+import { Check, X, Ban, CheckCheck, Wand2 } from "lucide-react";
 import type { Vehicle } from "@/services/vehicles";
+import { standardDailyUsd, standardQuoteUsd } from "@/lib/vehicles/pricing";
+import { CountryPicker } from "../country-picker";
 
 type ActionBooking = {
   id: string;
@@ -20,6 +22,7 @@ type ActionBooking = {
   currency: string;
   payment_required: boolean;
   payment_received: boolean;
+  home_country: string | null;
 };
 
 export function VehicleBookingActions({
@@ -44,6 +47,7 @@ export function VehicleBookingActions({
   const [note, setNote] = useState("");
 
   const [selected, setSelected] = useState<string[]>(assignedIds);
+  const [homeCountry, setHomeCountry] = useState(booking.home_country ?? "");
   const [pay, setPay] = useState({
     payment_required: booking.payment_required,
     pricing_per_day: booking.pricing_per_day?.toString() ?? "",
@@ -62,6 +66,25 @@ export function VehicleBookingActions({
     );
   }
 
+  // Standard USD rates (Car $25/day, Van $68/day) from the assigned vehicles.
+  const selectedTypes = selected
+    .map((id) => vehicles.find((v) => v.id === id)?.vehicle_type)
+    .filter((t): t is "van" | "car" => t === "van" || t === "car");
+
+  function applyStandardRate() {
+    if (selectedTypes.length === 0) {
+      toast.error("Assign at least one vehicle first.");
+      return;
+    }
+    setPay((p) => ({
+      ...p,
+      payment_required: true,
+      currency: "USD",
+      pricing_per_day: standardDailyUsd(selectedTypes).toString(),
+      total_amount: standardQuoteUsd(selectedTypes, days).toString(),
+    }));
+  }
+
   async function saveManage() {
     setBusy("save");
     try {
@@ -70,6 +93,7 @@ export function VehicleBookingActions({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           vehicle_ids: selected,
+          home_country: homeCountry || null,
           payment_required: pay.payment_required,
           pricing_per_day: pay.pricing_per_day ? parseFloat(pay.pricing_per_day) : null,
           total_amount: pay.total_amount ? parseFloat(pay.total_amount) : null,
@@ -183,6 +207,21 @@ export function VehicleBookingActions({
               </div>
             </div>
 
+            {/* Home country → Xero org */}
+            <div className="space-y-1 max-w-xs">
+              <Label className="text-xs">Renter&apos;s home country (Xero org)</Label>
+              <CountryPicker
+                value={homeCountry}
+                onChange={setHomeCountry}
+                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                {(homeCountry || "").toUpperCase() === "US"
+                  ? "Invoices to FFSA US Xero (1040 / Tax-Exempt)."
+                  : "Invoices to FFSA SA Xero (1050 / No-VAT)."}
+              </p>
+            </div>
+
             {/* Pricing & payment */}
             <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
               <label className="flex items-center gap-2 text-sm">
@@ -238,6 +277,16 @@ export function VehicleBookingActions({
                       }
                     >
                       = price × days
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="gap-1 text-muted-foreground"
+                      onClick={applyStandardRate}
+                    >
+                      <Wand2 className="h-3.5 w-3.5" />
+                      Standard ($25 car / $68 van/day)
                     </Button>
                   </div>
                   <label className="flex items-center gap-2 text-sm">
