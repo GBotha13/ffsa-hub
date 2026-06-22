@@ -144,7 +144,7 @@ export function FleetAdmin({ vehicles }: { vehicles: Vehicle[] }) {
       seats: n.seats ? parseInt(n.seats, 10) : null,
       registration_plate: n.registration_plate.trim() || null,
       color: n.color,
-      xero_item_code: n.xero_item_code.trim() || null,
+      xero_item_code: n.xero_item_code.trim() || "VehicleRent",
       sort_order: (vehicles.length ? vehicles[vehicles.length - 1].sort_order : 0) + 10,
     });
     setAdding(false);

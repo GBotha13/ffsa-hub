@@ -10,6 +10,7 @@ import {
   insertVehiclePayment,
   updateVehiclePayment,
 } from "@/services/vehicles";
+import { VEHICLE_XERO_ITEM_CODE } from "@/lib/vehicles/pricing";
 
 function siteBase(req: Request): string {
   const fromEnv = process.env.NEXT_PUBLIC_SITE_URL;
@@ -71,8 +72,15 @@ export async function POST(request: Request) {
     );
   }
 
-  // Snapshot the assigned vehicle's Xero item code (per-vehicle, like schools).
-  const xeroItemCode = await getFirstAssignedVehicleXeroCode(admin, bookingId);
+  // Xero item code: the assigned vehicle's, else the standard 'VehicleRent'.
+  const xeroItemCode =
+    (await getFirstAssignedVehicleXeroCode(admin, bookingId)) || VEHICLE_XERO_ITEM_CODE;
+
+  // FX context from the live USD→ZAR rate shown to the payer (for the record).
+  const fxRate =
+    typeof body.fx_rate === "number" && body.fx_rate > 0 ? body.fx_rate : null;
+  const usdAmount =
+    typeof body.usd_amount === "number" && body.usd_amount > 0 ? body.usd_amount : null;
 
   const rawDesc = `Vehicle rental — ${booking.booking_name}`;
   const description = rawDesc.length > 100 ? rawDesc.slice(0, 97) + "..." : rawDesc;
@@ -81,6 +89,8 @@ export async function POST(request: Request) {
     vehicle_booking_id: bookingId,
     amount_cents: amountCents,
     currency: "ZAR",
+    fx_rate: fxRate,
+    usd_amount: usdAmount,
     status: "pending",
     payment_provider: "payfast",
     description,
