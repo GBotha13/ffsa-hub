@@ -4,14 +4,16 @@
 // `notification_reads` (migration 096).
 //
 // Providers are permission-gated and wrapped so a failing/slow one degrades to
-// "no notifications" rather than breaking the dashboard. Four ship today
+// "no notifications" rather than breaking the dashboard. Five ship today
 // (booking requests for approvers, booking decisions for the requester, staff
-// approvals, records-to-match — all readable via the user's RLS client).
+// approvals, public vehicle requests, records-to-match — all readable via the
+// user's RLS client).
 // Prayer-room applications (needs the admin client), event
 // follow-ups (assignment model) and possible-duplicates (full-scan cost) are
 // the natural next providers.
 
 import { getBookingAccess, getPendingRequests, getMyDecidedBookings } from "./bookings";
+import { getVehicleAccess } from "./vehicles";
 import { dateRangeLabel } from "@/lib/bookings/dates";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -19,7 +21,7 @@ type Client = any;
 
 export type AppNotification = {
   key: string; // stable identity, e.g. "booking:<uuid>"
-  kind: "booking" | "user" | "records";
+  kind: "booking" | "user" | "records" | "vehicle";
   title: string;
   body: string;
   href: string;
@@ -165,6 +167,36 @@ async function staffApprovalNotifs(supabase: Client, userId: string): Promise<Ap
   });
 }
 
+// Tell vehicle approvers/managers when a request arrives through the PUBLIC
+// link (people outside the Hub). Internal requesters can't see this feed, so
+// it's scoped to source='public' — the external requests that need a human's
+// eyes the most.
+async function vehicleRequestNotifs(supabase: Client, userId: string): Promise<AppNotification[]> {
+  const access = await getVehicleAccess(supabase, userId);
+  if (!(access.isAdmin || access.canApprove || access.canManage)) return [];
+  const { data } = await supabase
+    .from("vehicle_bookings")
+    .select("id, booking_name, requester_name, checkout_date, return_date, created_at")
+    .eq("status", "pending")
+    .eq("source", "public")
+    .order("created_at", { ascending: false })
+    .limit(CAP);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return ((data ?? []) as any[]).map((b) => {
+    const { label, ts } = timeAgo(b.created_at);
+    return {
+      key: `vehicle:${b.id}`,
+      kind: "vehicle" as const,
+      title: "New vehicle request (public link)",
+      body: `${b.booking_name}${b.requester_name ? ` · ${b.requester_name}` : ""} · ${dateRangeLabel(b.checkout_date, b.return_date)}`,
+      href: "/bookings/vehicles/requests",
+      when: label,
+      ts,
+      read: false,
+    };
+  });
+}
+
 async function recordsMatchNotifs(supabase: Client, userId: string): Promise<AppNotification[]> {
   if (!(await hasModuleAccess(supabase, userId, "records-library"))) return [];
   const { count } = await supabase
@@ -187,7 +219,7 @@ async function recordsMatchNotifs(supabase: Client, userId: string): Promise<App
   ];
 }
 
-const PROVIDERS = [bookingNotifs, bookingDecisionNotifs, staffApprovalNotifs, recordsMatchNotifs];
+const PROVIDERS = [bookingNotifs, bookingDecisionNotifs, staffApprovalNotifs, vehicleRequestNotifs, recordsMatchNotifs];
 
 // ── Public API ─────────────────────────────────────────────
 
