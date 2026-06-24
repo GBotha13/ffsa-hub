@@ -8,6 +8,7 @@ import {
   CalendarClock,
   UserPlus,
   Archive,
+  Car,
   Check,
   type LucideIcon,
 } from "lucide-react";
@@ -18,12 +19,14 @@ const ICONS: Record<string, LucideIcon> = {
   booking: CalendarClock,
   user: UserPlus,
   records: Archive,
+  vehicle: Car,
 };
 
 const ACCENTS: Record<string, string> = {
   booking: "hsl(42 95% 60%)",
   user: "hsl(200 70% 62%)",
   records: "hsl(265 60% 68%)",
+  vehicle: "hsl(150 55% 58%)",
 };
 
 export function NotificationFeed({ initial }: { initial: AppNotification[] }) {
