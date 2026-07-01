@@ -91,15 +91,28 @@ export async function PUT(request: Request) {
     }
   }
 
+  // System questions (Nationality / Home Country) are locked: their type and
+  // required-ness can't change (they stay mandatory country dropdowns), and
+  // they can't become follow-ups. Label / description / order stay editable.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: existing } = await (supabase as any)
+    .from("application_questions")
+    .select("is_system")
+    .eq("id", id)
+    .single();
+  const isSystem = !!existing?.is_system;
+
   const updateData: Record<string, unknown> = {};
   if (label !== undefined) updateData.label = label;
   if (description !== undefined) updateData.description = description;
-  if (type !== undefined) updateData.type = type;
   if (sort_order !== undefined) updateData.sort_order = sort_order;
-  if (is_required !== undefined) updateData.is_required = is_required;
-  if (options !== undefined) updateData.options = options;
-  if (parent_question_id !== undefined) updateData.parent_question_id = parent_question_id || null;
-  if (show_when_answer !== undefined) updateData.show_when_answer = show_when_answer || null;
+  if (!isSystem) {
+    if (type !== undefined) updateData.type = type;
+    if (is_required !== undefined) updateData.is_required = is_required;
+    if (options !== undefined) updateData.options = options;
+    if (parent_question_id !== undefined) updateData.parent_question_id = parent_question_id || null;
+    if (show_when_answer !== undefined) updateData.show_when_answer = show_when_answer || null;
+  }
 
   const { data, error } = await updateQuestion(supabase, id, updateData);
 
@@ -125,6 +138,19 @@ export async function DELETE(request: Request) {
 
   if (!id) {
     return NextResponse.json({ error: "id is required" }, { status: 400 });
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: existing } = await (supabase as any)
+    .from("application_questions")
+    .select("is_system")
+    .eq("id", id)
+    .single();
+  if (existing?.is_system) {
+    return NextResponse.json(
+      { error: "This is a required system question and can't be deleted." },
+      { status: 400 }
+    );
   }
 
   const { error } = await deleteQuestion(supabase, id);

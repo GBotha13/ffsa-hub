@@ -24,6 +24,7 @@ export type FormQuestion = {
   validation?: Record<string, unknown>;
   parentQuestionId?: string | null;
   showWhenAnswer?: string | null;
+  systemKey?: string | null;
 };
 
 export type FileValue = {
@@ -64,6 +65,7 @@ type DbQuestion = {
   options: string[] | null;
   parent_question_id?: string | null;
   show_when_answer?: string | null;
+  system_key?: string | null;
 };
 
 export function mapDbQuestion(q: DbQuestion): FormQuestion {
@@ -123,6 +125,7 @@ export function mapDbQuestion(q: DbQuestion): FormQuestion {
     }),
     parentQuestionId: q.parent_question_id ?? null,
     showWhenAnswer: q.show_when_answer ?? null,
+    systemKey: q.system_key ?? null,
   };
 }
 
