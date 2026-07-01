@@ -27,6 +27,7 @@ type DbQuestion = {
   options: string[] | null;
   parent_question_id?: string | null;
   show_when_answer?: string | null;
+  system_key?: string | null;
 };
 
 type ReferenceSlot = {
@@ -167,14 +168,22 @@ export function PublicApplicationForm({
     return Array.from(ids);
   }, [allQuestions]);
 
-  const schema = useMemo(
-    () => buildFormSchema(allQuestions),
+  // System questions (Nationality / Home Country) render as dedicated
+  // country dropdowns bound to their own state — keep them out of the RHF
+  // schema so they aren't double-validated.
+  const rhfQuestions = useMemo(
+    () => allQuestions.filter((q) => !q.systemKey),
     [allQuestions]
+  );
+
+  const schema = useMemo(
+    () => buildFormSchema(rhfQuestions),
+    [rhfQuestions]
   );
 
   const defaultValues = useMemo(() => {
     const defaults: Record<string, unknown> = {};
-    for (const q of allQuestions) {
+    for (const q of rhfQuestions) {
       if (q.type === "section_header") continue;
       if (q.type === "checkbox_group") {
         defaults[q.id] = [];
@@ -255,6 +264,8 @@ export function PublicApplicationForm({
 
     for (const q of allQuestions) {
       if (q.type === "section_header") continue;
+      // System questions (nationality / home country) are sent separately.
+      if (q.systemKey) continue;
       if (!visibleQuestionIds.has(q.id)) continue;
       const value = data[q.id];
       if (q.type === "file" && value && typeof value === "object") {
@@ -372,79 +383,55 @@ export function PublicApplicationForm({
         <ErrorSummary errors={errors} questions={allQuestions} />
       )}
 
-      {/* Nationality — required on every application; drives the fee tier
-          (matched against country_tiers on the user's nationality). */}
-      <div className="rounded-lg border bg-card p-6 space-y-2">
-        <Label htmlFor="nationality">
-          Nationality
-          <span className="text-destructive ml-0.5">*</span>
-        </Label>
-        <p className="text-xs text-muted-foreground">
-          Your country of citizenship. This determines your fee category.
-        </p>
-        <select
-          id="nationality"
-          value={nationality}
-          onChange={(e) => {
-            setNationality(e.target.value);
-            if (e.target.value) setNationalityError(null);
-          }}
-          required
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-        >
-          <option value="" disabled>
-            Select your nationality…
-          </option>
-          {countries.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-        {nationalityError && (
-          <p className="text-sm text-destructive">{nationalityError}</p>
-        )}
-      </div>
-
-      {/* Home Country — country of residence (kept for our records; fee
-          tier is driven by nationality above, not this field). */}
-      <div className="rounded-lg border bg-card p-6 space-y-2">
-        <Label htmlFor="home_country">
-          Home Country
-          <span className="text-destructive ml-0.5">*</span>
-        </Label>
-        <p className="text-xs text-muted-foreground">
-          Your country of residence (where you currently live).
-        </p>
-        <select
-          id="home_country"
-          value={homeCountry}
-          onChange={(e) => {
-            setHomeCountry(e.target.value);
-            if (e.target.value) setHomeCountryError(null);
-          }}
-          required
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-        >
-          <option value="" disabled>
-            Select your home country…
-          </option>
-          {countries.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-        {homeCountryError && (
-          <p className="text-sm text-destructive">{homeCountryError}</p>
-        )}
-      </div>
-
-      {/* Application Questions */}
+      {/* Application Questions — includes the locked system fields
+          (Nationality / Home Country) at whatever position they're ordered. */}
       {visibleQuestions.length > 0 && (
         <div className="rounded-lg border bg-card p-6 space-y-4">
           {visibleQuestions.map((q) => {
             const depth = depthById.get(q.id) ?? 0;
+
+            // System country fields render as tier-list dropdowns bound to
+            // their own state (nationality drives fee tier; home country for
+            // records). Their label/help text come from the (editable) question.
+            if (q.systemKey === "nationality" || q.systemKey === "home_country") {
+              const isNat = q.systemKey === "nationality";
+              const value = isNat ? nationality : homeCountry;
+              const err = isNat ? nationalityError : homeCountryError;
+              const setter = isNat ? setNationality : setHomeCountry;
+              const clearErr = isNat ? setNationalityError : setHomeCountryError;
+              return (
+                <div key={q.id} className="space-y-2">
+                  <Label htmlFor={q.id}>
+                    {q.label}
+                    <span className="text-destructive ml-0.5">*</span>
+                  </Label>
+                  {q.helpText && (
+                    <p className="text-xs text-muted-foreground">{q.helpText}</p>
+                  )}
+                  <select
+                    id={q.id}
+                    value={value}
+                    onChange={(e) => {
+                      setter(e.target.value);
+                      if (e.target.value) clearErr(null);
+                    }}
+                    required
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="" disabled>
+                      Select…
+                    </option>
+                    {countries.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                  {err && <p className="text-sm text-destructive">{err}</p>}
+                </div>
+              );
+            }
+
             return (
               <div
                 key={q.id}

@@ -25,6 +25,7 @@ import {
   Edit2,
   CornerDownRight,
   GripVertical,
+  Lock,
 } from "lucide-react";
 
 export type TreeQuestion = {
@@ -37,6 +38,8 @@ export type TreeQuestion = {
   options: string[] | null;
   parent_question_id: string | null;
   show_when_answer: string | null;
+  is_system?: boolean;
+  system_key?: string | null;
 };
 
 export const QUESTION_TYPE_LABELS: Record<string, string> = {
@@ -201,6 +204,11 @@ function QuestionTreeNode({
             {question.is_required && (
               <Badge variant="secondary" className="text-xs">Required</Badge>
             )}
+            {question.is_system && (
+              <Badge variant="outline" className="text-xs" title="Built-in question — reorder freely, but can't be deleted or made optional">
+                <Lock className="h-2.5 w-2.5 mr-1" /> Locked
+              </Badge>
+            )}
             {depth > 0 && showWhenLabel && (
               <Badge variant="outline" className="text-xs">
                 Shown when answer is &ldquo;{showWhenLabel}&rdquo;
@@ -233,14 +241,16 @@ function QuestionTreeNode({
           >
             <Edit2 className="h-3 w-3" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-            onClick={() => onDelete(question.id)}
-          >
-            <Trash2 className="h-3 w-3" />
-          </Button>
+          {!question.is_system && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+              onClick={() => onDelete(question.id)}
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          )}
         </div>
       </div>
       {children.length > 0 && (
