@@ -14,7 +14,7 @@ import type { CSSProperties } from "react";
 // event's brand so workflow emails, the form page, and the storefront
 // all read as one continuous identity.
 
-export type PublicShellBrand = "ff" | "the_send" | "ffsa_camps";
+export type PublicShellBrand = "ff" | "the_send" | "ffsa_camps" | "preachers";
 
 export const PUBLIC_SHELL_TOKENS = {
   bg: "#0D0B09",
@@ -75,9 +75,31 @@ export const FFSA_CAMPS_SHELL_TOKENS = {
   red: "#D92D20",
 } as const;
 
+// PREACHERS SA token set — same shape/key names as the others. Unlike
+// SEND + FFSA Camps (light cream cards), PREACHERS is a DARK brand, so it
+// rides the same dark card model as F&F but with the navy/bone palette.
+// The accent slot (`yellow`) carries aged bone, so buttons / focus rings /
+// selected cards read as a bone stamp. Strictly monochrome.
+export const PREACHERS_SHELL_TOKENS = {
+  bg: "#0F1920", // near-black ink page surround
+  card: "#1B2A33", // gunmetal navy card
+  cardElev: "#22333D", // slightly lifted navy — input fields / elevated
+  border: "#3A4A54", // muted steel line
+  borderSoft: "rgba(58,74,84,0.5)",
+  text: "#F7F5EF", // off-white body text (on navy)
+  textDim: "#C9BFA9", // dimmed bone
+  textDimmer: "rgba(237,230,211,0.55)",
+  textFaint: "rgba(237,230,211,0.3)",
+  yellow: "#EDE6D3", // accent slot = aged bone
+  yellowHover: "#F7F5EF",
+  green: "#8FBF9F",
+  red: "#E0736A",
+} as const;
+
 export function tokensForBrand(brand: PublicShellBrand) {
   if (brand === "the_send") return THE_SEND_SHELL_TOKENS;
   if (brand === "ffsa_camps") return FFSA_CAMPS_SHELL_TOKENS;
+  if (brand === "preachers") return PREACHERS_SHELL_TOKENS;
   return PUBLIC_SHELL_TOKENS;
 }
 
@@ -110,13 +132,16 @@ export function PublicFormShell({
   // Brand-specific defaults so existing F&F callers keep their tagline,
   // SEND callers get the SEND ticker line, and FFSA Camps gets its slogan
   // out of the box.
+  const isPreachers = brand === "preachers";
   const resolvedTagline =
     tagline === undefined
       ? isTheSend
         ? "THE WAR ON INACTION HAS BEGUN"
         : isCamps
           ? "PERMISSION GRANTED"
-          : "CATALYSE A GENERATION · EVANGELISE THE WORLD"
+          : isPreachers
+            ? "GO. PREACH."
+            : "CATALYSE A GENERATION · EVANGELISE THE WORLD"
       : tagline;
 
   // SEND + FFSA Camps use a flat cream card with a thick coloured border
@@ -143,7 +168,9 @@ export function PublicFormShell({
     ? "'Arial Black','Helvetica Neue',Arial,sans-serif"
     : isCamps
       ? "'Aileron','Helvetica Neue',Arial,sans-serif"
-      : "var(--font-bebas, 'Arial Black', sans-serif)";
+      : isPreachers
+        ? "'Big Shoulders Display','Anton','Impact','Haettenschweiler','Arial Narrow Bold',sans-serif"
+        : "var(--font-bebas, 'Arial Black', sans-serif)";
 
   return (
     <div
@@ -364,6 +391,34 @@ function BrandLockup({ brand }: { brand: PublicShellBrand }) {
       </div>
     );
   }
+  if (brand === "preachers") {
+    const tk = PREACHERS_SHELL_TOKENS;
+    return (
+      <div className="flex flex-col items-center mb-6">
+        <Image
+          src="/brand/preachers-wordmark-bone.png"
+          alt="PREACHERS South Africa"
+          width={230}
+          height={87}
+          priority
+          style={{ objectFit: "contain", maxWidth: "62%", height: "auto", width: "auto" }}
+        />
+        <p
+          style={{
+            margin: "12px 0 0",
+            fontFamily: "'Helvetica Neue',Helvetica,Arial,sans-serif",
+            fontSize: 10,
+            fontWeight: 700,
+            color: tk.textDimmer,
+            letterSpacing: "0.22em",
+            textTransform: "uppercase",
+          }}
+        >
+          SOUTH&nbsp;AFRICA
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col items-center mb-6">
       <Image
@@ -426,6 +481,7 @@ function Footer({
   const tk = tokensForBrand(brand);
   const isTheSend = brand === "the_send";
   const isCamps = brand === "ffsa_camps";
+  const isPreachers = brand === "preachers";
   return (
     <div className="text-center mt-6 mb-2 space-y-2">
       {footerNote && (
@@ -451,12 +507,26 @@ function Footer({
               ? "'Arial Black','Helvetica Neue',Arial,sans-serif"
               : isCamps
                 ? "'Aileron','Helvetica Neue',Arial,sans-serif"
-                : undefined,
+                : isPreachers
+                  ? "'Big Shoulders Display','Anton','Impact','Haettenschweiler','Arial Narrow Bold',sans-serif"
+                  : undefined,
             fontStyle: isCamps ? "italic" : undefined,
-            fontSize: isTheSend || isCamps ? 11 : 10,
-            letterSpacing: isTheSend ? "0.18em" : isCamps ? "0.16em" : "0.25em",
-            fontWeight: isTheSend || isCamps ? 900 : 700,
-            color: isTheSend ? tk.yellow : isCamps ? tk.card : tk.textFaint,
+            fontSize: isTheSend || isCamps || isPreachers ? 11 : 10,
+            letterSpacing: isTheSend
+              ? "0.18em"
+              : isCamps
+                ? "0.16em"
+                : isPreachers
+                  ? "0.14em"
+                  : "0.25em",
+            fontWeight: isTheSend || isCamps || isPreachers ? 900 : 700,
+            color: isTheSend
+              ? tk.yellow
+              : isCamps
+                ? tk.card
+                : isPreachers
+                  ? tk.yellow
+                  : tk.textFaint,
             textTransform: "uppercase",
             margin: 0,
           }}
