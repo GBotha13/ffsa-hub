@@ -2670,6 +2670,7 @@ export type Database = {
           staff_notes: string | null
           status: string
           subtotal_cents: number
+          ticket_answers: Json
           total_cents: number
           updated_at: string
         }
@@ -2701,6 +2702,7 @@ export type Database = {
           staff_notes?: string | null
           status?: string
           subtotal_cents?: number
+          ticket_answers?: Json
           total_cents?: number
           updated_at?: string
         }
@@ -2732,6 +2734,7 @@ export type Database = {
           staff_notes?: string | null
           status?: string
           subtotal_cents?: number
+          ticket_answers?: Json
           total_cents?: number
           updated_at?: string
         }
@@ -4346,6 +4349,7 @@ export type Database = {
           name: string
           pricing_mode: string
           quantity_sold: number
+          questions: Json
           sales_end_at: string | null
           sales_start_at: string | null
           sort_order: number
@@ -4364,6 +4368,7 @@ export type Database = {
           name: string
           pricing_mode?: string
           quantity_sold?: number
+          questions?: Json
           sales_end_at?: string | null
           sales_start_at?: string | null
           sort_order?: number
@@ -4382,6 +4387,7 @@ export type Database = {
           name?: string
           pricing_mode?: string
           quantity_sold?: number
+          questions?: Json
           sales_end_at?: string | null
           sales_start_at?: string | null
           sort_order?: number
@@ -4404,6 +4410,7 @@ export type Database = {
           checked_in_by: string | null
           code: string
           created_at: string
+          custom_answers: Json
           event_id: string
           id: string
           order_id: string
@@ -4415,6 +4422,7 @@ export type Database = {
           checked_in_by?: string | null
           code: string
           created_at?: string
+          custom_answers?: Json
           event_id: string
           id?: string
           order_id: string
@@ -4426,6 +4434,7 @@ export type Database = {
           checked_in_by?: string | null
           code?: string
           created_at?: string
+          custom_answers?: Json
           event_id?: string
           id?: string
           order_id?: string
