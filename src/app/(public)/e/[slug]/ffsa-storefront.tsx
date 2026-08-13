@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { PhoneInputNative } from "@/components/ui/phone-input-native";
 import { EventDescription } from "@/components/events/event-description";
 import type { CSSProperties } from "react";
 import type { FormField } from "@/lib/forms/schema";
@@ -824,11 +825,11 @@ export function FfsaStorefront({
                   Phone
                   {bf.phone.required && <span className="ffx-req"> *</span>}
                 </label>
-                <input
-                  className="ffx-input"
-                  type="tel"
+                <PhoneInputNative
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={setPhone}
+                  selectClassName="ffx-input"
+                  inputClassName="ffx-input"
                 />
               </div>
             )}
