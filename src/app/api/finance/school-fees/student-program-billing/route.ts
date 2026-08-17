@@ -12,6 +12,7 @@ import {
   type Tier,
 } from "@/services/school-billing";
 import { getXeroRegionForStudent } from "@/services/xero";
+import { billingBlockedReason } from "@/services/school-billing";
 import {
   buildSchedule,
   scheduleTotal,
@@ -65,6 +66,14 @@ export async function POST(request: Request) {
     .single();
   if (enrErr || !enrollment) {
     return NextResponse.json({ error: "Enrollment not found" }, { status: 404 });
+  }
+
+  // A school billed outside the Hub must never have charges scheduled against
+  // it (docs/redesign/09-going-live.md). The database refuses this too; this
+  // answers with a sentence a person can act on rather than a constraint error.
+  const blocked = await billingBlockedReason(supabase, enrollment.program_id);
+  if (blocked) {
+    return NextResponse.json({ error: blocked }, { status: 409 });
   }
 
   let tier: Tier = tierOverride ?? "A";
@@ -138,7 +147,8 @@ export async function POST(request: Request) {
         scheduled_generation_date: r.scheduled_generation_date,
         due_date: r.due_date,
         combined_group_key: r.combined_group_key,
-        status: "scheduled",
+        // The builder owns this — hardcoding it discarded the generation guard.
+        status: r.status,
       }))
     );
     // Trim any individual-course plans (student is now whole-program).
@@ -250,7 +260,8 @@ export async function POST(request: Request) {
           scheduled_generation_date: r.scheduled_generation_date,
           due_date: r.due_date,
           combined_group_key: r.combined_group_key,
-          status: "scheduled",
+          // The builder owns this — hardcoding it discarded the generation guard.
+          status: r.status,
         }))
       );
       if (rowsErr) {

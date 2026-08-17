@@ -21,7 +21,7 @@ const STATE_STYLE: Record<
 > = {
   expired: { label: "Expired", bg: "hsl(0 70% 16%)", fg: "hsl(0 84% 72%)", border: "hsl(0 84% 60% / 0.4)" },
   missing: { label: "Missing", bg: "hsl(0 70% 16%)", fg: "hsl(0 84% 72%)", border: "hsl(0 84% 60% / 0.4)" },
-  expiring: { label: "Expiring", bg: "hsl(28 80% 16%)", fg: "hsl(28 95% 65%)", border: "hsl(28 95% 55% / 0.4)" },
+  expiring: { label: "Expiring", bg: "var(--yellow-dim)", fg: "var(--amber)", border: "var(--amber-border)" },
 };
 
 function detail(a: Alert): string {
@@ -31,6 +31,9 @@ function detail(a: Alert): string {
     : "";
   if (a.state === "expired") {
     const ago = a.daysLeft != null ? Math.abs(a.daysLeft) : null;
+    // A mistyped year ("0028" for "2028") reads as ~2000 years overdue and
+    // buries the genuine alerts beside it. Same guard as the notification feed.
+    if (ago != null && ago > 3650) return `Expiry date looks wrong · ${date}`;
     return ago != null ? `Expired ${ago === 1 ? "yesterday" : `${ago} days ago`} · ${date}` : `Expired · ${date}`;
   }
   const left = a.daysLeft ?? 0;
@@ -82,15 +85,15 @@ export function StaffInsuranceCard() {
               key={`${a.userId}:${a.ministryId}`}
               href={`/ministry/${a.ministryId}`}
               className="flex items-center justify-between transition-colors duration-150"
-              style={{ padding: "0.75rem 1.5rem", borderBottom: "1px solid hsl(22 8% 11%)" }}
+              style={{ padding: "0.75rem 1.5rem", borderBottom: "1px solid var(--surface-2)" }}
             >
               <div className="flex items-center gap-3" style={{ minWidth: 0 }}>
                 <ShieldAlert className="h-4 w-4" style={{ color: s.fg, flexShrink: 0 }} />
                 <div style={{ minWidth: 0 }}>
-                  <p style={{ fontSize: "13px", fontWeight: 500, color: "#F0EBE3" }} className="truncate">
+                  <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--text-primary)" }} className="truncate">
                     {a.name}
                   </p>
-                  <p style={{ fontSize: "11px", color: "hsl(30 8% 42%)", marginTop: "2px" }} className="truncate">
+                  <p style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "2px" }} className="truncate">
                     {a.ministryName} · {detail(a)}
                   </p>
                 </div>
@@ -103,7 +106,7 @@ export function StaffInsuranceCard() {
                     fontWeight: 700,
                     textTransform: "uppercase",
                     padding: "3px 8px",
-                    borderRadius: "999px",
+                    borderRadius: 0,
                     background: s.bg,
                     color: s.fg,
                     border: `1px solid ${s.border}`,
@@ -111,7 +114,7 @@ export function StaffInsuranceCard() {
                 >
                   {s.label}
                 </span>
-                <ArrowUpRight className="h-3 w-3" style={{ color: "hsl(42 95% 55%)" }} />
+                <ArrowUpRight className="h-3 w-3" style={{ color: "var(--ink)" }} />
               </div>
             </Link>
           );

@@ -11,6 +11,25 @@ export type XeroRegion = "za" | "us";
 const XERO_API = "https://api.xero.com/api.xro/2.0";
 const XERO_IDENTITY = "https://identity.xero.com/connect/token";
 
+/**
+ * The OAuth redirect, which must match a URI registered in the Xero Developer
+ * Portal EXACTLY — and must be identical in the consent request and the token
+ * exchange, or Xero rejects the exchange.
+ *
+ * Was hardcoded to localhost:3000, which meant Xero could only ever be
+ * (re)connected from a local dev server on that port — never from production.
+ * Now env-driven, defaulting to the old value so existing setups keep working:
+ * set XERO_REDIRECT_URI and register the same string with Xero to connect from
+ * anywhere else.
+ */
+export function xeroRedirectUri(): string {
+  return (
+    process.env.XERO_REDIRECT_URI ??
+    "http://localhost:3000/api/integrations/xero/callback"
+  );
+}
+
+
 // Which currency to use per region
 const REGION_CURRENCY: Record<XeroRegion, string> = {
   za: "ZAR",
@@ -658,36 +677,286 @@ export async function voidInvoice(
 // CONNECTION STATUS
 // ────────────────────────────────────────────────────────────
 
+/**
+ * Is a region's connection actually usable?
+ *
+ * A token ROW existing is not a connection. Xero refresh tokens die after 60
+ * days unused, and the old status check reported `connected: true` on the
+ * strength of a row alone — so a connection that had been dead for four months
+ * showed a green pill and hid the only button that could fix it.
+ *
+ * This verifies: obtain a valid access token (refreshing if needed), then make
+ * one cheap real call. Anything less is a guess.
+ */
+async function probeRegion(supabase: Client, region: XeroRegion) {
+  const tokens = await getStoredTokens(supabase, region);
+  if (!tokens) {
+    return { connected: false as const, live: false as const, region };
+  }
+
+  const base = {
+    tenantName: tokens.tenant_name,
+    expiresAt: tokens.expires_at,
+    region,
+  };
+
+  const auth = await getValidAccessToken(supabase, region);
+  if (!auth) {
+    return {
+      ...base,
+      connected: true as const,
+      live: false as const,
+      problem:
+        "Authorisation expired — Xero would not renew it. Reconnect this organisation.",
+    };
+  }
+
+  try {
+    // Smallest call that proves the token is accepted for this tenant.
+    await xeroGet(auth.accessToken, auth.tenantId, "Organisation");
+    return { ...base, connected: true as const, live: true as const };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      ...base,
+      connected: true as const,
+      live: false as const,
+      problem:
+        msg.includes("401") || msg.includes("403")
+          ? "Xero refused the saved authorisation. Reconnect this organisation."
+          : `Xero could not be reached: ${msg}`,
+    };
+  }
+}
+
 export async function getXeroConnectionStatus(
   supabase: Client,
   region?: XeroRegion
 ) {
-  // If region specified, return status for that region
-  if (region) {
-    const tokens = await getStoredTokens(supabase, region);
-    if (!tokens) {
-      return { connected: false as const, region };
-    }
+  if (region) return probeRegion(supabase, region);
+
+  const [za, us] = await Promise.all([
+    probeRegion(supabase, "za"),
+    probeRegion(supabase, "us"),
+  ]);
+  return { za, us };
+}
+
+// ────────────────────────────────────────────────────────────
+// READ SIDE — what Xero already knows
+// ────────────────────────────────────────────────────────────
+// The integration was write-only: it could create and void invoices but never
+// look. Reconciliation (handoff §9) needs the opposite direction — Xero is the
+// source of truth for PAYMENTS, the Hub for schedules — and so does anyone
+// asking the plain question "what has actually been invoiced and paid".
+//
+// Read-only by construction: GETs only, no mutation, nothing written back.
+
+export type XeroInvoiceSummary = {
+  invoiceNumber: string | null;
+  reference: string | null;
+  contactName: string | null;
+  status: string | null;      // DRAFT | SUBMITTED | AUTHORISED | PAID | VOIDED
+  date: string | null;
+  dueDate: string | null;
+  total: number;
+  amountPaid: number;
+  amountDue: number;
+  currency: string | null;
+  sentToContact: boolean | null;
+};
+
+export type XeroInvoiceReport = {
+  region: XeroRegion;
+  tenantName: string | null;
+  invoices: XeroInvoiceSummary[];
+  totals: { count: number; billed: number; paid: number; outstanding: number };
+};
+
+/**
+ * Invoices from one Xero org, newest first.
+ *
+ * Returns `{ error }` rather than throwing: the usual failure here is an
+ * expired refresh token (Xero's last 60 days), which is a "reconnect Xero"
+ * message for a person, not a stack trace.
+ */
+export async function listXeroInvoices(
+  supabase: Client,
+  region: XeroRegion = "za",
+  opts: { since?: string; contains?: string } = {}
+): Promise<{ data: XeroInvoiceReport | null; error: string | null }> {
+  const auth = await getValidAccessToken(supabase, region);
+  if (!auth) {
     return {
-      connected: true as const,
-      tenantName: tokens.tenant_name,
-      expiresAt: tokens.expires_at,
-      region,
+      data: null,
+      error:
+        "Xero is not connected for this organisation, or its authorisation has lapsed. Reconnect it in Finance → Xero.",
     };
   }
 
-  // No region — return status for all regions
-  const [zaTokens, usTokens] = await Promise.all([
+  const tokens = await getStoredTokens(supabase, region);
+
+  // ACCPAY = bills we owe; we only care about ACCREC (what students owe us).
+  const params = new URLSearchParams({ where: 'Type=="ACCREC"', order: "Date DESC" });
+  if (opts.since) params.set("If-Modified-Since", opts.since);
+
+  try {
+    const json = (await xeroGet(
+      auth.accessToken,
+      auth.tenantId,
+      `Invoices?${params.toString()}`
+    )) as { Invoices?: Record<string, unknown>[] };
+
+    const raw = json.Invoices ?? [];
+    const invoices: XeroInvoiceSummary[] = raw
+      .map((i) => ({
+        invoiceNumber: (i.InvoiceNumber as string) ?? null,
+        reference: (i.Reference as string) ?? null,
+        contactName:
+          ((i.Contact as { Name?: string } | undefined)?.Name as string) ?? null,
+        status: (i.Status as string) ?? null,
+        date: (i.DateString as string)?.slice(0, 10) ?? null,
+        dueDate: (i.DueDateString as string)?.slice(0, 10) ?? null,
+        total: Number(i.Total ?? 0),
+        amountPaid: Number(i.AmountPaid ?? 0),
+        amountDue: Number(i.AmountDue ?? 0),
+        currency: (i.CurrencyCode as string) ?? null,
+        sentToContact: (i.SentToContact as boolean) ?? null,
+      }))
+      // Voided invoices are noise in a "what is owed" answer.
+      .filter((i) => i.status !== "VOIDED" && i.status !== "DELETED")
+      .filter((i) =>
+        opts.contains
+          ? `${i.contactName ?? ""} ${i.reference ?? ""} ${i.invoiceNumber ?? ""}`
+              .toLowerCase()
+              .includes(opts.contains.toLowerCase())
+          : true
+      );
+
+    return {
+      data: {
+        region,
+        tenantName: tokens?.tenant_name ?? null,
+        invoices,
+        totals: {
+          count: invoices.length,
+          billed: invoices.reduce((s, i) => s + i.total, 0),
+          paid: invoices.reduce((s, i) => s + i.amountPaid, 0),
+          outstanding: invoices.reduce((s, i) => s + i.amountDue, 0),
+        },
+      },
+      error: null,
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // 401 here almost always means the refresh token itself is dead.
+    if (msg.includes("401") || msg.includes("403")) {
+      return {
+        data: null,
+        error:
+          "Xero refused the request — the saved authorisation has expired. Reconnect Xero in Finance → Xero.",
+      };
+    }
+    return { data: null, error: msg };
+  }
+}
+
+// ────────────────────────────────────────────────────────────
+// WHICH ORGANISATION IS WHICH
+// ────────────────────────────────────────────────────────────
+// Xero's consent screen will not let a person assign one organisation per
+// region: once both are connected it greys them out and offers only "Continue
+// with N organisations". The stored token is therefore authorised for ALL of
+// them, and which region uses which tenant is the Hub's decision.
+
+export type XeroOrganisation = {
+  tenantId: string;
+  tenantName: string | null;
+  /** Regions currently pointing at this organisation. */
+  boundTo: XeroRegion[];
+};
+
+/** Every organisation the stored authorisation covers. */
+export async function listXeroOrganisations(
+  supabase: Client
+): Promise<{ data: { organisations: XeroOrganisation[] } | null; error: string | null }> {
+  // Either region's token works — both are authorised for the same set.
+  const auth =
+    (await getValidAccessToken(supabase, "za")) ??
+    (await getValidAccessToken(supabase, "us"));
+  if (!auth) {
+    return { data: null, error: "Xero is not connected. Connect it first." };
+  }
+
+  const [za, us] = await Promise.all([
     getStoredTokens(supabase, "za"),
     getStoredTokens(supabase, "us"),
   ]);
 
-  return {
-    za: zaTokens
-      ? { connected: true as const, tenantName: zaTokens.tenant_name, expiresAt: zaTokens.expires_at }
-      : { connected: false as const },
-    us: usTokens
-      ? { connected: true as const, tenantName: usTokens.tenant_name, expiresAt: usTokens.expires_at }
-      : { connected: false as const },
-  };
+  try {
+    const res = await fetch("https://api.xero.com/connections", {
+      headers: {
+        Authorization: `Bearer ${auth.accessToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+    if (!res.ok) {
+      return { data: null, error: `Xero refused the request (${res.status}).` };
+    }
+
+    const list = (await res.json()) as { tenantId: string; tenantName?: string }[];
+
+    return {
+      data: {
+        organisations: list.map((t) => {
+          const boundTo: XeroRegion[] = [];
+          if (za?.tenant_id === t.tenantId) boundTo.push("za");
+          if (us?.tenant_id === t.tenantId) boundTo.push("us");
+          return { tenantId: t.tenantId, tenantName: t.tenantName ?? null, boundTo };
+        }),
+      },
+      error: null,
+    };
+  } catch (err) {
+    return { data: null, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
+ * Point a region at a specific organisation.
+ *
+ * Deliberately does NOT touch the access or refresh token: the existing
+ * authorisation already covers every organisation in the list, so this is a
+ * one-field correction rather than a reconnection. Refuses a tenant the
+ * authorisation does not cover, so a typo cannot orphan a region.
+ */
+export async function repointRegion(
+  supabase: Client,
+  region: XeroRegion,
+  tenantId: string
+): Promise<{ error: string | null; tenantName?: string | null }> {
+  const { data, error } = await listXeroOrganisations(supabase);
+  if (error || !data) return { error: error ?? "Could not read Xero organisations." };
+
+  const target = data.organisations.find((o) => o.tenantId === tenantId);
+  if (!target) {
+    return {
+      error: `That organisation is not one this app is authorised for (${data.organisations
+        .map((o) => o.tenantName)
+        .join(", ")}).`,
+    };
+  }
+
+  const existing = await getStoredTokens(supabase, region);
+  if (!existing) {
+    return { error: `No stored Xero connection for ${region.toUpperCase()}. Connect it first.` };
+  }
+
+  const { error: updErr } = await (supabase as Client)
+    .from("xero_tokens")
+    .update({ tenant_id: target.tenantId, tenant_name: target.tenantName })
+    .eq("id", existing.id);
+
+  if (updErr) return { error: updErr.message };
+  return { error: null, tenantName: target.tenantName };
 }

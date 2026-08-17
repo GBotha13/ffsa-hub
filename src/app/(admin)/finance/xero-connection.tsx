@@ -3,14 +3,22 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
+import { SectionBar, StatusPill } from "@/components/ffsa";
 
 type RegionStatus =
-  | { connected: false }
-  | { connected: true; tenantName: string | null; expiresAt: string };
+  | { connected: false; live?: false }
+  // connected = a token exists. live = it was just verified against Xero.
+  // The two come apart when authorisation lapses, which is the case that
+  // previously showed a green pill and hid the fix.
+  | {
+      connected: true;
+      live: boolean;
+      tenantName: string | null;
+      expiresAt: string;
+      problem?: string;
+    };
 
 type XeroStatusResponse = {
   za: RegionStatus;
@@ -77,41 +85,53 @@ export function XeroConnection() {
 
   if (loading) {
     return (
-      <Card>
-        <CardContent className="flex items-center justify-center py-6">
-          <Loader2 className="h-4 w-4 animate-spin mr-2" />
-          <span className="text-sm text-muted-foreground">
-            Checking Xero connections...
-          </span>
-        </CardContent>
-      </Card>
+      <div className="border border-ink bg-white">
+        <SectionBar title="Xero integration" />
+        <div className="flex items-center justify-center gap-2 py-8">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span className="mono-label">Checking Xero connections</span>
+        </div>
+      </div>
     );
   }
 
+  // Counts WORKING connections. Counting token rows is what let a dead
+  // connection report "2 of 2 connected".
+  const liveCount = [status?.za, status?.us].filter(
+    (r) => r?.connected === true && r.live === true
+  ).length;
+
+  // Both regions bound to the same Xero organisation means every student is
+  // invoiced into one company's books, whatever the region says. Worth shouting
+  // about: it is invisible otherwise, and it was the default behaviour until
+  // the callback stopped taking tenants[0].
+  const za = status?.za;
+  const us = status?.us;
+  const sameOrg =
+    za?.connected === true &&
+    us?.connected === true &&
+    !!za.tenantName &&
+    za.tenantName === us.tenantName;
+
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <svg
-            className="h-5 w-5"
-            viewBox="0 0 24 24"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1.41 14.59L7.17 13.17l1.41-1.41 2.01 2.01 5.84-5.84 1.41 1.41-7.25 7.25z"
-              fill={
-                status?.za.connected || status?.us.connected
-                  ? "#13B5EA"
-                  : "#94a3b8"
-              }
-            />
-          </svg>
-          Xero Integration
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-xs text-muted-foreground mb-4">
+    <div className="border border-ink bg-white">
+      <SectionBar title="Xero integration" meta={`${liveCount} of 2 working`} />
+
+      {sameOrg && (
+        <div className="border-b border-ink bg-[color:var(--yellow-dim)] px-5 py-3">
+          <p className="text-[13px] font-semibold text-ink">
+            Both regions are connected to the same Xero organisation
+            {za?.connected ? ` (${za.tenantName})` : ""}.
+          </p>
+          <p className="mt-1 text-[12px] text-[color:var(--text-secondary)]">
+            SA and US students would both be invoiced into that one set of books.
+            Reconnect each region and choose the right organisation, or pin them
+            with XERO_TENANT_ID_ZA and XERO_TENANT_ID_US.
+          </p>
+        </div>
+      )}
+      <div className="p-6">
+        <p className="mb-5 max-w-2xl text-[13px] text-[color:var(--text-secondary)]">
           Connect your Xero accounts to automatically create and email invoices.
           American students are invoiced through the US account (USD), all others
           through the SA account (ZAR).
@@ -122,36 +142,38 @@ export function XeroConnection() {
             const cfg = REGION_CONFIG[region];
             const regionStatus = status?.[region];
             const isConnected = regionStatus?.connected === true;
+            // Verified against Xero just now — not merely "a token row exists".
+            const isLive = isConnected && regionStatus?.live === true;
 
+            // Connected reads as a solid hairline on bone; not-connected keeps the
+            // dashed rule so an unfinished integration is legible at a glance.
             return (
               <div
                 key={region}
-                className={`rounded-lg border p-4 ${
-                  isConnected
-                    ? "border-[#13B5EA]/30 bg-[#13B5EA]/5"
-                    : "border-dashed"
+                className={`border p-5 ${
+                  isLive ? "border-rule-strong bg-bone" : "border-dashed border-rule-strong"
                 }`}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <span className="font-display text-[18px] font-black uppercase leading-none">
                     {cfg.flag} {cfg.label}
                   </span>
-                  {isConnected ? (
-                    <Badge className="bg-[#13B5EA] text-white text-xs">
-                      Connected
-                    </Badge>
-                  ) : (
-                    <Badge variant="secondary" className="text-xs">
-                      Not Connected
-                    </Badge>
-                  )}
+                  <StatusPill
+                    tone={isLive ? "good" : isConnected ? "bad" : "quiet"}
+                  >
+                    {isLive
+                      ? "Connected"
+                      : isConnected
+                        ? "Authorisation expired"
+                        : "Not connected"}
+                  </StatusPill>
                 </div>
 
-                {isConnected && regionStatus.connected ? (
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground">
+                {isLive && regionStatus.connected ? (
+                  <div className="space-y-3">
+                    <p className="text-[12px] text-[color:var(--text-secondary)]">
                       {regionStatus.tenantName ?? "Xero Organization"} •{" "}
-                      {cfg.currency}
+                      <span className="tabular">{cfg.currency}</span>
                     </p>
                     <Button
                       variant="outline"
@@ -166,13 +188,21 @@ export function XeroConnection() {
                     </Button>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground">
-                      Invoices in {cfg.currency}
-                    </p>
+                  <div className="space-y-3">
+                    {isConnected && regionStatus.connected && regionStatus.problem ? (
+                      // Say what is wrong and offer the fix in one step — no
+                      // disconnect-then-reconnect dance.
+                      <p className="text-[12px] text-[color:var(--destructive)]">
+                        {regionStatus.problem}
+                      </p>
+                    ) : (
+                      <p className="text-[12px] text-[color:var(--text-secondary)]">
+                        Invoices in <span className="tabular">{cfg.currency}</span>
+                      </p>
+                    )}
                     <Button asChild size="sm" className="w-full">
                       <a href={`/api/integrations/xero/connect?region=${region}`}>
-                        Connect {cfg.label} Account
+                        {isConnected ? "Reconnect" : "Connect"} {cfg.label} Account
                       </a>
                     </Button>
                   </div>
@@ -181,7 +211,7 @@ export function XeroConnection() {
             );
           })}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

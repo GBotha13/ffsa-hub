@@ -171,7 +171,7 @@ export function Scanner({
           {supportsCamera ? (
             <>
               <div
-                className="rounded-lg overflow-hidden border bg-black relative"
+                className="overflow-hidden border bg-black relative"
                 style={{ aspectRatio: "16 / 9" }}
               >
                 <video
@@ -182,19 +182,19 @@ export function Scanner({
                 />
                 {!scanning && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-white text-sm">
-                    Tap "Start scanning" to open the camera.
+                    Tap &quot;Start scanning&quot; to open the camera.
                   </div>
                 )}
               </div>
               {cameraError && (
-                <p className="text-xs text-red-600">{cameraError}</p>
+                <p className="text-xs text-destructive">{cameraError}</p>
               )}
               <div className="flex gap-2">
                 {scanning ? (
                   <button
                     type="button"
                     onClick={stopCamera}
-                    className="px-3 py-1.5 rounded border text-sm hover:bg-gray-50"
+                    className="px-3 py-1.5 border text-sm hover:bg-[color:var(--surface-2)]"
                   >
                     Stop scanner
                   </button>
@@ -202,7 +202,7 @@ export function Scanner({
                   <button
                     type="button"
                     onClick={startCamera}
-                    className="px-3 py-1.5 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
+                    className="px-3 py-1.5 bg-ink text-white text-sm hover:bg-[#262622]"
                   >
                     Start scanning
                   </button>
@@ -211,7 +211,7 @@ export function Scanner({
             </>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Camera scanning isn't supported in this browser. Use manual entry
+              Camera scanning isn&apos;t supported in this browser. Use manual entry
               below — works everywhere.
             </p>
           )}
@@ -222,11 +222,11 @@ export function Scanner({
               value={manual}
               onChange={(e) => setManual(e.target.value)}
               placeholder="Enter the code by hand"
-              className="flex-1 border rounded px-2 py-1.5 text-sm font-mono"
+              className="flex-1 border px-2 py-1.5 text-sm font-mono"
             />
             <button
               type="submit"
-              className="px-3 py-1.5 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
+              className="px-3 py-1.5 bg-ink text-white text-sm hover:bg-[#262622]"
             >
               Check in
             </button>
@@ -248,7 +248,7 @@ export function Scanner({
               {items.map((it) => (
                 <li
                   key={it.id}
-                  className="border rounded p-3"
+                  className="border p-3"
                   style={resultStyle(it.result)}
                 >
                   <div className="flex items-start justify-between gap-3">

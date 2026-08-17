@@ -2,15 +2,15 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { requireModuleAccess } from "@/lib/require-permission";
 import {
+  getEventAttendanceCounts,
   getEvents,
   isClosedEventStatus,
   OPEN_EVENT_STATUSES,
 } from "@/services/events";
+import { capacityPct, groupDigits } from "./format";
 import type { Tables } from "@/types/database";
 type Event = Tables<"events">;
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -19,7 +19,33 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus } from "lucide-react";
+import { Masthead, MastheadAction, NeedsYou, Chip, StatusPill, DateBlock, Bar, type Tone } from "@/components/ffsa";
+
+const VIEWS = [
+  ["active", "Active"],
+  ["draft", "Draft"],
+  ["published", "Published"],
+  ["completed", "Completed"],
+  ["cancelled", "Cancelled"],
+  ["all", "All"],
+] as const;
+
+// Mirrors BRAND_OPTIONS in [id]/event-details-form.tsx. Anything unmapped is
+// a plain F&F event, which is also what the email templates fall back to.
+const BRAND_LABELS: Record<string, string> = {
+  the_send: "The Send",
+  ffsa_camps: "FFSA Camps",
+  preachers: "Preachers SA",
+  wild_ones: "Wild Ones",
+  missio: "Missio",
+};
+
+const STATUS_TONE: Record<string, Tone> = {
+  published: "good",
+  draft: "warn",
+  completed: "quiet",
+  cancelled: "bad",
+};
 
 export default async function EventsPage({
   searchParams,
@@ -49,145 +75,185 @@ export default async function EventsPage({
     getEvents(supabase, filter),
   ]);
   const { data: events, count } = eventsResult;
+  const rows = (events ?? []) as Event[];
 
-  const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-    draft: "outline",
-    published: "default",
-    cancelled: "destructive",
-    completed: "secondary",
-  };
+  // Headcounts for the Capacity column. This can't join the Promise.all
+  // above — it's keyed on the ids that query returns — but it is one
+  // batched read for the whole page, not one per row. Empty map (no ids,
+  // or a read the caller's RLS blocks) = every cell renders as it did
+  // before the number existed.
+  const attendance = await getEventAttendanceCounts(
+    supabase,
+    rows.map((e) => e.id)
+  );
+
+  // Events whose last day has passed but that nobody has closed out yet.
+  // Derived from the rows already on screen — no extra query. Only shown on
+  // the landing view, so the band can never contradict a chosen filter.
+  const today = new Date().toISOString().split("T")[0];
+  const stillOpen =
+    view === "active"
+      ? rows.filter(
+          (e) => !isClosedEventStatus(e.status) && (e.end_date ?? e.start_date) < today
+        ).length
+      : 0;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="page-eyebrow">EVENTS &amp; GATHERINGS</p>
-          <h1 className="page-title">Events</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {count ?? 0} {view === "active" ? "active " : ""}
-            {count === 1 ? "event" : "events"}
-          </p>
-        </div>
-        <Link href="/events/new">
-          <Button size="sm" className="gap-1">
-            <Plus className="h-4 w-4" />
-            Create Event
-          </Button>
-        </Link>
-      </div>
+    <div className="ffsa-screen">
+      <Masthead
+        context={`Operations · ${count ?? 0} ${view === "active" ? "active " : ""}${count === 1 ? "event" : "events"}`}
+        title="Events"
+        actions={<MastheadAction href="/events/new">+ Create event</MastheadAction>}
+      />
 
-      <div className="flex gap-1 flex-wrap">
-        {(
-          [
-            ["active", "Active"],
-            ["draft", "Draft"],
-            ["published", "Published"],
-            ["completed", "Completed"],
-            ["cancelled", "Cancelled"],
-            ["all", "All"],
-          ] as const
-        ).map(([key, label]) => (
-          <Link
-            key={key}
-            href={`/events${key === "active" ? "" : `?status=${key}`}`}
-          >
-            <Button variant={view === key ? "default" : "ghost"} size="sm">
-              {label}
-            </Button>
+      {/* The page's ONE yellow band. Never add a second. */}
+      {stillOpen > 0 && (
+        <NeedsYou>
+          {stillOpen === 1
+            ? "1 event has finished but is still open — close it out"
+            : `${stillOpen} events have finished but are still open — close them out`}
+        </NeedsYou>
+      )}
+
+      <div className="flex flex-wrap items-center gap-1.5 border-b border-rule bg-bone px-5 py-3 md:px-8">
+        {VIEWS.map(([key, label]) => (
+          <Link key={key} href={`/events${key === "active" ? "" : `?status=${key}`}`}>
+            <Chip active={view === key}>{label}</Chip>
           </Link>
         ))}
       </div>
 
-      <div className="rounded-lg border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Title</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Location</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Brand</TableHead>
-              <TableHead>Public</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {!events || events.length === 0 ? (
+      <div className="px-5 py-6 md:px-8 md:py-7">
+        <div className="border border-ink">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell
-                  colSpan={6}
-                  className="text-center text-muted-foreground py-8"
-                >
-                  {view === "active"
-                    ? "No active events. Closed-out events are under Completed and Cancelled."
-                    : "No events found"}
-                </TableCell>
+                <TableHead className="w-20">Date</TableHead>
+                <TableHead>Event</TableHead>
+                <TableHead>Brand</TableHead>
+                <TableHead>Capacity</TableHead>
+                <TableHead>Visibility</TableHead>
+                <TableHead>State</TableHead>
               </TableRow>
-            ) : (
-              (events as Event[]).map((event) => (
-                <TableRow
-                  key={event.id}
-                  className={isClosedEventStatus(event.status) ? "opacity-60" : undefined}
-                >
-                  <TableCell>
-                    <Link
-                      href={`/events/${event.id}`}
-                      className="font-medium hover:underline"
-                    >
-                      {event.title}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {event.start_date}
-                    {event.end_date && event.end_date !== event.start_date
-                      ? ` – ${event.end_date}`
-                      : ""}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {event.location ?? "—"}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={statusColors[event.status] ?? "outline"}
-                      className="capitalize"
-                    >
-                      {event.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {event.brand === "the_send" ? (
-                      <Badge
-                        variant="outline"
-                        className="border-amber-500/40 text-amber-600 dark:text-amber-400 uppercase tracking-wider text-[10px]"
-                      >
-                        THE SEND
-                      </Badge>
-                    ) : event.brand === "ffsa_camps" ? (
-                      <Badge
-                        variant="outline"
-                        className="border-blue-500/40 text-blue-600 dark:text-blue-400 uppercase tracking-wider text-[10px]"
-                      >
-                        FFSA CAMPS
-                      </Badge>
-                    ) : event.brand === "preachers" ? (
-                      <Badge
-                        variant="outline"
-                        className="border-slate-400/40 text-slate-600 dark:text-slate-300 uppercase tracking-wider text-[10px]"
-                      >
-                        PREACHERS
-                      </Badge>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">F&amp;F</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {event.is_public ? "Yes" : "No"}
+            </TableHeader>
+            <TableBody>
+              {rows.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-10 text-center">
+                    <p className="mono-label">
+                      {view === "active"
+                        ? "No active events — closed-out ones are under Completed and Cancelled"
+                        : "No events found"}
+                    </p>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : (
+                rows.map((event) => {
+                  const start = parseDay(event.start_date);
+                  const multiDay =
+                    !!event.end_date && event.end_date !== event.start_date;
+                  // null = we have no headcount for this event (blocked
+                  // read), which is different from a headcount of 0.
+                  const coming = attendance.get(event.id)?.count ?? null;
+                  const pct =
+                    coming === null ? null : capacityPct(coming, event.max_capacity);
+                  return (
+                    <TableRow
+                      key={event.id}
+                      className={isClosedEventStatus(event.status) ? "opacity-60" : undefined}
+                    >
+                      <TableCell>
+                        <DateBlock day={start.day} mon={start.mon} />
+                        <div className="mono-label mt-1 w-12 text-center">{start.year}</div>
+                      </TableCell>
+                      <TableCell>
+                        <Link
+                          href={`/events/${event.id}`}
+                          className="font-display text-[19px] font-black uppercase leading-none tracking-[-0.01em] hover:text-electric"
+                        >
+                          {event.title}
+                        </Link>
+                        <p className="mt-1 text-[11px] text-[color:var(--text-tertiary)]">
+                          {event.location ?? "Location TBC"}
+                          {multiDay ? ` · runs to ${formatDay(event.end_date!)}` : ""}
+                        </p>
+                      </TableCell>
+                      <TableCell>
+                        <span className="mono-label">
+                          {BRAND_LABELS[event.brand] ?? "F&F"}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        {event.max_capacity ? (
+                          <>
+                            <span className="numeral text-[19px]">
+                              {coming === null
+                                ? groupDigits(event.max_capacity)
+                                : `${groupDigits(coming)} / ${groupDigits(event.max_capacity)}`}
+                            </span>
+                            {pct !== null && (
+                              <div className="mt-2 w-24">
+                                <Bar pct={pct} />
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            {/* No capacity set, so no ratio and no bar. The
+                                headcount still needs saying what it counts —
+                                a bare "141" above "Unlimited" reads as one
+                                value. */}
+                            {coming !== null ? (
+                              <>
+                                <span className="numeral text-[19px]">
+                                  {groupDigits(coming)}
+                                </span>
+                                <div className="mono-label mt-1">
+                                  {attendance.get(event.id)?.source === "tickets"
+                                    ? "Ticketed · no cap"
+                                    : "Registered · no cap"}
+                                </div>
+                              </>
+                            ) : (
+                              <div className="mono-label">Unlimited</div>
+                            )}
+                          </>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <span className="mono-label">
+                          {event.is_public ? "Public" : "Internal"}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <StatusPill tone={STATUS_TONE[event.status] ?? "quiet"}>
+                          {event.status}
+                        </StatusPill>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
     </div>
   );
+}
+
+// start_date/end_date are date-only strings. Appending midnight keeps them off
+// the UTC boundary, where a bare `new Date("2026-08-15")` can render the 14th.
+function parseDay(iso: string) {
+  const d = new Date(`${iso}T00:00:00`);
+  return {
+    day: String(d.getDate()).padStart(2, "0"),
+    mon: d.toLocaleDateString("en-GB", { month: "short" }).toUpperCase(),
+    year: String(d.getFullYear()),
+  };
+}
+
+function formatDay(iso: string) {
+  const { day, mon } = parseDay(iso);
+  return `${day} ${mon}`;
 }
