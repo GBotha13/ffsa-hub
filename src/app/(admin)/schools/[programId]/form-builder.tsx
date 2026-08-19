@@ -33,6 +33,10 @@ import { CSS } from "@dnd-kit/utilities";
 import { QUESTION_TYPE_LABELS, type TreeQuestion } from "@/components/admin/question-tree";
 import { SectionBar } from "@/components/ffsa";
 import { cn } from "@/lib/utils/cn";
+import {
+  MIN_REQUIRED_REFERENCE_SLOTS,
+  countRequiredSlots,
+} from "@/lib/references/minimum-slots";
 
 export type BuilderSlot = {
   id: string;
@@ -228,6 +232,12 @@ export function FormBuilder({
   /** The public form as an applicant sees it, rendered by the parent. */
   preview: React.ReactNode;
 }) {
+  // The same floor the API enforces, stated ahead of time so a leader sees the
+  // shortfall here instead of hitting a 409 (or shipping an apply link that
+  // won't open).
+  const MIN_REQUIRED_SLOTS = MIN_REQUIRED_REFERENCE_SLOTS;
+  const requiredSlotCount = countRequiredSlots(slots);
+
   const childrenByParent = new Map<string, TreeQuestion[]>();
   for (const q of questions) {
     if (!q.parent_question_id) continue;
@@ -335,11 +345,27 @@ export function FormBuilder({
               </button>
             }
           />
-          {slots.length === 0 ? (
-            <p className="mono-label px-6 py-6 text-center">
-              No references asked for — add a slot to require one
-            </p>
-          ) : (
+          {/* Every FFSA school asks for two references, so anything short of
+              that is a problem to fix rather than a neutral state. Shown above
+              the list, since one slot is as wrong as none. */}
+          {requiredSlotCount < MIN_REQUIRED_SLOTS && (
+            <div className="border-b border-rule px-6 py-5 text-center">
+              <p className="text-sm font-semibold text-[#8A6400]">
+                {slots.length === 0
+                  ? "This school is asking for no references"
+                  : `This school is only asking for ${requiredSlotCount} of ${MIN_REQUIRED_SLOTS} references`}
+              </p>
+              <p className="mt-1 text-xs text-[color:var(--text-tertiary)]">
+                Applications will come in short, and the confirmation email
+                promises a wait for references nobody was asked for. Add{" "}
+                {MIN_REQUIRED_SLOTS - requiredSlotCount === 1
+                  ? "another reference"
+                  : `${MIN_REQUIRED_SLOTS - requiredSlotCount} more references`}{" "}
+                before sharing the apply link.
+              </p>
+            </div>
+          )}
+          {slots.length > 0 &&
             slots.map((slot, i) => (
               <div
                 key={slot.id}
@@ -399,8 +425,7 @@ export function FormBuilder({
                   </button>
                 </span>
               </div>
-            ))
-          )}
+            ))}
         </div>
       </div>
 
