@@ -8,8 +8,11 @@
 //      - link orders.buyer_contact_id, set contact_resolution = 'resolved'.
 //      - upsert event_registrations (UNIQUE(contact_id,event_id) prevents
 //        a duplicate row if the buyer had a prior free RSVP).
-//      - apply the event's base_label_id ONLY if marketing_consent=true
-//        (handled inside upsertContactWithDedup via labelId).
+//      - apply ALL of the event's labels to every buyer: the primary
+//        one through upsertContactWithDedup's labelId, the rest via
+//        applyEventLabelsToContact (migration 193). Labels are a CRM
+//        audience marker, not an email-consent record — consent lives
+//        in the contact consent/opt-out tables.
 //      - write a ticket_purchased activity_event.
 //   3. If queued for review: set contact_resolution = 'review_queued'
 //      and leave it for staff. The order + tickets are unaffected;
@@ -21,6 +24,7 @@
 
 import { upsertContactWithDedup } from "@/services/contact-upsert";
 import { logActivity } from "@/services/activity-events";
+import { applyEventLabelsToContact } from "@/services/event-labels";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Client = any;
@@ -50,12 +54,11 @@ export async function resolveOrderToCrm(
     return { ok: true }; // already done
   }
 
-  // 2. Run the existing dedup/upsert. Marketing-consent gates the
-  //    email-list label — unticked = no label, just a contact +
-  //    purchase record.
-  const consentLabelId = order.marketing_consent
-    ? (order.events?.base_label_id ?? null)
-    : null;
+  // 2. Run the existing dedup/upsert. Every buyer gets the event's
+  //    labels, the same as anyone who submits the event form —
+  //    marketing_consent still governs email sending, not membership
+  //    of the event's audience.
+  const eventLabelId = order.events?.base_label_id ?? null;
   const slugForSource =
     order.events?.public_slug ?? order.event_id;
 
@@ -66,7 +69,7 @@ export async function resolveOrderToCrm(
       email: order.buyer_email,
       phone: order.buyer_phone,
     },
-    labelId: consentLabelId,
+    labelId: eventLabelId,
     addedVia: `ticket:${orderId}`,
     userId: null,
     source: `ticket:${slugForSource}`,
@@ -117,7 +120,17 @@ export async function resolveOrderToCrm(
       { onConflict: "contact_id,event_id" }
     );
 
-  // 6. Timeline entry on the buyer's contact.
+  // 6. The rest of the event's label set (the primary was applied by
+  //    the dedup upsert above).
+  await applyEventLabelsToContact(supabase, {
+    eventId: order.event_id,
+    contactId,
+    addedVia: `ticket:${orderId}`,
+    userId: null,
+    skip: [eventLabelId],
+  });
+
+  // 7. Timeline entry on the buyer's contact.
   await logActivity(supabase, {
     contact_id: contactId,
     event_type: "ticket_purchased",
