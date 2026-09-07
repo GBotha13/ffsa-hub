@@ -61,6 +61,8 @@ export type VehicleBooking = {
   payment_received: boolean;
   payment_received_at: string | null;
   home_country: string | null;
+  /** 'public' when the request came in through the shareable outside link. */
+  source: "internal" | "public";
   notes: string | null;
   requested_by: string | null;
   decided_by: string | null;
@@ -72,6 +74,10 @@ export type VehicleBooking = {
 export type VehicleDriver = {
   id: string;
   vehicle_booking_id: string;
+  /** The Hub user this driver is. NULL for outsiders and public requests. */
+  user_id: string | null;
+  licence_expiry_snapshot: string | null;
+  licence_number_snapshot: string | null;
   name: string;
   phone: string | null;
   has_sa_license: boolean;
@@ -895,4 +901,238 @@ export async function getAgreementsForBooking(supabase: Client, bookingId: strin
 
 export async function insertAgreement(supabase: Client, row: Record<string, unknown>) {
   return supabase.from("vehicle_agreements").insert(row).select().single();
+}
+
+// ── People (renter + driver pickers) ───────────────────────
+
+/**
+ * A Hub user as the booking form's pickers see them.
+ *
+ * Deliberately narrow: enough to fill the form and judge eligibility, and
+ * nothing more. The licence NUMBER and the storage path never leave the
+ * server — the picker only needs to know whether a licence exists and when
+ * it expires.
+ */
+export type VehiclePerson = {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  country: string | null;
+  licence_expiry_date: string | null;
+  licence_file_url: string | null; // presence only — see toVehiclePerson
+  base_driving_test_status: "not_required" | "pending" | "passed" | "failed";
+};
+
+const PERSON_COLUMNS =
+  "id, first_name, last_name, display_name, email, phone, nationality, country, is_active, " +
+  "licence_expiry_date, licence_file_url, base_driving_test_status";
+
+type PersonRow = {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  display_name: string | null;
+  email: string | null;
+  phone: string | null;
+  nationality: string | null;
+  country: string | null;
+  licence_expiry_date: string | null;
+  licence_file_url: string | null;
+  base_driving_test_status: string | null;
+};
+
+function toVehiclePerson(row: PersonRow): VehiclePerson {
+  const name =
+    [row.first_name, row.last_name].filter(Boolean).join(" ").trim() ||
+    row.display_name ||
+    row.email ||
+    "Unnamed";
+  return {
+    id: row.id,
+    name,
+    email: row.email,
+    phone: row.phone,
+    country: row.country ?? row.nationality,
+    licence_expiry_date: row.licence_expiry_date,
+    // Collapsed to a boolean-ish marker: the caller must not learn the path.
+    licence_file_url: row.licence_file_url ? "on-file" : null,
+    base_driving_test_status:
+      (row.base_driving_test_status as VehiclePerson["base_driving_test_status"]) ??
+      "not_required",
+  };
+}
+
+/**
+ * Active Hub users for the renter and driver pickers, alphabetical.
+ *
+ * Runs on the ADMIN client by design: RLS lets a non-admin read only their own
+ * user row, so a plain client would return a one-person list. The calling
+ * route is what enforces "you have vehicle permissions".
+ */
+export async function getVehiclePeople(admin: Client): Promise<VehiclePerson[]> {
+  const { data } = await admin
+    .from("users")
+    .select(PERSON_COLUMNS)
+    .eq("is_active", true)
+    .order("first_name", { ascending: true });
+  return ((data ?? []) as PersonRow[]).map(toVehiclePerson);
+}
+
+/**
+ * The licence facts for specific users, straight from the source.
+ *
+ * The API re-reads these at submit and at approval rather than trusting what
+ * the browser sent — a client can claim any expiry date it likes.
+ */
+export async function getLicenceFactsFor(
+  admin: Client,
+  userIds: string[]
+): Promise<Map<string, { expiry: string | null; hasFile: boolean; test: string; number: string | null }>> {
+  const out = new Map<string, { expiry: string | null; hasFile: boolean; test: string; number: string | null }>();
+  if (userIds.length === 0) return out;
+  const { data } = await admin
+    .from("users")
+    .select("id, licence_expiry_date, licence_file_url, base_driving_test_status, drivers_licence_number")
+    .in("id", userIds);
+  for (const r of (data ?? []) as {
+    id: string;
+    licence_expiry_date: string | null;
+    licence_file_url: string | null;
+    base_driving_test_status: string | null;
+    drivers_licence_number: string | null;
+  }[]) {
+    out.set(r.id, {
+      expiry: r.licence_expiry_date,
+      hasFile: !!r.licence_file_url,
+      test: r.base_driving_test_status ?? "not_required",
+      number: r.drivers_licence_number,
+    });
+  }
+  return out;
+}
+
+/** One driver row, by id, for the driving-test endpoint. */
+export async function getDriverForTest(
+  admin: Client,
+  driverId: string
+): Promise<{ id: string; user_id: string | null; name: string } | null> {
+  const { data } = await admin
+    .from("vehicle_booking_drivers")
+    .select("id, user_id, name")
+    .eq("id", driverId)
+    .maybeSingle();
+  return (data as { id: string; user_id: string | null; name: string } | null) ?? null;
+}
+
+/** Record a driving-test result on the driver row itself. */
+export async function setDriverTestStatus(
+  admin: Client,
+  driverId: string,
+  status: string
+): Promise<{ error: { message: string } | null }> {
+  const { error } = await admin
+    .from("vehicle_booking_drivers")
+    .update({ driving_test_status: status })
+    .eq("id", driverId);
+  return { error };
+}
+
+// ── Public request link (outsiders) ────────────────────────
+
+export type VehicleRequestLink = {
+  id: string;
+  token: string;
+  is_active: boolean;
+  created_at: string;
+  rotated_at: string | null;
+};
+
+/**
+ * The current public request link, creating one on first use.
+ *
+ * One standing token rather than a link per person: an admin should be able
+ * to paste the same URL to whoever asks. Rotating it kills every copy at
+ * once, which is the trade — see rotateVehicleRequestLink.
+ */
+export async function getOrCreateVehicleRequestLink(
+  admin: Client,
+  userId: string
+): Promise<VehicleRequestLink | null> {
+  const { data: existing } = await admin
+    .from("vehicle_request_links")
+    .select("*")
+    .eq("is_active", true)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (existing) return existing as VehicleRequestLink;
+
+  const { data } = await admin
+    .from("vehicle_request_links")
+    .insert({ token: newRequestToken(), created_by: userId })
+    .select()
+    .single();
+  return (data as VehicleRequestLink) ?? null;
+}
+
+/** Retire the current link and mint a new one. Old URLs stop working at once. */
+export async function rotateVehicleRequestLink(
+  admin: Client,
+  userId: string
+): Promise<VehicleRequestLink | null> {
+  await admin
+    .from("vehicle_request_links")
+    .update({ is_active: false, rotated_at: new Date().toISOString() })
+    .eq("is_active", true);
+  const { data } = await admin
+    .from("vehicle_request_links")
+    .insert({ token: newRequestToken(), created_by: userId })
+    .select()
+    .single();
+  return (data as VehicleRequestLink) ?? null;
+}
+
+/** Is this token a live request link? Service-role only — never exposed to anon. */
+export async function resolveVehicleRequestLink(
+  admin: Client,
+  token: string
+): Promise<VehicleRequestLink | null> {
+  if (!token || token.length < 16) return null;
+  const { data } = await admin
+    .from("vehicle_request_links")
+    .select("*")
+    .eq("token", token)
+    .eq("is_active", true)
+    .maybeSingle();
+  return (data as VehicleRequestLink) ?? null;
+}
+
+/** 32 bytes of URL-safe randomness — the only thing guarding the public form. */
+function newRequestToken(): string {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * Mark people as needing the base-vehicle driving test.
+ *
+ * Written to the PROFILE, not just the booking: a first-timer flagged on one
+ * request is still a first-timer on the next one, and the whole point of
+ * moving this onto the person was that it stops resetting.
+ *
+ * Only ever promotes from 'not_required' — it must never overwrite a
+ * recorded pass or fail.
+ */
+export async function markDrivingTestPending(
+  admin: Client,
+  userIds: string[]
+): Promise<void> {
+  if (userIds.length === 0) return;
+  await admin
+    .from("users")
+    .update({ base_driving_test_status: "pending" })
+    .in("id", userIds)
+    .eq("base_driving_test_status", "not_required");
 }
