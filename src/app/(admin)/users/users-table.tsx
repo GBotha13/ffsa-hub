@@ -17,6 +17,7 @@ import {
   X,
   Link as LinkIcon,
   MailWarning,
+  UserMinus,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,7 @@ import {
 } from "@/lib/users/lifecycle";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { deriveJobTitle, type MinistryRole } from "@/lib/users/derive-title";
+import { ConvertToCommunityDialog } from "./convert-to-community-dialog";
 
 type UserRow = {
   id: string;
@@ -102,6 +104,28 @@ function currentMembership(user: UserRow): "staff" | "student" | "community" | "
   if (names.has("student")) return "student";
   if (names.has("community_member")) return "community";
   return "none";
+}
+
+// The two roles a community member is allowed to keep. Anything else is
+// elevated access that the Role dropdown does NOT remove — see
+// /api/admin/convert-to-community.
+const COMMUNITY_FLOOR_ROLES = new Set(["community_member", "self_service"]);
+
+/** Roles beyond the community floor — job titles, admin, super_admin, … */
+function elevatedRoleCount(user: UserRow): number {
+  return user.user_roles.filter(
+    (ur) => ur.roles?.name && !COMMUNITY_FLOOR_ROLES.has(ur.roles.name)
+  ).length;
+}
+
+/** Already a plain community member as far as the list can tell. */
+function isCommunityOnly(user: UserRow): boolean {
+  return (
+    currentMembership(user) === "community" &&
+    elevatedRoleCount(user) === 0 &&
+    !user.department &&
+    !user.job_title
+  );
 }
 
 // Fallback only — real labels come from staff_ministries (departmentLabels
@@ -219,8 +243,34 @@ export function UsersTable({
   const [busy, setBusy] = useState<string | null>(null);
   // Person quick-view side panel (opens on a row click).
   const [quickPerson, setQuickPerson] = useState<PersonRef | null>(null);
+  // The "they've left staff" picker — see convert-to-community-dialog.
+  const [converting, setConverting] = useState<{
+    userId: string;
+    name: string;
+  } | null>(null);
 
   async function handleSetMembership(userId: string, role: string) {
+    // This control only swaps the membership role — it leaves job titles,
+    // permission grants and ministry rosters untouched. Say so rather than
+    // letting "Community" look like a demotion it isn't.
+    if (role === "community") {
+      const user = users.find((u) => u.id === userId);
+      const elevated = user ? elevatedRoleCount(user) : 0;
+      if (elevated > 0) {
+        const ok = confirm(
+          `This only changes the membership label. ${displayName(user!)} still ` +
+            `holds ${elevated} other role${elevated === 1 ? "" : "s"}, plus any ` +
+            `permissions and ministry memberships — all of which keep working.\n\n` +
+            `To actually remove staff access, cancel and use ` +
+            `"Convert to community member" in the ⋯ menu.\n\n` +
+            `Change the label anyway?`
+        );
+        if (!ok) {
+          router.refresh(); // put the select back where it was
+          return;
+        }
+      }
+    }
     setBusy(userId);
     try {
       const res = await fetch("/api/admin/set-membership-role", {
@@ -766,6 +816,20 @@ export function UsersTable({
                             </DropdownMenuItem>
                           )}
 
+                          {!isSelf && isSuperAdmin && !isCommunityOnly(user) && (
+                            <DropdownMenuItem
+                              onClick={() =>
+                                setConverting({
+                                  userId: user.id,
+                                  name: displayName(user),
+                                })
+                              }
+                            >
+                              <UserMinus className="h-4 w-4 mr-2" />
+                              Convert to community member
+                            </DropdownMenuItem>
+                          )}
+
                           {!isSelf && (
                             <>
                               <DropdownMenuSeparator />
@@ -794,6 +858,17 @@ export function UsersTable({
         personRef={quickPerson}
         onClose={() => setQuickPerson(null)}
       />
+
+      {converting && (
+        <ConvertToCommunityDialog
+          userId={converting.userId}
+          personName={converting.name}
+          open
+          onOpenChange={(o) => {
+            if (!o) setConverting(null);
+          }}
+        />
+      )}
     </div>
   );
 }

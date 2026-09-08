@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { X, Plus } from "lucide-react";
+import { X, Plus, UserMinus } from "lucide-react";
+import { ConvertToCommunityDialog } from "../convert-to-community-dialog";
 
 export type AssignedRole = {
   id: string;
@@ -26,6 +27,8 @@ export function RoleAssignment({
   scopeLabels,
   programOptions = [],
   canManage,
+  canConvertToCommunity = false,
+  personName = "this person",
 }: {
   userId: string;
   assigned: AssignedRole[];
@@ -33,12 +36,17 @@ export function RoleAssignment({
   scopeLabels: Record<string, string>;
   programOptions?: { id: string; label: string }[];
   canManage: boolean;
+  // Super admins only, and never on your own account — the endpoint enforces
+  // both, this just hides a button that would always fail.
+  canConvertToCommunity?: boolean;
+  personName?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   // The scope-capable role awaiting a program pick (2nd menu level), or null.
   const [scopingRole, setScopingRole] = useState<AssignableRole | null>(null);
+  const [converting, setConverting] = useState(false);
 
   const assignedIds = new Set(assigned.map((a) => a.role_id));
   // Scope-capable roles stay available even once assigned, so a leader can be
@@ -273,6 +281,45 @@ export function RoleAssignment({
           </div>
         )}
       </div>
+
+      {canConvertToCommunity && (
+        <div
+          style={{
+            marginTop: "18px",
+            paddingTop: "14px",
+            borderTop: "1px solid var(--rule)",
+          }}
+        >
+          <button
+            onClick={() => setConverting(true)}
+            disabled={busy}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              border: "1px solid var(--rule-strong)",
+              background: "transparent",
+              color: "var(--text-primary)",
+              padding: "6px 12px",
+              fontSize: "13px",
+              cursor: busy ? "not-allowed" : "pointer",
+            }}
+          >
+            <UserMinus className="h-3.5 w-3.5" /> Convert to community member
+          </button>
+          <p style={{ fontSize: "12px", color: "#55524A", marginTop: "8px" }}>
+            They&rsquo;ve left staff. Clears their titles, permissions and ministry
+            memberships in one go — pick anything they should keep (community
+            members do serve in ministries). Their login, profile and history stay.
+          </p>
+          <ConvertToCommunityDialog
+            userId={userId}
+            personName={personName}
+            open={converting}
+            onOpenChange={setConverting}
+          />
+        </div>
+      )}
     </div>
   );
 }
