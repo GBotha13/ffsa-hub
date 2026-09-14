@@ -491,73 +491,7 @@ async function insuranceExpiryNotifs(supabase: Client, userId: string): Promise<
 // Surfaces staff accounts that haven't logged in for 3+ months so admins
 // can manually offboard leavers without relying on memory. Only visible to
 // admin / super_admin — not shown to ministry leaders or regular staff.
-async function inactiveStaffNotifs(
-  supabase: Client,
-  userId: string
-): Promise<AppNotification[]> {
-  const { callerIsAdmin } = await import("@/lib/auth/check-ministry-access");
-  const isAdmin = await callerIsAdmin(supabase, userId);
-  if (!isAdmin) return [];
-
-  const admin = createAdminClient();
-  const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
-
-  // Role IDs that are considered elevated (non-membership) — staff, admin, etc.
-  const MEMBERSHIP_ONLY = ["student", "community_member", "self_service"];
-  const { data: elevatedRoleDefs } = await admin
-    .from("roles")
-    .select("id")
-    .not("name", "in", `(${MEMBERSHIP_ONLY.join(",")})`);
-  const elevatedRoleIds = (elevatedRoleDefs ?? []).map((r: any) => r.id as string);
-  if (elevatedRoleIds.length === 0) return [];
-
-  const { data: elevatedUserRows } = await admin
-    .from("user_roles")
-    .select("user_id")
-    .in("role_id", elevatedRoleIds);
-  const elevatedUserIds = [...new Set<string>((elevatedUserRows ?? []).map((r: any) => r.user_id as string))];
-  if (elevatedUserIds.length === 0) return [];
-
-  // Among elevated users, find those inactive for 3+ months
-  const { data: candidates } = await admin
-    .from("users")
-    .select("id, created_at")
-    .in("id", elevatedUserIds)
-    .eq("is_active", true)
-    .limit(500);
-
-  // Pull real last_sign_in_at from auth.users — public.users doesn't sync it
-  const { data: authList } = await admin.auth.admin.listUsers({ perPage: 1000 });
-  const authById = new Map<string, string | null>(
-    (authList?.users ?? []).map((u: any) => [u.id, u.last_sign_in_at ?? null])
-  );
-
-  const cutoffMs = new Date(cutoff).getTime();
-  const inactive = (candidates ?? []).filter((u: any) => {
-    const lastSeen = authById.get(u.id) ?? null;
-    const ts = lastSeen
-      ? new Date(lastSeen).getTime()
-      : new Date(u.created_at).getTime();
-    return ts < cutoffMs;
-  });
-
-  if (inactive.length === 0) return [];
-
-  return [
-    {
-      key: "inactive-staff",
-      kind: "user",
-      title: `${inactive.length} staff member${inactive.length !== 1 ? "s" : ""} inactive 3+ months`,
-      body: "Review and offboard as needed",
-      href: "/dashboard",
-      when: "",
-      ts: 0,
-      read: false,
-    },
-  ];
-}
-
-const PROVIDERS = [bookingNotifs, bookingDecisionNotifs, staffApprovalNotifs, newStaffOnboardedNotifs, vehicleRequestNotifs, recordsMatchNotifs, insuranceExpiryNotifs, inactiveStaffNotifs];
+const PROVIDERS = [bookingNotifs, bookingDecisionNotifs, staffApprovalNotifs, newStaffOnboardedNotifs, vehicleRequestNotifs, recordsMatchNotifs, insuranceExpiryNotifs];
 
 // ── Public API ─────────────────────────────────────────────
 
