@@ -49,20 +49,27 @@ export async function GET() {
   ];
   if (elevatedUserIds.length === 0) return NextResponse.json({ staff: [] });
 
-  // Fetch candidate users
+  // Fetch candidate users from public.users for profile fields
   const { data: candidates, error } = await admin
     .from("users")
-    .select("id, first_name, last_name, email, last_sign_in_at, created_at")
+    .select("id, first_name, last_name, email, created_at")
     .in("id", elevatedUserIds)
     .eq("is_active", true)
     .limit(500);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  // Pull real last_sign_in_at from auth.users — public.users doesn't sync it
+  const { data: authList } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  const authById = new Map<string, string | null>(
+    (authList?.users ?? []).map((u: any) => [u.id, u.last_sign_in_at ?? null])
+  );
+
   const inactive = (candidates ?? []).filter((u: any) => {
-    const lastSeen = u.last_sign_in_at
-      ? new Date(u.last_sign_in_at).getTime()
+    const lastSeen = authById.get(u.id) ?? null;
+    const ts = lastSeen
+      ? new Date(lastSeen).getTime()
       : new Date(u.created_at).getTime();
-    return lastSeen < cutoffMs;
+    return ts < cutoffMs;
   });
 
   if (inactive.length === 0) return NextResponse.json({ staff: [] });
@@ -90,7 +97,7 @@ export async function GET() {
     first_name: u.first_name,
     last_name: u.last_name,
     email: u.email,
-    last_sign_in_at: u.last_sign_in_at,
+    last_sign_in_at: authById.get(u.id) ?? null,
     created_at: u.created_at,
     roles: rolesByUser.get(u.id) ?? [],
   }));

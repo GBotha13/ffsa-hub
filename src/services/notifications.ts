@@ -518,21 +518,27 @@ async function inactiveStaffNotifs(
   const elevatedUserIds = [...new Set<string>((elevatedUserRows ?? []).map((r: any) => r.user_id as string))];
   if (elevatedUserIds.length === 0) return [];
 
-  // Among elevated users, find those inactive for 3+ months (or never signed in
-  // but created more than 3 months ago)
+  // Among elevated users, find those inactive for 3+ months
   const { data: candidates } = await admin
     .from("users")
-    .select("id, last_sign_in_at, created_at")
+    .select("id, created_at")
     .in("id", elevatedUserIds)
     .eq("is_active", true)
     .limit(500);
 
+  // Pull real last_sign_in_at from auth.users — public.users doesn't sync it
+  const { data: authList } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  const authById = new Map<string, string | null>(
+    (authList?.users ?? []).map((u: any) => [u.id, u.last_sign_in_at ?? null])
+  );
+
   const cutoffMs = new Date(cutoff).getTime();
   const inactive = (candidates ?? []).filter((u: any) => {
-    const lastSeen = u.last_sign_in_at
-      ? new Date(u.last_sign_in_at).getTime()
+    const lastSeen = authById.get(u.id) ?? null;
+    const ts = lastSeen
+      ? new Date(lastSeen).getTime()
       : new Date(u.created_at).getTime();
-    return lastSeen < cutoffMs;
+    return ts < cutoffMs;
   });
 
   if (inactive.length === 0) return [];
