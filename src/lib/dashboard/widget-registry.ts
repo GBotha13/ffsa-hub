@@ -89,6 +89,17 @@ export const WIDGET_REGISTRY: WidgetDef[] = [
     defaultEnabled: (c) => c.isAdmin,
   },
   {
+    key: "inactive-staff",
+    title: "Inactive staff",
+    description:
+      "Staff accounts with no login in 3+ months. Review and offboard leavers — the list self-clears when accounts are deactivated.",
+    category: "Overview",
+    defaultOrder: 17,
+    fullWidth: true,
+    gate: (c) => c.isAdmin,
+    defaultEnabled: (c) => c.isAdmin,
+  },
+  {
     key: "upcoming-events",
     title: "Upcoming events ticker",
     description: "Scrolling view of what's next on the FFSA base calendar.",

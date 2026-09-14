@@ -199,7 +199,18 @@ export async function createEnrollment(supabase: Client, data: {
   enrolled_by?: string;
   notes?: string | null;
 }) {
-  return supabase.from("enrollments").insert(data).select().single();
+  const result = await supabase.from("enrollments").insert(data).select().single();
+  // If the student was previously deactivated (e.g. returned after a break),
+  // restore their access now that they have an active enrolment.
+  if (!result.error && data.user_id) {
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    await createAdminClient()
+      .from("users")
+      .update({ is_active: true })
+      .eq("id", data.user_id)
+      .eq("is_active", false);
+  }
+  return result;
 }
 
 export async function updateEnrollmentStatus(

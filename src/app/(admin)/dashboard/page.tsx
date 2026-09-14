@@ -31,6 +31,7 @@ import {
   type RegistrationRow,
 } from "./recent-registrations-card";
 import { DashboardGrid, type GridSlot } from "./dashboard-grid";
+import { InactiveStaffCard } from "./inactive-staff-card";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -104,6 +105,7 @@ export default async function DashboardPage() {
       <NotificationFeed initial={notifications?.notifications ?? []} />
     ),
     "staff-insurance": <StaffInsuranceCard />,
+    "inactive-staff": <InactiveStaffCard />,
     "upcoming-events": <UpcomingEventsWidget />,
     "my-bookings": <MyBookingsCard />,
     vehicles: <VehiclesCard />,

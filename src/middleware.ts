@@ -107,6 +107,32 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // Check if the account has been deactivated. A PK lookup on every protected
+  // request is acceptable — it is a single indexed read and the only way to
+  // reliably block a still-valid Supabase session. Skip this check on public
+  // routes (already bypassed above) to keep them fast.
+  let isDeactivated = false;
+  if (user) {
+    const { data: userRow } = await supabase
+      .from("users")
+      .select("is_active")
+      .eq("id", user.id)
+      .single();
+    isDeactivated = userRow?.is_active === false;
+  }
+
+  // Deactivated accounts may only visit /login (so they can see the error and
+  // their session can be cleared client-side). Every other protected route
+  // redirects them back there. This check must come BEFORE the "authenticated
+  // users leave /login" block below to avoid a redirect loop.
+  if (isDeactivated && !isPublicRoute && pathname !== "/login") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.searchParams.set("error", "deactivated");
+    url.searchParams.delete("redirect");
+    return NextResponse.redirect(url);
+  }
+
   if (!user && !isPublicRoute && !isOnboarding) {
     // Redirect to login. Skip for public routes — notably /login itself and
     // /auth/* — which are auth-aware (they bypass the fast-path above) but must
@@ -117,8 +143,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && pathname === "/login") {
-    // Redirect authenticated users away from login
+  if (user && !isDeactivated && pathname === "/login") {
+    // Redirect authenticated (active) users away from login
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);

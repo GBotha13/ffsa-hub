@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +22,21 @@ export default function LoginPage() {
   const [failCount, setFailCount] = useState(0);
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
+
+  // If the middleware redirected here because the account was deactivated,
+  // sign out the lingering session and show the error. Without the sign-out
+  // the middleware would redirect back to /dashboard on the next navigation.
+  useEffect(() => {
+    if (searchParams.get("error") === "deactivated") {
+      setError(
+        "Your account has been deactivated. Please contact the admin team to restore access."
+      );
+      supabase.auth.signOut().catch(() => {});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
