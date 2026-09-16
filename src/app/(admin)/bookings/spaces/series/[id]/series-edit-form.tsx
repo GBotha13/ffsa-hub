@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AlertTriangle, Ban, CalendarPlus, CalendarX2, Lock } from "lucide-react";
-import { WEEKDAY_OPTIONS, weekdayLabel } from "@/lib/bookings/recurrence";
+import { WEEKDAY_OPTIONS, RECURRENCE_INTERVAL_OPTIONS, weekdayLabel } from "@/lib/bookings/recurrence";
 import { humanDate, todayISO } from "@/lib/bookings/dates";
 import type { Venue, Ministry, BookingSeries, Booking } from "@/services/bookings";
 import { SectionBar } from "@/components/ffsa";
@@ -71,6 +71,7 @@ export function SeriesEditForm({
     weekday: String(series.weekday),
     series_start: series.series_start,
     series_end: series.series_end,
+    interval_weeks: String(series.interval_weeks ?? 1),
     start_time: timeVal(series.start_time),
     end_time: timeVal(series.end_time),
     setup_time: timeVal(series.setup_time),
@@ -118,6 +119,7 @@ export function SeriesEditForm({
       weekday: parseInt(form.weekday, 10),
       series_start: form.series_start,
       series_end: form.series_end,
+      interval_weeks: parseInt(form.interval_weeks, 10),
       start_time: form.start_time || null,
       end_time: form.end_time || null,
       setup_time: form.setup_time || null,
@@ -204,7 +206,13 @@ export function SeriesEditForm({
         <SectionBar title="The whole series" />
         <div className="p-6">
           <p className="mb-5 border border-rule bg-bone px-3 py-2.5 text-xs text-[color:var(--text-secondary)]">
-            Currently every <span className="text-[color:var(--text-primary)]">{weekdayLabel(series.weekday)}</span>,{" "}
+            Currently{" "}
+            <span className="text-[color:var(--text-primary)]">
+              {(series.interval_weeks ?? 1) > 1
+                ? `every other ${weekdayLabel(series.weekday)}`
+                : `every ${weekdayLabel(series.weekday)}`}
+            </span>
+            ,{" "}
             {humanDate(series.series_start)} – {humanDate(series.series_end)} · {occurrences.length}{" "}
             date{occurrences.length === 1 ? "" : "s"}.
             {past > 0 && (
@@ -291,7 +299,22 @@ export function SeriesEditForm({
             {/* The schedule — the part you couldn't change before */}
             <div className="space-y-3 border border-rule bg-bone p-4">
               <span className="mono-label">When it runs</span>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+                <div className="space-y-2">
+                  <Label>Repeats every</Label>
+                  <Select value={form.interval_weeks} onValueChange={(v) => update("interval_weeks", v)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {RECURRENCE_INTERVAL_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={String(o.value)}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-2">
                   <Label>Day of week *</Label>
                   <Select value={form.weekday} onValueChange={(v) => update("weekday", v)}>

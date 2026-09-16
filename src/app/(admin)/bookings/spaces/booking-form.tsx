@@ -63,7 +63,7 @@ export function BookingForm({
     description: "",
     point_person: "",
     requester_name: defaultRequesterName,
-    recurrence: "none" as "none" | "weekly",
+    recurrence: "none" as "none" | "weekly" | "biweekly",
     booking_date: defaultDate,
     end_date: "",
     weekday: "",
@@ -95,7 +95,7 @@ export function BookingForm({
   function validate(): string | null {
     if (!form.venue_id) return "Please choose a venue.";
     if (!form.title.trim()) return "Please enter an event name.";
-    if (form.recurrence === "weekly") {
+    if (form.recurrence !== "none") {
       if (form.weekday === "") return "Please choose a day of the week.";
       if (!form.series_start || !form.series_end) return "Please set the start and end dates of the recurring run.";
       if (form.series_end < form.series_start) return "The recurring end date must be on or after the start date.";
@@ -107,6 +107,7 @@ export function BookingForm({
   }
 
   function payload(dryRun: boolean) {
+    const isRecurring = form.recurrence !== "none";
     return {
       dryRun,
       venue_id: form.venue_id,
@@ -119,12 +120,13 @@ export function BookingForm({
       end_time: form.end_time || null,
       setup_time: form.setup_time || null,
       setdown_time: form.setdown_time || null,
-      recurrence: form.recurrence,
-      ...(form.recurrence === "weekly"
+      recurrence: isRecurring ? "weekly" : "none",
+      ...(isRecurring
         ? {
             weekday: parseInt(form.weekday, 10),
             series_start: form.series_start,
             series_end: form.series_end,
+            interval_weeks: form.recurrence === "biweekly" ? 2 : 1,
           }
         : { booking_date: form.booking_date, end_date: form.end_date || null }),
     };
@@ -316,7 +318,7 @@ export function BookingForm({
           {/* When */}
           <div className="space-y-3 border border-rule bg-bone p-4">
             <div className="flex w-fit items-center">
-              {(["none", "weekly"] as const).map((r) => (
+              {(["none", "weekly", "biweekly"] as const).map((r) => (
                 <button
                   key={r}
                   type="button"
@@ -324,7 +326,7 @@ export function BookingForm({
                   data-active={form.recurrence === r ? "true" : undefined}
                   onClick={() => update("recurrence", r)}
                 >
-                  {r === "none" ? "One-off" : "Weekly"}
+                  {r === "none" ? "One-off" : r === "weekly" ? "Weekly" : "Bi-weekly"}
                 </button>
               ))}
             </div>
@@ -346,7 +348,7 @@ export function BookingForm({
                   />
                 </div>
               </div>
-            ) : (
+            ) : /* weekly or biweekly — same date-range fields */ (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Day of week *</Label>
@@ -449,7 +451,7 @@ export function BookingForm({
                 {blocked ? <Ban className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
                 {blocked
                   ? "This space is already booked at that time"
-                  : `This ${form.recurrence === "weekly" ? "series clashes" : "booking clashes"} with an existing booking in this venue`}
+                  : `This ${form.recurrence !== "none" ? "series clashes" : "booking clashes"} with an existing booking in this venue`}
               </p>
               <ul className="mt-2 space-y-0.5 text-muted-foreground">
                 {conflicts.slice(0, 8).map((c, i) => (

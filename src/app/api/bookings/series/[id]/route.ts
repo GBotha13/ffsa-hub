@@ -108,6 +108,8 @@ export async function PATCH(
     typeof body.weekday === "number" ? body.weekday : (series.weekday as number);
   const seriesStart = nn(body.series_start) ?? (series.series_start as string);
   const seriesEnd = nn(body.series_end) ?? (series.series_end as string);
+  const rawInterval = typeof body.interval_weeks === "number" ? body.interval_weeks : ((series.interval_weeks ?? 1) as number);
+  const intervalWeeks = Number.isInteger(rawInterval) && rawInterval >= 1 && rawInterval <= 52 ? rawInterval : 1;
 
   if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
     return NextResponse.json({ error: "weekday must be 0–6" }, { status: 400 });
@@ -121,7 +123,7 @@ export async function PATCH(
       { status: 400 }
     );
   }
-  if (weeklyOccurrenceDates(seriesStart, seriesEnd, weekday).length === 0) {
+  if (weeklyOccurrenceDates(seriesStart, seriesEnd, weekday, intervalWeeks).length === 0) {
     return NextResponse.json(
       { error: "No dates in that range fall on the chosen day of the week." },
       { status: 400 }
@@ -162,7 +164,7 @@ export async function PATCH(
   const occurrences = (occRaw ?? []) as Array<
     Record<string, unknown> & { id: string; booking_date: string; status: string }
   >;
-  const plan = reconcileSeries(occurrences, today, weekday, seriesStart, seriesEnd);
+  const plan = reconcileSeries(occurrences, today, weekday, seriesStart, seriesEnd, intervalWeeks);
 
   // ── Clash scan over every future date the series will occupy ──
   const futureDates = [...plan.add, ...plan.keep.map((o) => o.booking_date)].sort();
@@ -224,7 +226,8 @@ export async function PATCH(
   const scheduleChanged =
     weekday !== series.weekday ||
     seriesStart !== series.series_start ||
-    seriesEnd !== series.series_end;
+    seriesEnd !== series.series_end ||
+    intervalWeeks !== (series.interval_weeks ?? 1);
 
   if (!scheduleChanged && Object.keys(detailPatch).length === 0) {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
@@ -239,6 +242,7 @@ export async function PATCH(
     weekday,
     series_start: seriesStart,
     series_end: seriesEnd,
+    interval_weeks: intervalWeeks,
   };
   const { data: updatedSeries, error: updErr } = await updateSeries(
     supabase,

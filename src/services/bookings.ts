@@ -82,6 +82,7 @@ export type BookingSeries = {
   setdown_time: string | null;
   series_start: string;
   series_end: string;
+  interval_weeks: number;
   status: BookingStatusValue;
   created_by: string | null;
   created_at: string;

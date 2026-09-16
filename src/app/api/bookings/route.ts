@@ -37,6 +37,7 @@ type CreateBody = {
   weekday?: number;
   series_start?: string;
   series_end?: string;
+  interval_weeks?: number;
 };
 
 function nn(v: string | null | undefined): string | null {
@@ -90,6 +91,7 @@ export async function POST(request: Request) {
   let seriesStart: string | null = null;
   let seriesEnd: string | null = null;
 
+  let intervalWeeks = 1;
   if (recurrence === "weekly") {
     weekday = typeof body.weekday === "number" ? body.weekday : NaN;
     seriesStart = nn(body.series_start);
@@ -103,7 +105,12 @@ export async function POST(request: Request) {
     if (seriesEnd < seriesStart) {
       return NextResponse.json({ error: "series_end must be on or after series_start" }, { status: 400 });
     }
-    const dates = weeklyOccurrenceDates(seriesStart, seriesEnd, weekday);
+    const rawInterval = typeof body.interval_weeks === "number" ? body.interval_weeks : 1;
+    if (!Number.isInteger(rawInterval) || rawInterval < 1 || rawInterval > 52) {
+      return NextResponse.json({ error: "interval_weeks must be an integer between 1 and 52" }, { status: 400 });
+    }
+    intervalWeeks = rawInterval;
+    const dates = weeklyOccurrenceDates(seriesStart, seriesEnd, weekday, intervalWeeks);
     if (dates.length === 0) {
       return NextResponse.json({ error: "No dates in that range fall on the chosen weekday" }, { status: 400 });
     }
@@ -205,6 +212,7 @@ export async function POST(request: Request) {
       weekday,
       series_start: seriesStart,
       series_end: seriesEnd,
+      interval_weeks: intervalWeeks,
       status,
       created_by: user.id,
     });

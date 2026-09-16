@@ -33,13 +33,14 @@ export function reconcileSeries<T extends SeriesOccurrence>(
   today: string,
   weekday: number,
   seriesStart: string,
-  seriesEnd: string
+  seriesEnd: string,
+  intervalWeeks = 1
 ): SeriesPlan<T> {
   const frozen = occurrences.filter((o) => o.booking_date <= today);
   const future = occurrences.filter((o) => o.booking_date > today);
 
   const desired = new Set(
-    weeklyOccurrenceDates(seriesStart, seriesEnd, weekday).filter((d) => d > today)
+    weeklyOccurrenceDates(seriesStart, seriesEnd, weekday, intervalWeeks).filter((d) => d > today)
   );
 
   const keep: T[] = [];

@@ -198,7 +198,7 @@ export default async function BookingDetailPage({
           {series && (
             <div className="col-span-2 sm:col-span-3">
               <Field label="Recurring series">
-                Every {weekdayLabel(series.weekday)} · {dateRangeLabel(series.series_start, series.series_end)}
+                Every {(series.interval_weeks ?? 1) > 1 ? "other " : ""}{weekdayLabel(series.weekday)} · {dateRangeLabel(series.series_start, series.series_end)}
                 <span className="text-[color:var(--text-tertiary)]"> · {seriesCount} date{seriesCount === 1 ? "" : "s"} in this series</span>
                 {canEditSeries && (
                   <Link href={seriesHref} className="mt-1 block font-medium hover:underline">
