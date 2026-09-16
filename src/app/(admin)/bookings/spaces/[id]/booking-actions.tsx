@@ -7,6 +7,13 @@ import { Button } from "@/components/ui/button";
 import { SectionBar } from "@/components/ffsa";
 import { Label } from "@/components/ui/label";
 import { Check, X, Ban } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { useBookingStatus } from "./status-context";
 
 export function BookingActions({
@@ -25,6 +32,7 @@ export function BookingActions({
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [applyToSeries, setApplyToSeries] = useState(false);
+  const [confirmSeriesOpen, setConfirmSeriesOpen] = useState(false);
 
   const isPending = status === "pending";
   const isActive = status === "pending" || status === "approved";
@@ -65,7 +73,7 @@ export function BookingActions({
   }
 
   async function cancel(seriesWide: boolean) {
-    if (seriesWide && !window.confirm("Cancel every date in this weekly series?")) return;
+    setConfirmSeriesOpen(false);
     const prev = status;
     setBusy(seriesWide ? "cancel-series" : "cancel");
     setStatus("cancelled"); // optimistic
@@ -157,7 +165,7 @@ export function BookingActions({
             </Button>
             {hasSeries && (
               <Button
-                onClick={() => cancel(true)}
+                onClick={() => setConfirmSeriesOpen(true)}
                 disabled={!!busy}
                 variant="ghost"
                 size="sm"
@@ -170,6 +178,31 @@ export function BookingActions({
           </div>
         )}
       </div>
+
+      <Dialog open={confirmSeriesOpen} onOpenChange={setConfirmSeriesOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel whole series?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This will cancel every upcoming date in this weekly series. This cannot be undone.
+          </p>
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setConfirmSeriesOpen(false)}>
+              Keep series
+            </Button>
+            <button
+              type="button"
+              onClick={() => cancel(true)}
+              disabled={!!busy}
+              className="inline-flex items-center gap-1.5 border border-destructive px-4 py-2.5 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-destructive disabled:opacity-50"
+            >
+              <Ban className="h-4 w-4" />
+              Yes, cancel series
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
