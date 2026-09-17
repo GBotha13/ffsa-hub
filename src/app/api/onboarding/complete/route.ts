@@ -66,6 +66,9 @@ async function shareCalendarIfStaff(userId: string, email: string) {
     .maybeSingle();
 
   let isStaff = profile?.signup_type === "staff";
+  console.log(
+    `[google-calendar] ${email} signup_type=${profile?.signup_type ?? "null"} isStaff=${isStaff}`
+  );
   if (!isStaff) {
     const { data: roles } = await admin
       .from("user_roles")
@@ -74,8 +77,12 @@ async function shareCalendarIfStaff(userId: string, email: string) {
       .eq("roles.name", "staff")
       .limit(1);
     isStaff = !!(roles && roles.length > 0);
+    console.log(`[google-calendar] ${email} role-check isStaff=${isStaff}`);
   }
-  if (!isStaff) return;
+  if (!isStaff) {
+    console.log(`[google-calendar] ${email} not staff — skipping`);
+    return;
+  }
 
   await addUserToBaseCalendar(email);
 }
