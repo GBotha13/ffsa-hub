@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { callerIsSuperAdmin } from "@/lib/auth/check-role-grant";
+import { syncCalendarAccess } from "@/lib/google/calendar";
 
 // Converts a person to a community member — the "they've left staff" action.
 //
@@ -348,6 +349,18 @@ export async function POST(request: Request) {
     resource_id: userId,
     changes: { converted_to_community: summary },
   });
+
+  try {
+    const { data: u } = await admin
+      .from("users")
+      .select("email")
+      .eq("id", userId)
+      .maybeSingle();
+    // Caller may have chosen to keep the staff role — re-check current state
+    if (u?.email) await syncCalendarAccess(userId, u.email);
+  } catch (err) {
+    console.error("[google-calendar] convert sync failed", err);
+  }
 
   return NextResponse.json({ success: true, ...summary });
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { callerIsSuperAdmin } from "@/lib/auth/check-role-grant";
+import { addUserToBaseCalendar, removeUserFromBaseCalendar } from "@/lib/google/calendar";
 
 // Sets a user's single "membership" role from the Users list. The three
 // membership roles are mutually exclusive here (staff / student / community);
@@ -126,6 +127,21 @@ export async function POST(request: Request) {
     resource_id: user_id,
     changes: { membership_role: role },
   });
+
+  try {
+    const { data: u } = await admin
+      .from("users")
+      .select("email")
+      .eq("id", user_id)
+      .maybeSingle();
+    if (u?.email) {
+      // `names` is the post-op role list already computed above
+      if (names.includes("staff")) await addUserToBaseCalendar(u.email);
+      else await removeUserFromBaseCalendar(u.email);
+    }
+  } catch (err) {
+    console.error("[google-calendar] membership sync failed", err);
+  }
 
   return NextResponse.json({ success: true });
 }

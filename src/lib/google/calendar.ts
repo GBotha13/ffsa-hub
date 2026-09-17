@@ -157,3 +157,45 @@ export async function addUserToBaseCalendar(email: string): Promise<void> {
 
   console.log(`[google-calendar] shared base calendar with ${email}`);
 }
+
+export async function removeUserFromBaseCalendar(email: string): Promise<void> {
+  const calendarId = process.env.GOOGLE_CALENDAR_ID;
+  if (!calendarId) {
+    console.warn("[google-calendar] GOOGLE_CALENDAR_ID not set — skipping remove");
+    return;
+  }
+
+  const accessToken = await getAccessToken();
+  if (!accessToken) return;
+
+  const ruleId = `user:${email}`;
+  const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/acl/${encodeURIComponent(ruleId)}`;
+  const res = await fetch(url, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (res.status === 404) return; // not on calendar — no-op
+  if (!res.ok) {
+    console.warn(`[google-calendar] ACL delete failed for ${email}: ${res.status}`);
+    return;
+  }
+  console.log(`[google-calendar] removed ${email} from base calendar`);
+}
+
+// Re-checks the user's current roles and adds or removes them from the
+// base calendar accordingly. Use after any operation that might have changed
+// whether a user holds the staff role.
+export async function syncCalendarAccess(userId: string, email: string): Promise<void> {
+  if (!email) return;
+  const admin = createAdminClient();
+  const { data: rows } = await admin
+    .from("user_roles")
+    .select("roles!inner(name)")
+    .eq("user_id", userId)
+    .eq("roles.name", "staff")
+    .limit(1);
+  const isStaff = !!(rows && rows.length > 0);
+  if (isStaff) await addUserToBaseCalendar(email);
+  else await removeUserFromBaseCalendar(email);
+}

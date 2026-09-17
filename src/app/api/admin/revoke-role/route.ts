@@ -6,6 +6,7 @@ import {
   callerCanManageRoles,
   SUPER_ADMIN_ONLY_ROLES,
 } from "@/lib/auth/check-role-grant";
+import { syncCalendarAccess } from "@/lib/google/calendar";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -94,6 +95,20 @@ export async function POST(request: Request) {
       scope_id: scope_id ?? null,
     },
   });
+
+  if (role.name === "staff") {
+    try {
+      const { data: u } = await adminSupabase
+        .from("users")
+        .select("email")
+        .eq("id", user_id)
+        .maybeSingle();
+      // Re-check: user may still hold staff via another grant
+      if (u?.email) await syncCalendarAccess(user_id, u.email);
+    } catch (err) {
+      console.error("[google-calendar] revoke sync failed", err);
+    }
+  }
 
   return NextResponse.json({ success: true });
 }

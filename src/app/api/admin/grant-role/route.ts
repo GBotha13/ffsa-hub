@@ -7,6 +7,7 @@ import {
   callerCanGrantPermissionKeys,
   SUPER_ADMIN_ONLY_ROLES,
 } from "@/lib/auth/check-role-grant";
+import { addUserToBaseCalendar } from "@/lib/google/calendar";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -121,6 +122,19 @@ export async function POST(request: Request) {
       scope_id: scope_id ?? null,
     },
   });
+
+  if (role.name === "staff") {
+    try {
+      const { data: u } = await adminSupabase
+        .from("users")
+        .select("email")
+        .eq("id", user_id)
+        .maybeSingle();
+      if (u?.email) await addUserToBaseCalendar(u.email);
+    } catch (err) {
+      console.error("[google-calendar] grant sync failed", err);
+    }
+  }
 
   return NextResponse.json({ success: true });
 }
