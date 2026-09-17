@@ -24,7 +24,7 @@ export async function GET() {
       client_id: clientId,
       redirect_uri: googleCalendarRedirectUri(),
       response_type: "code",
-      scope: "https://www.googleapis.com/auth/calendar.acl",
+      scope: "https://www.googleapis.com/auth/calendar",
       access_type: "offline",
       // prompt=consent forces Google to return a refresh_token even if the
       // user has previously authorised this app (without it, subsequent
