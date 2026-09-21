@@ -20,6 +20,7 @@ import {
   SlidersHorizontal,
   Scale,
   Target,
+  Megaphone,
   type LucideIcon,
 } from "lucide-react";
 
@@ -163,6 +164,14 @@ export const ADMIN_MODULES: ModuleDefinition[] = [
       "Historical CSVs of staff/student data — auto-linked to user profiles. Super admin only (or a records_library.manage grant)",
     requiredRoles: ["super_admin"],
   },
+  {
+    id: "evangelism",
+    label: "Evangelism",
+    href: "/evangelism",
+    icon: Megaphone,
+    description: "In progress — super admin only for now",
+    requiredRoles: ["super_admin"],
+  },
 ];
 
 /** System management modules — shown at the bottom of the sidebar. */
@@ -258,8 +267,11 @@ export const PORTAL_TABS: PortalTab[] = [
  * `records_library.manage` grant (direct or via a job title's bundle).
  *
  * Mirrors public.can_access_records_library() in migration 212.
+ *
+ * "evangelism" is a second carve-out: a brand-new, still-empty module that
+ * should only be visible to super_admin while it's being built out.
  */
-export const SUPER_ADMIN_ONLY_MODULES = new Set(["records-library"]);
+export const SUPER_ADMIN_ONLY_MODULES = new Set(["records-library", "evangelism"]);
 
 /**
  * Returns modules the user can access.
