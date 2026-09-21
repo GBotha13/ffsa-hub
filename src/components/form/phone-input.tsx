@@ -74,15 +74,33 @@ export function PhoneInput({
   }
 
   function handleNumberChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const detected = detectExplicitCountryCode(e.target.value);
-    if (detected) {
+    const value = e.target.value;
+
+    // Only swap country + strip the prefix once there's an actual digit left
+    // over after the detected code — otherwise (e.g. "+27" or "0044" with
+    // nothing typed yet after it) `rest` is "", and clearing the field to ""
+    // wipes out what the user just typed before they can finish the prefix.
+    const detected = detectExplicitCountryCode(value);
+    if (detected && detected.rest.length > 0) {
       setSelectedCountry(detected.country);
       setLocalNumber(detected.rest);
-      field.onChange(detected.rest ? `${detected.country.dialCode}${detected.rest}` : "");
+      field.onChange(`${detected.country.dialCode}${detected.rest}`);
       return;
     }
 
-    const raw = e.target.value.replace(/[^\d\s-]/g, "");
+    // Still composing an international prefix ("+", "+27", "00", "0044", …)
+    // that hasn't resolved to a country + remaining digits yet — mirror the
+    // literal text so the "+"/leading zeros survive to the next keystroke
+    // instead of being stripped by the digits-only filter below.
+    const trimmed = value.trim().replace(/\s/g, "");
+    const looksInternational = trimmed.startsWith("+") || trimmed.startsWith("00");
+    if (looksInternational) {
+      setLocalNumber(value);
+      field.onChange("");
+      return;
+    }
+
+    const raw = value.replace(/[^\d\s-]/g, "");
     setLocalNumber(raw);
     const digits = raw.replace(/\D/g, "");
     const full = digits ? `${selectedCountry.dialCode}${digits}` : "";
