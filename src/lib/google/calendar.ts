@@ -77,7 +77,7 @@ export async function deleteCalendarTokens(supabase: Client) {
 // ACCESS TOKEN REFRESH
 // ────────────────────────────────────────────────────────────
 
-async function getAccessToken(): Promise<string | null> {
+export async function getAccessToken(): Promise<string | null> {
   const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
   if (!clientId || !clientSecret) {
@@ -116,21 +116,28 @@ async function getAccessToken(): Promise<string | null> {
 // CALENDAR ACL
 // ────────────────────────────────────────────────────────────
 
-export async function addUserToBaseCalendar(email: string): Promise<void> {
+// `accessToken` lets a caller looping over many users (e.g. the one-time
+// backfill) fetch the token once and reuse it, instead of refreshing it on
+// every single call — Google's token endpoint has its own rate limit, and
+// this would otherwise double the number of API calls for a bulk share.
+export async function addUserToBaseCalendar(
+  email: string,
+  accessToken?: string
+): Promise<void> {
   const calendarId = process.env.GOOGLE_CALENDAR_ID;
   if (!calendarId) {
     console.warn("[google-calendar] GOOGLE_CALENDAR_ID not set — skipping");
     return;
   }
 
-  const accessToken = await getAccessToken();
-  if (!accessToken) return;
+  const token = accessToken ?? (await getAccessToken());
+  if (!token) return;
 
   const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/acl`;
   const res = await fetch(url, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${accessToken}`,
+      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
