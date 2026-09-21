@@ -216,20 +216,28 @@ function VenueRow({ venue }: { venue: Venue }) {
   );
 }
 
-function MinistryRow({ ministry }: { ministry: Ministry }) {
+function MinistryRow({
+  ministry,
+  staffMinistries,
+}: {
+  ministry: Ministry;
+  staffMinistries: { id: string; name: string; slug: string }[];
+}) {
   const supabase = createClient();
   const router = useRouter();
   const [d, setD] = useState({
     name: ministry.name,
     color: ministry.color,
     is_active: ministry.is_active,
+    staff_ministry_id: ministry.staff_ministry_id,
   });
   const [saving, setSaving] = useState(false);
 
   const dirty =
     d.name !== ministry.name ||
     d.color !== ministry.color ||
-    d.is_active !== ministry.is_active;
+    d.is_active !== ministry.is_active ||
+    d.staff_ministry_id !== ministry.staff_ministry_id;
 
   async function save() {
     if (!d.name.trim()) return toast.error("Ministry name is required.");
@@ -238,6 +246,7 @@ function MinistryRow({ ministry }: { ministry: Ministry }) {
       name: d.name.trim(),
       color: d.color,
       is_active: d.is_active,
+      staff_ministry_id: d.staff_ministry_id,
     });
     setSaving(false);
     if (error) return toast.error(error.message);
@@ -259,6 +268,21 @@ function MinistryRow({ ministry }: { ministry: Ministry }) {
         placeholder="Name"
         aria-label="Ministry name"
       />
+      <select
+        aria-label={`${ministry.name} linked ministry roster`}
+        value={d.staff_ministry_id ?? ""}
+        onChange={(e) =>
+          setD({ ...d, staff_ministry_id: e.target.value || null })
+        }
+        className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+      >
+        <option value="">— Not linked —</option>
+        {staffMinistries.map((sm) => (
+          <option key={sm.id} value={sm.id}>
+            {sm.name}
+          </option>
+        ))}
+      </select>
       <ActiveControl
         value={d.is_active}
         onChange={(is_active) => setD({ ...d, is_active })}
@@ -279,9 +303,11 @@ function MinistryRow({ ministry }: { ministry: Ministry }) {
 export function VenueAdmin({
   venues,
   ministries,
+  staffMinistries,
 }: {
   venues: Venue[];
   ministries: Ministry[];
+  staffMinistries: { id: string; name: string; slug: string }[];
 }) {
   const supabase = createClient();
   const router = useRouter();
@@ -397,7 +423,7 @@ export function VenueAdmin({
         <SectionBar title="Ministries" meta={`${ministries.length} total`} />
 
         {ministries.map((m) => (
-          <MinistryRow key={m.id} ministry={m} />
+          <MinistryRow key={m.id} ministry={m} staffMinistries={staffMinistries} />
         ))}
 
         <div className="flex flex-wrap items-end gap-2 border-t border-rule bg-bone px-5 py-4 md:px-6">

@@ -46,6 +46,22 @@ export async function listActiveMinistries(supabase: Client) {
 }
 
 /**
+ * Active staff ministries (id + name), for linking a bookings-owned
+ * `public.ministries` row (Space Bookings' color-coded ministry tag) to its
+ * real roster — see migration 217. Unlike listActiveMinistries, this isn't
+ * limited to "main" ministries: any active staff ministry's roster can back
+ * a booking-ministry link.
+ */
+export async function listActiveMinistriesForLinking(supabase: Client) {
+  return supabase
+    .from("staff_ministries")
+    .select("id, name, slug")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true })
+    .order("name", { ascending: true });
+}
+
+/**
  * The matching ministry row (or null) for a slug — active or retired. Used to
  * validate a department value on profile writes now that the static DB CHECK
  * is gone. Returns ministry_type so callers can reject part-time: a department

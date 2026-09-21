@@ -13,6 +13,7 @@ import {
   updateSeries,
   updateSeriesOccurrences,
 } from "@/services/bookings";
+import { callerLeadsBookingMinistry } from "@/lib/auth/check-ministry-access";
 import { reconcileSeries } from "@/lib/bookings/series-reconcile";
 import { findConflicts, type BookingWindow } from "@/lib/bookings/conflicts";
 import {
@@ -92,7 +93,12 @@ export async function PATCH(
 
   const access = await getBookingAccess(supabase, user.id);
   const isOwner = series.created_by === user.id;
-  if (!(access.isAdmin || access.canManage || access.canApprove || isOwner)) {
+  const isMinistryLeader = await callerLeadsBookingMinistry(
+    supabase,
+    user.id,
+    series.ministry?.staff_ministry_id
+  );
+  if (!(access.isAdmin || access.canManage || access.canApprove || isOwner || isMinistryLeader)) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
