@@ -165,6 +165,44 @@ export async function addUserToBaseCalendar(
   console.log(`[google-calendar] shared base calendar with ${email}`);
 }
 
+// Every email currently shared on the base calendar (any role), lowercased.
+// Paginated — Google returns at most 100 ACL rules per page.
+export async function listBaseCalendarAclEmails(accessToken?: string): Promise<Set<string>> {
+  const calendarId = process.env.GOOGLE_CALENDAR_ID;
+  const emails = new Set<string>();
+  if (!calendarId) {
+    console.warn("[google-calendar] GOOGLE_CALENDAR_ID not set — skipping ACL list");
+    return emails;
+  }
+
+  const token = accessToken ?? (await getAccessToken());
+  if (!token) return emails;
+
+  let pageToken: string | undefined;
+  do {
+    const url = new URL(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/acl`
+    );
+    if (pageToken) url.searchParams.set("pageToken", pageToken);
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      console.warn(`[google-calendar] ACL list failed: ${res.status}`);
+      break;
+    }
+    const json = await res.json();
+    for (const rule of json.items ?? []) {
+      if (rule?.scope?.type === "user" && rule.scope.value) {
+        emails.add(String(rule.scope.value).toLowerCase());
+      }
+    }
+    pageToken = json.nextPageToken;
+  } while (pageToken);
+
+  return emails;
+}
+
 export async function removeUserFromBaseCalendar(email: string): Promise<void> {
   const calendarId = process.env.GOOGLE_CALENDAR_ID;
   if (!calendarId) {
