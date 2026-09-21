@@ -13,6 +13,7 @@ import {
   type Booking,
 } from "@/services/bookings";
 import { Masthead } from "@/components/ffsa";
+import { callerLeadsBookingMinistry } from "@/lib/auth/check-ministry-access";
 import { SeriesEditForm } from "../series-edit-form";
 
 export default async function EditSeriesPage({
@@ -37,13 +38,19 @@ export default async function EditSeriesPage({
   const series = seriesRes.data as BookingSeries | null;
   if (seriesRes.error || !series) notFound();
 
-  // Same gate the API enforces: the person who set the series up, or anyone
-  // who looks after spaces.
+  // Same gate the API enforces: the person who set the series up, anyone
+  // who looks after spaces, or an active leader of the linked ministry.
+  const isMinistryLeader = await callerLeadsBookingMinistry(
+    supabase,
+    user.id,
+    series.ministry?.staff_ministry_id
+  );
   const canEdit =
     access.isAdmin ||
     access.canManage ||
     access.canApprove ||
-    series.created_by === user.id;
+    series.created_by === user.id ||
+    isMinistryLeader;
   if (!canEdit) redirect("/bookings/spaces");
 
   const [venuesRes, ministriesRes, occRes] = await Promise.all([

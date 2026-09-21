@@ -9,6 +9,7 @@ import {
   updateSeries,
   updateSeriesOccurrences,
 } from "@/services/bookings";
+import { callerLeadsBookingMinistry } from "@/lib/auth/check-ministry-access";
 
 const EDITABLE_TEXT = ["venue_id", "title", "description", "point_person", "ministry_id"] as const;
 const EDITABLE_DATETIME = [
@@ -67,7 +68,12 @@ export async function PATCH(
 
   const access = await getBookingAccess(supabase, user.id);
   const isOwner = booking.requested_by === user.id;
-  if (!(access.isAdmin || access.canManage || access.canApprove || isOwner)) {
+  const isMinistryLeader = await callerLeadsBookingMinistry(
+    supabase,
+    user.id,
+    booking.ministry?.staff_ministry_id
+  );
+  if (!(access.isAdmin || access.canManage || access.canApprove || isOwner || isMinistryLeader)) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 

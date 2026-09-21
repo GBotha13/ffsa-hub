@@ -41,6 +41,21 @@ export async function callerLeadsMinistry(
   return ((data as unknown[] | null)?.length ?? 0) > 0;
 }
 
+/**
+ * Admin, or an active leader of the staff ministry linked to a bookings-owned
+ * `public.ministries` row (Space Bookings' color-coded ministry tag — see
+ * migration 217). A booking-ministry with no link (`linkedStaffMinistryId`
+ * null/undefined) grants no extra access beyond admin.
+ */
+export async function callerLeadsBookingMinistry(
+  supabase: Client,
+  userId: string,
+  linkedStaffMinistryId: string | null | undefined
+): Promise<boolean> {
+  if (!linkedStaffMinistryId) return callerIsAdmin(supabase, userId);
+  return callerLeadsMinistry(supabase, userId, linkedStaffMinistryId);
+}
+
 /** Ministry ids the user actively leads (used for nav/point-leader gating). */
 export async function getLedMinistryIds(
   supabase: Client,

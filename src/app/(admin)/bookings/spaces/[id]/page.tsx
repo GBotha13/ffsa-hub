@@ -22,6 +22,7 @@ import {
 } from "@/lib/bookings/dates";
 import { weekdayLabel } from "@/lib/bookings/recurrence";
 import { findConflicts, type BookingWindow } from "@/lib/bookings/conflicts";
+import { callerLeadsBookingMinistry } from "@/lib/auth/check-ministry-access";
 import { BookingActions } from "./booking-actions";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -98,19 +99,28 @@ export default async function BookingDetailPage({
   );
 
   const isOwner = booking.requested_by === user.id;
+  const isMinistryLeader = await callerLeadsBookingMinistry(
+    supabase,
+    user.id,
+    booking.ministry?.staff_ministry_id
+  );
   const canCancel =
-    access.isAdmin || access.canManage || access.canApprove || isOwner;
+    access.isAdmin || access.canManage || access.canApprove || isOwner || isMinistryLeader;
   const canEdit =
     canCancel && (booking.status === "pending" || booking.status === "approved");
   const isClosed = booking.status === "cancelled";
   // Reaching the series is about permission, not about this one date's status —
   // a cancelled date is often exactly where you go looking for the series.
+  const isSeriesMinistryLeader =
+    !!series &&
+    (await callerLeadsBookingMinistry(supabase, user.id, series.ministry?.staff_ministry_id));
   const canEditSeries =
     !!series &&
     (access.isAdmin ||
       access.canManage ||
       access.canApprove ||
-      series.created_by === user.id);
+      series.created_by === user.id ||
+      isSeriesMinistryLeader);
   const seriesHref = series ? `/bookings/spaces/series/${series.id}/edit` : "";
 
   return (

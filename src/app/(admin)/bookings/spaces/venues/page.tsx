@@ -8,6 +8,7 @@ import {
   type Venue,
   type Ministry,
 } from "@/services/bookings";
+import { listActiveMinistriesForLinking } from "@/services/ministries";
 import { Masthead } from "@/components/ffsa";
 import { VenueAdmin } from "./venue-admin";
 
@@ -25,9 +26,10 @@ export default async function VenuesAdminPage() {
   ]);
   if (!access.canManage) redirect("/bookings/spaces");
 
-  const [venuesRes, ministriesRes] = await Promise.all([
+  const [venuesRes, ministriesRes, staffMinistriesRes] = await Promise.all([
     getVenues(supabase),
     getMinistries(supabase),
+    listActiveMinistriesForLinking(supabase),
   ]);
 
   return (
@@ -37,6 +39,9 @@ export default async function VenuesAdminPage() {
         <VenueAdmin
           venues={(venuesRes.data ?? []) as Venue[]}
           ministries={(ministriesRes.data ?? []) as Ministry[]}
+          staffMinistries={
+            (staffMinistriesRes.data ?? []) as { id: string; name: string; slug: string }[]
+          }
         />
       </div>
     </div>

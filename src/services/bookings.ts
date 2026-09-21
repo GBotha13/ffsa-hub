@@ -33,6 +33,10 @@ export type Ministry = {
   color: string;
   is_active: boolean;
   sort_order: number;
+  // Optional link to the real ministry roster (public.staff_ministries) —
+  // an active leader of that ministry can then edit/cancel bookings tagged
+  // with this one, in addition to the requester/admin/approver/manager.
+  staff_ministry_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -63,7 +67,7 @@ export type Booking = {
 
 export type BookingRef = {
   venue?: Pick<Venue, "id" | "name" | "color" | "building" | "sort_order"> | null;
-  ministry?: Pick<Ministry, "id" | "name" | "color"> | null;
+  ministry?: Pick<Ministry, "id" | "name" | "color" | "staff_ministry_id"> | null;
 };
 
 export type BookingWithRefs = Booking & BookingRef;
@@ -72,6 +76,7 @@ export type BookingSeries = {
   id: string;
   venue_id: string;
   ministry_id: string | null;
+  ministry?: Pick<Ministry, "id" | "name" | "color" | "staff_ministry_id"> | null;
   title: string;
   description: string | null;
   point_person: string | null;
@@ -306,7 +311,11 @@ export async function getMyDecidedBookings(
 }
 
 export async function getSeriesById(supabase: Client, id: string) {
-  return supabase.from("booking_series").select("*").eq("id", id).single();
+  return supabase
+    .from("booking_series")
+    .select("*, ministry:ministries(*)")
+    .eq("id", id)
+    .single();
 }
 
 /** How many occurrences a series has (any status). */

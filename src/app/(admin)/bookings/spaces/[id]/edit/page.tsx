@@ -10,6 +10,7 @@ import {
   type Ministry,
 } from "@/services/bookings";
 import { Masthead } from "@/components/ffsa";
+import { callerLeadsBookingMinistry } from "@/lib/auth/check-ministry-access";
 import { EditBookingForm } from "../../edit-booking-form";
 
 export default async function EditBookingPage({
@@ -35,8 +36,13 @@ export default async function EditBookingPage({
   if (bookingRes.error || !booking) notFound();
 
   const isOwner = booking.requested_by === user.id;
+  const isMinistryLeader = await callerLeadsBookingMinistry(
+    supabase,
+    user.id,
+    booking.ministry?.staff_ministry_id
+  );
   const canEdit =
-    access.isAdmin || access.canManage || access.canApprove || isOwner;
+    access.isAdmin || access.canManage || access.canApprove || isOwner || isMinistryLeader;
   if (!canEdit) redirect(`/bookings/spaces/${id}`);
 
   const [venuesRes, ministriesRes] = await Promise.all([
