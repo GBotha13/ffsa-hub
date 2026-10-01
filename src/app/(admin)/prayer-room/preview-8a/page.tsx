@@ -12,6 +12,7 @@
 import { notFound } from "next/navigation";
 import Wall, { type WallSet, type SeatType, type Band } from "../components/wall";
 import type { CalendarBlockout } from "../components/calendar";
+import { PRACTICE, ME } from "./practice-fixture";
 
 const SEATS: SeatType[] = [
   { id: "prayer_leader", label: "PRAYER LEAD", is_lead: true },
@@ -33,7 +34,7 @@ const band = (name: string, start: string, end: string, focus: string): Band[] =
 const BANDS: Band[] = [
   ...band("MORNING", "08:00", "09:30", "The nations — Nepal focus"),
   ...band("NOON", "12:00", "14:00", "Send Night, Cape Town"),
-  ...band("NIGHT", "17:00", "19:00", "Prophetic worship"),
+  ...band("NIGHT", "17:30", "20:00", "Prophetic worship"),
 ];
 
 const owner = { id: "u1", first_name: "Tshepo", last_name: "Molefe", preferred_name: null };
@@ -66,14 +67,14 @@ const SETS: WallSet[] = [
   set("a", "2026-08-03", "05:00", "06:30", "Morning watch", true),
   set("b", "2026-08-03", "08:00", "09:30", "The nations — Nepal focus", true),
   set("c", "2026-08-03", "12:00", "14:00", "Midday intercession", true),
-  set("d", "2026-08-03", "17:00", "19:00", "Night set opens", true),
+  set("d", "2026-08-03", "17:30", "20:00", "Night set opens", true),
   set("e", "2026-08-04", "08:00", "09:30", "Israel & the Middle East", true),
   set("f", "2026-08-04", "14:00", "15:30", "Send Night prep", false),
-  set("g", "2026-08-04", "17:00", "19:00", "Night set opens", true),
+  set("g", "2026-08-04", "17:30", "20:00", "Night set opens", true),
   set("h", "2026-08-05", "08:00", "09:30", "Unreached — Central Asia", true),
   set("i", "2026-08-05", "12:00", "14:00", "Midday intercession", true),
   set("j", "2026-08-06", "09:30", "11:00", "Selah — instrumental", true),
-  set("k", "2026-08-07", "17:00", "19:00", "Friday night worship", true),
+  set("k", "2026-08-07", "17:30", "20:00", "Friday night worship", true),
 ];
 
 // One timed block-out and one all-day, so both paths are visible.
@@ -107,7 +108,14 @@ export default function Preview8a() {
         <h1 className="masthead-title">The wall</h1>
       </div>
       <div className="px-5 py-6 md:px-8">
-        <Wall anchorISO="2026-08-03" sets={SETS} seatTypes={SEATS} bands={BANDS} blockouts={BLOCKOUTS} />
+        <Wall
+          anchorISO="2026-08-03"
+          sets={SETS}
+          seatTypes={SEATS}
+          bands={BANDS}
+          blockouts={BLOCKOUTS}
+          practice={{ week: PRACTICE, userId: ME }}
+        />
       </div>
     </div>
   );

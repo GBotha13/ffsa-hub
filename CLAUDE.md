@@ -303,7 +303,7 @@ Communications (5b) · Prayer Room (8a, 9a, 9b, 10a, 10b).
 - Continuous **time axis**, not an hour grid: blocks are drawn to their real duration,
   so 30-minute and 90-minute sets need no special row. Axis runs 05:00–24:00 with a
   collapsed overnight strip per day.
-- **MORNING (08:00–09:30) / NOON (12:00–14:00) / NIGHT (17:00–19:00)** are the anchor.
+- **MORNING (08:00–09:30) / NOON (12:00–14:00) / NIGHT (17:30–20:00)** are the anchor.
   Named in black in the gutter, tinted band across all days with 2px black rules,
   sets inside them are **solid yellow with heavy black borders**. These will eventually
   be curated centrally and not bookable.
@@ -315,6 +315,15 @@ Communications (5b) · Prayer Room (8a, 9a, 9b, 10a, 10b).
   is ~127px, so titles wrap easily — always constrain them, and budget rows against
   ~0.72px/min.
 - Blocks are inset 1.5px top/bottom so no two ever touch.
+
+**36a–36e — PRACTICE** (handoff 17, migration 224). A bone lane named PRACTICE
+between the ordinary sets and NIGHT: 16:00–17:30 Mon/Wed/Thu/Fri in 30-minute rows,
+Tuesday hatched shut ("MINISTRY NIGHT, NO PRACTICE"). Seven stations, one person each
+(vocals is one booking for up to 4); a full band takes the whole room, only on an empty
+row; only admins move people, with a reason and a per-person message. Bookings open
+Sunday 00:00 SAST for that Mon–Fri only, 60 minutes max. **Practice is not coverage** —
+it lives in `practice_*` tables and never creates a `prayer_room_sets` row. Every rule is
+enforced in the database (exclusion constraints + trigger + RPCs), not the UI.
 
 **9a** — clicking a set slides a 470px drawer over the wall; the source block inverts
 to black with a yellow border. Drawer content is driven from the same block data

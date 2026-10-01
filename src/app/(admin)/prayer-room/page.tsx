@@ -3,8 +3,17 @@ import { isPrayerRoomStaff, isPrayerRoomEvaluator, canViewDirectory } from "@/li
 import { getPendingApplicationCount } from "@/services/prayer-room";
 import { getMemberFlags } from "@/services/prayer-room-members";
 import PrayerRoomClient from "./prayer-room-client";
+import type { TabKey } from "./components/chrome";
 
-export default async function PrayerRoomPage() {
+const LINKABLE_TABS: TabKey[] = ["week", "day", "practice"];
+
+export default async function PrayerRoomPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ tab?: string }>;
+}) {
+  const tabParam = (await searchParams)?.tab as TabKey | undefined;
+  const initialTab = tabParam && LINKABLE_TABS.includes(tabParam) ? tabParam : undefined;
   const supabase = await createClient();
   const {
     data: { user },
@@ -51,6 +60,7 @@ export default async function PrayerRoomPage() {
       isEvaluator={isEvaluator}
       canViewDirectory={canSeeDirectory}
       pendingCount={pendingCount}
+      initialTab={initialTab}
     />
   );
 }

@@ -21,9 +21,22 @@ interface Props {
   title?: string;
   busyId?: string | null;
   onPick: (userId: string, member: Member) => void;
+  /** The button on each row. "Invite" for seats; practice says "Add". */
+  actionLabel?: string;
+  /** People already chosen, left out of the list. */
+  excludeIds?: string[];
 }
 
-export default function MemberPicker({ open, onClose, requiredLabelId, title, busyId, onPick }: Props) {
+export default function MemberPicker({
+  open,
+  onClose,
+  requiredLabelId,
+  title,
+  busyId,
+  onPick,
+  actionLabel = "Invite",
+  excludeIds = [],
+}: Props) {
   const [members, setMembers] = useState<Member[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
@@ -48,6 +61,7 @@ export default function MemberPicker({ open, onClose, requiredLabelId, title, bu
   }, [open, load]);
 
   const filtered = members.filter((m) => {
+    if (excludeIds.includes(m.user_id)) return false;
     if (!search) return true;
     return fullName(m.user).toLowerCase().includes(search.toLowerCase());
   });
@@ -82,7 +96,7 @@ export default function MemberPicker({ open, onClose, requiredLabelId, title, bu
                   </div>
                 </div>
                 <Button size="sm" variant="outline" disabled={busyId === m.user_id} onClick={() => onPick(m.user_id, m)}>
-                  {busyId === m.user_id ? "…" : "Invite"}
+                  {busyId === m.user_id ? "…" : actionLabel}
                 </Button>
               </div>
             ))

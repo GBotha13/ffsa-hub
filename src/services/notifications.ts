@@ -16,6 +16,7 @@ import { getBookingAccess, getPendingRequests, getMyDecidedBookings } from "./bo
 import { getVehicleAccess } from "./vehicles";
 import { dateRangeLabel } from "@/lib/bookings/dates";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sastNow } from "@/lib/prayer-room/practice";
 import { callerIsAdmin } from "@/lib/auth/check-ministry-access";
 import { staffSignupNotifyEmails } from "@/lib/email/send-new-staff-notice";
 import {
@@ -31,7 +32,7 @@ type Client = any;
 
 export type AppNotification = {
   key: string; // stable identity, e.g. "booking:<uuid>"
-  kind: "booking" | "user" | "records" | "vehicle" | "insurance";
+  kind: "booking" | "user" | "records" | "vehicle" | "insurance" | "practice";
   title: string;
   body: string;
   href: string;
@@ -268,6 +269,78 @@ async function vehicleRequestNotifs(supabase: Client, userId: string): Promise<A
   });
 }
 
+// ── Prayer room practice (migration 224) ───────────────────
+// Two things a person has to be TOLD rather than find on the wall (handoff 17,
+// rules 7 and 9): someone put them in a full band, or an admin moved them to
+// make room for one. The move carries the exact message written for them —
+// what they lost, what they keep, the reason and the admin's name.
+async function practiceNotifs(supabase: Client, userId: string): Promise<AppNotification[]> {
+  // SAST, not the server's UTC: a 01:00 Friday move is still "today" in the room.
+  const today = sastNow().slice(0, 10);
+  const [movesRes, bandsRes] = await Promise.all([
+    supabase
+      .from("practice_moves")
+      .select("id, message, created_at, booking:practice_bookings!practice_moves_booking_id_fkey(practice_date)")
+      .eq("affected_user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(CAP),
+    supabase
+      .from("practice_booking_people")
+      .select(
+        "booking_id, station:practice_stations(label), booking:practice_bookings!inner(id, kind, status, practice_date, start_time, end_time, band_name, booked_by, created_at)"
+      )
+      .eq("user_id", userId)
+      .eq("booking.kind", "band")
+      .eq("booking.status", "active")
+      .gte("booking.practice_date", today)
+      .limit(CAP),
+  ]);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const moves = ((movesRes.data ?? []) as any[]).filter((m) => (m.booking?.practice_date ?? today) >= today);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const bands = ((bandsRes.data ?? []) as any[]).filter((r) => r.booking && r.booking.booked_by !== userId);
+
+  const leadIds = [...new Set(bands.map((r) => r.booking.booked_by as string))];
+  const leads = new Map<string, string>();
+  if (leadIds.length) {
+    const { data } = await createAdminClient().from("users").select("id, first_name, last_name").in("id", leadIds);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const u of (data ?? []) as any[]) leads.set(u.id, `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim());
+  }
+
+  return [
+    ...moves.map((m) => {
+      const { label, ts } = timeAgo(m.created_at);
+      return {
+        key: `practice-move:${m.id}`,
+        kind: "practice" as const,
+        title: "Your practice was moved",
+        body: m.message,
+        href: "/prayer-room?tab=practice",
+        when: label,
+        ts,
+        read: false,
+      };
+    }),
+    ...bands.map((r) => {
+      const b = r.booking;
+      const { label, ts } = timeAgo(b.created_at);
+      const station = (r.station?.label as string | undefined)?.toLowerCase() ?? "the band";
+      return {
+        key: `practice-band:${b.id}`,
+        kind: "practice" as const,
+        title: `You're in ${b.band_name}`,
+        body: `${leads.get(b.booked_by) || "Someone"} put you on ${station} · ${dateRangeLabel(b.practice_date, null)} ${String(b.start_time).slice(0, 5)}–${String(b.end_time).slice(0, 5)}`,
+        href: "/prayer-room?tab=practice",
+        when: label,
+        ts,
+        read: false,
+      };
+    }),
+  ];
+}
+
 async function recordsMatchNotifs(supabase: Client, userId: string): Promise<AppNotification[]> {
   if (!(await hasModuleAccess(supabase, userId, "records-library"))) return [];
   const { count } = await supabase
@@ -491,7 +564,7 @@ async function insuranceExpiryNotifs(supabase: Client, userId: string): Promise<
 // Surfaces staff accounts that haven't logged in for 3+ months so admins
 // can manually offboard leavers without relying on memory. Only visible to
 // admin / super_admin — not shown to ministry leaders or regular staff.
-const PROVIDERS = [bookingNotifs, bookingDecisionNotifs, staffApprovalNotifs, newStaffOnboardedNotifs, vehicleRequestNotifs, recordsMatchNotifs, insuranceExpiryNotifs];
+const PROVIDERS = [bookingNotifs, bookingDecisionNotifs, staffApprovalNotifs, newStaffOnboardedNotifs, vehicleRequestNotifs, recordsMatchNotifs, insuranceExpiryNotifs, practiceNotifs];
 
 // ── Public API ─────────────────────────────────────────────
 

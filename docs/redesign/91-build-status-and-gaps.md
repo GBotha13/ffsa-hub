@@ -215,6 +215,29 @@ vehicle forms (`inspection-form`, `vehicle-booking-form`, `agreement-form`,
 
 Grep both forms: `grep -rn '\brounded\b' src/app/\(admin\)/<module>`.
 
+## Prayer room PRACTICE — handoff 17, frames 36a–36e (branch `redesign/prayer-practice`, 2026-10-01)
+
+**Migration 224 — NOT applied yet.** Until it is, the practice API errors and the wall
+simply draws no lane (the PRACTICE tab shows "Loading practice…").
+
+| Piece | Where |
+|---|---|
+| Tables | `practice_settings` (singleton), `practice_stations` (7, `seat_type_id` → `prayer_room_seat_types`), `practice_bookings`, `practice_booking_people`, `practice_moves` |
+| Clash rules | three EXCLUDE constraints on `practice_bookings.slot`: station/station, band/band, band/station (`kind WITH <>`) |
+| Window / 30-min step / 60 max / Sunday opening / not in the past | trigger `practice_validate_booking` |
+| Vocals ≤ 4, nobody in two places at once | trigger `practice_validate_person` |
+| Writes | RPCs `practice_book_station`, `practice_book_band`, `practice_cancel`, `practice_move_plan`, `practice_move_and_book_band` (staff + reason, checked again in the route) |
+| Routes | `/api/prayer-room/practice` (GET week), `…/practice/bookings` (POST), `…/bookings/[id]` (DELETE), `…/practice/move` (GET plan, POST move) |
+| UI | PRACTICE tab (`practice-view.tsx`: 36a desktop, 36e phone), drawers (`practice-drawers.tsx`: 36b/36c/36d), compact lane on the main wall (`wall.tsx`) |
+| Telling people | dashboard feed provider `practiceNotifs` — band members and moved people. **In-app only**; no email or Slack DM yet |
+| NIGHT | moved to 17:30–20:00 by 224 (template rows + any generated future sets), fixtures and CLAUDE.md updated |
+
+Practice is **not coverage**: nothing writes `prayer_room_sets`, so no count of sets,
+seats or minutes can include it. Not built: 36e's bottom bar (WEEK · PRACTICE · MINE ·
+PEOPLE) — the module tab strip already carries PRACTICE on phones.
+
+---
+
 ## Not built — the real backlog
 
 ### Prayer room — UI
@@ -341,7 +364,8 @@ at all, because every real week has zero bands until someone creates them.
 
 **Still to do, and it needs a human:** the three bands do not exist in
 production. Their real times are FFSA's call, not the design file's
-(08:00–09:30 / 12:00–14:00 / 17:00–19:00 are the frame's illustration). Staff
+(08:00–09:30 / 12:00–14:00 / 17:00–19:00 were the frame's illustration; NIGHT
+was moved to 17:30–20:00 by migration 224 to make room for practice). Staff
 create them from the Evaluators tab.
 
 #### Integrating the three gaps — what each actually needs
@@ -478,7 +502,7 @@ Contacts and users are the highest-traffic of these.
 `main` and feature branches have collided twice (116, then 164 + 167). Two files
 here were **applied as 164/167 but are named 174/175**; their headers say so.
 
-**Next new migration: 180.** 176/177/178 are pre-assigned to sessions 2/5/6 by
+**Next new migration: 225** (224 = prayer practice). Older note: **Next new migration: 180.** 176/177/178 are pre-assigned to sessions 2/5/6 by
 `93-session-prompts.md`; **179** (grades → billing_courses) is APPLIED. Always
 branch off `origin/main` and check `ls supabase/migrations | sort | tail` first.
 

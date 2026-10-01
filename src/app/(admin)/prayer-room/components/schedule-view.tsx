@@ -15,6 +15,8 @@ import SetDetail from "./set-detail";
 import MemberPicker from "./member-picker";
 import { ScheduleCalendar, type CalendarSet, type CalendarBlockout } from "./calendar";
 import Wall, { needsALead, type WallSet, type SeatType, type Band } from "./wall";
+import { usePracticeWeek } from "./practice-view";
+import PracticeDrawers, { type PracticeTarget } from "./practice-drawers";
 import { WEEKDAY_OPTIONS, weeklyOccurrenceDates } from "@/lib/bookings/recurrence";
 import {
   todayISO,
@@ -85,6 +87,11 @@ export default function ScheduleView({ userId, isStaff, isMember, inCatalogue, t
   const [bands, setBands] = useState<Band[]>([]);
 
   const { from, to } = rangeFor(view, anchor);
+
+  // The wall's PRACTICE lane (36a). Same week as the wall; null until migration
+  // 224 is applied, and the wall then draws no lane.
+  const practice = usePracticeWeek(anchor);
+  const [practiceTarget, setPracticeTarget] = useState<PracticeTarget>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -282,6 +289,15 @@ export default function ScheduleView({ userId, isStaff, isMember, inCatalogue, t
             blockouts={blockouts}
             onOpenSet={setSelectedId}
             selectedId={selectedId}
+            practice={
+              practice.week
+                ? {
+                    week: practice.week,
+                    userId,
+                    onOpen: (date, start) => setPracticeTarget({ kind: "row", date, start }),
+                  }
+                : null
+            }
           />
         ) : (
           <ScheduleCalendar
@@ -309,6 +325,14 @@ export default function ScheduleView({ userId, isStaff, isMember, inCatalogue, t
         bandName={bandName}
         onPrev={atIndex > 0 ? () => stepSet(-1) : undefined}
         onNext={atIndex >= 0 && atIndex < ordered.length - 1 ? () => stepSet(1) : undefined}
+      />
+
+      <PracticeDrawers
+        week={practice.week}
+        target={practiceTarget}
+        setTarget={setPracticeTarget}
+        userId={userId}
+        onChanged={practice.reload}
       />
 
       <CreateSetDialog

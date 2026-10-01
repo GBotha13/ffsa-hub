@@ -12,6 +12,7 @@ import {
   Car,
   Check,
   ShieldAlert,
+  Music,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
@@ -23,6 +24,7 @@ const ICONS: Record<string, LucideIcon> = {
   records: Archive,
   vehicle: Car,
   insurance: ShieldAlert,
+  practice: Music,
 };
 
 const ACCENTS: Record<string, string> = {
@@ -31,6 +33,7 @@ const ACCENTS: Record<string, string> = {
   records: "hsl(265 60% 68%)",
   vehicle: "hsl(150 55% 58%)",
   insurance: "hsl(4 75% 62%)",
+  practice: "hsl(43 100% 50%)",
 };
 
 // Leaders get insurance-expiry notices "on behalf of" their people. The feed
