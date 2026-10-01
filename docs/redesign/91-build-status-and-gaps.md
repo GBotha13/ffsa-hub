@@ -217,7 +217,7 @@ Grep both forms: `grep -rn '\brounded\b' src/app/\(admin\)/<module>`.
 
 ## Prayer room PRACTICE — handoff 17, frames 36a–36e (branch `redesign/prayer-practice`, 2026-10-01)
 
-**Migration 224 — NOT applied yet.** Until it is, the practice API errors and the wall
+**Migration 224 — APPLIED 2026-10-01.** 225 (view security, below) pending. Before 224 the practice API errored and the wall
 simply draws no lane (the PRACTICE tab shows "Loading practice…").
 
 | Piece | Where |
@@ -502,7 +502,7 @@ Contacts and users are the highest-traffic of these.
 `main` and feature branches have collided twice (116, then 164 + 167). Two files
 here were **applied as 164/167 but are named 174/175**; their headers say so.
 
-**Next new migration: 225** (224 = prayer practice). Older note: **Next new migration: 180.** 176/177/178 are pre-assigned to sessions 2/5/6 by
+**Next new migration: 226** (224 = prayer practice, 225 = prayer view security). Older note: **Next new migration: 180.** 176/177/178 are pre-assigned to sessions 2/5/6 by
 `93-session-prompts.md`; **179** (grades → billing_courses) is APPLIED. Always
 branch off `origin/main` and check `ls supabase/migrations | sort | tail` first.
 
