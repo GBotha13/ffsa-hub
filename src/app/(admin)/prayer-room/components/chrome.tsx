@@ -11,7 +11,7 @@
 
 import { Masthead, ModuleTabs } from "@/components/ffsa";
 
-export type TabKey = "week" | "day" | "people" | "evaluators" | "mine" | "join" | "manage";
+export type TabKey = "week" | "day" | "practice" | "people" | "evaluators" | "mine" | "join" | "manage";
 
 export type TabDef = { key: TabKey; label: string; mark?: boolean };
 

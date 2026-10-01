@@ -20,6 +20,7 @@ import ApplyForm from "./components/apply-form";
 import People from "./components/people";
 import EvaluatorsPortal from "./components/evaluators";
 import AdminPanel from "./components/admin-panel";
+import PracticeView from "./components/practice-view";
 import PrayerRoomChrome, { type TabDef, type TabKey } from "./components/chrome";
 
 interface Props {
@@ -32,6 +33,8 @@ interface Props {
   isEvaluator: boolean;
   canViewDirectory: boolean;
   pendingCount: number;
+  /** ?tab= on the URL — the practice notifications link straight to PRACTICE. */
+  initialTab?: TabKey;
 }
 
 export default function PrayerRoomClient({
@@ -43,8 +46,9 @@ export default function PrayerRoomClient({
   isEvaluator,
   canViewDirectory,
   pendingCount,
+  initialTab,
 }: Props) {
-  const [tab, setTab] = useState<TabKey>("week");
+  const [tab, setTab] = useState<TabKey>(initialTab ?? "week");
 
   const showPeople = isMember || isStaff || canViewDirectory;
   const showEvaluators = isEvaluator || isStaff;
@@ -52,6 +56,9 @@ export default function PrayerRoomClient({
   const tabs: TabDef[] = [
     { key: "week", label: "Week" },
     { key: "day", label: "Day" },
+    // Everyone sees the practice wall — names are on it for everyone. Who can
+    // BOOK is the database's call (migration 224).
+    { key: "practice", label: "Practice" },
     ...(showPeople ? [{ key: "people" as const, label: "People" }] : []),
     // The yellow mark is 12a's tell that this tab is not everyone's.
     ...(showEvaluators ? [{ key: "evaluators" as const, label: "Evaluators", mark: true }] : []),
@@ -77,6 +84,8 @@ export default function PrayerRoomClient({
           onTabChange={setTab}
         />
       )}
+
+      {tab === "practice" && <PracticeView userId={userId} tabs={tabs} active={tab} onTabChange={setTab} />}
 
       {tab === "people" && showPeople && (
         <People {...shared} isEvaluator={isEvaluator} isStaff={isStaff} myName={userName} />

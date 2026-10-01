@@ -35,6 +35,15 @@ import {
   type CalendarBlockout,
   type CalendarSet,
 } from "./calendar";
+import {
+  PLAIN_BUTTON,
+  bookingNames,
+  isClosedDay,
+  practiceRows,
+  rowState,
+  toMin as practiceMin,
+  type PracticeWeek,
+} from "@/lib/prayer-room/practice";
 
 /** A seat's identity, enough to know whether it is a lead seat. */
 export type SeatType = { id: string; label: string; is_lead: boolean };
@@ -161,6 +170,7 @@ export default function Wall({
   blockouts = [],
   onOpenSet,
   selectedId,
+  practice,
 }: {
   anchorISO: string;
   sets: WallSet[];
@@ -171,6 +181,18 @@ export default function Wall({
   onOpenSet?: (id: string) => void;
   /** The block the drawer is open on — 9a keeps it highlighted behind the panel. */
   selectedId?: string | null;
+  /**
+   * Frame 36a's PRACTICE lane: a bone lane in the gutter between the ordinary
+   * sets and NIGHT, a row of station squares per 30 minutes. Omitted when the
+   * practice tables aren't there yet. Practice is not a set and is not
+   * coverage — it is drawn here and counted nowhere.
+   */
+  practice?: {
+    week: PracticeWeek;
+    userId: string;
+    /** Optional so the dev-only fixture page (a server component) can draw it. */
+    onOpen?: (date: string, start: number) => void;
+  } | null;
 }) {
   const leadSeatIds = useMemo(
     () =>
@@ -282,6 +304,7 @@ export default function Wall({
               frames 8a and 9a draw. A small black caption is not the same
               thing: the block is how the three anchors read as structure
               rather than as another label on the axis. */}
+          {practice && <PracticeGutter week={practice.week} />}
           {bandRows.map((b) => (
             <div
               key={b.name}
@@ -431,6 +454,15 @@ export default function Wall({
                   block-out lands on a booked hour: which sets are affected. The
                   hatch is ink at low alpha, so a set underneath still reads —
                   and it never takes a click, so those sets stay openable. */}
+              {practice && (
+                <PracticeColumn
+                  week={practice.week}
+                  iso={d.iso}
+                  userId={practice.userId}
+                  onOpen={practice.onOpen}
+                />
+              )}
+
               {(blockoutsByDay.get(d.iso) ?? []).map((b) => {
                 const w = isAllDayBlockout(b) ? { start: DAY_START, end: DAY_END } : boWin(b);
                 const start = Math.max(w.start, DAY_START);
@@ -478,6 +510,7 @@ export default function Wall({
         <Key className="border-2 border-ink bg-yellow">Curated band</Key>
         <Key className="border border-dashed border-ink bg-[color:var(--surface-3)]">Needs a lead</Key>
         <Key className="border border-rule bg-white">Nothing booked</Key>
+        {practice && <Key className="border-y border-ink bg-bone">Practice · not a set</Key>}
         <Key className="border-2 border-ink" style={{ background: BLOCKOUT_HATCH }}>
           Blocked out
         </Key>
@@ -500,5 +533,153 @@ function Key({
       <span className={cn("inline-block h-3 w-5", className)} style={style} />
       <span className="mono-label">{children}</span>
     </span>
+  );
+}
+
+/* ── 36a · the practice lane, at the wall's own scale ─────────────
+   At 0.72px/min a 30-minute row is ~21px, so the wall carries the squares,
+   the open count and the names only as far as they fit; the PRACTICE tab
+   draws the same afternoon larger. */
+
+function laneBounds(week: PracticeWeek) {
+  return { start: practiceMin(week.settings.start_time), end: practiceMin(week.settings.end_time) };
+}
+
+function PracticeGutter({ week }: { week: PracticeWeek }) {
+  const lane = laneBounds(week);
+  return (
+    <div
+      className="absolute left-0 right-0 flex flex-col overflow-hidden whitespace-nowrap border-y border-ink bg-bone px-1.5 pt-1.5 md:px-2.5"
+      style={{ top: (lane.start - DAY_START) * PX_PER_MIN, height: (lane.end - lane.start) * PX_PER_MIN }}
+    >
+      <span
+        className="font-display font-black uppercase leading-[0.9] text-ink"
+        style={{ fontSize: bandNameSize("PRACTICE", 72, 15) }}
+      >
+        Practice
+      </span>
+      <span className="mt-0.5 font-mono text-[8px] font-bold tracking-[0.06em] text-[#55524A]">
+        {hhmm(lane.start)}–{hhmm(lane.end)}
+      </span>
+    </div>
+  );
+}
+
+function PracticeColumn({
+  week,
+  iso,
+  userId,
+  onOpen,
+}: {
+  week: PracticeWeek;
+  iso: string;
+  userId: string;
+  onOpen?: (date: string, start: number) => void;
+}) {
+  const lane = laneBounds(week);
+  const top = (m: number) => (m - DAY_START) * PX_PER_MIN;
+
+  if (isClosedDay(week.settings, iso)) {
+    // Empty on the wall means free, so a closed window is never left blank.
+    return (
+      <div
+        className="absolute left-0 right-0 z-10 flex items-center justify-center overflow-hidden border-y border-ink px-1"
+        style={{
+          top: top(lane.start),
+          height: (lane.end - lane.start) * PX_PER_MIN,
+          background: "repeating-linear-gradient(45deg,#E7E4D9 0 4px,#F8F7F2 4px 9px)",
+        }}
+        title={`${week.settings.closed_label} · no practice`}
+      >
+        <span className="truncate bg-[#F8F7F2] px-1 font-mono text-[7.5px] font-bold uppercase tracking-[0.1em] text-[#45423B]">
+          {week.settings.closed_label}, no practice
+        </span>
+      </div>
+    );
+  }
+
+  const rows = practiceRows(week.settings).map((r) => rowState(week.bookings, week.stations, iso, r.start, r.end));
+  const bands = week.bookings.filter((b) => b.kind === "band" && b.practice_date === iso);
+
+  return (
+    <>
+      <div
+        className="pointer-events-none absolute left-0 right-0 border-y border-ink bg-bone"
+        style={{ top: top(lane.start), height: (lane.end - lane.start) * PX_PER_MIN }}
+      />
+      {rows.map((r) => {
+        if (r.band) return null;
+        let mine = false;
+        const names = week.stations
+          .filter((s) => r.byStation.has(s.id))
+          .map((s) => {
+            const b = r.byStation.get(s.id)!;
+            if (b.booked_by === userId || b.people.some((p) => p.user_id === userId)) {
+              mine = true;
+              return "You";
+            }
+            return bookingNames(b);
+          });
+        return (
+          <button
+            key={r.start}
+            type="button"
+            onClick={() => onOpen?.(iso, r.start)}
+            title={`Practice ${hhmm(r.start)}–${hhmm(r.end)} · ${r.open} of ${week.stations.length} open${names.length ? ` · ${names.join(", ")}` : ""}`}
+            className={cn(
+              PLAIN_BUTTON,
+              "absolute left-0 right-0 z-10 mx-[1px] flex items-center gap-1 overflow-hidden bg-white px-1 text-left hover:border-ink",
+              mine ? "border-[1.5px] border-ink" : "border border-rule-strong"
+            )}
+            style={{ top: top(r.start) + 1.5, height: (r.end - r.start) * PX_PER_MIN - 3 }}
+          >
+            <span className="hidden font-mono text-[7.5px] font-bold text-ink md:inline">{hhmm(r.start)}</span>
+            <span className="flex shrink-0 gap-px">
+              {week.stations.map((s) => (
+                <span
+                  key={s.id}
+                  className={cn(
+                    "h-[6px] w-[5px] border md:w-[6px]",
+                    r.byStation.has(s.id) ? "border-ink bg-ink" : "border-[#B4B0A2] bg-white"
+                  )}
+                />
+              ))}
+            </span>
+            <span
+              className={cn(
+                "hidden min-w-0 truncate text-[8px] md:inline",
+                mine ? "font-bold text-ink" : "text-[#55524A]"
+              )}
+            >
+              {names.length ? names.join(" · ") : `${r.open} open`}
+            </span>
+          </button>
+        );
+      })}
+      {bands.map((b) => {
+        const a = practiceMin(b.start_time);
+        const e = practiceMin(b.end_time);
+        return (
+          <button
+            key={b.id}
+            type="button"
+            onClick={() => onOpen?.(iso, a)}
+            title={`Full band · ${b.band_name} · ${hhmm(a)}–${hhmm(e)}`}
+            className={cn(
+              PLAIN_BUTTON,
+              "absolute left-0 right-0 z-10 mx-[1px] flex items-center gap-1 overflow-hidden border-2 border-ink bg-white px-1 text-left"
+            )}
+            style={{ top: top(a) + 1.5, height: (e - a) * PX_PER_MIN - 3 }}
+          >
+            <span className="flex shrink-0 gap-px">
+              {week.stations.map((s) => (
+                <span key={s.id} className="h-[6px] w-[5px] border border-ink bg-ink md:w-[6px]" />
+              ))}
+            </span>
+            <span className="min-w-0 truncate text-[8.5px] font-bold uppercase text-ink">{b.band_name}</span>
+          </button>
+        );
+      })}
+    </>
   );
 }
