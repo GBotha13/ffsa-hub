@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getUsers } from "@/services/users";
 import { listMinistries, listActiveMinistryMemberships } from "@/services/ministries";
 import { listActiveEnrollmentSchools } from "@/services/schools";
+import { getAwaitingArrivalByUser } from "@/lib/schools/awaiting-arrival";
 import { strongestMinistryRole, type MinistryRole } from "@/lib/users/derive-title";
 import { getAuthSignIns } from "@/lib/users/auth-signins";
 import { getAccountFlags } from "@/lib/users/account-flags";
@@ -41,11 +42,15 @@ export default async function UsersPage() {
   // service-role client — this is a cross-user admin report, and the ministry /
   // enrollment RLS would otherwise hide rows for non-super-admin readers.
   const adminClientForTitles = createAdminClient();
-  const [{ data: ministryMemberships }, { data: enrollmentSchools }] =
-    await Promise.all([
-      listActiveMinistryMemberships(adminClientForTitles),
-      listActiveEnrollmentSchools(adminClientForTitles),
-    ]);
+  const [
+    { data: ministryMemberships },
+    { data: enrollmentSchools },
+    awaitingArrivalByUser,
+  ] = await Promise.all([
+    listActiveMinistryMemberships(adminClientForTitles),
+    listActiveEnrollmentSchools(adminClientForTitles),
+    getAwaitingArrivalByUser(adminClientForTitles),
+  ]);
 
   // user_id → strongest ministry role (point_leader > leader > member).
   const membershipsByUser = new Map<
@@ -200,6 +205,7 @@ export default async function UsersPage() {
         departmentLabels={departmentLabels}
         ministryRoleByUser={ministryRoleByUser}
         schoolByUser={schoolByUser}
+        awaitingArrivalByUser={awaitingArrivalByUser}
         isSuperAdmin={isSuperAdmin}
       />
       </div>
