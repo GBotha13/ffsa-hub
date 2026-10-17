@@ -21,6 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Masthead, KpiStrip, Kpi, StatusPill, type Tone } from "@/components/ffsa";
+import { PlanView } from "@/app/(admin)/finance/outreach/[teamId]/plan-view";
 
 const TEAM_TONE: Record<string, Tone> = {
   active: "good",
@@ -156,6 +157,18 @@ export default async function MyOutreachTeamPage({
         spentByCategory={spentByCategory}
         canEdit={canEditBudget}
       />
+
+      <section className="space-y-3">
+        <h2 className="font-medium">Day-by-day plan</h2>
+        <PlanView
+          lines={budgetLines ?? []}
+          teamSize={team.people_count}
+          tripStart={team.start_date}
+          tripEnd={team.end_date}
+          expenses={expenses ?? []}
+          categories={categories ?? []}
+        />
+      </section>
 
       {/* Recent Expenses */}
       <Card>
