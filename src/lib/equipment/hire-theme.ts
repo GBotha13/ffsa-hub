@@ -1,5 +1,5 @@
 // Equipment hire is dark (frames 44–47): one palette for the storefront and
-// the staff tools. Every /bookings/equipment page sits inside `.theme-hire`,
+// the staff tools. Every /bookings/equipment and /hire page sits inside `.theme-hire`,
 // which sets these as CSS variables so Tailwind classes can read them, e.g.
 // bg-[color:var(--hire-surface)]. The rest of the Hub stays light.
 
@@ -24,7 +24,7 @@ const P = {
 export const HIRE = P;
 
 const vars = Object.entries(P)
-  .map(([k, v]) => `--hire-${k.replace(/[A-Z0-9]/g, (c) => "-" + c.toLowerCase())}: ${v};`)
+  .map(([k, v]) => `--hire-${k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase())}: ${v};`)
   .join(" ");
 
 /**
@@ -47,20 +47,36 @@ export const HIRE_CSS = `
   font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--hire-muted);
 }
 .theme-hire .hire-mono { font-family: var(--font-mono-brand), 'Roboto Mono', monospace; }
+/* The Hub styles every <label> as a 9.5px mono caption and every <button>
+   in mono capitals, both with !important. Here labels are plain wrappers
+   (put type on what's inside them) and buttons take the page's font.
+   :where() keeps the button reset at element weight, so Tailwind classes
+   such as uppercase still win. */
+.theme-hire label {
+  font-family: inherit !important; font-size: inherit !important; font-weight: inherit !important;
+  letter-spacing: inherit !important; text-transform: inherit !important; color: inherit !important;
+}
+:where(.theme-hire) button { text-transform: none; letter-spacing: normal; }
+.theme-hire button { font-family: inherit !important; }
+.theme-hire button:not(.font-bold) { font-weight: inherit !important; }
 .theme-hire input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
 .theme-hire textarea,
 .theme-hire select {
   background: var(--hire-surface2) !important;
   color: var(--hire-ink) !important;
   border-color: var(--hire-line-strong) !important;
+  border-radius: 8px !important;
+  font-size: 16px !important; /* 16px or iOS zooms the page on focus */
 }
 /* A field drawn inside its own box (the search bar): the box is the field. */
 .theme-hire input.hire-bare:not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
   background: transparent !important; border: 0 !important; padding: 0 !important;
-  font-size: inherit !important; height: 100%;
+  font-size: inherit !important; font-family: inherit !important; color: inherit !important;
+  line-height: inherit; border-radius: 0 !important; height: 100%;
 }
 .theme-hire input::placeholder, .theme-hire textarea::placeholder { color: var(--hire-muted) !important; }
 
+body:has(.theme-hire) { background: ${P.bg}; }
 body:has(.theme-hire) [data-shell-main] { background: ${P.bg} !important; }
 body:has(.theme-hire) [data-shell-topbar] { display: none !important; }
 body:has(.theme-hire) [data-shell-tabbar] { display: none !important; }
