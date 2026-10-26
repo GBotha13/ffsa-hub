@@ -11,7 +11,7 @@ type Params = { params: Promise<{ id: string }> };
 /**
  * A check-in is a log entry, not a field. Only its author or an admin may
  * amend or remove one — enforced by the RLS policies on okr_checkins
- * (migration 270), and asked up front here so a refusal is a clean 403.
+ * (migration 271), and asked up front here so a refusal is a clean 403.
  */
 export async function PATCH(request: Request, { params }: Params) {
   const supabase = await createClient();

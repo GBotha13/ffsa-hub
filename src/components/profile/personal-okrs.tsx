@@ -36,7 +36,7 @@ const STATUS_LABEL: Record<string, string> = {
 // real OKR system (migration 182): objectives only for now, no key-result /
 // metric authoring here yet. RLS on okr_objectives is the actual gate (self
 // owns their own; their ministry leader or an admin can manage too — not the
-// Leadership Team, since 270), so `canManage` here only decides which
+// Leadership Team, since 271), so `canManage` here only decides which
 // controls to render — a disallowed action still comes back as a clean 403.
 export function PersonalOkrs({
   targetUserId,

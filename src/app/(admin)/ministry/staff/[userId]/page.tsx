@@ -66,7 +66,7 @@ export default async function StaffCvPage({
   const { data: targetMinistries } = await listUserMinistries(admin, userId);
   // Not Leadership Team: they can read anyone's personal OKRs, but changing
   // them is the person's own, their ministry leader's, or an admin's call
-  // (can_create_okr / can_edit_okr_objective, migration 270).
+  // (can_create_okr / can_edit_okr_objective, migration 271).
   const canManageOkrs = Boolean(currentCycle) && (isAdmin || leadsMinistry);
 
   return (

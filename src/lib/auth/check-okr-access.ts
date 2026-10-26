@@ -6,7 +6,7 @@
 // a sentence a human can read, instead of a raw PostgREST constraint string.
 //
 // WHO MAY CHANGE AN OKR. Keep in step with can_edit_okr_objective() /
-// can_create_okr() (migration 182, narrowed by 270):
+// can_create_okr() (migration 182, narrowed by 271):
 //   - admin / super_admin, anywhere;
 //   - an active leader of the ministry the objective belongs to;
 //   - the owner of an individual objective.
@@ -161,7 +161,7 @@ export async function callerCanEditKeyResult(
 /**
  * May this caller amend or remove an existing check-in? A check-in is a log
  * entry, not a field: its author may correct their own, and an admin may
- * correct anyone's. Mirrors the okr_checkins UPDATE/DELETE policies (270).
+ * correct anyone's. Mirrors the okr_checkins UPDATE/DELETE policies (271).
  */
 export function canAmendCheckin(caller: Pick<OkrCaller, "userId" | "isAdmin">, authorId: string | null): boolean {
   return caller.isAdmin || (!!authorId && authorId === caller.userId);
