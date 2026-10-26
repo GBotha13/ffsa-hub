@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Outreach teams (migration 274): only outreach administrators — the
-// database's is_outreach_staff_editor(): Super Admin, General Admin,
-// finance_admin, or a finance.edit grant — create, archive, unarchive or
-// delete a team, and a delete only goes through when nothing is linked.
+// Outreach teams: anyone signed in may create one and becomes its owner
+// (migration 260). Only outreach administrators — the database's
+// is_outreach_staff_editor(): Super Admin, General Admin, finance_admin, or
+// a finance.edit grant — archive, unarchive or delete a team (migration
+// 274), and a delete only goes through when nothing is linked.
 //
 // The routes run against an in-memory stand-in for Supabase. `editors` says
 // who is_outreach_staff_editor() answers true for; every write and every
@@ -77,15 +78,24 @@ beforeEach(() => {
 });
 
 describe("creating an outreach team", () => {
-  it("refuses an ordinary staff member, writing nothing", async () => {
+  it("lets an ordinary signed-in member create one, as its creator", async () => {
+    // "pat" is not an outreach administrator.
     const res = await teams.POST(req("POST", { team_name: "Botswana" }));
-    expect(res.status).toBe(403);
-    expect(state.writes).toEqual([]);
+    expect(res.status).toBe(200);
+    expect(state.writes.map((w) => w.op)).toEqual(["outreach_teams.insert"]);
+    const payload = state.writes[0].payload as Record<string, unknown>;
+    expect(payload.created_by).toBe("pat");
+    expect(payload.program_id).toBeNull();
   });
 
   it("refuses someone signed out", async () => {
     state.callerId = null;
     expect((await teams.POST(req("POST", { team_name: "Botswana" }))).status).toBe(401);
+    expect(state.writes).toEqual([]);
+  });
+
+  it("still needs a team name", async () => {
+    expect((await teams.POST(req("POST", { location: "Gaborone" }))).status).toBe(400);
     expect(state.writes).toEqual([]);
   });
 
@@ -97,13 +107,13 @@ describe("creating an outreach team", () => {
   });
 
   it("ignores fields a create may not set, like archived_at", async () => {
-    state.callerId = "ga";
+    // A non-admin can't create a team that arrives already archived.
     await teams.POST(
       req("POST", { team_name: "Botswana", archived_at: "2026-01-01", created_by: "someone-else" })
     );
     const payload = state.writes[0].payload as Record<string, unknown>;
     expect(payload.archived_at).toBeUndefined();
-    expect(payload.created_by).toBe("ga");
+    expect(payload.created_by).toBe("pat");
     expect(payload.team_name).toBe("Botswana");
   });
 });
@@ -118,8 +128,8 @@ describe("updating a team never archives it", () => {
 });
 
 describe("archiving and unarchiving", () => {
-  it("refuses an ordinary staff member", async () => {
-    const res = await archive.POST(req("POST", { id: "t1", archived: true }));
+  it.each([true, false])("refuses an ordinary staff member archived=%s", async (archived) => {
+    const res = await archive.POST(req("POST", { id: "t1", archived }));
     expect(res.status).toBe(403);
     expect(state.writes).toEqual([]);
   });

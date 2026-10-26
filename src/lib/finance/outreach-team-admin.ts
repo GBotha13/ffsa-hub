@@ -1,11 +1,12 @@
 /**
  * Archiving and deleting outreach teams (migration 274).
  *
- * Who may create, archive, unarchive or delete a team is decided in the
- * database by public.is_outreach_staff_editor() (migration 260): Super Admin,
- * General Admin, the finance_admin role, or a finance.edit grant — the same
- * people who already edit every team. The app asks that function rather than
- * re-deriving the rule, so UI, API and RLS can't drift apart.
+ * Who may archive, unarchive or delete a team is decided in the database by
+ * public.is_outreach_staff_editor() (migration 260): Super Admin, General
+ * Admin, the finance_admin role, or a finance.edit grant — the same people
+ * who already edit every team. The app asks that function rather than
+ * re-deriving the rule, so UI, API and RLS can't drift apart. Creating a team
+ * stays open to anyone signed in (migration 260).
  *
  * A team may only be deleted when nothing would be lost: every linked table
  * cascades on delete, so a team with money records or people on it is

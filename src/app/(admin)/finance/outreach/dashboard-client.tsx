@@ -141,7 +141,7 @@ export function OutreachDashboardClient({
   unmatched: { count: number; rows: UnmatchedPayment[] };
   /** Finance staff see every team; everyone else only the outreaches they lead. */
   isStaff: boolean;
-  /** Outreach administrators: create, archive, unarchive and delete teams. */
+  /** Outreach administrators: archive, unarchive and delete teams. */
   canManage: boolean;
   /** Only loaded for outreach administrators. */
   archivedTeams: ArchivedTeam[];
@@ -271,7 +271,7 @@ export function OutreachDashboardClient({
       <Masthead
         context="Outreach finance"
         title={isStaff ? "Organisation Dashboard" : "Your outreaches"}
-        actions={canManage ? <CreateTeamForm programs={programs ?? []} /> : undefined}
+        actions={<CreateTeamForm programs={programs ?? []} />}
       />
 
       {isStaff && pendingCloseouts > 0 && (
@@ -370,11 +370,9 @@ export function OutreachDashboardClient({
           />
           {filteredTeams.length === 0 ? (
             <p className="px-6 py-10 text-center text-[13px] text-[color:var(--text-tertiary)]">
-              {canManage
+              {isStaff
                 ? "No outreach teams match your filters. Create your first team to get started."
-                : isStaff
-                  ? "No outreach teams match your filters."
-                  : "No outreaches yet. An admin or finance staff member sets a team up and makes its leader the owner."}
+                : "No outreaches yet. Start one with New Team: you'll be its owner and can invite co-leaders to run the budget with you."}
             </p>
           ) : (
             <div className="overflow-x-auto">

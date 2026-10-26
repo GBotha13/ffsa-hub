@@ -25,15 +25,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  // Outreach administrators only (migration 274; RLS enforces the same).
-  // The creator still becomes the team's owner (migration 260).
-  if (!(await canManageOutreachTeams(supabase))) {
-    return NextResponse.json(
-      { error: "Only admins and finance staff can create outreach teams" },
-      { status: 403 }
-    );
-  }
-
   const body = await request.json();
   const { team_name } = body;
 
@@ -41,11 +32,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "team_name is required" }, { status: 400 });
   }
 
+  // Only the team's own columns: a new team can't arrive already archived.
   const fields: Record<string, unknown> = {};
   for (const key of CREATE_TEAM_FIELDS) {
     if (body[key] !== undefined) fields[key] = body[key];
   }
 
+  // Anyone may start an outreach; they become its owner (migration 260).
   // A school is optional.
   const { data, error } = await createOutreachTeam(supabase, {
     ...(fields as { team_name: string }),

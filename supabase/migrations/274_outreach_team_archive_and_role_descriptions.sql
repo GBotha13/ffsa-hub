@@ -1,6 +1,6 @@
 -- ============================================================
 -- FFSA Hub — Migration 274: archive / delete outreach teams,
--- admins-only team creation, and fill in empty role descriptions
+-- and fill in empty role descriptions
 -- ============================================================
 -- Safe to run twice: every statement is IF NOT EXISTS / OR REPLACE /
 -- DROP ... IF EXISTS, and the description updates only touch rows
@@ -13,10 +13,9 @@
 --    General Admin, the finance_admin role, or a finance.edit grant. The
 --    same people already edit every team and approve closeouts.
 --
---    * Creating a team: was "anyone signed in" (migration 260). Now
---      outreach administrators only, as it was before 260. Teams that
---      already exist keep their owners and co-leaders; nothing about
---      running a team changes.
+--    * Creating a team: unchanged. Anyone signed in may still start one
+--      and becomes its owner (migration 260); this migration does not
+--      touch the "Create outreach teams" INSERT policy.
 --    * Archiving: outreach administrators set archived_at. Archived teams
 --      drop out of the normal lists (the Hub dashboard, a member's
 --      "my outreaches", the Slack pickers) but keep every record, and an
@@ -54,19 +53,7 @@ CREATE INDEX IF NOT EXISTS idx_outreach_teams_archived
 
 
 -- ────────────────────────────────────────────────────────────
--- 1b. Only outreach administrators create teams
--- ────────────────────────────────────────────────────────────
-DROP POLICY IF EXISTS "Create outreach teams" ON public.outreach_teams;
-CREATE POLICY "Create outreach teams" ON public.outreach_teams FOR INSERT
-  WITH CHECK (
-    auth.uid() IS NOT NULL
-    AND created_by = auth.uid()
-    AND public.is_outreach_staff_editor()
-  );
-
-
--- ────────────────────────────────────────────────────────────
--- 1c. Only outreach administrators archive / unarchive
+-- 1b. Only outreach administrators archive / unarchive
 -- ────────────────────────────────────────────────────────────
 -- Leaders may update their own team row (migration 260), so the column
 -- guard has to live in a trigger. A NULL auth.uid() is the service role
@@ -123,7 +110,7 @@ GRANT EXECUTE ON FUNCTION public.set_outreach_team_archived(uuid, boolean) TO au
 
 
 -- ────────────────────────────────────────────────────────────
--- 1d. Delete only when nothing would be lost
+-- 1c. Delete only when nothing would be lost
 -- ────────────────────────────────────────────────────────────
 -- What a delete would take with it: { table_name: row_count } for every
 -- non-empty linked table, plus "people" for anyone on the roster besides
@@ -203,7 +190,7 @@ GRANT EXECUTE ON FUNCTION public.delete_outreach_team(uuid) TO authenticated;
 
 
 -- ────────────────────────────────────────────────────────────
--- 1e. A member's own list leaves archived teams out
+-- 1d. A member's own list leaves archived teams out
 -- ────────────────────────────────────────────────────────────
 -- Same as migration 260, plus the archived_at filter.
 CREATE OR REPLACE FUNCTION public.my_outreach_teams()
