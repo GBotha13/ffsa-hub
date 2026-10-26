@@ -26,6 +26,7 @@ import {
   SYSTEM_MODULES,
   PORTAL_TABS,
   getAccessibleModules,
+  getVisiblePortalTabs,
 } from "@/config/modules";
 
 type AreaId = "operations" | "personal" | "system";
@@ -228,7 +229,7 @@ export function AdminSidebar({ userRoles, permittedModules, menuLoadFailed, init
   const modules =
     area === "operations" ? visibleModules
     : area === "system" ? visibleSystem
-    : PORTAL_TABS.map((t) => ({ ...t, icon: t.icon }));
+    : getVisiblePortalTabs().map((t) => ({ ...t, icon: t.icon }));
 
   return (
     <>

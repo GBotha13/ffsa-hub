@@ -292,8 +292,27 @@ export const ROLE_ONLY_MODULES: Record<string, string> = {
 };
 
 /**
+ * Pages that are still only a "Not built yet" placeholder. They stay
+ * out of every menu for every role (admins included) so nobody lands on an
+ * empty page; a direct visit redirects to the dashboard. The pages and their
+ * permissions are kept — delete an id here once its page is real.
+ */
+export const HIDDEN_FROM_NAV = new Set(["teams", "mission", "evangelism", "my-mission"]);
+
+/** True for a placeholder page that should not be reachable yet. */
+export function isHiddenFromNav(id: string): boolean {
+  return HIDDEN_FROM_NAV.has(id);
+}
+
+/** The personal tabs shown in navigation (placeholders left out). */
+export function getVisiblePortalTabs(tabs: PortalTab[] = PORTAL_TABS): PortalTab[] {
+  return tabs.filter((t) => !HIDDEN_FROM_NAV.has(t.id));
+}
+
+/**
  * Returns modules the user can access.
  *
+ * HIDDEN_FROM_NAV placeholders are never returned. Otherwise:
  * super_admin sees everything. `admin` sees everything except the modules in
  * SUPER_ADMIN_ONLY_MODULES, which fall through to the permission check.
  * Everyone else sees only modules they have at least one permission for
@@ -308,6 +327,8 @@ export function getAccessibleModules(
   const isAdmin = isSuperAdmin || userRoles.includes("admin");
 
   return modules.filter((mod) => {
+    // Unbuilt placeholders are hidden from everyone, super_admin included.
+    if (HIDDEN_FROM_NAV.has(mod.id)) return false;
     const onlyRole = ROLE_ONLY_MODULES[mod.id];
     if (onlyRole) return userRoles.includes(onlyRole);
     // Always open (dashboard, prayer room)
