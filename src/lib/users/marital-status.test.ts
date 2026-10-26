@@ -34,8 +34,8 @@ describe("familyQuestionsFor", () => {
     expect(familyQuestionsFor("married")).toEqual({ spouse: true, children: true });
   });
 
-  it("never asks a single person about a spouse or children", () => {
-    expect(familyQuestionsFor("single")).toEqual({ spouse: false, children: false });
+  it("asks a single person about children but never a spouse (single parents)", () => {
+    expect(familyQuestionsFor("single")).toEqual({ spouse: false, children: true });
   });
 
   it("asks divorced and widowed people about children only", () => {
@@ -54,7 +54,7 @@ describe("addableRelationships", () => {
     expect(addableRelationships("married")).toEqual(["spouse", "child"]);
     expect(addableRelationships("divorced")).toEqual(["child"]);
     expect(addableRelationships("widowed")).toEqual(["child"]);
-    expect(addableRelationships("single")).toEqual([]);
+    expect(addableRelationships("single")).toEqual(["child"]);
   });
 });
 
@@ -82,7 +82,7 @@ describe("canHaveSpouse / householdRelationshipError (server rule)", () => {
     expect(householdRelationshipError("spouse", "married")).toBeNull();
   });
 
-  it("always accepts children and dependents, so a single parent can add them", () => {
+  it("always accepts children and dependents, including for a single parent", () => {
     for (const status of ["single", "married", "divorced", "widowed", null]) {
       expect(householdRelationshipError("child", status)).toBeNull();
       expect(householdRelationshipError("dependent", status)).toBeNull();
@@ -95,12 +95,9 @@ describe("canHaveSpouse / householdRelationshipError (server rule)", () => {
 });
 
 describe("familyGatePlan (staff family gate)", () => {
-  it("skips the gate for a single person who hasn't been asked", () => {
-    expect(familyGatePlan("single", null)).toEqual({ askSpouse: false, askChildren: false });
-    expect(familyGatePlan("single", false)).toEqual({ askSpouse: false, askChildren: false });
-  });
-
-  it("keeps the children requirement for someone single who already said yes", () => {
+  it("asks a single person about children, never a spouse", () => {
+    expect(familyGatePlan("single", null)).toEqual({ askSpouse: false, askChildren: true });
+    expect(familyGatePlan("single", false)).toEqual({ askSpouse: false, askChildren: true });
     expect(familyGatePlan("single", true)).toEqual({ askSpouse: false, askChildren: true });
   });
 

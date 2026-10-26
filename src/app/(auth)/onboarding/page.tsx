@@ -449,7 +449,8 @@ export default function OnboardingPage() {
   const hideProvince =
     signupType === "staff" || signupType === "student" || signupType === "community";
   // Marital status drives the Family step: married → spouse + children,
-  // divorced / widowed → children only, single → no Family step at all.
+  // single / divorced / widowed → children only. (skipFamily only applies
+  // if a status ever asks neither.)
   const familyQs = familyQuestionsFor(form.marital_status);
   const familyRelationships = addableRelationships(form.marital_status);
   const skipFamily = !familyQs.spouse && !familyQs.children;

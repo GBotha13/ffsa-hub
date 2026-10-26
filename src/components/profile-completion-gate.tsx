@@ -199,9 +199,8 @@ export async function ProfileCompletionGate({
     const members = (householdRows ?? []) as Array<Record<string, unknown>>;
     const unanswered = hasChildren == null;
     const childrenBlock = getChildrenBlock(hasChildren, members);
-    // Marital status decides what's asked: nothing for someone single
-    // (unless they've already said they have children), no spouse steps
-    // for divorced / widowed.
+    // Marital status decides what's asked: children for everyone, the
+    // spouse steps only for married (or no status on record).
     const plan = familyGatePlan(row.marital_status, hasChildren);
     if (plan.askChildren && (unanswered || childrenBlock)) {
       return (

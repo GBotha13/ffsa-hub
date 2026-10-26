@@ -5,13 +5,11 @@
 // profile household editor and the household API, so the screens and the
 // server can never disagree about who is asked what.
 //
-//   married            → spouse + children
-//   divorced / widowed → children only (there is no current spouse, but
-//                        they may well have children)
-//   single             → neither. Nobody is asked about a spouse or
-//                        children; a single parent can still add a child
-//                        from their profile later.
-//   blank / unknown    → both. Legacy rows predate the rule (and the
+//   married                     → spouse + children
+//   single / divorced / widowed → children only (there is no current
+//                                 spouse, but single parents exist, so
+//                                 everyone is asked about children)
+//   blank / unknown             → both. Legacy rows predate the rule (and the
 //                        profile gate collects marital status before the
 //                        family gate runs), so keep the old behaviour
 //                        rather than silently hide family records.
@@ -40,11 +38,10 @@ export function familyQuestionsFor(status: unknown): FamilyQuestions {
   switch (normalizeMaritalStatus(status)) {
     case "married":
       return { spouse: true, children: true };
+    case "single":
     case "divorced":
     case "widowed":
       return { spouse: false, children: true };
-    case "single":
-      return { spouse: false, children: false };
     default:
       return { spouse: true, children: true };
   }
@@ -64,8 +61,8 @@ export function addableRelationships(status: unknown): string[] {
 
 // Server-side check for a household write. Returns a human error message
 // when the relationship doesn't fit the person's marital status, or null.
-// Only a spouse is refused: children / dependents are always accepted, so a
-// single parent can still keep their child on record from their profile.
+// Only a spouse is refused: children / dependents are always accepted,
+// whatever the status.
 export function householdRelationshipError(
   relationship: unknown,
   maritalStatus: unknown
@@ -77,8 +74,9 @@ export function householdRelationshipError(
 }
 
 // What the staff family gate should ask. `hasChildren` is the household's
-// stored answer (null = never asked). Someone who already said "yes" keeps
-// the children requirement whatever their status — those records exist.
+// stored answer (null = never asked). Every listed status is asked about
+// children; the hasChildren check keeps that true even if a future status
+// isn't — someone who already said "yes" has records that exist.
 export function familyGatePlan(
   status: unknown,
   hasChildren: boolean | null

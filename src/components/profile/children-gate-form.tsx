@@ -26,8 +26,8 @@ import { isChildComplete, missingChildFields } from "@/lib/users/profile-fields"
 //
 // Marital status decides which questions are asked (familyGatePlan in
 // lib/users/marital-status): only a married person (or one with no status on
-// record) is asked about a spouse; the gate isn't shown at all to someone
-// single who hasn't already said they have children.
+// record) is asked about a spouse; single, divorced and widowed people go
+// straight to the children question.
 //
 // Spouse is optional and never blocks; the complete-child requirement only
 // applies when they actually have children. The children yes/no answer is the
@@ -49,7 +49,7 @@ export function ChildrenGateForm({
   hasChildren: boolean | null;
   members: HouseholdMember[];
   selfDefaults?: SelfDefaults;
-  // False for divorced / widowed people: skip straight to the children
+  // False for single / divorced / widowed people: skip straight to the children
   // question and never offer the spouse steps.
   askSpouse?: boolean;
 }) {

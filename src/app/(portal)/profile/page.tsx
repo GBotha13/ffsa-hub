@@ -342,8 +342,8 @@ export default async function ProfilePage({
               <div className="rounded-xl border p-4">
                 <HouseholdMembers
                   initialMembers={householdMembers}
-                  // No "+ Add spouse" unless married; children stay
-                  // available here so a single parent can still add them.
+                  // No "+ Add spouse" unless married; "+ Add child" is
+                  // offered for every status.
                   allowedRelationships={
                     canHaveSpouse(row.marital_status) ? ["spouse", "child"] : ["child"]
                   }
