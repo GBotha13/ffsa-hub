@@ -33,6 +33,7 @@ import { CalendarDays, Plus, Trash2, Users, Wallet, Receipt, Banknote, BarChart3
 import { Masthead, KpiStrip, NeedsYou, StatusPill } from "@/components/ffsa";
 import { MoneyKpi, barTone } from "../../money-kpi";
 import { CashInHand } from "../cash-in-hand";
+import { TeamAdminActions } from "../team-admin-actions";
 import { ExpensesTab } from "./expenses-tab";
 import { PayoutsTab } from "./payouts-tab";
 import { DashboardTab } from "./dashboard-tab";
@@ -66,6 +67,7 @@ type Team = {
   cash_alert_low_pct?: number | null;
   cash_alert_critical_pct?: number | null;
   cash_alert_user_id?: string | null;
+  archived_at?: string | null;
   programs: { id: string; name: string; code: string } | null;
 };
 
@@ -218,6 +220,7 @@ export function TeamDetail({
   closeout,
   receiptCounts = {},
   viewer,
+  deleteBlockers = [],
   alertRecipient,
   cashAllocations = [],
 }: {
@@ -234,6 +237,8 @@ export function TeamDetail({
   closeout: Closeout | null;
   receiptCounts?: Record<string, number>;
   viewer: Viewer;
+  /** What deleting would destroy ("12 expenses"); only used by staff editors. */
+  deleteBlockers?: string[];
   alertRecipient: (UserOption & { slack_user_id: string | null }) | null;
   cashAllocations?: AllocationRow[];
 }) {
@@ -272,9 +277,23 @@ export function TeamDetail({
           .join(" · ")}
         title={team.team_name}
         actions={
-          <StatusPill tone={statusTones[team.status] ?? "quiet"}>
-            {team.status}
-          </StatusPill>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {team.archived_at && <StatusPill tone="quiet">Archived</StatusPill>}
+            <StatusPill tone={statusTones[team.status] ?? "quiet"}>
+              {team.status}
+            </StatusPill>
+            {/* Outreach administrators only (migration 274). */}
+            {viewer.staffEditor && (
+              <TeamAdminActions
+                key={deleteBlockers.join("|")}
+                teamId={team.id}
+                teamName={team.team_name}
+                archived={!!team.archived_at}
+                deleteBlockers={deleteBlockers}
+                afterDelete="/finance/outreach"
+              />
+            )}
+          </div>
         }
       />
 

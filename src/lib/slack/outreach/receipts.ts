@@ -135,7 +135,11 @@ type TeamChoice = { id: string; name: string };
 async function loggableTeams(admin: Admin, hubUserId: string | null): Promise<TeamChoice[]> {
   if (!hubUserId) return [];
   if (await isFinanceStaff(admin, hubUserId)) {
-    const { data } = await admin.from("outreach_teams").select("id, team_name").order("team_name");
+    const { data } = await admin
+      .from("outreach_teams")
+      .select("id, team_name")
+      .is("archived_at", null) // archived teams leave the pickers (migration 274)
+      .order("team_name");
     return ((data ?? []) as { id: string; team_name: string }[]).map((t) => ({ id: t.id, name: t.team_name }));
   }
   const { data } = await admin
@@ -144,7 +148,8 @@ async function loggableTeams(admin: Admin, hubUserId: string | null): Promise<Te
     .eq("user_id", hubUserId)
     .in("role", EDITOR_ROLES)
     // Same teams the bot answers them about in a DM (resolveOutreachScope).
-    .eq("outreach_teams.slack_enabled", true);
+    .eq("outreach_teams.slack_enabled", true)
+    .is("outreach_teams.archived_at", null);
   return ((data ?? []) as { outreach_teams: { id: string; team_name: string } }[])
     .map((r) => ({ id: r.outreach_teams.id, name: r.outreach_teams.team_name }))
     .sort((a, b) => a.name.localeCompare(b.name));

@@ -17,7 +17,9 @@ import {
   getTeamCloseout,
   getTeamCashAllocations,
   OUTREACH_LEADER_ROLES,
+  getOutreachTeamDeleteBlockers,
 } from "@/services/outreach-finance";
+import { describeDeleteBlockers } from "@/lib/finance/outreach-team-admin";
 import { TeamDetail } from "./team-detail";
 
 export default async function OutreachTeamDetailPage({
@@ -70,6 +72,12 @@ export default async function OutreachTeamDetailPage({
   const people = staff || leader ? admin : supabase;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: staffEditor } = await (supabase as any).rpc("is_outreach_staff_editor");
+  // Outreach administrators get Archive / Delete; Delete needs to know what
+  // it would destroy (migration 274).
+  const { data: deleteBlockers } =
+    staffEditor === true
+      ? await getOutreachTeamDeleteBlockers(supabase, teamId)
+      : { data: null };
 
   const [
     { data: members },
@@ -143,6 +151,7 @@ export default async function OutreachTeamDetailPage({
       receiptCounts={receiptCounts}
       cashAllocations={cashAllocations ?? []}
       viewer={{ role: myRole, staffEditor: staffEditor === true }}
+      deleteBlockers={deleteBlockers ? describeDeleteBlockers(deleteBlockers) : ["linked records"]}
       // Generated types predate users.slack_user_id.
       alertRecipient={(alertRecipient ?? null) as Parameters<typeof TeamDetail>[0]["alertRecipient"]}
     />

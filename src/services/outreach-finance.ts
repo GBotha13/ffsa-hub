@@ -14,12 +14,17 @@ type Client = any;
 
 export async function getOutreachTeams(
   supabase: Client,
-  options?: { programId?: string; status?: string; search?: string }
+  options?: { programId?: string; status?: string; search?: string; archived?: boolean }
 ) {
   let query = supabase
     .from("outreach_teams")
     .select("*, programs(id, name, code)")
     .order("created_at", { ascending: false });
+
+  // Archived teams (migration 274) only appear when asked for.
+  query = options?.archived
+    ? query.not("archived_at", "is", null)
+    : query.is("archived_at", null);
 
   if (options?.programId) {
     query = query.eq("program_id", options.programId);
@@ -81,6 +86,28 @@ export async function updateOutreachTeam(
     .eq("id", teamId)
     .select()
     .single();
+}
+
+/** Archive or unarchive (migration 274). The RPC checks the caller may. */
+export async function setOutreachTeamArchived(
+  supabase: Client,
+  teamId: string,
+  archived: boolean
+) {
+  return supabase.rpc("set_outreach_team_archived", {
+    p_team: teamId,
+    p_archived: archived,
+  });
+}
+
+/** What deleting the team would take with it; {} when safe, null when not allowed. */
+export async function getOutreachTeamDeleteBlockers(supabase: Client, teamId: string) {
+  return supabase.rpc("outreach_team_delete_blockers", { p_team: teamId });
+}
+
+/** Delete a team with nothing linked to it. The RPC refuses anything else. */
+export async function deleteOutreachTeam(supabase: Client, teamId: string) {
+  return supabase.rpc("delete_outreach_team", { p_team: teamId });
 }
 
 // ────────────────────────────────────────────────────────────

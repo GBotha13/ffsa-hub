@@ -142,7 +142,8 @@ export async function resolveOutreachScope(
     .select("role, outreach_teams!inner(id, team_name, country, slack_enabled, status)")
     .eq("user_id", args.hubUserId)
     .in("role", OUTREACH_LEADER_ROLES)
-    .eq("outreach_teams.slack_enabled", true);
+    .eq("outreach_teams.slack_enabled", true)
+    .is("outreach_teams.archived_at", null); // migration 274
   const mine: OutreachTeamRef[] = ((rows ?? []) as { role: string; outreach_teams: TeamRow }[]).map(
     (r) => ({
       id: r.outreach_teams.id,
@@ -157,7 +158,10 @@ export async function resolveOutreachScope(
 
   let teams = mine;
   if (staff) {
-    const { data: all } = await admin.from("outreach_teams").select("id, team_name, country");
+    const { data: all } = await admin
+      .from("outreach_teams")
+      .select("id, team_name, country")
+      .is("archived_at", null);
     const mineIds = new Set(mine.map((t) => t.id));
     teams = [
       ...mine,

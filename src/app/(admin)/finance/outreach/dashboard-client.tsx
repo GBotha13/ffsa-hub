@@ -32,6 +32,7 @@ import { LEVEL_COLOUR } from "./cash-in-hand";
 import { MoneyKpi, barTone } from "../money-kpi";
 import { CreateTeamForm } from "./create-team-form";
 import { MovementsPanel } from "./movements-panel";
+import { TeamAdminActions } from "./team-admin-actions";
 import type {
   MoneyMovement,
   UnmatchedPayment,
@@ -51,6 +52,15 @@ type Team = {
   people_count: number;
   total_budget_zar: number;
   programs: { id: string; name: string; code: string };
+};
+
+type ArchivedTeam = {
+  id: string;
+  team_name: string;
+  archived_at: string;
+  program_code: string | null;
+  /** What a delete would destroy ("12 expenses"); empty = safe to delete. */
+  deleteBlockers: string[];
 };
 
 type Program = {
@@ -118,6 +128,8 @@ export function OutreachDashboardClient({
   movements,
   unmatched,
   isStaff,
+  canManage,
+  archivedTeams,
 }: {
   teams: Team[];
   programs: Program[];
@@ -129,11 +141,16 @@ export function OutreachDashboardClient({
   unmatched: { count: number; rows: UnmatchedPayment[] };
   /** Finance staff see every team; everyone else only the outreaches they lead. */
   isStaff: boolean;
+  /** Outreach administrators: create, archive, unarchive and delete teams. */
+  canManage: boolean;
+  /** Only loaded for outreach administrators. */
+  archivedTeams: ArchivedTeam[];
 }) {
   const router = useRouter();
   const [schoolFilter, setSchoolFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set());
+  const [showArchived, setShowArchived] = useState(false);
 
   // Filter teams
   const teamCash = (teamId: string) =>
@@ -254,7 +271,7 @@ export function OutreachDashboardClient({
       <Masthead
         context="Outreach finance"
         title={isStaff ? "Organisation Dashboard" : "Your outreaches"}
-        actions={<CreateTeamForm programs={programs ?? []} />}
+        actions={canManage ? <CreateTeamForm programs={programs ?? []} /> : undefined}
       />
 
       {isStaff && pendingCloseouts > 0 && (
@@ -353,9 +370,11 @@ export function OutreachDashboardClient({
           />
           {filteredTeams.length === 0 ? (
             <p className="px-6 py-10 text-center text-[13px] text-[color:var(--text-tertiary)]">
-              {isStaff
+              {canManage
                 ? "No outreach teams match your filters. Create your first team to get started."
-                : "No outreaches yet. Start one with New Team: you'll be its owner and can invite co-leaders to run the budget with you."}
+                : isStaff
+                  ? "No outreach teams match your filters."
+                  : "No outreaches yet. An admin or finance staff member sets a team up and makes its leader the owner."}
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -582,6 +601,63 @@ export function OutreachDashboardClient({
           formatCurrency={formatCurrency}
         />
         </div>
+
+        {/* Archived teams: out of the list above, kept for admins to restore
+            or (when nothing is linked) delete. */}
+        {canManage && archivedTeams.length > 0 && (
+          <div className="border border-rule">
+            <button
+              type="button"
+              onClick={() => setShowArchived((o) => !o)}
+              className="flex w-full items-center justify-between px-5 py-3 text-left"
+            >
+              <span className="mono-label">Archived teams · {archivedTeams.length}</span>
+              {showArchived ? (
+                <ChevronDown className="h-4 w-4 text-[color:var(--text-tertiary)]" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-[color:var(--text-tertiary)]" />
+              )}
+            </button>
+            {showArchived && (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Team</TableHead>
+                    <TableHead>Archived</TableHead>
+                    <TableHead className="w-[230px]" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {archivedTeams.map((t) => (
+                    <TableRow key={t.id}>
+                      <TableCell>
+                        <Link
+                          href={`/finance/outreach/${t.id}`}
+                          className="font-display text-[16px] font-black uppercase leading-none hover:text-electric"
+                        >
+                          {t.team_name}
+                        </Link>
+                        {t.program_code && <p className="mono-label mt-1">{t.program_code}</p>}
+                      </TableCell>
+                      <TableCell className="tabular font-mono text-[12.5px]">
+                        {new Date(t.archived_at).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>
+                        <TeamAdminActions
+                          key={t.deleteBlockers.join("|")}
+                          teamId={t.id}
+                          teamName={t.team_name}
+                          archived
+                          deleteBlockers={t.deleteBlockers}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
