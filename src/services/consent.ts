@@ -179,12 +179,26 @@ export async function getOutstandingConsents(
   const applicable = REQUIRED_CONSENTS.filter(
     (r) => r.audience === "all" || (r.audience === "staff" && isStaff)
   );
-  const outstanding: OutstandingConsent[] = [];
-  for (const { kind } of applicable) {
-    const { data: agreement } = await getCurrentConsentAgreement(supabase, kind);
-    if (!agreement) continue; // nothing published for this kind yet
-    const accepted = await hasAcceptedCurrent(supabase, userId, kind);
-    if (!accepted) outstanding.push({ kind, agreement });
-  }
-  return outstanding;
+  // Kinds are independent, so check them side by side; each reads its current
+  // agreement once and reuses it for the acceptance check. Same rules as
+  // hasAcceptedCurrent: nothing published, or a failed records read, counts
+  // as nothing outstanding (fail-open). Order follows REQUIRED_CONSENTS.
+  const checks = await Promise.all(
+    applicable.map(async ({ kind }): Promise<OutstandingConsent | null> => {
+      const { data: agreement, error: agErr } = await getCurrentConsentAgreement(
+        supabase,
+        kind
+      );
+      if (agErr || !agreement) return null; // nothing published for this kind yet
+      const { data, error } = await supabase
+        .from("consent_records")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("agreement_version", agreement.version)
+        .limit(1);
+      if (error) return null;
+      return (data?.length ?? 0) > 0 ? null : { kind, agreement };
+    })
+  );
+  return checks.filter((c): c is OutstandingConsent => c !== null);
 }

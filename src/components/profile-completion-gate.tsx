@@ -194,16 +194,26 @@ export async function ProfileCompletionGate({
   //     community members are never prompted. Spouse/dependent records don't
   //     count and never block.
   const isStaff = await userIsStaff(supabase, user.id, row);
+
+  // Everything below is a read, so fetch it together and then apply the gates
+  // in their usual order. The consent check is needed by everyone who gets
+  // past the children gate; the household reads only by staff.
+  const [outstanding, householdResult, householdMembersResult] = await Promise.all([
+    getOutstandingConsents(supabase, user.id, isStaff),
+    isStaff ? getHousehold(supabase, user.id) : null,
+    isStaff
+      ? getHouseholdMembers(supabase, user.id, { excludeLinkedUserId: user.id })
+      : null,
+  ]);
+
   if (isStaff) {
     // has_children lives on the HOUSEHOLD since migration 181, so a spouse
     // who linked to an existing household inherits the answer and is never
     // asked again.
-    const { data: household } = await getHousehold(supabase, user.id);
+    const household = householdResult?.data ?? null;
     const hasChildren = ((household as { has_children?: boolean | null } | null)
       ?.has_children ?? null) as boolean | null;
-    const { data: householdRows } = await getHouseholdMembers(supabase, user.id, {
-      excludeLinkedUserId: user.id,
-    });
+    const householdRows = householdMembersResult?.data ?? null;
     const members = (householdRows ?? []) as Array<Record<string, unknown>>;
     const unanswered = hasChildren == null;
     const childrenBlock = getChildrenBlock(hasChildren, members);
@@ -237,7 +247,7 @@ export async function ProfileCompletionGate({
   //    Everyone signs Privacy + Child Protection; staff also sign the NDA.
   //    Each is version-keyed, so a NEW policy (or a new version) re-prompts
   //    the right people automatically. Fail-open if nothing is outstanding.
-  const outstanding = await getOutstandingConsents(supabase, user.id, isStaff);
+  //    (`outstanding` was fetched above, alongside the household reads.)
   if (outstanding.length > 0) {
     return (
       <BlockingOverlay
