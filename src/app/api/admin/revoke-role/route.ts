@@ -8,6 +8,7 @@ import {
   callerCanManageRoles,
   SUPER_ADMIN_ONLY_ROLES,
 } from "@/lib/auth/check-role-grant";
+import { refuseSuperAdminTarget } from "@/lib/auth/super-admin-target";
 import { syncCalendarAccess } from "@/lib/google/calendar";
 
 export async function POST(request: Request) {
@@ -73,6 +74,15 @@ export async function POST(request: Request) {
   } else if (!isAdmin && !(await callerCanManageRoles(supabase, authUser.id))) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
+
+  // Nobody below a super admin re-titles or re-tiers a super admin.
+  const refused = await refuseSuperAdminTarget(
+    supabase,
+    authUser.id,
+    adminSupabase,
+    user_id
+  );
+  if (refused) return refused;
 
   // Delete the specific assignment (respecting scope)
   let del = adminSupabase

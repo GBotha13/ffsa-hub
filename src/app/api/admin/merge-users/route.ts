@@ -6,13 +6,15 @@
 // screen; "dryRun" performs the whole merge and rolls it back, which is what
 // actually proves it will work; "merge" commits.
 //
-// super_admin or admin (General Admin) — same as delete-user.
+// super_admin or admin (General Admin) — same as delete-user, and likewise
+// only a super admin may merge a super admin's account.
 // A merge touches billing, consent, roles and enrolments across every
 // subsystem at once and there is no unmerge.
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { refuseSuperAdminTarget } from "@/lib/auth/super-admin-target";
 import {
   previewUserMerge,
   dryRunMerge,
@@ -78,6 +80,17 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
+
+  // A merge retires the losing account and rewrites the winning one, so a
+  // super admin on either side makes it a super admin's call. Refused in
+  // preview too, so the UI says so before anyone reviews a merge.
+  const refused = await refuseSuperAdminTarget(
+    supabase,
+    authUser.id,
+    admin,
+    [winnerId, loserId]
+  );
+  if (refused) return refused;
 
   if (mode === "preview") {
     const { preview, error } = await previewUserMerge(admin, winnerId, loserId);

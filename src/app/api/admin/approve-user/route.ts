@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { refuseSuperAdminTarget } from "@/lib/auth/super-admin-target";
 import { approveUser } from "@/services/users";
 
 export async function POST(request: Request) {
@@ -30,6 +32,15 @@ export async function POST(request: Request) {
   if (!user_id) {
     return NextResponse.json({ error: "user_id is required" }, { status: 400 });
   }
+
+  // This also sets the job title, which on a super admin is theirs to change.
+  const refused = await refuseSuperAdminTarget(
+    supabase,
+    authUser.id,
+    createAdminClient(),
+    user_id
+  );
+  if (refused) return refused;
 
   const { data, error } = await approveUser(supabase, user_id, authUser.id, job_title);
 

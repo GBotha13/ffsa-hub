@@ -9,6 +9,7 @@ import {
   callerCanGrantPermissionKeys,
   SUPER_ADMIN_ONLY_ROLES,
 } from "@/lib/auth/check-role-grant";
+import { refuseSuperAdminTarget } from "@/lib/auth/super-admin-target";
 import { addUserToBaseCalendar } from "@/lib/google/calendar";
 
 export async function POST(request: Request) {
@@ -79,6 +80,15 @@ export async function POST(request: Request) {
       );
     }
   }
+
+  // Nobody below a super admin re-titles or re-tiers a super admin.
+  const refused = await refuseSuperAdminTarget(
+    supabase,
+    authUser.id,
+    adminSupabase,
+    user_id
+  );
+  if (refused) return refused;
 
   // Target user must exist
   const { data: targetUser } = await adminSupabase
