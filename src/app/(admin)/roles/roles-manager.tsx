@@ -26,6 +26,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import Link from "next/link";
+import { ConfirmAccessDialog } from "@/components/confirm-access-dialog";
 import type { Permission, PermissionsByModule } from "@/services/permissions";
 import type { RoleMember } from "@/services/roles";
 
@@ -142,6 +143,37 @@ export function RolesManager({
     return callerKeySet.has(p.key);
   }
 
+  // Editing an existing role changes access for everyone who holds it, and
+  // deleting one takes that access away — both wait on a confirmation.
+  const [confirmingSave, setConfirmingSave] = useState(false);
+  const [deleting, setDeleting] = useState<Role | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  function capabilityChanges(role: Role) {
+    const before = new Set(bundles[role.id] ?? []);
+    const label = (id: string) => {
+      const p = permById.get(id);
+      return p ? `${MODULE_LABELS[p.module] ?? p.module} · ${p.display_name}` : "Capability";
+    };
+    return {
+      added: Array.from(selected).filter((id) => !before.has(id)).map(label),
+      removed: Array.from(before).filter((id) => !selected.has(id)).map(label),
+    };
+  }
+
+  function requestSave() {
+    if (!displayName.trim()) {
+      toast.error("Give the role a name");
+      return;
+    }
+    // A new role isn't held by anyone yet, so creating it changes nobody's access.
+    if (editing === "new") {
+      void save();
+      return;
+    }
+    setConfirmingSave(true);
+  }
+
   async function save() {
     const name = displayName.trim();
     if (!name) {
@@ -150,41 +182,50 @@ export function RolesManager({
     }
     const isNew = editing === "new";
     const url = isNew ? "/api/admin/roles" : `/api/admin/roles/${(editing as Role).id}`;
-    const res = await fetch(url, {
-      method: isNew ? "POST" : "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        display_name: name,
-        description: description.trim() || null,
-        permission_ids: Array.from(selected),
-      }),
-    });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      toast.error(body.error ?? "Could not save the role");
-      return;
+    setBusy(true);
+    try {
+      const res = await fetch(url, {
+        method: isNew ? "POST" : "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          display_name: name,
+          description: description.trim() || null,
+          permission_ids: Array.from(selected),
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        toast.error(body.error ?? "Could not save the role");
+        return;
+      }
+      toast.success(isNew ? `Role “${name}” created` : `Role “${name}” updated`);
+      setEditing(null);
+      startTransition(() => router.refresh());
+    } catch {
+      toast.error("Could not save the role — check your connection and try again.");
+    } finally {
+      setBusy(false);
+      setConfirmingSave(false);
     }
-    toast.success(isNew ? "Role created" : "Role updated");
-    setEditing(null);
-    startTransition(() => router.refresh());
   }
 
   async function remove(role: Role) {
-    if (
-      !confirm(
-        `Delete the "${role.display_name}" role? People holding it will lose the access it granted.`
-      )
-    ) {
-      return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/roles/${role.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        toast.error(body.error ?? "Could not delete the role");
+        return;
+      }
+      toast.success(`Role “${role.display_name}” deleted`);
+      startTransition(() => router.refresh());
+    } catch {
+      toast.error("Could not delete the role — check your connection and try again.");
+    } finally {
+      setBusy(false);
+      setDeleting(null);
     }
-    const res = await fetch(`/api/admin/roles/${role.id}`, { method: "DELETE" });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      toast.error(body.error ?? "Could not delete the role");
-      return;
-    }
-    toast.success("Role deleted");
-    startTransition(() => router.refresh());
   }
 
   // ───────── Editor view ─────────
@@ -274,7 +315,7 @@ export function RolesManager({
         </div>
 
         <div className="flex items-center gap-2">
-          <Button onClick={save} disabled={isPending}>
+          <Button onClick={requestSave} disabled={isPending || busy}>
             {isNew ? "Create role" : "Save changes"}
           </Button>
           <Button variant="ghost" onClick={() => setEditing(null)}>
@@ -287,6 +328,46 @@ export function RolesManager({
           )}
         </div>
         </div>
+
+        {!isNew && confirmingSave && (() => {
+          const role = editing as Role;
+          const holders = memberCounts[role.id] ?? 0;
+          const { added, removed } = capabilityChanges(role);
+          return (
+            <ConfirmAccessDialog
+              open
+              title={`Save changes to “${role.display_name}”?`}
+              confirmLabel="Save changes"
+              busy={busy}
+              onConfirm={save}
+              onCancel={() => setConfirmingSave(false)}
+            >
+              <p>
+                {holders === 0
+                  ? "Nobody holds this role yet."
+                  : `This changes access straight away for the ${holders} ${
+                      holders === 1 ? "person" : "people"
+                    } who hold it.`}
+              </p>
+              {added.length + removed.length === 0 ? (
+                <p>The capabilities are unchanged — only the name or description.</p>
+              ) : (
+                <ul className="max-h-[40vh] space-y-1 overflow-y-auto">
+                  {added.map((l) => (
+                    <li key={`+${l}`}>
+                      <strong>Adds</strong> {l}
+                    </li>
+                  ))}
+                  {removed.map((l) => (
+                    <li key={`-${l}`}>
+                      <strong>Removes</strong> {l}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </ConfirmAccessDialog>
+          );
+        })()}
       </div>
     );
   }
@@ -352,7 +433,7 @@ export function RolesManager({
             <Button variant="ghost" size="sm" onClick={() => openEdit(role)}>
               <Pencil className="h-3.5 w-3.5" />
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => remove(role)}>
+            <Button variant="ghost" size="sm" onClick={() => setDeleting(role)}>
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -421,6 +502,26 @@ export function RolesManager({
             <div className="space-y-3 border-t p-3">{otherBuiltIns.map(roleCard)}</div>
           )}
         </div>
+      )}
+
+      {deleting && (
+        <ConfirmAccessDialog
+          open
+          title={`Delete the “${deleting.display_name}” role?`}
+          confirmLabel="Delete role"
+          destructive
+          busy={busy}
+          onConfirm={() => remove(deleting)}
+          onCancel={() => setDeleting(null)}
+        >
+          <p>
+            {(memberCounts[deleting.id] ?? 0) === 0
+              ? "Nobody holds this role."
+              : `The ${memberCounts[deleting.id]} ${
+                  memberCounts[deleting.id] === 1 ? "person" : "people"
+                } holding it will lose the access it granted.`}
+          </p>
+        </ConfirmAccessDialog>
       )}
 
       <Dialog
