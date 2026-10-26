@@ -28,6 +28,7 @@ export function RoleAssignment({
   programOptions = [],
   canManage,
   canConvertToCommunity = false,
+  lockedNote,
   personName = "this person",
 }: {
   userId: string;
@@ -39,6 +40,9 @@ export function RoleAssignment({
   // Super admins and admins only, and never on your own account — the endpoint enforces
   // both, this just hides a button that would always fail.
   canConvertToCommunity?: boolean;
+  // Shown when titles are read-only because the person is a Super Admin and
+  // the viewer is not (pass canManage/canConvertToCommunity false as well).
+  lockedNote?: string;
   personName?: string;
 }) {
   const router = useRouter();
@@ -281,6 +285,12 @@ export function RoleAssignment({
           </div>
         )}
       </div>
+
+      {lockedNote && (
+        <p style={{ fontSize: "12px", color: "#55524A", marginTop: "14px" }}>
+          {lockedNote}
+        </p>
+      )}
 
       {canConvertToCommunity && (
         <div

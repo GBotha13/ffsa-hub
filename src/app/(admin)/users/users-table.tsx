@@ -18,6 +18,7 @@ import {
   Link as LinkIcon,
   MailWarning,
   UserMinus,
+  Lock,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -56,6 +57,10 @@ import { deriveJobTitle, type MinistryRole } from "@/lib/users/derive-title";
 import { ConvertToCommunityDialog } from "./convert-to-community-dialog";
 import { SetDepartmentDialog } from "./set-department-dialog";
 import { formatInviteDate } from "@/lib/schools/setup-invite-schedule";
+import {
+  SuperAdminBadge,
+  SUPER_ADMIN_LOCKED_NOTE,
+} from "@/components/super-admin-badge";
 
 type UserRow = {
   id: string;
@@ -124,6 +129,10 @@ function elevatedRoleCount(user: UserRow): number {
   return user.user_roles.filter(
     (ur) => ur.roles?.name && !COMMUNITY_FLOOR_ROLES.has(ur.roles.name)
   ).length;
+}
+
+function holdsSuperAdmin(user: UserRow): boolean {
+  return user.user_roles.some((ur) => ur.roles?.name === "super_admin");
 }
 
 /** Already a plain community member as far as the list can tell. */
@@ -245,6 +254,7 @@ export function UsersTable({
   schoolByUser,
   awaitingArrivalByUser,
   isSuperAdmin = false,
+  canChangeSuperAdmins = false,
 }: {
   users: UserRow[];
   currentUserId: string;
@@ -261,6 +271,9 @@ export function UsersTable({
   awaitingArrivalByUser?: Record<string, { school: string; startsOn: string | null }>;
   // Super admins get the inline membership-role picker in the Role column.
   isSuperAdmin?: boolean;
+  // Only a real super_admin may change a super admin's account; a General
+  // Admin sees those rows locked. The API refuses it either way.
+  canChangeSuperAdmins?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
@@ -708,6 +721,8 @@ export function UsersTable({
               const stageStyle = STAGE_STYLES[lifecycle.stage];
               const isSelf = user.id === currentUserId;
               const isBusy = busy === user.id;
+              const targetIsSuper = holdsSuperAdmin(user);
+              const locked = targetIsSuper && !canChangeSuperAdmins;
 
               return (
                 <TableRow
@@ -725,6 +740,7 @@ export function UsersTable({
                         size={28}
                       />
                       <span className="truncate">{displayName(user)}</span>
+                      {targetIsSuper && <SuperAdminBadge />}
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
@@ -739,7 +755,7 @@ export function UsersTable({
                       : "—"}
                   </TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
-                    {isSuperAdmin ? (
+                    {isSuperAdmin && !locked ? (
                       <select
                         className="h-8 border border-input bg-transparent px-2 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
                         value={currentMembership(user)}
@@ -932,7 +948,17 @@ export function UsersTable({
                             </DropdownMenuItem>
                           )}
 
-                          {!isSelf && lifecycle.stage !== "inactive" && (
+                          {locked && (
+                            <DropdownMenuItem
+                              disabled
+                              className="items-start whitespace-normal text-xs"
+                            >
+                              <Lock className="h-4 w-4 mr-2 mt-0.5 shrink-0" />
+                              {SUPER_ADMIN_LOCKED_NOTE}
+                            </DropdownMenuItem>
+                          )}
+
+                          {!isSelf && !locked && lifecycle.stage !== "inactive" && (
                             <DropdownMenuItem
                               onClick={() => handleSetActive(user, false)}
                             >
@@ -950,7 +976,7 @@ export function UsersTable({
                             </DropdownMenuItem>
                           )}
 
-                          {!isSelf && isSuperAdmin && !isCommunityOnly(user) && (
+                          {!isSelf && !locked && isSuperAdmin && !isCommunityOnly(user) && (
                             <DropdownMenuItem
                               onClick={() =>
                                 setConverting({
@@ -964,7 +990,7 @@ export function UsersTable({
                             </DropdownMenuItem>
                           )}
 
-                          {!isSelf && (
+                          {!isSelf && !locked && (
                             <>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem

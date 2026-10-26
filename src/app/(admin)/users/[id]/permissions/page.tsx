@@ -15,6 +15,7 @@ import { RoleAssignment, type AssignedRole } from "../role-assignment";
 import { AdvancedAccess } from "../advanced-access";
 import { UserTabs } from "../user-tabs";
 import { UserHeader } from "../user-header";
+import { SUPER_ADMIN_LOCKED_NOTE } from "@/components/super-admin-badge";
 
 export default async function UserPermissionsPage({
   params,
@@ -105,6 +106,8 @@ export default async function UserPermissionsPage({
   const isTargetSuperAdmin = targetTierRoles.has("super_admin");
   const isTargetGeneralAdmin = targetTierRoles.has("admin");
   const isSelf = authUser.id === id;
+  // A super admin's titles, tiers and standing are a super admin's to change.
+  const targetLocked = isTargetSuperAdmin && !isSuperAdmin;
 
   // Granular grid uses the curated catalog (legacy duplicates hidden).
   const curated = curatePermissions(permissionsByModule);
@@ -167,6 +170,7 @@ export default async function UserPermissionsPage({
       <UserHeader
         user={targetUser}
         authLastSignInAt={authLastSignInAt}
+        isSuperAdmin={isTargetSuperAdmin}
         eyebrow="Access management"
       />
       <UserTabs userId={id} active="permissions" showPermissions={true} />
@@ -178,8 +182,9 @@ export default async function UserPermissionsPage({
         assignable={assignable}
         scopeLabels={scopeLabels}
         programOptions={programOptions}
-        canManage={isAdmin || canManageRoles}
-        canConvertToCommunity={isAdmin && !isSelf}
+        canManage={(isAdmin || canManageRoles) && !targetLocked}
+        canConvertToCommunity={isAdmin && !isSelf && !targetLocked}
+        lockedNote={targetLocked ? SUPER_ADMIN_LOCKED_NOTE : undefined}
         personName={personName}
       />
 
@@ -197,6 +202,7 @@ export default async function UserPermissionsPage({
           isTargetSuperAdmin={isTargetSuperAdmin}
           isTargetGeneralAdmin={isTargetGeneralAdmin}
           isSelf={isSelf}
+          targetLocked={targetLocked}
           personName={personName}
         />
       </AdvancedAccess>

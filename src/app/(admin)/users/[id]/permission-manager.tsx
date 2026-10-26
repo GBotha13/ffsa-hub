@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { Permission, UserPermission, ScopeOption, PermissionsByModule } from "@/services/permissions";
 import { SuperAdminConfirmDialog } from "./super-admin-confirm-dialog";
+import { SUPER_ADMIN_LOCKED_NOTE } from "@/components/super-admin-badge";
 
 // Module display labels matching modules.ts ids
 const MODULE_LABELS: Record<string, string> = {
@@ -385,6 +386,7 @@ function TierPanel({
   busy,
   actionLabel,
   onAction,
+  lockedNote,
 }: {
   heading: string;
   active: boolean;
@@ -393,6 +395,8 @@ function TierPanel({
   busy: boolean;
   actionLabel: string;
   onAction: () => void;
+  /** Why the caller can't use the action (e.g. the target is a Super Admin). */
+  lockedNote?: string;
 }) {
   return (
     <div
@@ -422,10 +426,15 @@ function TierPanel({
               You cannot change your own admin status.
             </p>
           )}
+          {!isSelf && lockedNote && (
+            <p className="text-xs mt-2" style={{ color: "#7C786C" }}>
+              {lockedNote}
+            </p>
+          )}
         </div>
         <Button
           onClick={onAction}
-          disabled={busy || isSelf}
+          disabled={busy || isSelf || !!lockedNote}
           variant={active ? "outline" : "default"}
           style={
             active
@@ -458,6 +467,9 @@ export function PermissionManager({
   isTargetSuperAdmin = false,
   isTargetGeneralAdmin = false,
   isSelf = false,
+  // The target is a Super Admin and the caller is not: admin tiers and the
+  // job title are read-only (the API refuses them too).
+  targetLocked = false,
   personName = "This person",
 }: {
   userId: string;
@@ -472,6 +484,7 @@ export function PermissionManager({
   isTargetSuperAdmin?: boolean;
   isTargetGeneralAdmin?: boolean;
   isSelf?: boolean;
+  targetLocked?: boolean;
   personName?: string;
 }) {
   const router = useRouter();
@@ -491,6 +504,10 @@ export function PermissionManager({
   async function handleToggleTier(roleName: string) {
     if (isSelf) {
       toast.error("You cannot change your own admin status.");
+      return;
+    }
+    if (targetLocked) {
+      toast.error(SUPER_ADMIN_LOCKED_NOTE);
       return;
     }
 
@@ -653,8 +670,9 @@ export function PermissionManager({
         )
       );
 
-      // Job-title / approve flow is super-admin-only.
-      if (isSuperAdmin) {
+      // Job-title / approve flow is admin-tier only, and never on a Super
+      // Admin unless the caller is one.
+      if (isSuperAdmin && !targetLocked) {
         if (status === "pending_approval") {
           const res = await fetch("/api/admin/approve-user", {
             method: "POST",
@@ -723,7 +741,23 @@ export function PermissionManager({
               isTargetGeneralAdmin ? "Remove General Admin" : "Make General Admin"
             }
             onAction={() => handleToggleTier("admin")}
+            lockedNote={targetLocked ? SUPER_ADMIN_LOCKED_NOTE : undefined}
           />
+
+          {/* A General Admin can't grant or remove Super Admin, but must still
+              see that this person holds it. */}
+          {!canGrantSuperAdmin && isTargetSuperAdmin && (
+            <TierPanel
+              heading="Super Admin — Active"
+              active
+              description="Bypasses all roles and permission checks — unrestricted access to every module and every record, the Records Library included."
+              isSelf={isSelf}
+              busy={false}
+              actionLabel="Remove Super Admin"
+              onAction={() => {}}
+              lockedNote={SUPER_ADMIN_LOCKED_NOTE}
+            />
+          )}
 
           {canGrantSuperAdmin && (
           <>
@@ -777,10 +811,16 @@ export function PermissionManager({
               <Input
                 id="job-title"
                 value={jobTitle}
+                disabled={targetLocked}
                 onChange={(e) => setJobTitle(e.target.value)}
                 placeholder="e.g. DTS Program Leader"
                 className="mt-1"
               />
+              {targetLocked && (
+                <p className="text-xs mt-2" style={{ color: "#7C786C" }}>
+                  {SUPER_ADMIN_LOCKED_NOTE}
+                </p>
+              )}
             </div>
 
             <div className="flex items-center gap-3">
@@ -825,7 +865,7 @@ export function PermissionManager({
               >
                 {saving
                   ? "Saving…"
-                  : status === "pending_approval"
+                  : status === "pending_approval" && !targetLocked
                   ? "Approve & Activate"
                   : "Save Changes"}
               </Button>
