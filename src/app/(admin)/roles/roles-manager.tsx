@@ -416,6 +416,9 @@ export function RolesManager({
               </span>
             )}
           </div>
+          {role.description && (
+            <p className="mt-1 max-w-2xl text-xs text-muted-foreground">{role.description}</p>
+          )}
           <div className="mt-2 flex flex-wrap gap-1.5">
             {modules.length === 0 ? (
               <span className="text-xs text-muted-foreground">No capabilities yet</span>
