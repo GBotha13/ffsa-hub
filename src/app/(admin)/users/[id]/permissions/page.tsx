@@ -154,8 +154,8 @@ export default async function UserPermissionsPage({
 
   const personName =
     targetUser.display_name ??
-    [targetUser.first_name, targetUser.last_name].filter(Boolean).join(" ") ??
-    "this person";
+    ([targetUser.first_name, targetUser.last_name].filter(Boolean).join(" ") ||
+      "this person");
 
   const scopeLabels: Record<string, string> = {};
   for (const s of scopeOptions) scopeLabels[s.id] = s.label;
