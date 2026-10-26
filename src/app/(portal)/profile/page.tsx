@@ -38,6 +38,7 @@ import { getCurrentCycle, listObjectives } from "@/services/okrs";
 import { listUserMinistries } from "@/services/staff-cv";
 import { ProfileTabs } from "@/components/profile/profile-tabs";
 import { PROFILE_TABS, type ProfileTab } from "@/components/profile/profile-tab-keys";
+import { canHaveSpouse } from "@/lib/users/marital-status";
 
 export default async function ProfilePage({
   searchParams,
@@ -341,6 +342,11 @@ export default async function ProfilePage({
               <div className="rounded-xl border p-4">
                 <HouseholdMembers
                   initialMembers={householdMembers}
+                  // No "+ Add spouse" unless married; children stay
+                  // available here so a single parent can still add them.
+                  allowedRelationships={
+                    canHaveSpouse(row.marital_status) ? ["spouse", "child"] : ["child"]
+                  }
                   selfDefaults={{
                     is_international: row.is_international as boolean | null | undefined,
                     visa_category: row.visa_category as string | null | undefined,

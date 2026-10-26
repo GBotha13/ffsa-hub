@@ -20,26 +20,8 @@ import { listActiveMinistries } from "@/services/ministries";
 import { getHouseholdMembers, getHousehold } from "@/services/household";
 import { getHouseholdLinkState } from "@/services/household-link";
 import { getOutstandingConsents } from "@/services/consent";
-
-// True if the user counts as staff — either their self-signup type is
-// 'staff' or they hold the 'staff' role. Scopes the children gate to staff.
-// Fail-closed (not staff) on a role-read error so students/community are
-// never wrongly prompted.
-async function userIsStaff(
-  supabase: any, // eslint-disable-line @typescript-eslint/no-explicit-any
-  userId: string,
-  row: Record<string, unknown>
-): Promise<boolean> {
-  if (row.signup_type === "staff") return true;
-  const { data, error } = await supabase
-    .from("user_roles")
-    .select("roles!inner(name)")
-    .eq("user_id", userId)
-    .eq("roles.name", "staff")
-    .limit(1);
-  if (error) return false;
-  return (data?.length ?? 0) > 0;
-}
+import { userIsStaff } from "@/lib/users/is-staff";
+import { familyGatePlan } from "@/lib/users/marital-status";
 
 // Full-screen blocking overlay: blurs and disables the page behind the panel.
 function BlockingOverlay({
@@ -217,11 +199,16 @@ export async function ProfileCompletionGate({
     const members = (householdRows ?? []) as Array<Record<string, unknown>>;
     const unanswered = hasChildren == null;
     const childrenBlock = getChildrenBlock(hasChildren, members);
-    if (unanswered || childrenBlock) {
+    // Marital status decides what's asked: nothing for someone single
+    // (unless they've already said they have children), no spouse steps
+    // for divorced / widowed.
+    const plan = familyGatePlan(row.marital_status, hasChildren);
+    if (plan.askChildren && (unanswered || childrenBlock)) {
       return (
         <BlockingOverlay
           panel={
             <ChildrenGateForm
+              askSpouse={plan.askSpouse}
               hasChildren={hasChildren}
               members={(householdRows ?? []) as HouseholdMember[]}
               selfDefaults={{
