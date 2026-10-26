@@ -282,7 +282,7 @@ export function TeamDetail({
             <StatusPill tone={statusTones[team.status] ?? "quiet"}>
               {team.status}
             </StatusPill>
-            {/* Outreach administrators only (migration 274). */}
+            {/* Outreach administrators only (migration 272). */}
             {viewer.staffEditor && (
               <TeamAdminActions
                 key={deleteBlockers.join("|")}

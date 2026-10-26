@@ -21,7 +21,7 @@ export async function getOutreachTeams(
     .select("*, programs(id, name, code)")
     .order("created_at", { ascending: false });
 
-  // Archived teams (migration 274) only appear when asked for.
+  // Archived teams (migration 272) only appear when asked for.
   query = options?.archived
     ? query.not("archived_at", "is", null)
     : query.is("archived_at", null);
@@ -88,7 +88,7 @@ export async function updateOutreachTeam(
     .single();
 }
 
-/** Archive or unarchive (migration 274). The RPC checks the caller may. */
+/** Archive or unarchive (migration 272). The RPC checks the caller may. */
 export async function setOutreachTeamArchived(
   supabase: Client,
   teamId: string,

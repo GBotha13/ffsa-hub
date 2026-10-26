@@ -1,5 +1,5 @@
 -- ============================================================
--- FFSA Hub — Migration 274: archive / delete outreach teams,
+-- FFSA Hub — Migration 272: archive / delete outreach teams,
 -- and fill in empty role descriptions
 -- ============================================================
 -- Safe to run twice: every statement is IF NOT EXISTS / OR REPLACE /

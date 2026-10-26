@@ -143,7 +143,7 @@ export async function resolveOutreachScope(
     .eq("user_id", args.hubUserId)
     .in("role", OUTREACH_LEADER_ROLES)
     .eq("outreach_teams.slack_enabled", true)
-    .is("outreach_teams.archived_at", null); // migration 274
+    .is("outreach_teams.archived_at", null); // migration 272
   const mine: OutreachTeamRef[] = ((rows ?? []) as { role: string; outreach_teams: TeamRow }[]).map(
     (r) => ({
       id: r.outreach_teams.id,

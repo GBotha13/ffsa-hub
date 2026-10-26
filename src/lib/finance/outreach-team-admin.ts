@@ -1,5 +1,5 @@
 /**
- * Archiving and deleting outreach teams (migration 274).
+ * Archiving and deleting outreach teams (migration 272).
  *
  * Who may archive, unarchive or delete a team is decided in the database by
  * public.is_outreach_staff_editor() (migration 260): Super Admin, General

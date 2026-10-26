@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // (migration 260). Only outreach administrators — the database's
 // is_outreach_staff_editor(): Super Admin, General Admin, finance_admin, or
 // a finance.edit grant — archive, unarchive or delete a team (migration
-// 274), and a delete only goes through when nothing is linked.
+// 272), and a delete only goes through when nothing is linked.
 //
 // The routes run against an in-memory stand-in for Supabase. `editors` says
 // who is_outreach_staff_editor() answers true for; every write and every

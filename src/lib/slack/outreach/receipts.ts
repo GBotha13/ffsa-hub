@@ -138,7 +138,7 @@ async function loggableTeams(admin: Admin, hubUserId: string | null): Promise<Te
     const { data } = await admin
       .from("outreach_teams")
       .select("id, team_name")
-      .is("archived_at", null) // archived teams leave the pickers (migration 274)
+      .is("archived_at", null) // archived teams leave the pickers (migration 272)
       .order("team_name");
     return ((data ?? []) as { id: string; team_name: string }[]).map((t) => ({ id: t.id, name: t.team_name }));
   }

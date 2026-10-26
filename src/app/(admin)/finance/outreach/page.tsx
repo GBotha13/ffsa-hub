@@ -26,7 +26,7 @@ export default async function OutreachFinancePage() {
   // only the outreaches they own or co-lead. School-fee payments are staff
   // business, so only staff read them.
   const staff = user ? await isFinanceStaff(createAdminClient(), user.id) : false;
-  // Outreach administrators archive, unarchive and delete teams (migration 274).
+  // Outreach administrators archive, unarchive and delete teams (migration 272).
   const canManage = user ? await canManageOutreachTeams(supabase) : false;
   // Same RLS-bound client as the rest of the page: the ledger shows exactly the
   // movements this viewer is already entitled to see, and each source inside

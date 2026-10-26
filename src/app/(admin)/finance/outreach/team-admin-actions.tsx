@@ -17,7 +17,7 @@ import {
 type Prompt = "archive" | "unarchive" | "delete" | null;
 
 /**
- * Archive / unarchive / delete for one outreach team (migration 274).
+ * Archive / unarchive / delete for one outreach team (migration 272).
  * Render it only for outreach administrators — the API and database refuse
  * everyone else anyway.
  *

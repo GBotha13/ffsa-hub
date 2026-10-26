@@ -4,7 +4,7 @@ import { setOutreachTeamArchived } from "@/services/outreach-finance";
 import { canManageOutreachTeams } from "@/lib/finance/outreach-team-admin";
 
 /**
- * Archive or unarchive an outreach team (migration 274). Body:
+ * Archive or unarchive an outreach team (migration 272). Body:
  * { id, archived: boolean }. Outreach administrators only; the RPC and a
  * trigger refuse everyone else too.
  */
