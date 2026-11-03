@@ -6,7 +6,6 @@ import { apiFetch } from "@/lib/api-client";
 
 import { apiRoutes, makeMe } from "../../test/fixtures";
 import AppLayout from "../(app)/_layout";
-import FinancePlaceholder from "../(app)/finance/index";
 import HomeScreen from "../(app)/index";
 import MeLayout from "../(app)/me/_layout";
 import MeScreen from "../(app)/me/index";
@@ -23,6 +22,10 @@ jest.mock("@/lib/supabase", () => ({ supabase: { auth: { signOut: jest.fn() } } 
 jest.mock("expo-web-browser", () => ({ openBrowserAsync: jest.fn() }));
 
 const mockFetch = apiFetch as unknown as jest.Mock;
+
+// Slice 2 replaced the finance placeholder with the real screen (which needs
+// its folder _layout's OutboxProvider), so the "before" tree uses a stand-in.
+const FinancePlaceholder = () => <Text>Coming soon</Text>;
 
 beforeEach(() => {
   mockFetch.mockReset();
