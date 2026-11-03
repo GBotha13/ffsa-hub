@@ -9,7 +9,6 @@ import AppLayout from "../(app)/_layout";
 import HomeScreen from "../(app)/index";
 import MeLayout from "../(app)/me/_layout";
 import MeScreen from "../(app)/me/index";
-import TicketsPlaceholder from "../(app)/tickets/index";
 
 // The real tab layout under expo-router. Auth is out of the picture here
 // (app/_layout.tsx's gate has its own test): these routes are the signed-in area.
@@ -23,9 +22,9 @@ jest.mock("expo-web-browser", () => ({ openBrowserAsync: jest.fn() }));
 
 const mockFetch = apiFetch as unknown as jest.Mock;
 
-// Slice 2 replaced the finance placeholder with the real screen (which needs
-// its folder _layout's OutboxProvider), so the "before" tree uses a stand-in.
+// Slices 2 and 3 replaced the finance and tickets placeholders with the real screens, so the "before" tree uses a stand-in.
 const FinancePlaceholder = () => <Text>Coming soon</Text>;
+const TicketsPlaceholder = () => <Text>Coming soon</Text>;
 
 beforeEach(() => {
   mockFetch.mockReset();

@@ -60,6 +60,23 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         resizeMode: "contain",
       },
     ],
+    // expo-camera and expo-image-picker both set the iOS camera prompt
+    // (NSCameraUsageDescription), so they carry the same combined text.
+    // Door check-in scans ticket QR codes. Camera only: no microphone (no
+    // video is recorded), so no RECORD_AUDIO on Android.
+    [
+      "expo-camera",
+      {
+        cameraPermission:
+          "FFSA Hub uses the camera to scan ticket QR codes at event check-in and to photograph receipts for your outreach team's expenses.",
+        microphonePermission: false,
+        recordAudioAndroid: false,
+        barcodeScannerEnabled: true,
+      },
+    ],
+    // expo-brightness is used without its config plugin on purpose: the
+    // plugin only adds Android WRITE_SETTINGS (system-wide brightness), and
+    // the ticket screen only brightens its own window.
     // Receipt photos (finance). The camera is asked for just in time, after an
     // in-app explanation; no microphone (stills only). The photo library uses
     // the system picker, which needs no access on iOS 14+ / Android 13+.
@@ -67,7 +84,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "expo-image-picker",
       {
         cameraPermission:
-          "FFSA Hub uses the camera to photograph receipts for your outreach team's expenses.",
+          "FFSA Hub uses the camera to scan ticket QR codes at event check-in and to photograph receipts for your outreach team's expenses.",
         photosPermission:
           "FFSA Hub lets you choose a photo of a receipt to attach to an outreach expense.",
         microphonePermission: false,
