@@ -134,6 +134,14 @@ export const strings = {
     offline: "No connection",
     sessionEnded: "Your session has ended. Please sign in again.",
   },
+  // Screen-reader-only words (labels, hints, announcements).
+  a11y: {
+    scannerStarting: "Starting the camera",
+    camera: "Camera viewfinder. Point it at the ticket's QR code.",
+    qrCancelled: "Cancelled ticket, it won't scan",
+    searching: "Searching for guests",
+    searchResults: (n: number) => (n === 1 ? "1 guest found" : `${n} guests found`),
+  },
   outbox: {
     failedTitle: (n: number) => (n === 1 ? "1 saved scan needs you" : `${n} saved scans need you`),
     failedBody: "These scans couldn't be sent, so they are NOT confirmed. Don't let these people in on the app's word alone.",
