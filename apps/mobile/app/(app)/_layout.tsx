@@ -37,6 +37,7 @@ export default function AppLayout() {
           <Tabs.Screen name="schools" options={{ href: null }} />
           <Tabs.Screen name="history" options={{ href: null }} />
           <Tabs.Screen name="okrs" options={{ href: null }} />
+          <Tabs.Screen name="ministries" options={{ href: null }} />
         </Tabs>
       </OutboxProvider>
       </PushProvider>
