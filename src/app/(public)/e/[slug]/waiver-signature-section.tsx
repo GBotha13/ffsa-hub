@@ -1,6 +1,7 @@
 "use client";
 
 import type { WaiverSlot, WaiverSlotValues } from "@/lib/ticketing/waivers";
+import { waiverControlId } from "@/lib/ticketing/wild-ones-checkout-focus";
 
 // Brand-agnostic waiver-signing block on a storefront: one card per ticket
 // of a tier that requires a waiver. The parent/guardian opens the uploaded
@@ -172,8 +173,11 @@ export function WaiverSignatureSection({
             </a>
 
             <div>
-              <label style={labelStyle}>Parent / guardian full name *</label>
+              <label style={labelStyle} htmlFor={waiverControlId(slot.key, "guardian")}>
+                Parent / guardian full name *
+              </label>
               <input
+                id={waiverControlId(slot.key, "guardian")}
                 type="text"
                 value={v.guardian_name ?? ""}
                 onChange={(ev) =>
@@ -182,13 +186,20 @@ export function WaiverSignatureSection({
                 style={inputStyle}
                 placeholder="e.g. Jane Smith"
               />
-              {e.guardian_name && <p style={errStyle}>{e.guardian_name}</p>}
+              {e.guardian_name && (
+                <p data-field-error="" style={errStyle}>
+                  {e.guardian_name}
+                </p>
+              )}
             </div>
 
             {slot.waiver.require_relationship && (
               <div>
-                <label style={labelStyle}>Relationship to the attendee *</label>
+                <label style={labelStyle} htmlFor={waiverControlId(slot.key, "relationship")}>
+                  Relationship to the attendee *
+                </label>
                 <input
+                  id={waiverControlId(slot.key, "relationship")}
                   type="text"
                   value={v.relationship ?? ""}
                   onChange={(ev) =>
@@ -197,14 +208,21 @@ export function WaiverSignatureSection({
                   style={inputStyle}
                   placeholder="e.g. Mother, Father, Legal guardian"
                 />
-                {e.relationship && <p style={errStyle}>{e.relationship}</p>}
+                {e.relationship && (
+                  <p data-field-error="" style={errStyle}>
+                    {e.relationship}
+                  </p>
+                )}
               </div>
             )}
 
             {slot.waiver.require_minor_name && (
               <div>
-                <label style={labelStyle}>Attendee&apos;s full name *</label>
+                <label style={labelStyle} htmlFor={waiverControlId(slot.key, "minor")}>
+                  Attendee&apos;s full name *
+                </label>
                 <input
+                  id={waiverControlId(slot.key, "minor")}
                   type="text"
                   value={v.minor_name ?? ""}
                   onChange={(ev) =>
@@ -213,13 +231,20 @@ export function WaiverSignatureSection({
                   style={inputStyle}
                   placeholder="The child attending"
                 />
-                {e.minor_name && <p style={errStyle}>{e.minor_name}</p>}
+                {e.minor_name && (
+                  <p data-field-error="" style={errStyle}>
+                    {e.minor_name}
+                  </p>
+                )}
               </div>
             )}
 
             <div>
-              <label style={labelStyle}>Type your full name to sign *</label>
+              <label style={labelStyle} htmlFor={waiverControlId(slot.key, "signature")}>
+                Type your full name to sign *
+              </label>
               <input
+                id={waiverControlId(slot.key, "signature")}
                 type="text"
                 value={v.typed_signature ?? ""}
                 onChange={(ev) =>
@@ -232,7 +257,11 @@ export function WaiverSignatureSection({
                 }}
                 placeholder="Your signature"
               />
-              {e.typed_signature && <p style={errStyle}>{e.typed_signature}</p>}
+              {e.typed_signature && (
+                <p data-field-error="" style={errStyle}>
+                  {e.typed_signature}
+                </p>
+              )}
             </div>
 
             <label
@@ -246,8 +275,10 @@ export function WaiverSignatureSection({
               }}
             >
               <input
+                id={waiverControlId(slot.key, "agreed")}
                 type="checkbox"
                 checked={v.agreed === true}
+                aria-required="true"
                 onChange={(ev) => onChange(slot.key, "agreed", ev.target.checked)}
                 style={{ marginTop: 2, width: 16, height: 16, flexShrink: 0 }}
               />
@@ -257,7 +288,11 @@ export function WaiverSignatureSection({
                 attendee.
               </span>
             </label>
-            {e.agreed && <p style={errStyle}>{e.agreed}</p>}
+            {e.agreed && (
+              <p data-field-error="" style={errStyle}>
+                {e.agreed}
+              </p>
+            )}
           </div>
         );
       })}
