@@ -4,6 +4,9 @@ import {
   canActOnOthersStory,
   classifyPatch,
   decideTakedown,
+  reviewedContentStaysLocked,
+  statusAfterAuthorEdit,
+  takedownFromAttribution,
   visibleTakedownControls,
   type TakedownAccess,
   type TakedownStory,
@@ -182,6 +185,81 @@ describe("decideTakedown — moderate variant (311 at 13990826, not active)", ()
     expect(decideTakedown("delete", moderateOnly, story({ status: "draft" }), "moderate").ok).toBe(true);
   });
 
+  it("locks the author after a moderator changes the reason on a story the author withheld", () => {
+    // 311 sets withheld_by to the moderator when they change withheld_reason
+    // on someone else's withheld story, so the author's flag becomes true.
+    const after = story({ isMine: true, status: "withheld", withheldByOther: true });
+    expect(decideTakedown("republish", publisher, after, "moderate").ok).toBe(false);
+    expect(decideTakedown("withhold", publisher, after, "moderate").ok).toBe(false);
+    expect(decideTakedown("delete", publisher, after, "moderate").ok).toBe(true);
+    expect(reviewedContentStaysLocked("moderate")).toBe(false);
+  });
+
+  it("hides republish and reason changes when withheld_by_other is true, and still allows delete", () => {
+    const locked = story({ isMine: true, status: "withheld", withheldByOther: true });
+    const republish = decideTakedown("republish", publisher, locked, "moderate");
+    const reason = decideTakedown("withhold", publisher, locked, "moderate");
+    expect(republish.ok).toBe(false);
+    expect(reason.ok).toBe(false);
+    if (!republish.ok) expect(republish.error).toMatch(/moderator withheld/i);
+    expect(decideTakedown("delete", publisher, locked, "moderate").ok).toBe(true);
+    expect(reviewedContentStaysLocked("moderate")).toBe(false);
+    expect(visibleTakedownControls("mine", publisher, locked, "moderate").republish).toBe(false);
+  });
+
+  it("still lets the author republish their own withhold and a null flag", () => {
+    const own = story({ isMine: true, status: "withheld", withheldByOther: false });
+    expect(decideTakedown("republish", publisher, own, "moderate").ok).toBe(true);
+    expect(decideTakedown("withhold", publisher, own, "moderate").ok).toBe(true);
+    const absent = story({ isMine: true, status: "withheld" });
+    expect(decideTakedown("republish", publisher, absent, "moderate").ok).toBe(true);
+  });
+
+  it("does not block a moderator when withheld_by_other is true", () => {
+    const locked = story({ isMine: true, status: "withheld", withheldByOther: true });
+    expect(decideTakedown("republish", moderator, locked, "moderate").ok).toBe(true);
+    expect(decideTakedown("withhold", moderator, locked, "moderate").ok).toBe(true);
+    expect(decideTakedown("delete", moderator, locked, "moderate").ok).toBe(true);
+  });
+
+  it("treats a missing attribution row as no takedown for a non-moderator", () => {
+    expect(takedownFromAttribution(undefined, { moderate: false, status: "withheld" })).toEqual({
+      isMine: false,
+      withheldByOther: true,
+    });
+    const subject = story({
+      ...takedownFromAttribution(undefined, { moderate: false, status: "withheld" }),
+      status: "withheld",
+    });
+    expect(decideTakedown("republish", publisher, subject, "moderate").ok).toBe(false);
+    expect(decideTakedown("withhold", publisher, subject, "moderate").ok).toBe(false);
+    expect(decideTakedown("delete", publisher, subject, "moderate").ok).toBe(false);
+    expect(visibleTakedownControls("mine", publisher, subject, "moderate")).toEqual({
+      withhold: false,
+      delete: false,
+      republish: false,
+    });
+    expect(takedownFromAttribution(undefined, { moderate: true, status: "withheld" })).toEqual({
+      isMine: false,
+      withheldByOther: false,
+    });
+    expect(takedownFromAttribution(null, { moderate: false, status: "published" }).withheldByOther).toBe(false);
+  });
+
+  it("keeps a reviewed story's status when 311 allows the author to edit it", () => {
+    expect(statusAfterAuthorEdit("published", true, "moderate")).toBe("published");
+    expect(statusAfterAuthorEdit("withheld", false, "moderate")).toBe("withheld");
+    expect(statusAfterAuthorEdit("published", true)).toBe("locked");
+    expect(statusAfterAuthorEdit("draft", true, "moderate")).toBe("submitted");
+    expect(statusAfterAuthorEdit("submitted", false, "moderate")).toBe("draft");
+  });
+
+  it("ignores withheld_by_other while the active rule is 307", () => {
+    const locked = story({ isMine: true, status: "withheld", withheldByOther: true });
+    expect(decideTakedown("republish", publisher, locked).ok).toBe(true);
+    expect(reviewedContentStaysLocked()).toBe(true);
+  });
+
   it("treats an unscoped admin as is_admin(), which implies publish, submit, and moderate", () => {
     expect(decideTakedown("republish", bareAdmin, story({ isMine: true, status: "withheld" }), "moderate").ok).toBe(true);
     expect(decideTakedown("withhold", bareAdmin, story({ isMine: true, status: "published" }), "moderate").ok).toBe(true);
@@ -277,5 +355,13 @@ describe("classifyPatch", () => {
 
   it("rejects an unknown action", () => {
     expect(classifyPatch({ action: "delete" }).kind).toBe("invalid");
+  });
+
+  it("rejects an action that conflicts with status", () => {
+    const conflict = classifyPatch({ action: "withhold", status: "published" });
+    expect(conflict.kind).toBe("invalid");
+    if (conflict.kind === "invalid") expect(conflict.error).toMatch(/don't match/);
+    expect(classifyPatch({ action: "publish", status: "withheld" }).kind).toBe("invalid");
+    expect(classifyPatch({ action: "withhold", status: "withheld" }).kind).toBe("withhold");
   });
 });

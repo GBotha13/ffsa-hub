@@ -52,13 +52,20 @@ export type TestimonyRow = {
   evangelism_media?: TestimonyMediaRow[] | null;
 };
 
-/** One row of evangelism_attribution(). Name/review fields are null unless allowed. */
+/**
+ * One row of evangelism_attribution(). Name/review fields are null unless
+ * allowed. `withheld_by_other` is not on main's RPC (307). Migration 311
+ * (#537 at cdb354e6) adds it as the last column: true only when
+ * the story is withheld by someone other than the viewer and the viewer
+ * is not a moderator. The raw withheld_by uuid is never selected.
+ */
 export type Attribution = {
   id: string;
   is_mine: boolean;
   author_name: string | null;
   published_by: string | null;
   withheld_reason: string | null;
+  withheld_by_other?: boolean;
 };
 
 /** What the API returns. Author/review fields only appear when the DB released them. */
@@ -82,6 +89,8 @@ export type PresentedTestimony = {
   author_name?: string | null;
   published_by?: string | null;
   withheld_reason?: string | null;
+  /** From attribution, only when the RPC returns it. Never the raw uuid. */
+  withheld_by_other?: boolean;
 };
 
 const COLUMNS =
@@ -140,7 +149,10 @@ export async function getAttribution(
   const out = new Map<string, Attribution>();
   if (ids.length === 0) return { data: out, error: null };
   const { data, error } = await supabase.rpc("evangelism_attribution", { p_ids: ids });
-  for (const a of (Array.isArray(data) ? data : []) as Attribution[]) out.set(a.id, a);
+  for (const a of (Array.isArray(data) ? data : []) as Array<Attribution | null>) {
+    if (!a || typeof a !== "object" || typeof a.id !== "string") continue;
+    out.set(a.id, a);
+  }
   return { data: out, error };
 }
 
@@ -174,7 +186,7 @@ export async function updateTestimony(
   supabase: Client,
   id: string,
   fields: TestimonyFields,
-  status: "draft" | "submitted"
+  status: "draft" | "submitted" | "published" | "withheld"
 ): Promise<{ data: TestimonyRow | null; error: unknown }> {
   const { data, error } = await supabase
     .from("evangelism_testimonies")
@@ -298,7 +310,8 @@ export async function signPhotoUrls(admin: Client, rows: TestimonyRow[]): Promis
 export function presentTestimony(
   row: TestimonyRow,
   attribution: Attribution | undefined,
-  signed: Map<string, string> = new Map()
+  signed: Map<string, string> = new Map(),
+  opts?: { moderate?: boolean }
 ): PresentedTestimony {
   const media = [...(row.evangelism_media ?? [])].sort((a, b) => a.sort_order - b.sort_order)[0];
   const out: PresentedTestimony = {
@@ -322,5 +335,8 @@ export function presentTestimony(
   if (attribution?.author_name) out.author_name = attribution.author_name;
   if (attribution?.published_by) out.published_by = attribution.published_by;
   if (attribution?.withheld_reason) out.withheld_reason = attribution.withheld_reason;
+  // Flag from the RPC, or a missing row on someone else's withheld story.
+  if (attribution?.withheld_by_other === true) out.withheld_by_other = true;
+  else if (!attribution && !opts?.moderate && row.status === "withheld") out.withheld_by_other = true;
   return out;
 }

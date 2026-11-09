@@ -2,6 +2,7 @@
 // a success. Permission lives in takedown.ts — this module only speaks HTTP
 // and reshapes the lists the page is already showing.
 
+import { moderatorWithheldClientMessage } from "@/lib/evangelism/takedown";
 import type { PresentedTestimony } from "@/services/evangelism";
 
 export const TESTIMONY_NETWORK_ERROR = "Couldn't reach the Hub. Check your connection and try again.";
@@ -9,6 +10,8 @@ export const TESTIMONY_NETWORK_ERROR = "Couldn't reach the Hub. Check your conne
 /** Friendly copy for a failed testimony request. Prefers the server's own sentence. */
 export function testimonyFailureMessage(status: number, serverError: unknown): string {
   const server = typeof serverError === "string" ? serverError.trim() : "";
+  const withheld = moderatorWithheldClientMessage(server);
+  if (withheld) return withheld;
   if (server) return server;
   if (status === 400) return "That change wasn't accepted.";
   if (status === 401) return "You're signed out. Sign in and try again.";
@@ -100,5 +103,10 @@ export function applyStoryTakedown(lists: StoryLists, result: StoryTakedownResul
 
 /** Stable across fresh array identities, so a server re-render doesn't wipe an in-place edit. */
 export function storyListSignature(stories: PresentedTestimony[]): string {
-  return stories.map((story) => `${story.id}:${story.status}:${story.updated_at}:${story.withheld_reason ?? ""}`).join("|");
+  return stories
+    .map(
+      (story) =>
+        `${story.id}:${story.status}:${story.updated_at}:${story.withheld_reason ?? ""}:${story.withheld_by_other ? "1" : "0"}`,
+    )
+    .join("|");
 }

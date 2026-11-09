@@ -42,6 +42,12 @@ describe("testimonyFailureMessage", () => {
     );
   });
 
+  it("maps the moderator-withheld database error to a friendly sentence", () => {
+    expect(
+      testimonyFailureMessage(403, "A moderator withheld this story; only a moderator can republish it"),
+    ).toBe("A moderator withheld this story. Only a moderator can publish it again or change the reason.");
+  });
+
   it("fills in 403, 404, 409, and a network-shaped fallback", () => {
     expect(testimonyFailureMessage(403, "")).toBe("You don't have permission to do that.");
     expect(testimonyFailureMessage(404, "  ")).toBe("That story isn't here anymore.");

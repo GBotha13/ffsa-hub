@@ -2,7 +2,7 @@
 //
 // The route and the evangelism UI both call this. The active rule is
 // migration 307 (what main's database enforces today). The "moderate"
-// rule matches migration 311 at 13990826 — read, not applied, not on
+// rule matches migration 311 at cdb354e6 — read, not applied, not on
 // main — and is selected by the constant below. One line flips the
 // whole matrix, own stories and other people's.
 
@@ -16,7 +16,7 @@ export type OthersStoryTakedownRule = "publish" | "moderate";
  * "publish" — migration 307, what main enforces today.
  *
  * Flip this one line to "moderate" once migration 311
- * (13990826, `311_evangelism_open_publish_and_moderate.sql`) is applied.
+ * (cdb354e6, `311_evangelism_open_publish_and_moderate.sql`) is applied.
  * That matrix is `decideAsOf311` below: `can_moderate_evangelism()` =
  * is_admin() OR evangelism.moderate. Also pass `moderate` and
  * `unscopedAdmin` through from getEvangelismAccess, or other people's
@@ -37,7 +37,54 @@ export type TakedownStory = {
   isMine: boolean;
   status: TestimonyStatus;
   consentToShare: boolean;
+  /**
+   * From evangelism_attribution.withheld_by_other. Optional: main's RPC
+   * does not return it. True means a moderator other than the viewer
+   * withheld this story. The uuid itself is never read.
+   */
+  withheldByOther?: boolean;
 };
+
+/** Shown for the guard's 42501 "A moderator withheld this story…". */
+export const MODERATOR_WITHHELD_MESSAGE =
+  "A moderator withheld this story. Only a moderator can publish it again or change the reason.";
+
+/** Map that Postgres exception (or our own copy of it) to the friendly sentence. */
+export function moderatorWithheldClientMessage(message: unknown): string | null {
+  return typeof message === "string" && /moderator withheld this story/i.test(message)
+    ? MODERATOR_WITHHELD_MESSAGE
+    : null;
+}
+
+/**
+ * 311 lock from withheld_by_other. A moderator is unaffected. Content
+ * edits and delete are not this check. Absent/false does not lock, so
+ * main (no flag) is unchanged.
+ */
+export function moderatorWithheldLock(story: TakedownStory, moderate: boolean): boolean {
+  if (moderate) return false;
+  return story.withheldByOther === true;
+}
+
+/** 307 keeps reviewed stories closed to content edits. 311 lets the author edit. */
+export function reviewedContentStaysLocked(rule: OthersStoryTakedownRule = OTHERS_STORY_TAKEDOWN): boolean {
+  return rule !== "moderate";
+}
+
+/**
+ * Status to write on an author edit. Under 311 a reviewed story keeps its
+ * status, so an edit cannot clear a withhold or republish by accident.
+ * "locked" is the 307 refusal.
+ */
+export function statusAfterAuthorEdit(
+  current: TestimonyStatus,
+  submit: boolean,
+  rule: OthersStoryTakedownRule = OTHERS_STORY_TAKEDOWN
+): TestimonyStatus | "locked" {
+  if ((current === "published" || current === "withheld") && reviewedContentStaysLocked(rule)) return "locked";
+  if (current === "published" || current === "withheld") return current;
+  return submit ? "submitted" : "draft";
+}
 
 export type TakedownAction = "withhold" | "republish" | "delete";
 
@@ -114,7 +161,7 @@ function decideAsOf307(action: TakedownAction, access: TakedownAccess, story: Ta
 }
 
 /**
- * 311 at 13990826. `can_submit` includes `can_publish`; `can_publish`
+ * 311 at d8010de9. `can_submit` includes `can_publish`; `can_publish`
  * and `can_moderate` both include is_admin().
  *
  * Someone else — can_moderate_evangelism() only:
@@ -131,6 +178,10 @@ function decideAsOf307(action: TakedownAction, access: TakedownAccess, story: Ta
  *   delete_publisher is can_moderate with no author check. They cannot
  *   withhold their own draft or submitted story: that hits the author
  *   branch of the guard, which refuses it.
+ * withheld_by is stamped only by the guard and is not granted to clients.
+ * The RPC flag withheld_by_other is what this helper sees: when it is
+ * true, a non-moderator cannot republish or change the reason. Content
+ * edits and delete are not part of that lock.
  */
 function decideAsOf311(action: TakedownAction, access: TakedownAccess, story: TakedownStory): TakedownDecision {
   const isAdmin = access.unscopedAdmin === true;
@@ -138,6 +189,11 @@ function decideAsOf311(action: TakedownAction, access: TakedownAccess, story: Ta
   const submit = access.submit === true || publish;
   const moderate = access.moderate === true || isAdmin;
   const canUpdateOwn = submit || moderate;
+
+  // withheld_by_other: republish or a reason change is refused. Delete is not.
+  if ((action === "republish" || action === "withhold") && moderatorWithheldLock(story, moderate)) {
+    return deny(403, MODERATOR_WITHHELD_MESSAGE);
+  }
 
   if (action === "delete") {
     if (moderate) return { ok: true };
@@ -188,12 +244,33 @@ export function decideTakedown(
 }
 
 /** Map a story the API already presented onto the helper's subject. */
+/**
+ * Read one attribution row without assuming it exists. 311 returns no row
+ * to a non-moderator for someone else's withheld story. Missing → not mine,
+ * and (unless the viewer is a moderator) no Publish again and no takedown.
+ */
+export function takedownFromAttribution(
+  attr: { is_mine?: boolean; withheld_by_other?: boolean } | null | undefined,
+  opts: { moderate: boolean; status: TestimonyStatus }
+): { isMine: boolean; withheldByOther: boolean } {
+  if (!attr) {
+    return { isMine: false, withheldByOther: !opts.moderate && opts.status === "withheld" };
+  }
+  return { isMine: attr.is_mine === true, withheldByOther: attr.withheld_by_other === true };
+}
+
 export function takedownSubject(story: {
   is_mine: boolean;
   status: TestimonyStatus;
   consent_to_share: boolean;
+  withheld_by_other?: boolean;
 }): TakedownStory {
-  return { isMine: story.is_mine, status: story.status, consentToShare: story.consent_to_share };
+  return {
+    isMine: story.is_mine,
+    status: story.status,
+    consentToShare: story.consent_to_share,
+    withheldByOther: story.withheld_by_other === true,
+  };
 }
 
 export type TakedownSurface = "feed" | "mine";
@@ -271,6 +348,12 @@ export function classifyPatch(body: Record<string, unknown>): ClassifiedPatch {
   const action = body.action;
   if (action !== undefined && action !== "publish" && action !== "withhold") {
     return { kind: "invalid", error: "Unknown review action." };
+  }
+  if (
+    (action === "withhold" && body.status !== undefined && body.status !== "withheld") ||
+    (action === "publish" && body.status !== undefined && body.status !== "published")
+  ) {
+    return { kind: "invalid", error: "The action and the status don't match." };
   }
   const wantsWithhold = action === "withhold" || (action === undefined && body.status === "withheld");
   const wantsRepublish = action === "publish" || (action === undefined && body.status === "published");
