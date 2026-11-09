@@ -7,6 +7,7 @@ import { type TreeQuestion } from "@/components/admin/question-tree";
 import { ReferenceQuestionsBuilder } from "./reference-questions-builder";
 import { ProgramCoursesManager, type PhaseCourse } from "./program-courses-manager";
 import { LeadersTab, type ProgramLeaderRow } from "./leaders-tab";
+import { StaffTab, type ProgramStaffRow } from "./staff-tab";
 import { EmailsTab } from "./emails-tab";
 import { StudentsExportPanel } from "./students-export-panel";
 import { ENROLLMENT_STATUS_LABELS } from "@/lib/schools/student-export-columns";
@@ -356,7 +357,7 @@ type RefRequestSummary = {
 /** Tabs this screen knows. `enrollments` is the pre-14a name for Students and
  *  is still in the wild as ?tab=enrollments, so it maps rather than 404s. */
 const TAB_KEYS = [
-  "overview", "students", "courses", "track", "grades", "applicants", "application", "arrival", "leaders", "emails", "fees",
+  "overview", "students", "courses", "track", "grades", "applicants", "application", "arrival", "leaders", "staff", "emails", "fees",
   "staff_decision",
 ];
 function normaliseTab(tab: string): string {
@@ -403,6 +404,7 @@ export function ProgramDetail({
   trackSummary,
   arrivalInsurance,
   leaders,
+  staff,
   emailTemplates,
   grades,
   feesByEnrollment,
@@ -432,6 +434,7 @@ export function ProgramDetail({
   enrollments: Enrollment[];
   arrivalInsurance: Record<string, ArrivalInsuranceInfo>;
   leaders: ProgramLeaderRow[];
+  staff: ProgramStaffRow[];
   emailTemplates: {
     email_type: string;
     enabled: boolean;
@@ -697,6 +700,7 @@ export function ProgramDetail({
             <TabsTrigger value="application">Application form</TabsTrigger>
             <TabsTrigger value="arrival">Arrival</TabsTrigger>
             <TabsTrigger value="leaders">Leaders ({leaders.length})</TabsTrigger>
+            <TabsTrigger value="staff">Staff ({staff.length})</TabsTrigger>
             <TabsTrigger value="emails">Emails</TabsTrigger>
             <TabsTrigger value="fees">Fees</TabsTrigger>
             {staffDecisionPanel && (
@@ -831,6 +835,14 @@ export function ProgramDetail({
           <LeadersTab
             programId={program.id}
             leaders={leaders}
+            allUsers={allUsers}
+          />
+        </TabsContent>
+
+        <TabsContent value="staff" className="mt-0 px-5 py-6 md:px-8">
+          <StaffTab
+            programId={program.id}
+            staff={staff}
             allUsers={allUsers}
           />
         </TabsContent>
@@ -2014,23 +2026,25 @@ function ApplicantsTab({
           send_email: true,
         }),
       });
-      if (res.ok) {
-        // Accepting now also puts people on the roster. Anyone we couldn't
-        // enrol has no account for their email yet and needs the Accept
-        // button, which invites them — say so rather than letting them look
-        // accepted while being absent from the Arrival tab.
-        const data = await res.json().catch(() => ({}));
-        const stranded = (data.notEnrolled ?? []).length;
-        if (stranded > 0) {
-          alert(
-            `${stranded} applicant${stranded === 1 ? " was" : "s were"} marked accepted but not added to the roster — ` +
-              `they have no account yet. Use Accept on each so they get an invite.`
-          );
-        }
-        setSelectedIds(new Set());
-        setBulkStatus("");
-        router.refresh();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.error || "Failed to update statuses");
+        return;
       }
+      // Accepting now also puts people on the roster. Anyone we couldn't
+      // enrol has no account for their email yet and needs the Accept
+      // button, which invites them — say so rather than letting them look
+      // accepted while being absent from the Arrival tab.
+      const stranded = (data.notEnrolled ?? []).length;
+      if (stranded > 0) {
+        alert(
+          `${stranded} applicant${stranded === 1 ? " was" : "s were"} marked accepted but not added to the roster — ` +
+            `they have no account yet. Use Accept on each so they get an invite.`
+        );
+      }
+      setSelectedIds(new Set());
+      setBulkStatus("");
+      router.refresh();
     } catch {
       alert("Failed to update statuses");
     } finally {
