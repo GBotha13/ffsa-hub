@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { dbError, getCaller, jsonError, present, type Caller } from "@/lib/evangelism/http";
-import { parsePhoto, parseReview, parseTestimonyFields } from "@/lib/evangelism/validation";
+import { classifyPatch, decideTakedown, type TakedownAccess } from "@/lib/evangelism/takedown";
+import { parsePhoto, parseTestimonyFields } from "@/lib/evangelism/validation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   attachPhoto,
@@ -56,10 +57,28 @@ export async function GET(_request: Request, { params }: Ctx): Promise<Response>
   return NextResponse.json({ testimony: out });
 }
 
+function takedownAccess(caller: Caller): TakedownAccess {
+  // moderate / unscopedAdmin are unset until getEvangelismAccess learns
+  // them. Reading them here means flipping OTHERS_STORY_TAKEDOWN is enough
+  // for the route once those fields exist.
+  const extra = caller.access as TakedownAccess;
+  return {
+    submit: caller.access.submit,
+    publish: caller.access.publish,
+    moderate: extra.moderate,
+    unscopedAdmin: extra.unscopedAdmin,
+  };
+}
+
 // PATCH /api/evangelism/testimonies/:id
-//   Publisher:  { action: "publish" } | { action: "withhold", reason? }
-//   Author:     { ...fields, intent: "draft" | "submit", photo?, remove_photo? }
-//               while the story is still draft or submitted.
+//   Review:  { action: "publish" } | { action: "withhold", reason? }
+//            or { status: "published" } | { status: "withheld", reason? }
+//   Author:  { ...fields, intent: "draft" | "submit", photo?, remove_photo? }
+//            while the story is still draft or submitted.
+// A status change is decided before the "already reviewed" lock, so a
+// publisher can withhold a published story or republish a withheld one.
+// Content and consent on a reviewed story stay locked. Who may do a
+// review is decideTakedown — the same helper the UI uses.
 export async function PATCH(request: Request, { params }: Ctx): Promise<Response> {
   const { id } = await params;
   const loaded = await load(id);
@@ -69,34 +88,40 @@ export async function PATCH(request: Request, { params }: Ctx): Promise<Response
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return jsonError(400, "Send the change as JSON.");
 
-  // ── Review ──
-  if (body.action !== undefined) {
-    if (!caller.access.publish) return jsonError(403, "Only publishers can publish or withhold.");
-    const review = parseReview(body);
-    if (!review.ok) return jsonError(400, review.error);
-    if (review.value.action === "publish") {
-      if (!row.consent_to_share) {
-        return jsonError(400, "This story has no consent to share, so it can't be published.", "consent_required");
-      }
-      if (row.status !== "submitted" && row.status !== "withheld") {
-        return jsonError(409, "Only a story that was submitted for review can be published.");
-      }
+  const classified = classifyPatch(body);
+  if (classified.kind === "invalid") return jsonError(400, classified.error);
+  if (classified.kind === "mixed") {
+    // A review that also carries content. On a reviewed story that is the
+    // content lock; on an open story we won't silently drop either half.
+    if (row.status === "published" || row.status === "withheld") {
+      return jsonError(409, "This story has been reviewed and can no longer be edited.");
     }
+    return jsonError(400, "Send a review on its own, without changing the story.");
+  }
+
+  // ── Review (withhold / republish). Runs before the author-edit lock. ──
+  if (classified.kind === "withhold" || classified.kind === "republish") {
+    const decision = decideTakedown(
+      classified.kind === "withhold" ? "withhold" : "republish",
+      takedownAccess(caller),
+      { isMine, status: row.status, consentToShare: row.consent_to_share },
+    );
+    if (!decision.ok) return jsonError(decision.status, decision.error, decision.code);
     const { data, error } =
-      review.value.action === "publish"
+      classified.kind === "republish"
         ? await publishTestimony(caller.supabase, id)
-        : await withholdTestimony(caller.supabase, id, review.value.reason);
-    if (error || !data) return dbError(error, review.value.action);
+        : await withholdTestimony(caller.supabase, id, classified.reason);
+    if (error || !data) return dbError(error, classified.kind);
     const [out] = await present([data], caller);
     return NextResponse.json({ testimony: out });
   }
 
-  // ── Author edit ──
-  if (!caller.access.submit || !isMine) {
-    return jsonError(403, "Only the author can edit this story.");
-  }
+  // ── Author edit. Reviewed stories are locked, including consent. ──
   if (row.status !== "draft" && row.status !== "submitted") {
     return jsonError(409, "This story has been reviewed and can no longer be edited.");
+  }
+  if (!caller.access.submit || !isMine) {
+    return jsonError(403, "Only the author can edit this story.");
   }
   const submit = body.intent === "submit";
   const fields = parseTestimonyFields(body, { submit });
@@ -146,19 +171,22 @@ export async function PATCH(request: Request, { params }: Ctx): Promise<Response
 }
 
 // DELETE /api/evangelism/testimonies/:id
-//   The author may delete their own draft; a publisher may delete any story.
-//   The row goes first (caller's client, so RLS decides); only once exactly
-//   one row is gone are its storage objects removed with the service role.
+//   Who may delete is decideTakedown (307: the author may delete their own
+//   draft; a publisher may delete any story). The row goes first (caller's
+//   client, so RLS decides); only once exactly one row is gone are its
+//   storage objects removed with the service role.
 export async function DELETE(_request: Request, { params }: Ctx): Promise<Response> {
   const { id } = await params;
   const loaded = await load(id);
   if ("res" in loaded) return loaded.res;
   const { caller, row, isMine } = loaded;
 
-  const ownDraft = isMine && row.status === "draft" && caller.access.submit;
-  if (!caller.access.publish && !ownDraft) {
-    return jsonError(403, "Only drafts can be deleted by their author.");
-  }
+  const decision = decideTakedown("delete", takedownAccess(caller), {
+    isMine,
+    status: row.status,
+    consentToShare: row.consent_to_share,
+  });
+  if (!decision.ok) return jsonError(decision.status, decision.error, decision.code);
 
   // Look the paths up now: the cascade removes the media rows with the story.
   const mediaIds = (row.evangelism_media ?? []).map((m) => m.id);

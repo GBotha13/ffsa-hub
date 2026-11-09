@@ -36,7 +36,7 @@ export default async function EvangelismQueuePage() {
       ) : error ? (
         <p className="px-5 py-6 text-sm text-red-700 md:px-8">Couldn&apos;t load the queue.</p>
       ) : (
-        <QueueList stories={stories} />
+        <QueueList stories={stories} access={{ submit: access.submit, publish: access.publish }} />
       )}
     </div>
   );

@@ -15,6 +15,8 @@ const h = vi.hoisted(() => ({
   listCalls: [] as unknown[],
   created: [] as unknown[],
   published: [] as string[],
+  withheld: [] as Array<{ id: string; reason: string | null }>,
+  updates: [] as Array<{ id: string; status: string }>,
   deleted: 0,
   attachError: null as unknown,
   ledger: new Map<string, string>(), // storage_path -> user id
@@ -68,7 +70,16 @@ vi.mock("@/services/evangelism", async (importOriginal) => {
       h.published.push(id);
       return { data: asRow({ ...(h.row as object), status: "published" }), error: null };
     },
-    withholdTestimony: async () => ({ data: asRow({ ...(h.row as object), status: "withheld" }), error: null }),
+    withholdTestimony: async (_c: unknown, id: string, reason: string | null) => {
+      h.withheld.push({ id, reason });
+      return { data: asRow({ ...(h.row as object), status: "withheld" }), error: null };
+    },
+    updateTestimony: async (_c: unknown, id: string, fields: unknown, status: string) => {
+      h.updates.push({ id, status });
+      const row = { ...(h.row as object), ...(fields as object), status };
+      h.row = row;
+      return { data: asRow(row), error: null };
+    },
     deleteTestimony: async () => {
       h.events.push("delete-row");
       return { deleted: h.deleted, error: null };
@@ -144,6 +155,8 @@ beforeEach(() => {
   h.listCalls = [];
   h.created = [];
   h.published = [];
+  h.withheld = [];
+  h.updates = [];
   h.deleted = 0;
   h.attachError = null;
   h.ledger = new Map();
@@ -324,6 +337,84 @@ describe("/api/evangelism/testimonies/:id", () => {
     expect((await PATCH(req(`/testimonies/${STORY_ID}`, "PATCH", { ...story, intent: "submit" }), ctx)).status).toBe(
       409
     );
+  });
+
+  it("lets a publisher withhold a published story with a reason", async () => {
+    h.access = PUBLISHER;
+    h.row = { ...baseRow(), status: "published" };
+    const res = await PATCH(
+      req(`/testimonies/${STORY_ID}`, "PATCH", { status: "withheld", reason: "  Names a minor " }),
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    expect(h.withheld).toEqual([{ id: STORY_ID, reason: "Names a minor" }]);
+    expect((await res.json()).testimony.status).toBe("withheld");
+    expect(h.updates).toHaveLength(0);
+  });
+
+  it("lets a publisher withhold a published story without a reason", async () => {
+    h.access = PUBLISHER;
+    h.mine = false;
+    h.row = { ...baseRow(), status: "published" };
+    const res = await PATCH(req(`/testimonies/${STORY_ID}`, "PATCH", { status: "withheld" }), ctx);
+    expect(res.status).toBe(200);
+    expect(h.withheld).toEqual([{ id: STORY_ID, reason: null }]);
+  });
+
+  it("still accepts the queue's action withhold", async () => {
+    h.access = PUBLISHER;
+    h.row = { ...baseRow(), status: "published" };
+    const res = await PATCH(req(`/testimonies/${STORY_ID}`, "PATCH", { action: "withhold", reason: "Queue" }), ctx);
+    expect(res.status).toBe(200);
+    expect(h.withheld).toEqual([{ id: STORY_ID, reason: "Queue" }]);
+  });
+
+  it("lets a publisher republish a withheld story", async () => {
+    h.access = PUBLISHER;
+    h.row = { ...baseRow(), status: "withheld" };
+    const res = await PATCH(req(`/testimonies/${STORY_ID}`, "PATCH", { status: "published" }), ctx);
+    expect(res.status).toBe(200);
+    expect(h.published).toEqual([STORY_ID]);
+    expect((await res.json()).testimony.status).toBe("published");
+  });
+
+  it("keeps content edits on a reviewed story locked", async () => {
+    h.access = PUBLISHER;
+    h.mine = true;
+    h.row = { ...baseRow(), status: "published" };
+    const res = await PATCH(req(`/testimonies/${STORY_ID}`, "PATCH", { ...story, intent: "submit" }), ctx);
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/can no longer be edited/);
+    expect(h.updates).toHaveLength(0);
+    expect(h.withheld).toHaveLength(0);
+  });
+
+  it("keeps a consent edit on a reviewed story locked", async () => {
+    h.access = PUBLISHER;
+    h.mine = true;
+    h.row = { ...baseRow(), status: "withheld" };
+    const res = await PATCH(req(`/testimonies/${STORY_ID}`, "PATCH", { consent_to_share: false }), ctx);
+    expect(res.status).toBe(409);
+    expect(h.updates).toHaveLength(0);
+    expect(h.published).toHaveLength(0);
+  });
+
+  it("refuses a non-publisher withhold", async () => {
+    h.access = SUBMITTER;
+    h.mine = true;
+    h.row = { ...baseRow(), status: "published" };
+    const res = await PATCH(req(`/testimonies/${STORY_ID}`, "PATCH", { status: "withheld", reason: "Please" }), ctx);
+    expect(res.status).toBe(403);
+    expect(h.withheld).toHaveLength(0);
+  });
+
+  it("still lets an author edit a draft", async () => {
+    h.access = SUBMITTER;
+    h.mine = true;
+    h.row = { ...baseRow(), status: "draft" };
+    const res = await PATCH(req(`/testimonies/${STORY_ID}`, "PATCH", { ...story, intent: "draft" }), ctx);
+    expect(res.status).toBe(200);
+    expect(h.updates).toEqual([{ id: STORY_ID, status: "draft" }]);
   });
 
   it("lets an author delete only their own draft", async () => {

@@ -1,29 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { SectionBar } from "@/components/ffsa";
 import { Button } from "@/components/ui/button";
+import type { StoryTakedownResult } from "@/lib/evangelism/story-client";
+import type { TakedownAccess } from "@/lib/evangelism/takedown";
 import type { PresentedTestimony } from "@/services/evangelism";
+import { StoryActions } from "./story-actions";
 import { StoryCard } from "./story-card";
 import { UploadForm, type MinistryOption } from "./upload-form";
 
-/** The submit form plus the caller's own stories (edit/delete while open). */
-export function MyStories({ ministries, mine }: { ministries: MinistryOption[]; mine: PresentedTestimony[] }) {
-  const router = useRouter();
+/** The submit form plus the caller's own stories (edit while open, delete when allowed). */
+export function MyStories({
+  ministries,
+  mine,
+  access,
+  onResult,
+}: {
+  ministries: MinistryOption[];
+  mine: PresentedTestimony[];
+  access: TakedownAccess;
+  onResult: (result: StoryTakedownResult) => void;
+}) {
   const [editing, setEditing] = useState<PresentedTestimony | null>(null);
-
-  async function remove(story: PresentedTestimony) {
-    if (!window.confirm(`Delete the draft "${story.title}"?`)) return;
-    const res = await fetch(`/api/evangelism/testimonies/${story.id}`, { method: "DELETE" });
-    if (!res.ok) {
-      toast.error((await res.json().catch(() => ({}))).error ?? "Couldn't delete the draft.");
-      return;
-    }
-    toast.success("Draft deleted");
-    router.refresh();
-  }
 
   return (
     <>
@@ -41,25 +40,27 @@ export function MyStories({ ministries, mine }: { ministries: MinistryOption[]; 
       ) : (
         mine.map((story) => (
           <StoryCard key={story.id} story={story} showStatus>
-            {(story.status === "draft" || story.status === "submitted") && (
-              <div className="mt-4 flex flex-wrap gap-3">
-                <Button
-                  variant="outline"
-                  className="min-h-11"
-                  onClick={() => {
-                    setEditing(story);
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                  }}
-                >
-                  Edit
-                </Button>
-                {story.status === "draft" && (
-                  <Button variant="ghost" className="min-h-11 text-red-700" onClick={() => remove(story)}>
-                    Delete draft
+            <StoryActions
+              story={story}
+              surface="mine"
+              access={access}
+              onResult={onResult}
+              leading={
+                story.is_mine && (story.status === "draft" || story.status === "submitted") ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="min-h-11 w-full sm:w-auto"
+                    onClick={() => {
+                      setEditing(story);
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                  >
+                    Edit
                   </Button>
-                )}
-              </div>
-            )}
+                ) : null
+              }
+            />
           </StoryCard>
         ))
       )}
