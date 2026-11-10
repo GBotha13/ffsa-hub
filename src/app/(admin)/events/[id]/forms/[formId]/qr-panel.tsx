@@ -2,8 +2,10 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShareLinkQr } from "@/components/share/share-link-qr";
+import { isAbsoluteHttpUrl } from "@/components/share/share-qr-png";
 
 export function QrPanel({ url, formName }: { url: string; formName: string }) {
+  const scannable = isAbsoluteHttpUrl(url) ? url : "";
   return (
     <Card>
       <CardHeader>
@@ -15,12 +17,18 @@ export function QrPanel({ url, formName }: { url: string; formName: string }) {
           so the link is live.
         </p>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-          <p className="min-w-0 flex-1 break-all font-mono text-xs text-muted-foreground">
-            {url}
-          </p>
+          {url ? (
+            <p className="min-w-0 flex-1 break-all font-mono text-xs text-muted-foreground">
+              {url}
+            </p>
+          ) : (
+            <p className="min-w-0 flex-1 text-xs text-muted-foreground">
+              The full link appears once this page is open.
+            </p>
+          )}
           <ShareLinkQr
-            url={url}
-            filename={url}
+            url={scannable}
+            filename={scannable || formName}
             label={`QR code for ${formName}`}
             fullscreenCaption={formName}
           />
