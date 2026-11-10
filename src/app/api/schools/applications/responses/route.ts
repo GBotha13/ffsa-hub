@@ -38,6 +38,7 @@ import {
   storedStatusError,
 } from "@/lib/schools/application-status";
 import { syncApplicantToContact } from "@/lib/applications/sync-contact";
+import { sendAcceptanceToLinkedAccount } from "@/lib/schools/acceptance-email";
 import { applicationRejectedEmailHtml } from "@/lib/email/templates/application-rejected";
 import { applicationWaitlistedEmailHtml } from "@/lib/email/templates/application-waitlisted";
 import { interviewScheduledEmailHtml } from "@/lib/email/templates/interview-scheduled";
@@ -463,6 +464,19 @@ export async function PUT(request: Request) {
     // exists for their email yet. Reported back rather than swallowed — they
     // need the Accept button, which invites them.
     const notEnrolled: string[] = [];
+    // Acceptance emails that could not be delivered — returned so the admin
+    // sees them instead of a clean success.
+    const emailWarnings: string[] = [];
+
+    // Previous statuses, so re-saving an already-accepted application doesn't
+    // email the student a second time.
+    const { data: prevRows } = await adminSupabase
+      .from("application_responses")
+      .select("id, status")
+      .in("id", ids);
+    const prevStatusById = new Map<string, string>(
+      ((prevRows ?? []) as Array<{ id: string; status: string }>).map((r) => [r.id, r.status])
+    );
 
     for (const responseId of ids) {
       const { data: resp, error } = await updateResponseStatus(
@@ -490,7 +504,14 @@ export async function PUT(request: Request) {
             resp,
             user.id
           );
-          if (result.outcome === "no_account") notEnrolled.push(responseId);
+          if (result.outcome === "no_account") {
+            notEnrolled.push(responseId);
+          } else if (send_email && prevStatusById.get(responseId) !== "accepted") {
+            // They have an account and are now enrolled — tell them. This
+            // path used to send nothing on "accepted" (see sendStatusEmail).
+            const sent = await sendAcceptanceToLinkedAccount(adminSupabase, responseId);
+            if (sent.warning) emailWarnings.push(sent.warning);
+          }
         }
 
         if ((status === "rejected" || status === "cancelled") && resp.user_id) {
@@ -526,7 +547,7 @@ export async function PUT(request: Request) {
       }
     }
 
-    return NextResponse.json({ success: true, updated, notEnrolled });
+    return NextResponse.json({ success: true, updated, notEnrolled, emailWarnings });
   }
 
   // ── Single status update ──
@@ -572,9 +593,16 @@ export async function PUT(request: Request) {
 
   // Accepting puts them on the roster — see the bulk path above.
   let notEnrolled = false;
+  let emailWarning: string | null = null;
   if (status === "accepted" && data) {
     const result = await ensureEnrollmentForApplicant(adminSupabase, data, user.id);
     notEnrolled = result.outcome === "no_account";
+    // Account exists and they're enrolled — send the acceptance email. This
+    // path used to send nothing on "accepted".
+    if (!notEnrolled && send_email && previousStatus !== "accepted") {
+      const sent = await sendAcceptanceToLinkedAccount(adminSupabase, id);
+      emailWarning = sent.warning;
+    }
   }
 
   // Leaving a school (rejected/cancelled) deactivates a student-level account.
@@ -615,7 +643,12 @@ export async function PUT(request: Request) {
     }
   }
 
-  return NextResponse.json({ success: true, response: data, notEnrolled });
+  return NextResponse.json({
+    success: true,
+    response: data,
+    notEnrolled,
+    ...(emailWarning ? { emailWarning } : {}),
+  });
 }
 
 async function sendStatusEmail(
@@ -653,7 +686,8 @@ async function sendStatusEmail(
           interviewNotes: notes || undefined,
         });
         break;
-      // "accepted" is handled by accept-application route
+      // "accepted" is sent by sendAcceptanceToLinkedAccount (PUT) or the
+      // accept-application route — never from here.
       // "references_received" and "submitted" don't need emails
       default:
         return;

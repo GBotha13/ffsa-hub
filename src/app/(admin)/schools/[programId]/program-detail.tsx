@@ -103,7 +103,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, Download, Edit2, ClipboardList, Copy, Check, Link as LinkIcon, Archive, BookTemplate, Upload, Loader2, FileText, Send, BarChart3, Calendar, RefreshCw, Search, Users, AlertTriangle, ShieldCheck } from "lucide-react";
+import { Plus, Trash2, Download, Edit2, ClipboardList, Copy, Check, Link as LinkIcon, Archive, BookTemplate, Upload, Loader2, FileText, Send, MailCheck, BarChart3, Calendar, RefreshCw, Search, Users, AlertTriangle, ShieldCheck } from "lucide-react";
 import { ProgramActions } from "../program-actions";
 
 // ────────────────────────────────────────────────────────────
@@ -1888,6 +1888,7 @@ function ApplicantsTab({
 
   // Resend invite state
   const [resendingInviteId, setResendingInviteId] = useState<string | null>(null);
+  const [resendingAcceptanceId, setResendingAcceptanceId] = useState<string | null>(null);
   const [copyingLinkId, setCopyingLinkId] = useState<string | null>(null);
 
   // Emailing the link cannot help an applicant whose address has bounced —
@@ -1916,6 +1917,28 @@ function ApplicantsTab({
       alert("Could not create a setup link");
     } finally {
       setCopyingLinkId(null);
+    }
+  }
+
+  /** Re-send the acceptance email itself (no setup link). */
+  async function handleResendAcceptance(responseId: string) {
+    setResendingAcceptanceId(responseId);
+    try {
+      const res = await fetch("/api/admin/resend-acceptance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ response_id: responseId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.error || "Failed to resend the acceptance email");
+        return;
+      }
+      alert(`Acceptance email resent to ${data.email}.`);
+    } catch {
+      alert("Failed to resend the acceptance email");
+    } finally {
+      setResendingAcceptanceId(null);
     }
   }
 
@@ -2391,6 +2414,13 @@ function ApplicantsTab({
             `they have no account yet. Use Accept on each so they get an invite.`
         );
       }
+      const emailWarnings: string[] = data.emailWarnings ?? [];
+      if (emailWarnings.length > 0) {
+        alert(
+          `${emailWarnings.length} acceptance email${emailWarnings.length === 1 ? " was" : "s were"} not sent:\n\n` +
+            emailWarnings.join("\n")
+        );
+      }
       setSelectedIds(new Set());
       setBulkStatus("");
       router.refresh();
@@ -2601,10 +2631,16 @@ function ApplicantsTab({
           }),
         });
 
+        const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          const data = await res.json();
           alert(data.error || "Failed to accept application");
           return;
+        }
+        // Accepted, but the email didn't go out — say so. The route has
+        // returned this for months; nothing showed it, so a failed send
+        // looked exactly like a successful one.
+        if (data.emailWarning) {
+          alert(`Accepted — but the student was not emailed.\n\n${data.emailWarning}`);
         }
 
         setReviewingResponse(null);
@@ -3111,6 +3147,23 @@ function ApplicantsTab({
                               <Loader2 className="h-3.5 w-3.5 animate-spin" />
                             ) : (
                               <Send className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                        )}
+                        {resp.status === "accepted" && resp.user_id && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground"
+                            title="Resend acceptance email"
+                            aria-label="Resend acceptance email"
+                            disabled={resendingAcceptanceId === resp.id}
+                            onClick={() => handleResendAcceptance(resp.id)}
+                          >
+                            {resendingAcceptanceId === resp.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <MailCheck className="h-3.5 w-3.5" />
                             )}
                           </Button>
                         )}
