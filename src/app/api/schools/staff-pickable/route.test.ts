@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createFakeSupabase, type FakeQuery } from "@/lib/testing/fake-supabase";
 
-// With a program_id the list uses the whole program check (312), so a named
-// leader and a program-scoped schools.* grant can load it. With no program_id
-// the route stays on the global check.
+// With a program_id the list uses userCanManageProgram, so a named leader
+// and a program-scoped schools.* grant can load it. A missing program_id
+// is 400 before any access check.
 
 const PROGRAM_A = "11111111-1111-4111-8111-111111111111";
 const PROGRAM_B = "22222222-2222-4222-8222-222222222222";
@@ -33,6 +33,7 @@ function signIn(seed: { roles?: RoleSeed[]; perms?: PermSeed[]; leaderOf?: strin
   h.userClient = createFakeSupabase({
     user: { id: "me" },
     resolve: (q) => {
+      if (q.table === "users") return { data: { is_active: true } };
       if (q.table === "user_roles") {
         return {
           data: (seed.roles ?? []).map((role) => ({
@@ -90,9 +91,9 @@ describe("GET /api/schools/staff-pickable", () => {
     expect((await get(PROGRAM_A)).status).toBe(403);
   });
 
-  it("keeps a missing program_id on the global check", async () => {
+  it("rejects a missing program_id before the access check", async () => {
     signIn({ leaderOf: [PROGRAM_A] });
-    expect((await get()).status).toBe(403);
+    expect((await get()).status).toBe(400);
 
     signIn({ perms: [{ key: "schools.manage", scope_type: null, scope_id: null }] });
     expect((await get()).status).toBe(400);

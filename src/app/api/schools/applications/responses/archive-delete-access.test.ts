@@ -32,8 +32,13 @@ vi.mock("@/lib/supabase/server", () => ({
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => {
     const chain = {
+      rows: [] as Array<{ id: string; program_id: string }>,
       select: () => chain,
       eq: () => chain,
+      in: (_col: string, ids: string[]) => {
+        chain.rows = ids.map((id) => ({ id, program_id: h.programId }));
+        return chain;
+      },
       delete: () => {
         h.deleted += 1;
         return chain;
@@ -50,8 +55,8 @@ vi.mock("@/lib/supabase/admin", () => ({
         },
         error: null,
       }),
-      then: (onFulfilled: (v: { data: null; error: null }) => unknown) =>
-        Promise.resolve({ data: null, error: null }).then(onFulfilled),
+      then: (onFulfilled: (v: { data: unknown; error: null }) => unknown) =>
+        Promise.resolve({ data: chain.rows, error: null }).then(onFulfilled),
     };
     return { from: () => chain };
   },
@@ -354,8 +359,10 @@ describe("archive stays on the program check; delete follows the DELETE policy",
         roles: [{ id: "r-b", name: "staff", scope_type: "program", scope_id: PROGRAM_B }],
         bundles: [{ role_id: "r-b", key }],
       });
-      expect((await remove()).status, `role ${key}`).toBe(200);
-      expect(h.deleted, `role ${key}`).toBe(1);
+      // A role bundle can satisfy userCanDeleteApplication, and it still
+      // has to pass userCanManageProgram. A staff bundle does not.
+      expect((await remove()).status, `role ${key}`).toBe(403);
+      expect(h.deleted, `role ${key}`).toBe(0);
     }
   });
 

@@ -12,8 +12,10 @@ import {
   ensureEnrollmentForApplicant,
 } from "@/services/schools";
 import {
+  programIdsForTargets,
   userCanDeleteApplication,
   userCanManageApplications,
+  userCanManageEveryProgram,
   userCanManageProgram,
 } from "@/lib/auth/check-schools-access";
 import {
@@ -826,25 +828,13 @@ export async function PATCH(request: Request) {
 
   // ── Archive / restore an application (reversible "remove") ──
   if (action === "archive" || action === "restore") {
-    if (!id) {
+    const ids = applicationTargetIds(body);
+    if (!id || !ids) {
       return NextResponse.json({ error: "id is required" }, { status: 400 });
     }
-    // Service-role write below bypasses RLS. The gate is the whole program
-    // check (312): admins, named leaders, schools.* grants, and a
-    // program_leader role scoped to this school. A missing row has no
-    // program, so it stays on the global check.
-    const adminSupabase = createAdminClient();
-    const { data: target } = await adminSupabase
-      .from("application_responses")
-      .select("program_id")
-      .eq("id", id)
-      .maybeSingle();
-    const allowed = target?.program_id
-      ? await userCanManageProgram(supabase, user.id, target.program_id)
-      : await userCanManageApplications(supabase, user.id);
-    if (!allowed) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    // Every id in the batch has to pass userCanManageProgram. ids is check-only.
+    const denied = await denyUnlessApplicationPrograms(supabase, user.id, ids);
+    if (denied) return denied;
     // RLS-backed: the 6-month expiry lock (migration 223) applies here too.
     if (!(await userCanReadApplication(supabase, id))) {
       return NextResponse.json({ error: APPLICATIONS_EXPIRED_MESSAGE }, { status: 403 });
@@ -853,6 +843,7 @@ export async function PATCH(request: Request) {
     // Gate is the permission check above; write with the admin client so the
     // broader set of application managers isn't blocked by the narrower
     // row-update RLS policy.
+    const adminSupabase = createAdminClient();
     const { data, error } = await setResponseRemoved(
       adminSupabase,
       id,
@@ -1007,9 +998,16 @@ export async function DELETE(request: Request) {
 
   const body = await request.json().catch(() => ({}));
   const { id } = body;
-  if (!id) {
+  const ids = applicationTargetIds(body);
+  if (!id || !ids) {
     return NextResponse.json({ error: "id is required" }, { status: 400 });
   }
+  // userCanManageProgram for every target. userCanDeleteApplication stays on
+  // top of that, in the block below, so an expired school still gets its
+  // own message. A program_leaders row or schools.manage_enrollments can
+  // manage the school and still be refused the delete.
+  const denied = await denyUnlessApplicationPrograms(supabase, user.id, ids);
+  if (denied) return denied;
 
   const adminSupabase = createAdminClient();
 
@@ -1082,4 +1080,33 @@ export async function DELETE(request: Request) {
   });
 
   return NextResponse.json({ success: true });
+}
+
+/**
+ * `id` is the row the handler writes. `ids`, when the body sends it, is
+ * check-only: every id has to be a real application in a program this user
+ * manages, and a bad entry rejects the request. Nothing in `ids` is written.
+ */
+function applicationTargetIds(body: { id?: unknown; ids?: unknown }): string[] | null {
+  const ids: string[] = [];
+  if (typeof body.id === "string" && body.id.length > 0) ids.push(body.id);
+  if (Array.isArray(body.ids)) {
+    for (const id of body.ids) {
+      if (typeof id !== "string" || id.length === 0) return null;
+      if (!ids.includes(id)) ids.push(id);
+    }
+  }
+  return ids.length > 0 ? ids : null;
+}
+
+async function denyUnlessApplicationPrograms(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  ids: string[]
+) {
+  const programs = await programIdsForTargets(createAdminClient(), "application_responses", ids);
+  if (!programs || !(await userCanManageEveryProgram(supabase, userId, programs))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  return null;
 }

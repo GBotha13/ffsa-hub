@@ -81,6 +81,7 @@ function world(seed: { roles?: RoleSeed[]; perms?: PermSeed[]; leaderOf?: string
 
   return createFakeSupabase({
     resolve: (q) => {
+      if (q.table === "users") return { data: { is_active: true } };
       if (q.table === "user_roles") return { data: applyLimit(q, roleRows.filter((row) => matchesFilters(q, row))) };
       if (q.table === "user_permissions") {
         return { data: applyLimit(q, permRows.filter((row) => matchesFilters(q, row))) };
@@ -129,10 +130,13 @@ describe("program_leader role scope (migration 312)", () => {
 
   it("does not treat a missing scope_type as unscoped", async () => {
     const f = createFakeSupabase({
-      resolve: (q) =>
-        q.table === "user_roles"
-          ? { data: [{ user_id: USER, scope_id: null, roles: { name: "program_leader" } }] }
-          : { data: [] },
+      resolve: (q) => {
+        if (q.table === "users") return { data: { is_active: true } };
+        if (q.table === "user_roles") {
+          return { data: [{ user_id: USER, scope_id: null, roles: { name: "program_leader" } }] };
+        }
+        return { data: [] };
+      },
     });
     expect(await userCanManageApplications(f.client, USER)).toBe(false);
     expect(await userCanManageApplications(f.client, USER, PROGRAM_A)).toBe(false);
@@ -259,7 +263,11 @@ describe("sources migration 312 leaves unchanged", () => {
 
   it("does not treat a program_staff row as management", async () => {
     const f = createFakeSupabase({
-      resolve: (q) => (q.table === "program_staff" ? { data: [{ id: "ps", program_id: PROGRAM_A }] } : { data: [] }),
+      resolve: (q) => {
+        if (q.table === "users") return { data: { is_active: true } };
+        if (q.table === "program_staff") return { data: [{ id: "ps", program_id: PROGRAM_A }] };
+        return { data: [] };
+      },
     });
     expect(await userCanManageApplications(f.client, USER)).toBe(false);
     expect(await userCanManageProgram(f.client, USER, PROGRAM_A)).toBe(false);
@@ -431,5 +439,51 @@ describe("userCanDeleteApplication scope and lookup failures", () => {
       return undefined;
     });
     expect(await userCanDeleteApplication(thrown, USER, PROGRAM_A)).toBe(false);
+  });
+});
+
+const PROGRAM = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+
+function activeClient(opts: { active?: boolean | null; error?: boolean; leader?: boolean; admin?: boolean }) {
+  return createFakeSupabase({
+    resolve: (q) => {
+      if (opts.error) return { data: null, error: { message: "boom" } };
+      if (q.table === "users") return { data: { is_active: opts.active === undefined ? true : opts.active } };
+      if (q.table === "user_roles" && opts.admin) {
+        return { data: [{ roles: { name: "admin" } }] };
+      }
+      if (q.table === "program_leaders" && opts.leader) return { data: [{ id: "pl" }] };
+      return { data: [] };
+    },
+  }).client;
+}
+
+describe("userCanManageApplications is_active", () => {
+  it("allows an active admin and treats NULL is_active as active", async () => {
+    expect(await userCanManageApplications(activeClient({ admin: true }), "u")).toBe(true);
+    expect(await userCanManageApplications(activeClient({ admin: true, active: null }), "u")).toBe(true);
+  });
+
+  it("denies a deactivated admin", async () => {
+    expect(await userCanManageApplications(activeClient({ admin: true, active: false }), "u")).toBe(false);
+  });
+
+  it("returns false when the active-account lookup errors", async () => {
+    expect(await userCanManageApplications(activeClient({ admin: true, error: true }), "u")).toBe(false);
+  });
+});
+
+describe("userCanManageProgram is_active", () => {
+  it("allows an active program leader and treats NULL is_active as active", async () => {
+    expect(await userCanManageProgram(activeClient({ leader: true }), "u", PROGRAM)).toBe(true);
+    expect(await userCanManageProgram(activeClient({ leader: true, active: null }), "u", PROGRAM)).toBe(true);
+  });
+
+  it("denies a deactivated program leader", async () => {
+    expect(await userCanManageProgram(activeClient({ leader: true, active: false }), "u", PROGRAM)).toBe(false);
+  });
+
+  it("returns false when the active-account lookup errors", async () => {
+    expect(await userCanManageProgram(activeClient({ leader: true, error: true }), "u", PROGRAM)).toBe(false);
   });
 });
