@@ -11,8 +11,16 @@ import {
   removeEnrollmentForApplicant,
   ensureEnrollmentForApplicant,
 } from "@/services/schools";
-import { userCanManageApplications, userCanManageProgram } from "@/lib/auth/check-schools-access";
-import { userCanReadApplication, APPLICATIONS_EXPIRED_MESSAGE } from "@/lib/auth/application-expiry";
+import {
+  userCanDeleteApplication,
+  userCanManageApplications,
+  userCanManageProgram,
+} from "@/lib/auth/check-schools-access";
+import {
+  userCanReadApplication,
+  APPLICATIONS_EXPIRED_MESSAGE,
+  getApplicationExpiry,
+} from "@/lib/auth/application-expiry";
 import { normaliseGender } from "@/lib/schools/demographics";
 import { ensureStudentRole, deactivateMembershipProfile } from "@/lib/auth/membership-roles";
 import { sendTransactional } from "@/lib/email/send-transactional";
@@ -821,7 +829,20 @@ export async function PATCH(request: Request) {
     if (!id) {
       return NextResponse.json({ error: "id is required" }, { status: 400 });
     }
-    if (!(await userCanManageApplications(supabase, user.id))) {
+    // Service-role write below bypasses RLS. The gate is the whole program
+    // check (312): admins, named leaders, schools.* grants, and a
+    // program_leader role scoped to this school. A missing row has no
+    // program, so it stays on the global check.
+    const adminSupabase = createAdminClient();
+    const { data: target } = await adminSupabase
+      .from("application_responses")
+      .select("program_id")
+      .eq("id", id)
+      .maybeSingle();
+    const allowed = target?.program_id
+      ? await userCanManageProgram(supabase, user.id, target.program_id)
+      : await userCanManageApplications(supabase, user.id);
+    if (!allowed) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     // RLS-backed: the 6-month expiry lock (migration 223) applies here too.
@@ -832,7 +853,6 @@ export async function PATCH(request: Request) {
     // Gate is the permission check above; write with the admin client so the
     // broader set of application managers isn't blocked by the narrower
     // row-update RLS policy.
-    const adminSupabase = createAdminClient();
     const { data, error } = await setResponseRemoved(
       adminSupabase,
       id,
@@ -959,6 +979,19 @@ export async function PATCH(request: Request) {
   return NextResponse.json({ error: "Invalid action" }, { status: 400 });
 }
 
+async function expiredWithoutAccess(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  programId: string
+): Promise<boolean> {
+  try {
+    const expiry = await getApplicationExpiry(supabase, programId);
+    if (expiry.lookupFailed) return false;
+    return expiry.expired && !expiry.canAccess;
+  } catch {
+    return false;
+  }
+}
+
 // ── DELETE: permanently remove an application ──
 // Guarded: accepted applications own an enrollment / billing / user account,
 // so they can never be hard-deleted here — they must be archived instead.
@@ -972,18 +1005,10 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  if (!(await userCanManageApplications(supabase, user.id))) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
   const body = await request.json().catch(() => ({}));
   const { id } = body;
   if (!id) {
     return NextResponse.json({ error: "id is required" }, { status: 400 });
-  }
-
-  if (!(await userCanReadApplication(supabase, id))) {
-    return NextResponse.json({ error: APPLICATIONS_EXPIRED_MESSAGE }, { status: 403 });
   }
 
   const adminSupabase = createAdminClient();
@@ -993,6 +1018,32 @@ export async function DELETE(request: Request) {
     .select("id, status, program_id, applicant_email, user_id")
     .eq("id", id)
     .single();
+
+  // Both gates are required. userCanDeleteApplication is migration 223's
+  // DELETE policy (a program_leaders row is not enough). The user-client
+  // read is RLS, and it is what keeps a school-scoped grant inside that
+  // school — the service role below would otherwise ignore it. A missing
+  // row has no program, so the policy check stays global.
+  const allowed = existing?.program_id
+    ? await userCanDeleteApplication(supabase, user.id, existing.program_id)
+    : await userCanManageApplications(supabase, user.id);
+  if (!allowed) {
+    if (existing?.program_id && (await expiredWithoutAccess(supabase, existing.program_id))) {
+      return NextResponse.json({ error: APPLICATIONS_EXPIRED_MESSAGE }, { status: 403 });
+    }
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  // Fail closed: a throw, an error, or no row is not permission to delete.
+  let canRead = false;
+  try {
+    canRead = (await userCanReadApplication(supabase, id)) === true;
+  } catch {
+    canRead = false;
+  }
+  if (!canRead) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   if (fetchError || !existing) {
     return NextResponse.json({ error: "Application not found" }, { status: 404 });

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { userCanManageApplications } from "@/lib/auth/check-schools-access";
+import { userCanManageApplications, userCanManageProgram } from "@/lib/auth/check-schools-access";
 import { fetchAssignableContacts } from "@/lib/auth/assignable-contacts";
 
 // Returns users eligible to be the point-of-contact for the given
@@ -18,13 +18,18 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const hasAccess = await userCanManageApplications(supabase, authUser.id);
+  const url = new URL(request.url);
+  const programId = url.searchParams.get("program_id");
+  // A program uses the whole 312 check (named leaders and program-scoped
+  // schools.* grants included). No program_id stays the global check, so
+  // the 403/400 order is unchanged.
+  const hasAccess = programId
+    ? await userCanManageProgram(supabase, authUser.id, programId)
+    : await userCanManageApplications(supabase, authUser.id);
   if (!hasAccess) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
-  const url = new URL(request.url);
-  const programId = url.searchParams.get("program_id");
   if (!programId) {
     return NextResponse.json({ error: "program_id is required" }, { status: 400 });
   }
