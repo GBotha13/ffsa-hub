@@ -474,6 +474,7 @@ export function ProgramDetail({
   applicationExpiry,
   staffDecisionPanel,
   canEditClassroom = false,
+  canManageTemplates = false,
   canGradeAssignments = false,
 }: {
   program: Program;
@@ -523,6 +524,8 @@ export function ProgramDetail({
   /** LMS slice 1: leaders / managers (userCanManageProgram) get the Classroom
    *  editor. */
   canEditClassroom?: boolean;
+  /** Admin or unscoped schools.manage / schools.templates.manage. Scoped managers can still import. */
+  canManageTemplates?: boolean;
   /** LMS slice 2: program staff who reach this page (e.g. they also hold a
    *  schools.* grant) get Classroom → Assignments to grade, without the
    *  content editor. Everyone else sees no Classroom tab. */
@@ -899,6 +902,7 @@ export function ProgramDetail({
             questions={questions}
             referenceSlots={referenceSlots}
             referenceQuestions={referenceQuestions}
+            canManageTemplates={canManageTemplates}
           />
         </TabsContent>
 
@@ -3714,6 +3718,7 @@ function ApplicationTab({
   questions,
   referenceSlots,
   referenceQuestions,
+  canManageTemplates,
 }: {
   programId: string;
   programCode: string;
@@ -3723,6 +3728,7 @@ function ApplicationTab({
   questions: AppQuestion[];
   referenceSlots: ReferenceSlot[];
   referenceQuestions: TreeQuestion[];
+  canManageTemplates: boolean;
 }) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(applicationOpen);
@@ -4250,12 +4256,12 @@ function ApplicationTab({
 
       {/* ─── APPLICATION BUILDER ─── */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-medium flex items-center gap-2">
             <ClipboardList className="h-4 w-4" />
             Application Questions ({questions.length})
           </h3>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
               variant="outline"
@@ -4267,7 +4273,7 @@ function ApplicationTab({
               <Upload className="mr-2 h-4 w-4" />
               Import Template
             </Button>
-            {questions.length > 0 && (
+            {canManageTemplates && questions.length > 0 && (
               <Button
                 size="sm"
                 variant="outline"
@@ -4288,10 +4294,15 @@ function ApplicationTab({
               Add Question
             </Button>
           </div>
+          {!canManageTemplates && (
+            <p className="w-full text-xs leading-snug text-muted-foreground">
+              Only admins and Hub-wide template managers can save or delete templates.
+            </p>
+          )}
         </div>
 
         {/* Save as Template Dialog */}
-        {showSaveTemplate && (
+        {canManageTemplates && showSaveTemplate && (
           <div className="border bg-card p-4 space-y-3">
             <h4 className="text-sm font-medium">Save Questions as Template</h4>
             <p className="text-xs text-muted-foreground">
@@ -4366,14 +4377,16 @@ function ApplicationTab({
                         "Import"
                       )}
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-muted-foreground hover:text-destructive"
-                      onClick={() => handleDeleteTemplate(t.id)}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
+                    {canManageTemplates && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => handleDeleteTemplate(t.id)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>

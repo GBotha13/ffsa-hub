@@ -28,6 +28,7 @@ import { listActiveMinistries } from "@/services/ministries";
 import { staffDecisionDepartmentOptions } from "@/lib/users/department-options";
 import { StaffDecisionTab } from "./staff-decision-tab";
 import { getApplicationExpiry } from "@/lib/auth/application-expiry";
+import { canManageApplicationTemplates } from "@/lib/auth/application-template-access";
 
 type UserIdentity = {
   id: string;
@@ -468,6 +469,8 @@ export default async function ProgramDetailPage({
   // ProgramDetail carries its own `.ffsa-screen` root + Masthead, so this
   // route adds no wrapper of its own — an extra div here would put the
   // edge-to-edge screen back inside the old centred page box.
+  const canManageTemplates = await canManageApplicationTemplates(supabase, session.user.id);
+
   return (
     <>
       <ProgramDetail
@@ -502,6 +505,7 @@ export default async function ProgramDetailPage({
         applicationExpiry={applicationExpiry}
         staffDecisionPanel={staffDecisionPanel ?? undefined}
         canEditClassroom={viewer.canManage}
+        canManageTemplates={canManageTemplates}
         canGradeAssignments={viewer.canManage || viewer.isStaff}
       />
     </>
