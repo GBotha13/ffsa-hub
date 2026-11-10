@@ -15,7 +15,13 @@ const h = vi.hoisted(() => ({
   listCalls: [] as unknown[],
   created: [] as unknown[],
   published: [] as string[],
+  withheld: [] as Array<{ id: string; reason: string | null }>,
+  updates: [] as Array<{ id: string; status: string }>,
   deleted: 0,
+  emptyWrite: false,
+  hideAfterLoad: false,
+  gets: 0,
+  publishError: null as unknown,
   attachError: null as unknown,
   ledger: new Map<string, string>(), // storage_path -> user id
   recorded: [] as Array<{ path: string; userId: string }>,
@@ -56,7 +62,11 @@ vi.mock("@/services/evangelism", async (importOriginal) => {
       h.listCalls.push(opts);
       return { data: h.rows, error: null };
     },
-    getTestimony: async () => ({ data: h.row, error: null }),
+    getTestimony: async () => {
+      h.gets += 1;
+      if (h.hideAfterLoad && h.gets > 1) return { data: null, error: null };
+      return { data: h.row, error: null };
+    },
     createTestimony: async (_c: unknown, fields: Record<string, unknown>, status: string) => {
       const row = { ...baseRow(), ...fields, status };
       h.created.push(row);
@@ -65,10 +75,23 @@ vi.mock("@/services/evangelism", async (importOriginal) => {
     },
     attachPhoto: async () => ({ error: h.attachError }),
     publishTestimony: async (_c: unknown, id: string) => {
+      if (h.publishError) return { data: null, error: h.publishError };
+      if (h.emptyWrite) return { data: null, error: null };
       h.published.push(id);
       return { data: asRow({ ...(h.row as object), status: "published" }), error: null };
     },
-    withholdTestimony: async () => ({ data: asRow({ ...(h.row as object), status: "withheld" }), error: null }),
+    withholdTestimony: async (_c: unknown, id: string, reason: string | null) => {
+      if (h.emptyWrite) return { data: null, error: null };
+      h.withheld.push({ id, reason });
+      return { data: asRow({ ...(h.row as object), status: "withheld" }), error: null };
+    },
+    updateTestimony: async (_c: unknown, id: string, fields: unknown, status: string) => {
+      if (h.emptyWrite) return { data: null, error: null };
+      h.updates.push({ id, status });
+      const row = { ...(h.row as object), ...(fields as object), status };
+      h.row = row;
+      return { data: asRow(row), error: null };
+    },
     deleteTestimony: async () => {
       h.events.push("delete-row");
       return { deleted: h.deleted, error: null };
@@ -144,7 +167,13 @@ beforeEach(() => {
   h.listCalls = [];
   h.created = [];
   h.published = [];
+  h.withheld = [];
+  h.updates = [];
   h.deleted = 0;
+  h.emptyWrite = false;
+  h.hideAfterLoad = false;
+  h.gets = 0;
+  h.publishError = null;
   h.attachError = null;
   h.ledger = new Map();
   h.recorded = [];
@@ -324,6 +353,148 @@ describe("/api/evangelism/testimonies/:id", () => {
     expect((await PATCH(req(`/testimonies/${STORY_ID}`, "PATCH", { ...story, intent: "submit" }), ctx)).status).toBe(
       409
     );
+  });
+
+  it("lets a publisher withhold a published story with a reason", async () => {
+    h.access = PUBLISHER;
+    h.row = { ...baseRow(), status: "published" };
+    const res = await PATCH(
+      req(`/testimonies/${STORY_ID}`, "PATCH", { status: "withheld", reason: "  Names a minor " }),
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    expect(h.withheld).toEqual([{ id: STORY_ID, reason: "Names a minor" }]);
+    expect((await res.json()).testimony.status).toBe("withheld");
+    expect(h.updates).toHaveLength(0);
+  });
+
+  it("lets a publisher withhold a published story without a reason", async () => {
+    h.access = PUBLISHER;
+    h.mine = false;
+    h.row = { ...baseRow(), status: "published" };
+    const res = await PATCH(req(`/testimonies/${STORY_ID}`, "PATCH", { status: "withheld" }), ctx);
+    expect(res.status).toBe(200);
+    expect(h.withheld).toEqual([{ id: STORY_ID, reason: null }]);
+  });
+
+  it("still accepts the queue's action withhold", async () => {
+    h.access = PUBLISHER;
+    h.row = { ...baseRow(), status: "published" };
+    const res = await PATCH(req(`/testimonies/${STORY_ID}`, "PATCH", { action: "withhold", reason: "Queue" }), ctx);
+    expect(res.status).toBe(200);
+    expect(h.withheld).toEqual([{ id: STORY_ID, reason: "Queue" }]);
+  });
+
+  it("lets a publisher republish a withheld story", async () => {
+    h.access = PUBLISHER;
+    h.row = { ...baseRow(), status: "withheld" };
+    const res = await PATCH(req(`/testimonies/${STORY_ID}`, "PATCH", { status: "published" }), ctx);
+    expect(res.status).toBe(200);
+    expect(h.published).toEqual([STORY_ID]);
+    expect((await res.json()).testimony.status).toBe("published");
+  });
+
+  it("keeps content edits on a reviewed story locked", async () => {
+    h.access = PUBLISHER;
+    h.mine = true;
+    h.row = { ...baseRow(), status: "published" };
+    const res = await PATCH(req(`/testimonies/${STORY_ID}`, "PATCH", { ...story, intent: "submit" }), ctx);
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/can no longer be edited/);
+    expect(h.updates).toHaveLength(0);
+    expect(h.withheld).toHaveLength(0);
+  });
+
+  it("keeps a consent edit on a reviewed story locked", async () => {
+    h.access = PUBLISHER;
+    h.mine = true;
+    h.row = { ...baseRow(), status: "withheld" };
+    const res = await PATCH(req(`/testimonies/${STORY_ID}`, "PATCH", { consent_to_share: false }), ctx);
+    expect(res.status).toBe(409);
+    expect(h.updates).toHaveLength(0);
+    expect(h.published).toHaveLength(0);
+  });
+
+  it("refuses a non-publisher withhold", async () => {
+    h.access = SUBMITTER;
+    h.mine = true;
+    h.row = { ...baseRow(), status: "published" };
+    const res = await PATCH(req(`/testimonies/${STORY_ID}`, "PATCH", { status: "withheld", reason: "Please" }), ctx);
+    expect(res.status).toBe(403);
+    expect(h.withheld).toHaveLength(0);
+  });
+
+  it("refuses a withhold that also changes the title, and does not write", async () => {
+    h.access = PUBLISHER;
+    h.row = { ...baseRow(), status: "published" };
+    const res = await PATCH(req(`/testimonies/${STORY_ID}`, "PATCH", { status: "withheld", title: "A different title" }), ctx);
+    expect(res.status).toBe(409);
+    expect(h.withheld).toHaveLength(0);
+    expect(h.updates).toHaveLength(0);
+  });
+
+  it("refuses a republish that also changes the title on a submitted story", async () => {
+    h.access = PUBLISHER;
+    h.row = baseRow(); // submitted
+    const res = await PATCH(req(`/testimonies/${STORY_ID}`, "PATCH", { status: "published", title: "A different title" }), ctx);
+    expect(res.status).toBe(400);
+    expect(h.published).toHaveLength(0);
+    expect(h.updates).toHaveLength(0);
+  });
+
+  it("rejects an action that conflicts with status", async () => {
+    h.access = PUBLISHER;
+    h.row = { ...baseRow(), status: "published" };
+    const res = await PATCH(
+      req(`/testimonies/${STORY_ID}`, "PATCH", { action: "withhold", status: "published" }),
+      ctx,
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/don't match/);
+    expect(h.withheld).toHaveLength(0);
+  });
+
+  it("returns 403 when an update matches no row but the story is still visible", async () => {
+    h.access = PUBLISHER;
+    h.emptyWrite = true;
+    h.row = { ...baseRow(), status: "withheld" };
+    const res = await PATCH(req(`/testimonies/${STORY_ID}`, "PATCH", { status: "published" }), ctx);
+    expect(res.status).toBe(403);
+    expect(h.published).toHaveLength(0);
+  });
+
+  it("returns 404 when an update matches no row and the story is no longer visible", async () => {
+    h.access = PUBLISHER;
+    h.emptyWrite = true;
+    h.hideAfterLoad = true;
+    h.row = { ...baseRow(), status: "withheld" };
+    const res = await PATCH(req(`/testimonies/${STORY_ID}`, "PATCH", { status: "published" }), ctx);
+    expect(res.status).toBe(404);
+  });
+
+  it("maps the moderator-withheld 42501 to a friendly message", async () => {
+    h.access = PUBLISHER;
+    h.mine = true;
+    h.row = { ...baseRow(), status: "withheld" };
+    h.publishError = {
+      code: "42501",
+      message: "A moderator withheld this story; only a moderator can republish it",
+    };
+    const res = await PATCH(req(`/testimonies/${STORY_ID}`, "PATCH", { status: "published" }), ctx);
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toBe(
+      "A moderator withheld this story. Only a moderator can publish it again or change the reason.",
+    );
+    expect(h.published).toHaveLength(0);
+  });
+
+  it("still lets an author edit a draft", async () => {
+    h.access = SUBMITTER;
+    h.mine = true;
+    h.row = { ...baseRow(), status: "draft" };
+    const res = await PATCH(req(`/testimonies/${STORY_ID}`, "PATCH", { ...story, intent: "draft" }), ctx);
+    expect(res.status).toBe(200);
+    expect(h.updates).toEqual([{ id: STORY_ID, status: "draft" }]);
   });
 
   it("lets an author delete only their own draft", async () => {

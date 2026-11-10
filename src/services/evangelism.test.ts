@@ -50,6 +50,13 @@ describe("presentTestimony", () => {
     expect(own.is_mine).toBe(true);
   });
 
+  it("copies withheld_by_other from attribution and never a raw id", () => {
+    expect(presentTestimony(row, forAuthor)).not.toHaveProperty("withheld_by_other");
+    expect(presentTestimony(row, { ...forAuthor, withheld_by_other: false })).not.toHaveProperty("withheld_by_other");
+    expect(presentTestimony(row, { ...forAuthor, withheld_by_other: true }).withheld_by_other).toBe(true);
+    expect(presentTestimony(row, forAuthor)).not.toHaveProperty("withheld_by");
+  });
+
   it("shows the author their withheld reason", () => {
     const out = presentTestimony({ ...row, status: "withheld", published_at: null }, {
       ...forAuthor,
@@ -61,6 +68,14 @@ describe("presentTestimony", () => {
 
   it("is not mine when attribution is missing", () => {
     expect(presentTestimony(row, undefined).is_mine).toBe(false);
+  });
+
+  it("does not crash when attribution is missing for a withheld story, and offers no republish to a non-moderator", () => {
+    const withheld = { ...row, status: "withheld" as const, published_at: null };
+    const hidden = presentTestimony(withheld, undefined);
+    expect(hidden.is_mine).toBe(false);
+    expect(hidden.withheld_by_other).toBe(true);
+    expect(presentTestimony(withheld, undefined, new Map(), { moderate: true })).not.toHaveProperty("withheld_by_other");
   });
 });
 

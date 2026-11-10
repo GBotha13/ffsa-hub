@@ -5,8 +5,7 @@ import { getEvangelismAccess } from "@/lib/auth/check-evangelism-access";
 import { present } from "@/lib/evangelism/http";
 import { Masthead, MastheadAction } from "@/components/ffsa";
 import { isEvangelismNotReady, listActiveMinistries, listTestimonies } from "@/services/evangelism";
-import { MyStories } from "./my-stories";
-import { PublishedList } from "./published-list";
+import { EvangelismBoard } from "./evangelism-board";
 
 export default async function EvangelismPage() {
   const supabase = await createClient();
@@ -57,10 +56,12 @@ export default async function EvangelismPage() {
   return (
     <div className="ffsa-screen">
       {masthead}
-      {access.submit && (
-        <MyStories ministries={ministries} mine={mineOut} />
-      )}
-      <PublishedList stories={publishedOut} />
+      <EvangelismBoard
+        published={publishedOut}
+        mine={access.submit ? mineOut : null}
+        access={{ submit: access.submit, publish: access.publish }}
+        ministries={ministries}
+      />
     </div>
   );
 }

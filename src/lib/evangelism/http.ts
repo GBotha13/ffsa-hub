@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getEvangelismAccess, type EvangelismAccess } from "@/lib/auth/check-evangelism-access";
+import { moderatorWithheldClientMessage } from "@/lib/evangelism/takedown";
 import {
   getAttribution,
   isEvangelismNotReady,
@@ -41,8 +42,11 @@ export function dbError(error: unknown, context: string) {
     return jsonError(503, "Evangelism isn't switched on yet.", "evangelism_not_enabled");
   }
   console.error(`[evangelism] ${context}`, error);
-  const code = (error as { code?: string } | null)?.code;
-  if (code === "42501") return jsonError(403, "You don't have permission to do that.");
+  const code = (error as { code?: string; message?: unknown } | null)?.code;
+  if (code === "42501") {
+    const friendly = moderatorWithheldClientMessage(error && (error as { message?: unknown }).message);
+    return jsonError(403, friendly ?? "You don't have permission to do that.");
+  }
   if (code === "23514") return jsonError(400, "That story doesn't pass the checks (consent, numbers or lengths).");
   return jsonError(500, "Something went wrong saving the story.");
 }
@@ -66,5 +70,6 @@ export async function present(rows: TestimonyRow[], caller: Caller): Promise<Pre
     // Missing service-role env or a Storage hiccup: still return the text.
     console.error("[evangelism] signing failed", e);
   }
-  return rows.map((r) => presentTestimony(r, attribution.get(r.id), signed));
+  const moderate = (caller.access as { moderate?: boolean }).moderate === true;
+  return rows.map((r) => presentTestimony(r, attribution.get(r.id), signed, { moderate }));
 }
