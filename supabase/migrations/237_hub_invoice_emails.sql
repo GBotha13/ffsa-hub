@@ -81,8 +81,8 @@ View your bill online: [Online Invoice Link]
 Please EFT payment into the following account:
 Account Holder: FF SA YWAM NPC
 Bank name: First National Bank Limited
-Account Number: 62848325834
-Branch Code: 250655 
+Account Number: 00000000000
+Branch Code: 000000 
 Reference: Initial & surname + Reason for payment (ex. A. Smith EFL) or Invoice Number
 
 If you are outside of South Africa, you may wire transfer using the above payment details or use the following link to pay. If using this form of payment, we ask that you add 2.95% to the amount due.   
@@ -105,8 +105,8 @@ View your bill online: [Online Invoice Link]
 If you are able, please EFT or wire transfer into the following account:
 Account Holder: FF SA YWAM NPC
 Bank name: First National Bank Limited
-Account Number: 62882155362
-Branch Code: 250655 (Universal Branch code)
+Account Number: 00000000000
+Branch Code: 000000 (Universal Branch code)
 Swift Address: FIRNZAJJXXX
 Reference: Initial & last name - FFBX
 
@@ -130,9 +130,9 @@ View your bill online: [Online Invoice Link]
 If you are able, please EFT into the following account:
 Account Holder: FF SA NPC
 Bank name: First National Bank Limited
-Account Number: 63114056450
+Account Number: 00000000000
 Address: FNB Forex, 30 Diagonal Street, FNB Place, 9th Floor, Johannesburg, 2001
-Branch Code: 250655 (Universal Branch code)
+Branch Code: 000000 (Universal Branch code)
 Swift Address: FIRNZAJJXXX
 Reference: Initial & surname or Invoice Number
 
@@ -159,8 +159,8 @@ If you are able, please EFT or wire transfer into the following account:
 
 Account Holder: FF SA YWAM NPC
 Bank name: First National Bank Limited
-Account Number: 62872315439
-Branch Code: 250655 (Universal Branch code)
+Account Number: 00000000000
+Branch Code: 000000 (Universal Branch code)
 Reference: Initial & last name - Leadership 
 
 If you are outside of South Africa, you may wire transfer using the above payment details or use the following link to pay. We ask that you add 3% to the amount due if using this form of payment.   
@@ -182,8 +182,8 @@ View your bill online: [Online Invoice Link]
 
 Name on Account: FF SA NPC
 Bank: First National Bank 
-Limited Account Number: 63114056468
-Branch Code: 250655
+Limited Account Number: 00000000000
+Branch Code: 000000
 Reference: Name + Retreat or Invoice Number
 
 Please let us know if you have any questions
@@ -200,8 +200,8 @@ The amount outstanding of [Currency Code] [Amount Due Without Currency] is due o
 View your bill online: [Online Invoice Link]
 
 FF SA YWAM NPCBank: First National Bank 
-Limited Account Number: 62848326527
-Branch Code: 250655
+Limited Account Number: 00000000000
+Branch Code: 000000
 Reference: Name + RR or Invoice # 
 
 Please let us know if you have any questions
@@ -220,8 +220,8 @@ View your bill online: [Online Invoice Link]
 If you are able, please EFT or wire transfer into the following account:
 Account Holder: FF SA YWAM NPC
 Bank name: First National Bank Limited
-Account Number: 63114056434
-Branch Code: 250655 (Universal Branch code)
+Account Number: 00000000000
+Branch Code: 000000 (Universal Branch code)
 Swift Address: FIRNZAJJXXX
 Reference: Initial & last name - SBS
 
@@ -246,7 +246,7 @@ If you have a South African Bank account, please EFT into the following account:
 
 FF SA YWAM NPC
 Bank: First National Bank 
-Limited Account Number: 62848031118 
+Limited Account Number: 00000000000 
 Reference: Name + What you’re paying for     
 or invoice number 
 
@@ -269,8 +269,8 @@ View your bill online: [Online Invoice Link]
 Please EFT payment into the following account:
 Account Holder: FF SA YWAM NPC
 Bank name: First National Bank Limited
-Account Number: 628 483 265 27 
-Branch Code: 250655 
+Account Number: 000 000 000 00 
+Branch Code: 000000 
 Reference: Initial & surname + Reason for payment (ex. A. Smith Camp) or Invoice Number
 
 If you are outside of South Africa, you may wire transfer using the above payment details or use the following link to pay. If using this form of payment, we ask that you add 2.95% to the amount due.   
