@@ -180,10 +180,10 @@ describe("Volunteer door: who is scanning", () => {
     await render(screenFor());
     expect(await screen.findByRole("header", { name: "Who's on the door?" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Start scanning" })).toBeDisabled();
-    await fireEvent.changeText(screen.getByLabelText("First name"), "  Lerato ");
+    await fireEvent.changeText(screen.getByLabelText("First name"), "  Sample Person 258 ");
     await fireEvent.press(screen.getByRole("button", { name: "Start scanning" }));
-    expect(await screen.findByText("Scanning as Lerato")).toBeTruthy();
-    await waitFor(async () => expect(await AsyncStorage.getItem(SCANNER_NAME_KEY)).toBe("Lerato"));
+    expect(await screen.findByText("Scanning as Sample Person 258")).toBeTruthy();
+    await waitFor(async () => expect(await AsyncStorage.getItem(SCANNER_NAME_KEY)).toBe("Sample Person 258"));
     expect(auditTappables(screen.container as never)).toEqual([]);
   });
 

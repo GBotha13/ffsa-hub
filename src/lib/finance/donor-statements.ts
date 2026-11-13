@@ -1,4 +1,4 @@
-// Donor statements — the import rules (docs: Ellen's "Donor Statements – Hub
+// Donor statements — the import rules (docs: Sample Person 50's "Donor Statements – Hub
 // Setup Instructions", Oct 2026).
 //
 // Input is a list of invoice LINES, either pulled from the US Xero org or

@@ -64,7 +64,7 @@ function isOpenYet(week: PracticeWeek) {
   return week.now >= week.opensAt;
 }
 
-/** "Thabo Nkosi", "Grace Adeyemi, Lerato Dube". */
+/** "Thabo Nkosi", "Grace Adeyemi, Sample Person 258 Dube". */
 function namesOf(b: PracticeBooking) {
   return b.people.map((p) => p.full_name).join(", ") || "Someone";
 }

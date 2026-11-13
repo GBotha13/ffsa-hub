@@ -15,7 +15,7 @@ const settings: WordingSettings = {
   address_line1: "C/O FF CHARLOTTE",
   address_line2: "1324 THE PLAZA",
   address_city_line: "CHARLOTTE, NC 28205-3428",
-  signer_name: "Allyson Tiglao",
+  signer_name: "Sample Person 3",
   signer_title: "President",
 };
 
@@ -29,16 +29,16 @@ describe("donor statement wording", () => {
     expect(out).toBe("Peter C Gill · 2026 · $1,500.00 · 99-1356564 · C/O FF CHARLOTTE\n1324 THE PLAZA\nCHARLOTTE, NC 28205-3428");
   });
 
-  it("writes the email Ellen specified, with the fixed subject spelling", () => {
+  it("writes the email Sample Person 50 specified, with the fixed subject spelling", () => {
     const e = statementEmail(settings, { name: "Briana Boll", totalCents: 150000 }, 2026);
     expect(e.subject).toBe("2026 Giving Statement - Thank You for Your Generosity!");
     expect(e.text.startsWith("Dear Briana Boll,\n\nOn behalf of FF SA USA, INC, we want")).toBe(true);
     expect(e.text).toContain("Your total donation for 2026 is: $1,500.00.");
     expect(e.text).toContain("(EIN: 99-1356564)");
-    expect(e.text.endsWith("Allyson Tiglao\nPresident\nFF SA USA, INC\nC/O FF CHARLOTTE\n1324 THE PLAZA\nCHARLOTTE, NC 28205-3428")).toBe(true);
+    expect(e.text.endsWith("Sample Person 3\nPresident\nFF SA USA, INC\nC/O FF CHARLOTTE\n1324 THE PLAZA\nCHARLOTTE, NC 28205-3428")).toBe(true);
     expect(e.text).not.toMatch(/\[|Kailua|Kona|Hawaii|HI 96/);
     expect(e.html).toContain("Dear Briana Boll,");
-    expect(e.html).toContain("Allyson Tiglao<br>President");
+    expect(e.html).toContain("Sample Person 3<br>President");
   });
 
   it("escapes donor names in the html", () => {

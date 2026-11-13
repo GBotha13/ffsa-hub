@@ -47,7 +47,7 @@ export const PRACTICE: PracticeWeek = {
   stations: STATIONS,
   bookings: [
     pb("2026-08-03", "16:00", "17:00", "drums", ["Thabo"]),
-    pb("2026-08-03", "16:00", "16:30", "keys", ["Lerato"]),
+    pb("2026-08-03", "16:00", "16:30", "keys", ["Sample Person 258"]),
     pb("2026-08-03", "16:30", "17:00", "bass", ["Sipho"]),
     pb("2026-08-03", "16:30", "17:00", "vocals", ["Grace", "Naledi", "Pieter"]),
     pb("2026-08-05", "16:00", "17:00", null, ["Michelle"], "Thursday night set"),
