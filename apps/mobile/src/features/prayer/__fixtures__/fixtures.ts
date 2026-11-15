@@ -9,7 +9,7 @@ export const ME_ID = "u1";
 /** Tuesday 3 Nov 2026, 08:00 SAST (06:00 UTC). The week is Sun 1 – Sat 7 Nov. */
 export const NOW = new Date("2026-11-03T06:00:00.000Z");
 
-export const person = (id: string, first: string, last = "Mokoena") => ({
+export const person = (id: string, first: string, last = "Person") => ({
   id,
   first_name: first,
   last_name: last,

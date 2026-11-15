@@ -71,7 +71,7 @@ function serve(over: Partial<Record<string, Handler>> = {}) {
     [`GET ${DOOR}?stats=1`]: () => json({ checkedIn: 12, total: 40 }),
     [`GET ${DOOR}/event`]: () => json({ event: { title: "Send Night", startDate: "2026-11-07" } }),
     [`POST ${DOOR}`]: (body) =>
-      body?.undo ? json({ result: "undone" }) : json({ result: "ok", ticketId: "t1", ticketTypeName: "General", buyerName: "Sarah Mokoena" }),
+      body?.undo ? json({ result: "undone" }) : json({ result: "ok", ticketId: "t1", ticketTypeName: "General", buyerName: "Sample Person 922" }),
     ...over,
   } as Record<string, Handler>;
 }
@@ -204,7 +204,7 @@ describe("Volunteer door: scanning", () => {
 
     await typeCode("AbCdEfGhIjK");
     expect(await screen.findByTestId("verdict-title")).toHaveTextContent("Checked in");
-    expect(screen.getByText("Sarah Mokoena · General")).toBeTruthy();
+    expect(screen.getByText("Sample Person 922 · General")).toBeTruthy();
     expect(Haptics.notificationAsync).toHaveBeenCalledWith("success");
     expect(checkIns()[0].body).toEqual({ code: "AbCdEfGhIjK", scannerName: "Sample Person 199" });
 
@@ -289,11 +289,11 @@ describe("Volunteer door: scanning", () => {
 
   it("name search works on the public link", async () => {
     routes[`GET ${DOOR}?q`] = () =>
-      json({ guests: [{ ticketId: "t9", code: "QwErTyUiOpA", name: "Sarah Mokoena", ticketTypeName: "General", status: "valid", checkedInAt: null }] });
+      json({ guests: [{ ticketId: "t9", code: "QwErTyUiOpA", name: "Sample Person 922", ticketTypeName: "General", status: "valid", checkedInAt: null }] });
     await render(screenFor());
     await screen.findByLabelText("12 of 40 checked in");
     await fireEvent.changeText(screen.getByLabelText("Guest name"), "sarah");
-    await fireEvent.press(await screen.findByRole("button", { name: "Check in Sarah Mokoena" }));
+    await fireEvent.press(await screen.findByRole("button", { name: "Check in Sample Person 922" }));
     expect(await screen.findByTestId("verdict-title")).toHaveTextContent("Checked in");
     expect(checkIns()[0].body).toEqual({ code: "QwErTyUiOpA", scannerName: "Sample Person 199" });
   });

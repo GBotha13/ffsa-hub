@@ -659,11 +659,11 @@ export function fmtUsd(c: number): string {
 const tokens = (name: string) => donorKey(name).split(" ").filter(Boolean);
 
 /**
- * "DTS Donation - Peter Gill" → the donor "Peter C Gill": every word of the
+ * "DTS Donation - Sample Person 913" → the donor "Sample Q Person 913": every word of the
  * named person appears in the donor's name. Only a single clear match counts.
  */
 export function matchCreditNoteDonor(description: string, donors: Pick<Donor, "key" | "name">[]): Pick<Donor, "key" | "name"> | null {
-  // "Donation - DTS - Larry Jones": the person is usually the last segment,
+  // "Donation - DTS - Sample Person 914": the person is usually the last segment,
   // so try each segment after the first, last first.
   const segments = description.split(/\s+[-–]\s+/).slice(1).reverse();
   for (const seg of segments) {
