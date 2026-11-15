@@ -183,7 +183,7 @@ const CP1252: Record<number, number> = {
   0x0153: 0x9c, 0x017e: 0x9e, 0x0178: 0x9f,
 };
 
-/** Repairs UTF-8 that was decoded as Latin-1/cp1252: "HÃ©drik" → "Hédrik". */
+/** Repairs UTF-8 that was decoded as Latin-1/cp1252: "SamplÃ©" → "Samplé". */
 export function fixEncoding(s: string): string {
   if (!/[ÃÂâ]/.test(s)) return s;
   const bytes: number[] = [];
@@ -677,7 +677,7 @@ export function matchCreditNoteDonor(description: string, donors: Pick<Donor, "k
     // Several donors contain the words: an exact name match still wins.
     const exact = hits.filter((d) => tokens(d.name).length === want.length);
     if (exact.length === 1) return exact[0];
-    // "Kassandra Desiree Aleck" → the donor "Kassandra Aleck": same first and last name.
+    // "Sample (Nick) Person 901" → the donor "Sample Person 901": same first and last name.
     if (hits.length === 0) {
       const ends = donors.filter((d) => {
         const t = tokens(d.name);
@@ -689,7 +689,7 @@ export function matchCreditNoteDonor(description: string, donors: Pick<Donor, "k
   return null;
 }
 
-/** Same email under two names, or "Kassandra Aleck" / "Kassandra Desiree Aleck". */
+/** Same email under two names, or "Sample Person 901" / "Sample (Nick) Person 901". */
 function flagDuplicates(donors: Donor[]) {
   const byEmail = new Map<string, Donor[]>();
   for (const d of donors) {

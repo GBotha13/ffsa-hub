@@ -120,7 +120,7 @@ const MINE = {
       role: "keys",
       status: "invited",
       required_label: null,
-      set: { id: "s2", set_date: "2026-11-02", start_time: "08:00:00", end_time: "09:30:00", title: "Morning devo", theme: null, owner: person("u9", "Grace", "Dlamini") },
+      set: { id: "s2", set_date: "2026-11-02", start_time: "08:00:00", end_time: "09:30:00", title: "Morning devo", theme: null, owner: person("u9", "Sample", "Person 905") },
     },
   ],
   "/api/prayer-room/sets?scope=owned": [],

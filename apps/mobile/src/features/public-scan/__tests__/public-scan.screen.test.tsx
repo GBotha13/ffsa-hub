@@ -107,7 +107,7 @@ beforeEach(async () => {
   mockRouter.canGoBack.mockReturnValue(false);
   serve();
   await AsyncStorage.clear();
-  await AsyncStorage.setItem(SCANNER_NAME_KEY, "Thandi");
+  await AsyncStorage.setItem(SCANNER_NAME_KEY, "Sample Person 199");
 });
 
 describe("Volunteer door: opening the link", () => {
@@ -206,7 +206,7 @@ describe("Volunteer door: scanning", () => {
     expect(await screen.findByTestId("verdict-title")).toHaveTextContent("Checked in");
     expect(screen.getByText("Sarah Mokoena · General")).toBeTruthy();
     expect(Haptics.notificationAsync).toHaveBeenCalledWith("success");
-    expect(checkIns()[0].body).toEqual({ code: "AbCdEfGhIjK", scannerName: "Thandi" });
+    expect(checkIns()[0].body).toEqual({ code: "AbCdEfGhIjK", scannerName: "Sample Person 199" });
 
     await fireEvent.press(screen.getByRole("button", { name: "Undo" }));
     expect(await screen.findByText("Check-in undone")).toBeTruthy();
@@ -255,7 +255,7 @@ describe("Volunteer door: scanning", () => {
     serve();
     await fireEvent.press(screen.getByRole("button", { name: "Send now" }));
     await waitFor(() => expect(screen.queryByTestId("queue-banner")).toBeNull());
-    expect(checkIns().at(-1)?.body).toEqual({ code: "AbCdEfGhIjK", scannerName: "Thandi" });
+    expect(checkIns().at(-1)?.body).toEqual({ code: "AbCdEfGhIjK", scannerName: "Sample Person 199" });
   });
 
   it("camera: one ticket in front of the lens is sent once (the Tickets scan gate)", async () => {
@@ -295,6 +295,6 @@ describe("Volunteer door: scanning", () => {
     await fireEvent.changeText(screen.getByLabelText("Guest name"), "sarah");
     await fireEvent.press(await screen.findByRole("button", { name: "Check in Sarah Mokoena" }));
     expect(await screen.findByTestId("verdict-title")).toHaveTextContent("Checked in");
-    expect(checkIns()[0].body).toEqual({ code: "QwErTyUiOpA", scannerName: "Thandi" });
+    expect(checkIns()[0].body).toEqual({ code: "QwErTyUiOpA", scannerName: "Sample Person 199" });
   });
 });

@@ -160,12 +160,12 @@ A dry-run name match of the 171 person nodes against `users`:
 |---|---|
 | exact full name, one user | 48 |
 | first name only, unique among users | 67 |
-| first name only, more than one user (Sample Person 244, Sample Person 24 ×2, Sample Person 226, Jordan, David, Sample Person 19, Sample Person 45) | 8 |
+| first name only, more than one user (Sample Person 244, Sample Person 24 ×2, Sample Person 226, Sample Person 252, Sample Person 907, Sample Person 19, Sample Person 45) | 8 |
 | no match (Sample Person 3 ×3, and other unmatched sample names) | 48 |
 
 Only the **48 exact matches** should auto-link. A unique first name is not an
-identity — "Ruben" being the only Ruben with an account today does not make
-him the Ruben on the chart. The other 123 go to the unmatched queue, with the
+identity — "Sample" being the only Sample with an account today does not make
+them the Sample on the chart. The other 123 go to the unmatched queue, with the
 first-name and near-spelling candidates shown as suggestions for a person to
 confirm. Both people meant to hold `org.manage` (Sample Person 3, Sample Person 24) are in that
 queue, so resolving them is the first thing anyone does with it.

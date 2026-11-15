@@ -92,7 +92,7 @@ describe("rowState", () => {
   it("counts each singer in a vocal group", () => {
     const b = [
       booking({}),
-      booking({ station_id: "vocals", booked_by: "naledi", people: ["sample145", "sample59", "sample258"].map(person) }),
+      booking({ station_id: "vocals", booked_by: "sample145", people: ["sample145", "sample59", "sample258"].map(person) }),
     ];
     const r = rowState(b, stations, "2026-10-09", 990, 1020);
     expect(r.people).toBe(4);

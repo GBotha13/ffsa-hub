@@ -37,14 +37,14 @@ describe("small rules", () => {
   });
 
   it("repairs mojibake names and leaves good ones alone", () => {
-    expect(fixEncoding("HÃ©drik Agenbag")).toBe("Hédrik Agenbag");
-    expect(fixEncoding("JunÃ© Joubert")).toBe("Juné Joubert");
-    expect(fixEncoding("Abigail Kolbé")).toBe("Abigail Kolbé");
+    expect(fixEncoding("SamplÃ© Person 902")).toBe("Samplé Person 902");
+    expect(fixEncoding("PersonÃ© Sample 903")).toBe("Personé Sample 903");
+    expect(fixEncoding("Samplé Person 904")).toBe("Samplé Person 904");
     expect(fixEncoding("Plain Name")).toBe("Plain Name");
   });
 
   it("groups names regardless of case, accents and spacing", () => {
-    expect(donorKey("  Hédrik  Agenbag ")).toBe(donorKey("HÃ©drik Agenbag"));
+    expect(donorKey("  Samplé  Person 902 ")).toBe(donorKey("SamplÃ© Person 902"));
     expect(donorKey("PETER C GILL")).toBe("peter c gill");
   });
 
@@ -96,8 +96,8 @@ describe("buildStatements", () => {
     const r = buildStatements({
       taxYear: 2026,
       lines: [
-        line({ invoiceNumber: "INV-1", contactName: "Kassandra Aleck", unitPriceUsd: 50, invoiceDate: "2026-01-04" }),
-        line({ invoiceNumber: "INV-2", contactName: "Kassandra Aleck", unitPriceUsd: 50, invoiceDate: "2026-01-18" }),
+        line({ invoiceNumber: "INV-1", contactName: "Sample Person 901", unitPriceUsd: 50, invoiceDate: "2026-01-04" }),
+        line({ invoiceNumber: "INV-2", contactName: "Sample Person 901", unitPriceUsd: 50, invoiceDate: "2026-01-18" }),
         line({ invoiceNumber: "INV-3", contactName: "Owen Veer", unitPriceUsd: 250 }),
       ],
     });
@@ -174,22 +174,22 @@ describe("buildStatements", () => {
       lines: [
         line({ invoiceNumber: "INV-1", contactName: "Fidelity Charitable", unitPriceUsd: 500 }),
         line({ invoiceNumber: "INV-2", contactName: "Austin - Stratum Tech", unitPriceUsd: 624.68 }),
-        line({ invoiceNumber: "INV-3", contactName: "Jo Smith", unitPriceUsd: 40, description: "Wild Ones Fundraiser" }),
-        line({ invoiceNumber: "INV-4", contactName: "HÃ©drik Agenbag", unitPriceUsd: 6.06 }),
+        line({ invoiceNumber: "INV-3", contactName: "Sample Person 900", unitPriceUsd: 40, description: "Wild Ones Fundraiser" }),
+        line({ invoiceNumber: "INV-4", contactName: "SamplÃ© Person 902", unitPriceUsd: 6.06 }),
         line({ invoiceNumber: "INV-5", contactName: "Sam", unitPriceUsd: 10 }),
-        line({ invoiceNumber: "INV-6", contactName: "Kassandra Aleck", unitPriceUsd: 50 }),
-        line({ invoiceNumber: "INV-7", contactName: "Kassandra Desiree Aleck", unitPriceUsd: 50 }),
+        line({ invoiceNumber: "INV-6", contactName: "Sample Person 901", unitPriceUsd: 50 }),
+        line({ invoiceNumber: "INV-7", contactName: "Sample (Nick) Person 901", unitPriceUsd: 50 }),
       ],
     });
     const codes = (name: string) => r.donors.find((d) => d.name === name)!.flags.map((f) => f.code);
     expect(codes("Fidelity Charitable")).toContain("organisation");
     expect(codes("Austin - Stratum Tech")).toContain("organisation");
-    expect(codes("Jo Smith")).toContain("review_line");
-    expect(codes("Hédrik Agenbag")).toContain("encoding_fixed");
+    expect(codes("Sample Person 900")).toContain("review_line");
+    expect(codes("Samplé Person 902")).toContain("encoding_fixed");
     expect(codes("Sam")).toContain("incomplete_name");
-    expect(codes("Kassandra Aleck")).toContain("possible_duplicate");
-    expect(codes("Kassandra Desiree Aleck")).toContain("possible_duplicate");
-    expect(codes("Jo Smith")).not.toContain("organisation");
+    expect(codes("Sample Person 901")).toContain("possible_duplicate");
+    expect(codes("Sample (Nick) Person 901")).toContain("possible_duplicate");
+    expect(codes("Sample Person 900")).not.toContain("organisation");
   });
 
   it("finds emails in order: edit, source row, Xero contacts, Hub", () => {
@@ -219,19 +219,19 @@ describe("buildStatements", () => {
     const r = buildStatements({
       taxYear: 2026,
       lines: [
-        line({ invoiceNumber: "INV-1", contactName: "Kassandra Aleck", unitPriceUsd: 50 }),
-        line({ invoiceNumber: "INV-2", contactName: "Kassandra Desiree Aleck", unitPriceUsd: 50 }),
+        line({ invoiceNumber: "INV-1", contactName: "Sample Person 901", unitPriceUsd: 50 }),
+        line({ invoiceNumber: "INV-2", contactName: "Sample (Nick) Person 901", unitPriceUsd: 50 }),
         line({ invoiceNumber: "INV-3", contactName: "Keswick Christian School", unitPriceUsd: 840 }),
       ],
       edits: [
-        { donorKey: "kassandra desiree aleck", mergeIntoKey: "kassandra aleck" },
-        { donorKey: "kassandra aleck", displayName: "Kassandra D. Aleck", email: "k@x.com" },
+        { donorKey: "sample nick person 901", mergeIntoKey: "sample person 901" },
+        { donorKey: "sample person 901", displayName: "Sample (N.) Person 901", email: "k@x.com" },
         { donorKey: "keswick christian school", excluded: true },
       ],
     });
-    const k = r.donors.find((d) => d.key === "kassandra aleck")!;
-    expect(k).toMatchObject({ name: "Kassandra D. Aleck", email: "k@x.com", emailSource: "edit", totalCents: 10000 });
-    expect(k.mergedFrom).toEqual(["Kassandra Desiree Aleck"]);
+    const k = r.donors.find((d) => d.key === "sample person 901")!;
+    expect(k).toMatchObject({ name: "Sample (N.) Person 901", email: "k@x.com", emailSource: "edit", totalCents: 10000 });
+    expect(k.mergedFrom).toEqual(["Sample (Nick) Person 901"]);
     expect(r.totals).toMatchObject({ donorCount: 1, grandTotalCents: 10000, excludedDonorCount: 1, excludedDonorCents: 84000 });
   });
 });
@@ -242,14 +242,14 @@ describe("matchCreditNoteDonor", () => {
     { key: "peter gillespie", name: "Peter Gillespie" },
   ];
   it("finds the person in any segment, preferring an exact name", () => {
-    const more = [...donors, { key: "kassandra aleck", name: "Kassandra Aleck" }, { key: "kassandra desiree aleck", name: "Kassandra Desiree Aleck" }, { key: "larry jones", name: "Larry Jones" }];
+    const more = [...donors, { key: "sample person 901", name: "Sample Person 901" }, { key: "sample nick person 901", name: "Sample (Nick) Person 901" }, { key: "larry jones", name: "Larry Jones" }];
     expect(matchCreditNoteDonor("Donation - DTS - Larry Jones", more)?.name).toBe("Larry Jones");
     expect(matchCreditNoteDonor("Donation - DTS Donation  - Peter Gill", more)?.name).toBe("Peter C Gill");
-    expect(matchCreditNoteDonor("Donation - Kassandra Aleck", more)?.name).toBe("Kassandra Aleck");
-    expect(matchCreditNoteDonor("Donation - Kassandra Desiree Aleck", more)?.name).toBe("Kassandra Desiree Aleck");
+    expect(matchCreditNoteDonor("Donation - Sample Person 901", more)?.name).toBe("Sample Person 901");
+    expect(matchCreditNoteDonor("Donation - Sample (Nick) Person 901", more)?.name).toBe("Sample (Nick) Person 901");
     expect(matchCreditNoteDonor("Donation - DTS", more)).toBeNull();
-    const onlyShort = [{ key: "kassandra aleck", name: "Kassandra Aleck" }];
-    expect(matchCreditNoteDonor("Donation - Kassandra Desiree Aleck", onlyShort)?.name).toBe("Kassandra Aleck");
+    const onlyShort = [{ key: "sample person 901", name: "Sample Person 901" }];
+    expect(matchCreditNoteDonor("Donation - Sample (Nick) Person 901", onlyShort)?.name).toBe("Sample Person 901");
   });
 
   it("lists donation credit notes on other accounts, but not tuition or refunds", () => {

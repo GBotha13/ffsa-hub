@@ -69,12 +69,12 @@ export function prayerSet(over: Record<string, unknown> = {}) {
     alt_venue_id: null,
     series_id: null,
     owner_id: "u9",
-    owner: person("u9", "Sample Person 59"),
+    owner: person("u9", "Sample Person 59", ""),
     week_start: "2026-11-01",
     slots: [
       slot({ id: "sl1", seat: "prayer_lead", status: "filled", user: person("u2", "Sample Person 199") }),
       slot({ id: "sl2", seat: "worship_lead", status: "open" }),
-      slot({ id: "sl3", seat: "keys", status: "filled", user: person(ME_ID, "Jo", "Smit") }),
+      slot({ id: "sl3", seat: "keys", status: "filled", user: person(ME_ID, "Sample", "Person") }),
       slot({ id: "sl4", seat: "vocals", status: "open" }),
     ],
     ...over,
@@ -89,7 +89,7 @@ export const UNLED = prayerSet({
   end_time: "09:30:00",
   title: "Morning devo",
   owner_id: "u9",
-  slots: [slot({ id: "sl5", seat: "prayer_lead", status: "open" }), slot({ id: "sl6", seat: "keys", status: "invited", user: person(ME_ID, "Jo", "Smit") })],
+  slots: [slot({ id: "sl5", seat: "prayer_lead", status: "open" }), slot({ id: "sl6", seat: "keys", status: "invited", user: person(ME_ID, "Sample", "Person") })],
 });
 
 export const WALL_META = { seatTypes: SEAT_TYPES, bands: BANDS };
@@ -149,7 +149,7 @@ export function practiceWeek(over: Partial<Record<keyof PracticeWeek, unknown>> 
         station_id: "st-keys",
         booked_by: ME_ID,
         band_name: null,
-        people: [{ user_id: ME_ID, station_id: "st-keys", first_name: "Jo", full_name: "Jo Smit" }],
+        people: [{ user_id: ME_ID, station_id: "st-keys", first_name: "Sample", full_name: "Sample Person" }],
       },
     ],
     days: ["2026-11-02", "2026-11-03", "2026-11-04", "2026-11-05", "2026-11-06"],

@@ -224,7 +224,7 @@ describe("Set sheet", () => {
     expect(within(sheet).getByLabelText("Keys, You")).toBeTruthy();
     expect(within(sheet).getByText("Set up by Sample Person 59 · Led by Sample Person 199")).toBeTruthy();
     // Not the owner: the leave note, not the management link.
-    expect(within(sheet).getByText(strings.set.leaveNote("Grace"))).toBeTruthy();
+    expect(within(sheet).getByText(strings.set.leaveNote("Sample Person 59"))).toBeTruthy();
     expect(within(sheet).queryByTestId("manage-on-web")).toBeNull();
   });
 
@@ -297,7 +297,7 @@ describe("Set sheet", () => {
   });
 
   it("the owner gets the website link to fill seats, not 'Ask to join'", async () => {
-    room({ ...WEEK, "/api/prayer-room/sets?id=s1": prayerSet({ owner_id: ME_ID, owner: person(ME_ID, "Jo", "Smit") }) });
+    room({ ...WEEK, "/api/prayer-room/sets?id=s1": prayerSet({ owner_id: ME_ID, owner: person(ME_ID, "Sample", "Person") }) });
     await show();
     await fireEvent.press(await screen.findByTestId("set-s1"));
     const sheet = await screen.findByTestId("set-sheet");
@@ -319,7 +319,7 @@ const INVITE = {
   role: "keys",
   status: "invited",
   required_label: null,
-  set: { id: "s2", set_date: "2026-11-02", start_time: "08:00:00", end_time: "09:30:00", title: "Morning devo", theme: null, owner: person("u9", "Grace", "Dlamini") },
+  set: { id: "s2", set_date: "2026-11-02", start_time: "08:00:00", end_time: "09:30:00", title: "Morning devo", theme: null, owner: person("u9", "Sample", "Person 905") },
 };
 
 const MINE = {
