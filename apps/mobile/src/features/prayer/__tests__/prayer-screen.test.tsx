@@ -117,7 +117,7 @@ describe("Week", () => {
     expect(screen.getByTestId("day-2026-11-06")).toBeTruthy();
     expect(screen.queryByTestId("day-2026-11-07")).toBeNull();
     expect(
-      screen.getByLabelText("Tuesday 7 to 9 pm, Night watch, NIGHT band, 2 of 4 seats taken, you are on this set. 2 hours. Led by Thabo"),
+      screen.getByLabelText("Tuesday 7 to 9 pm, Night watch, NIGHT band, 2 of 4 seats taken, you are on this set. 2 hours. Led by Sample Person 199"),
     ).toBeTruthy();
     // "You" in words, not just a heavier border.
     expect(within(screen.getByTestId("set-s1")).getByText("You")).toBeTruthy();
@@ -220,9 +220,9 @@ describe("Set sheet", () => {
   it("shows the lineup, leads first, and who's in each seat", async () => {
     const sheet = await openSet("s1");
     expect(await within(sheet).findByText("Night watch")).toBeTruthy();
-    expect(within(sheet).getByLabelText("Prayer Lead, Thabo")).toBeTruthy();
+    expect(within(sheet).getByLabelText("Prayer Lead, Sample Person 199")).toBeTruthy();
     expect(within(sheet).getByLabelText("Keys, You")).toBeTruthy();
-    expect(within(sheet).getByText("Set up by Grace Dlamini · Led by Thabo")).toBeTruthy();
+    expect(within(sheet).getByText("Set up by Sample Person 59 · Led by Sample Person 199")).toBeTruthy();
     // Not the owner: the leave note, not the management link.
     expect(within(sheet).getByText(strings.set.leaveNote("Grace"))).toBeTruthy();
     expect(within(sheet).queryByTestId("manage-on-web")).toBeNull();

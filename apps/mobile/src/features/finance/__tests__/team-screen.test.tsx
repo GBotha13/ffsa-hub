@@ -93,7 +93,7 @@ describe("Team screen", () => {
         my_role: "team_member",
         roster: [
           { id: "p1", role: "owner", name: "Thandi" },
-          { id: "p2", role: "team_member", name: "Sipho" },
+          { id: "p2", role: "team_member", name: "Sample Person 190" },
         ],
       },
     });

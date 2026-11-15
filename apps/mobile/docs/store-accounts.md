@@ -123,7 +123,7 @@ Source: https://expo.dev/pricing (fetched today).
    - Google asks that organisation details be consistent with the D&B profile (policy 2.2, section 2 above), so the same checks apply there.
    - The Hub itself, **ffsahub.com, is a login wall** (title "FFSA Hub"); Apple will not accept it as "the organization's website".
    - Also confirm the mailbox exists and who reads it, because codes and verification mail go there.
-3. **Shared mailbox as the account identity.** A role mailbox like southafrica@ is fine as the Apple Account / Google Account login only if the Account Holder controls it and the 2FA phone is a person's. Apple wants the Account Holder's **legal first and last name** on the Apple Account; the name can differ from the email local part. Keep a second person as an admin in both consoles so the account is not stranded.
+3. **Shared mailbox as the account identity.** A role mailbox like role@example.com is fine as the Apple Account / Google Account login only if the Account Holder controls it and the 2FA phone is a person's. Apple wants the Account Holder's **legal first and last name** on the Apple Account; the name can differ from the email local part. Keep a second person as an admin in both consoles so the account is not stranded.
 4. **Apple 2FA phone and the D&B phone:** Apple may call the organization phone; make sure the number on the D&B record is answered by someone who knows about the enrollment.
 5. **Hawaii vs SA time/phone:** a verification call to a US number from Apple during US hours (Hawaii is UTC-10, 12 hours behind Johannesburg). Plan who picks up.
 

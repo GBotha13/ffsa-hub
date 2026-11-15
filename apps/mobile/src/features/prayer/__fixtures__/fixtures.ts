@@ -69,10 +69,10 @@ export function prayerSet(over: Record<string, unknown> = {}) {
     alt_venue_id: null,
     series_id: null,
     owner_id: "u9",
-    owner: person("u9", "Grace", "Dlamini"),
+    owner: person("u9", "Sample Person 59"),
     week_start: "2026-11-01",
     slots: [
-      slot({ id: "sl1", seat: "prayer_lead", status: "filled", user: person("u2", "Thabo") }),
+      slot({ id: "sl1", seat: "prayer_lead", status: "filled", user: person("u2", "Sample Person 199") }),
       slot({ id: "sl2", seat: "worship_lead", status: "open" }),
       slot({ id: "sl3", seat: "keys", status: "filled", user: person(ME_ID, "Jo", "Smit") }),
       slot({ id: "sl4", seat: "vocals", status: "open" }),
@@ -138,7 +138,7 @@ export function practiceWeek(over: Partial<Record<keyof PracticeWeek, unknown>> 
         station_id: "st-drums",
         booked_by: "u2",
         band_name: null,
-        people: [{ user_id: "u2", station_id: "st-drums", first_name: "Thabo", full_name: "Thabo Mokoena" }],
+        people: [{ user_id: "u2", station_id: "st-drums", first_name: "Sample Person 199", full_name: "Sample Person 199" }],
       },
       {
         id: "pb2",
@@ -170,5 +170,5 @@ export const BAND_BOOKING = {
   station_id: null,
   booked_by: "u2",
   band_name: "The Sends",
-  people: [{ user_id: "u2", station_id: "st-drums", first_name: "Thabo", full_name: "Thabo Mokoena" }],
+  people: [{ user_id: "u2", station_id: "st-drums", first_name: "Sample Person 199", full_name: "Sample Person 199" }],
 };

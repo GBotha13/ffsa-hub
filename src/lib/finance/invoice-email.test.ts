@@ -39,7 +39,7 @@ describe("fillPlaceholders", () => {
 });
 
 describe("renderInvoiceEmail", () => {
-  const gap = { subject: "Invoice [Invoice Number] from [Trading Name] for [Contact Name]", body: "Here's invoice [Invoice Number] for [Currency Code] [Invoice Total Without Currency].\nThe amount outstanding of [Currency Code] [Amount Due Without Currency] is due on [Due Date].\n\nView your bill online: [Online Invoice Link]\n\nhttps://pos.snapscan.io/qr/<SNAPSCAN_CODE>", include_online_action: true };
+  const gap = { subject: "Invoice [Invoice Number] from [Trading Name] for [Contact Name]", body: "Here's invoice [Invoice Number] for [Currency Code] [Invoice Total Without Currency].\nThe amount outstanding of [Currency Code] [Amount Due Without Currency] is due on [Due Date].\n\nView your bill online: [Online Invoice Link]\n\nhttps://pos.snapscan.io/qr/SNAPSCAN_CODE", include_online_action: true };
 
   it("renders subject and body with Xero's formats", () => {
     const r = renderInvoiceEmail(gap, data);
@@ -51,7 +51,7 @@ describe("renderInvoiceEmail", () => {
 
   it("makes links clickable, escapes HTML and adds the View invoice action", () => {
     const r = renderInvoiceEmail({ ...gap, body: gap.body + "\nA & B <b>" }, data);
-    expect(r.html).toContain('href="https://pos.snapscan.io/qr/&lt;SNAPSCAN_CODE&gt"');
+    expect(r.html).toContain('href="https://pos.snapscan.io/qr/SNAPSCAN_CODE"');
     expect(r.html).toContain("A &amp; B &lt;b&gt;");
     expect(r.html).toContain(">View invoice</a>");
     expect(r.html).toContain("ZAR 45,000.00");

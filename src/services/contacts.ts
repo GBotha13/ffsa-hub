@@ -181,7 +181,7 @@ export async function getContacts(
     // Ids that matched on an identifier are OR-ed in alongside the column
     // filters. They are added to EVERY token's clause because the identifier
     // lookup was run against the whole search string — a two-token search like
-    // "naledi 082" should still surface her if the phone alone identified her.
+    // "sample 082" should still surface her if the phone alone identified her.
     const idClause =
       options.identifierMatchIds && options.identifierMatchIds.length > 0
         ? `,id.in.(${options.identifierMatchIds.join(",")})`

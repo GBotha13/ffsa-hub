@@ -176,7 +176,7 @@ describe("buildStatements", () => {
         line({ invoiceNumber: "INV-2", contactName: "Austin - Stratum Tech", unitPriceUsd: 624.68 }),
         line({ invoiceNumber: "INV-3", contactName: "Jo Smith", unitPriceUsd: 40, description: "Wild Ones Fundraiser" }),
         line({ invoiceNumber: "INV-4", contactName: "HÃ©drik Agenbag", unitPriceUsd: 6.06 }),
-        line({ invoiceNumber: "INV-5", contactName: "Anna", unitPriceUsd: 10 }),
+        line({ invoiceNumber: "INV-5", contactName: "Sam", unitPriceUsd: 10 }),
         line({ invoiceNumber: "INV-6", contactName: "Kassandra Aleck", unitPriceUsd: 50 }),
         line({ invoiceNumber: "INV-7", contactName: "Kassandra Desiree Aleck", unitPriceUsd: 50 }),
       ],
@@ -186,7 +186,7 @@ describe("buildStatements", () => {
     expect(codes("Austin - Stratum Tech")).toContain("organisation");
     expect(codes("Jo Smith")).toContain("review_line");
     expect(codes("Hédrik Agenbag")).toContain("encoding_fixed");
-    expect(codes("Anna")).toContain("incomplete_name");
+    expect(codes("Sam")).toContain("incomplete_name");
     expect(codes("Kassandra Aleck")).toContain("possible_duplicate");
     expect(codes("Kassandra Desiree Aleck")).toContain("possible_duplicate");
     expect(codes("Jo Smith")).not.toContain("organisation");

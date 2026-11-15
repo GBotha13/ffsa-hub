@@ -87,7 +87,7 @@ Reference: Initial & surname + Reason for payment (ex. A. Smith EFL) or Invoice 
 
 If you are outside of South Africa, you may wire transfer using the above payment details or use the following link to pay. If using this form of payment, we ask that you add 2.95% to the amount due.   
 
-https://pos.snapscan.io/qr/<SNAPSCAN_CODE>
+https://pos.snapscan.io/qr/SNAPSCAN_CODE
 
 If you have any questions, please let us know.
 
@@ -107,12 +107,12 @@ Account Holder: FF SA YWAM NPC
 Bank name: First National Bank Limited
 Account Number: 00000000000
 Branch Code: 000000 (Universal Branch code)
-Swift Address: <SWIFT_CODE>
+Swift Address: SWIFT_CODE
 Reference: Initial & last name - FFBX
 
 If you are outside South Africa, you may wire transfer using the above payment details or the following link to pay. We ask that you add 3% to the amount due if using this form of payment.   
 
-https://pos.snapscan.io/qr/<SNAPSCAN_CODE> 
+https://pos.snapscan.io/qr/SNAPSCAN_CODE 
 
 If you have any questions, please let us know.
 
@@ -131,14 +131,14 @@ If you are able, please EFT into the following account:
 Account Holder: FF SA NPC
 Bank name: First National Bank Limited
 Account Number: 00000000000
-Address: <BRANCH_ADDRESS>
+Address: BRANCH_ADDRESS
 Branch Code: 000000 (Universal Branch code)
-Swift Address: <SWIFT_CODE>
+Swift Address: SWIFT_CODE
 Reference: Initial & surname or Invoice Number
 
 If you are outside of South Africa, you may wire transfer using the above payment details or use the following link to pay. If using this form of payment we ask that you add 3% to the amount due.   
 
-https://pos.snapscan.io/qr/<SNAPSCAN_CODE>
+https://pos.snapscan.io/qr/SNAPSCAN_CODE
 
 From your online bill you can print a PDF, export a CSV, or create a free login and view your outstanding bills.
 
@@ -165,7 +165,7 @@ Reference: Initial & last name - Leadership
 
 If you are outside of South Africa, you may wire transfer using the above payment details or use the following link to pay. We ask that you add 3% to the amount due if using this form of payment.   
 
-https://pos.snapscan.io/qr/<SNAPSCAN_CODE>
+https://pos.snapscan.io/qr/SNAPSCAN_CODE
 
 If you have any questions, please let us know.
 
@@ -222,12 +222,12 @@ Account Holder: FF SA YWAM NPC
 Bank name: First National Bank Limited
 Account Number: 00000000000
 Branch Code: 000000 (Universal Branch code)
-Swift Address: <SWIFT_CODE>
+Swift Address: SWIFT_CODE
 Reference: Initial & last name - SBS
 
 If you are outside of South Africa, you may wire transfer using the above payment details or use the following link to pay. If using this form of payment we ask that you add 2.95% to the amount due.   
 
-https://pos.snapscan.io/qr/<SNAPSCAN_CODE> 
+https://pos.snapscan.io/qr/SNAPSCAN_CODE 
 
 From your online bill you can print a PDF, export a CSV, or create a free login and view your outstanding bills.
 
@@ -251,7 +251,7 @@ Reference: Name + What you’re paying for
 or invoice number 
 
 If you do not have a South African Bank account please use the snapscan link to pay. If paying via SnapScan please add 2.95% of your invoice amount before paying. 
-https://pos.snapscan.io/qr/<SNAPSCAN_CODE>
+https://pos.snapscan.io/qr/SNAPSCAN_CODE
 
 If you have any questions, please let us know.
 
@@ -275,7 +275,7 @@ Reference: Initial & surname + Reason for payment (ex. A. Smith Camp) or Invoice
 
 If you are outside of South Africa, you may wire transfer using the above payment details or use the following link to pay. If using this form of payment, we ask that you add 2.95% to the amount due.   
 
-https://pos.snapscan.io/qr/<SNAPSCAN_CODE>
+https://pos.snapscan.io/qr/SNAPSCAN_CODE
 
 If you have any questions, please let us know.
 
@@ -306,7 +306,7 @@ View and pay your bill online: [Online Invoice Link]
 From your online bill you can print a PDF, export a CSV, or create a free login and view your outstanding bills.
 
 If you would like to make a partial payment you may use this link to do so - 
-https://buy.stripe.com/<PAYMENT_LINK> 
+https://buy.stripe.com/PAYMENT_LINK 
 Please note that there is a processing fee and the total attributed to your invoice will be the amount you pay less processing fees. 
 
 If you have any questions, please let us know.
@@ -322,7 +322,7 @@ The amount outstanding of [Currency Code] [Amount Due Without Currency] is due o
 
 View and pay your bill online: [Online Invoice Link]
 
-If you would like to make a partial payment you may use this link to do so. Please note that there is a 3% transaction fee that will be taken from the amount paid. You are responsible for paying your school fees in full, including the 3% transaction fee - https://buy.stripe.com/<PAYMENT_LINK>
+If you would like to make a partial payment you may use this link to do so. Please note that there is a 3% transaction fee that will be taken from the amount paid. You are responsible for paying your school fees in full, including the 3% transaction fee - https://buy.stripe.com/PAYMENT_LINK
 
 If you would prefer to send funds via wire transfer and reduce fees please respond to this email requesting wire transfer information. 
 
@@ -341,7 +341,7 @@ View and pay your bill online: [Online Invoice Link]
 From your online bill you can print a PDF, export a CSV, or create a free login and view your outstanding bills.
 
 If you would like to make a partial payment you may use this link to do so - 
-https://buy.stripe.com/<PAYMENT_LINK>
+https://buy.stripe.com/PAYMENT_LINK
 
 Please note that there is a processing fee and the total attributed to your invoice will be the amount you pay less processing fees. 
 
@@ -375,7 +375,7 @@ View and pay your bill online: [Online Invoice Link]
 From your online bill you can print a PDF, export a CSV, or create a free login and view your outstanding bills.
 
 If you would like to make a partial payment you may use this link to do so - 
-https://buy.stripe.com/<PAYMENT_LINK>
+https://buy.stripe.com/PAYMENT_LINK
 Please note that there is a 3% processing fee and the total attributed to your invoice will be the amount you pay less processing fees. 
 
 If you have any questions, please let us know.
@@ -391,7 +391,7 @@ The amount outstanding of [Currency Code] [Amount Due Without Currency] is due o
 
 View and pay your bill online: [Online Invoice Link]
 
-If you would like to make a partial payment you may use this link to do so - https://buy.stripe.com/<PAYMENT_LINK>
+If you would like to make a partial payment you may use this link to do so - https://buy.stripe.com/PAYMENT_LINK
 
 If you have any questions, please let us know.
 
@@ -408,7 +408,7 @@ View and pay your bill online: [Online Invoice Link]
 From your online bill you can print a PDF, export a CSV, or create a free login and view your outstanding bills.
 
 If you would like to make a partial payment you may use this link to do so - 
-https://buy.stripe.com/<PAYMENT_LINK>
+https://buy.stripe.com/PAYMENT_LINK
 Please note that there is a 2.9% processing fee and the total attributed to your invoice will be the amount you pay less processing fees. 
 
 If you have any questions, please let us know.
