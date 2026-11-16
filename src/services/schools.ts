@@ -374,6 +374,9 @@ export async function ensureEnrollmentForApplicant(
     try {
       pattern = applicantEmailIlikePattern(email);
     } catch {
+      // `*` cannot be escaped in a PostgREST filter (a backslash does not
+      // stop it acting as a wildcard). Refuse the lookup rather than risk
+      // linking the wrong account. Callers treat this like no account.
       return { enrollmentId: null, outcome: "no_account" };
     }
 

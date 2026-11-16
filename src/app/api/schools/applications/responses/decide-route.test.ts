@@ -318,6 +318,14 @@ describe("application status changes", () => {
     expect(h.removed).toEqual(["enr-1"]);
   });
 
+  it("puts a restored enrolment back to removed when the status write fails", async () => {
+    h.enrollOutcome = "restored";
+    h.notesError = "could not save";
+    const res = await put({ id: "app1", status: "accepted" });
+    expect(res.status).toBe(500);
+    expect(h.removed).toEqual(["enr-1"]);
+  });
+
   it("keeps going through a bulk status failure and soft-removes only the new enrolment", async () => {
     h.outcomeById = { ok: "created", bad: "created" };
     h.failIds = { bad: "could not save" };

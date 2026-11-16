@@ -256,9 +256,29 @@ export async function POST(request: Request) {
   // Compare-and-set claim. Two Accepts can both see "no enrolment" and both
   // pass the check above; only the update that still matches the status we
   // read is allowed to create an account, send mail, enrol, or bill.
-  // When the row is already accepted, reviewed_at is part of the claim so a
-  // second finish of the same snapshot loses.
+  //
+  // A finish of an already-accepted row also holds a 5-minute lease on
+  // reviewed_at. Matching only the value this request read is not enough: the
+  // second request can load the reviewed_at the first one just wrote, before
+  // that first request inserts the enrolment, and then its claim matches.
+  // The lease refuses a recent reviewed_at before any write, and the update
+  // itself only matches when reviewed_at is still null or older than the lease.
+  const ACCEPT_LEASE_MS = 5 * 60 * 1000;
   const reviewedAt = (appResponse as { reviewed_at?: string | null }).reviewed_at ?? null;
+  const nowMs = Date.now();
+  const leaseCutoff = new Date(nowMs - ACCEPT_LEASE_MS).toISOString();
+  if (previousStatus === "accepted" && reviewedAt) {
+    const reviewedMs = Date.parse(reviewedAt);
+    if (!Number.isNaN(reviewedMs) && reviewedMs > nowMs - ACCEPT_LEASE_MS) {
+      return NextResponse.json(
+        {
+          error:
+            "This application was accepted moments ago. If it didn't finish, try again in a few minutes.",
+        },
+        { status: 409 }
+      );
+    }
+  }
   const claimedAt = new Date().toISOString();
   const claimBase = adminSupabase
     .from("application_responses")
@@ -271,9 +291,10 @@ export async function POST(request: Request) {
     .eq("status", previousStatus);
   const claim =
     previousStatus === "accepted"
-      ? reviewedAt == null
-        ? claimBase.is("reviewed_at", null)
-        : claimBase.eq("reviewed_at", reviewedAt)
+      ? (reviewedAt == null
+          ? claimBase.is("reviewed_at", null)
+          : claimBase.eq("reviewed_at", reviewedAt)
+        ).or(`reviewed_at.is.null,reviewed_at.lt.${leaseCutoff}`)
       : claimBase;
   const { data: claimed, error: claimError } = await claim.select("id");
   if (claimError) {
@@ -299,6 +320,7 @@ export async function POST(request: Request) {
       { onConflict: "application_response_id" }
     );
     if (notesError) {
+      await revertStatus();
       return NextResponse.json({ error: notesError.message }, { status: 500 });
     }
   }

@@ -538,7 +538,11 @@ export async function PUT(request: Request) {
         // The enrolment was written before this RLS update. If that write
         // created the row and the status did not stick, take it back off the
         // roster. Keep going so the rest of the batch still reports.
-        if (status === "accepted" && enrollmentResult?.outcome === "created" && enrollmentResult.enrollmentId) {
+        if (
+          status === "accepted" &&
+          (enrollmentResult?.outcome === "created" || enrollmentResult?.outcome === "restored") &&
+          enrollmentResult.enrollmentId
+        ) {
           await setEnrollmentRemoved(adminSupabase, enrollmentResult.enrollmentId, user.id);
         }
         failures.push({
@@ -677,7 +681,11 @@ export async function PUT(request: Request) {
   const { data, error } = await updateResponseStatus(supabase, id, status, user.id, admin_notes);
 
   if (error) {
-    if (status === "accepted" && enrollmentResult?.outcome === "created" && enrollmentResult.enrollmentId) {
+    if (
+      status === "accepted" &&
+      (enrollmentResult?.outcome === "created" || enrollmentResult?.outcome === "restored") &&
+      enrollmentResult.enrollmentId
+    ) {
       await setEnrollmentRemoved(adminSupabase, enrollmentResult.enrollmentId, user.id);
     }
     return NextResponse.json({ error: error.message }, { status: 500 });

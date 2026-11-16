@@ -23,6 +23,7 @@ const h = vi.hoisted(() => ({
   emails: 0,
   createUsers: 0,
   invites: 0,
+  notesError: null as string | null,
 }));
 
 function builder(table: string) {
@@ -41,7 +42,15 @@ function builder(table: string) {
     return b;
   };
   b.delete = self;
-  b.upsert = () => b;
+  b.upsert = () => {
+    op = "upsert";
+    h.writes.push(`upsert:${table}`);
+    return b;
+  };
+  b.or = (value: string) => {
+    h.filters.push({ table, op: "or", column: "or", value });
+    return b;
+  };
   b.eq = (column: string, value: unknown) => {
     h.filters.push({ table, op: "eq", column, value });
     return b;
@@ -74,9 +83,11 @@ function builder(table: string) {
   };
   b.then = (onFulfilled: (value: unknown) => unknown, onRejected?: (reason: unknown) => unknown) => {
     const value =
-      table === "application_responses" && op === "update"
-        ? { data: h.claimRows, error: null }
-        : { data: null, error: null };
+      table === "application_admin_notes" && op === "upsert" && h.notesError
+        ? { data: null, error: { message: h.notesError } }
+        : table === "application_responses" && op === "update"
+          ? { data: h.claimRows, error: null }
+          : { data: null, error: null };
     return Promise.resolve(value).then(onFulfilled, onRejected);
   };
   return b;
@@ -150,12 +161,12 @@ vi.mock("@/lib/email/send-transactional", () => ({
 
 import { POST } from "./route";
 
-function post() {
+function post(extra: Record<string, unknown> = {}) {
   return POST(
     new Request("https://hub.test/api/admin/accept-application", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ response_id: "app1" }),
+      body: JSON.stringify({ response_id: "app1", ...extra }),
     })
   );
 }
@@ -178,6 +189,7 @@ describe("POST /api/admin/accept-application email match", () => {
     h.emails = 0;
     h.createUsers = 0;
     h.invites = 0;
+    h.notesError = null;
   });
 
   it("matches an existing user with an escaped case-insensitive email", async () => {
@@ -221,6 +233,39 @@ describe("POST /api/admin/accept-application email match", () => {
     expect(h.writes).toEqual([]);
     expect(h.billing).toBe(0);
     expect(h.emails).toBe(0);
+  });
+
+  it("returns 409 and writes nothing when an accepted row was claimed seconds ago", async () => {
+    h.status = "accepted";
+    h.reviewedAt = new Date().toISOString();
+    h.userId = null;
+    h.account = null;
+    h.enrollment = null;
+    const res = await post();
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error:
+        "This application was accepted moments ago. If it didn't finish, try again in a few minutes.",
+    });
+    expect(h.writes).toEqual([]);
+    expect(h.createUsers).toBe(0);
+    expect(h.invites).toBe(0);
+    expect(h.emails).toBe(0);
+    expect(h.billing).toBe(0);
+  });
+
+  it("reverts the accepted status when the note cannot be saved", async () => {
+    h.notesError = "notes failed";
+    const res = await post({ admin_notes: "keep this" });
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "notes failed" });
+    expect(h.writes.filter((write) => write === "update:application_responses")).toHaveLength(2);
+    expect(h.writes).toContain("upsert:application_admin_notes");
+    expect(h.writes).not.toContain("insert:enrollments");
+    expect(h.createUsers).toBe(0);
+    expect(h.invites).toBe(0);
+    expect(h.emails).toBe(0);
+    expect(h.billing).toBe(0);
   });
 
   it("returns 409 and does nothing else when the accept claim matches no row", async () => {

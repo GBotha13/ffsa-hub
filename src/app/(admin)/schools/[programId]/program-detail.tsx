@@ -2403,16 +2403,26 @@ function ApplicantsTab({
         alert(data.error || "Failed to update statuses");
         return;
       }
-      // No-account rows are not marked accepted. Name each one so a mixed
-      // bulk change does not look like a clean success.
+      // Skipped rows were left on their old status. Failed rows were not
+      // saved either. Name both, so a partial bulk change is not a clean success.
       const skipped = (data.skipped ?? []) as Array<{ id: string; message?: string }>;
-      if (skipped.length > 0) {
-        const lines = skipped.map((row) => {
+      const failures = (data.failures ?? []) as Array<{ id: string; message?: string }>;
+      const lines = [
+        ...skipped.map((row) => {
           const applicant = responses.find((item) => item.id === row.id);
           const who = applicant ? respName(applicant) : "An applicant";
           return `${who}: ${row.message || "Not marked accepted. Use Accept."}`;
-        });
+        }),
+        ...failures.map((row) => {
+          const applicant = responses.find((item) => item.id === row.id);
+          const who = applicant ? respName(applicant) : "An applicant";
+          return `${who}: ${row.message || "The status was not saved."}`;
+        }),
+      ];
+      if (lines.length > 0) {
         alert(lines.join("\n\n"));
+      } else if (data.partial) {
+        alert("Some of these applications were not updated.");
       }
       const emailWarnings: string[] = data.emailWarnings ?? [];
       if (emailWarnings.length > 0) {
@@ -2633,10 +2643,8 @@ function ApplicantsTab({
 
         const data = await res.json().catch(() => ({}));
         if (data.code === "already_enrolled") {
-          alert(
-            data.error ||
-              "This applicant already has an enrolment. The note will be saved without running Accept again."
-          );
+          // Already enrolled. Fall through and save the note. Do not show
+          // the route's "already been accepted" error on the way there.
         } else if (!res.ok) {
           alert(data.error || "Failed to accept application");
           return;
@@ -3268,7 +3276,7 @@ function ApplicantsTab({
           interviewFeedback={interviewFeedback}
           acceptConsequence={
             reviewingResponse.status === "accepted"
-              ? "FINISH ACCEPTANCE"
+              ? "ALREADY ACCEPTED — SAVING UPDATES THE NOTE, OR FINISHES ENROLMENT IF IT'S MISSING"
               : "ACCEPTING SENDS THE ACCEPTANCE EMAIL AND CREATES THEIR ENROLMENT."
           }
           busy={reviewLoading}
