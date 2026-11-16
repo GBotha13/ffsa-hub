@@ -173,7 +173,7 @@ describe("buildStatements", () => {
       taxYear: 2026,
       lines: [
         line({ invoiceNumber: "INV-1", contactName: "Sample Foundation 918", unitPriceUsd: 500 }),
-        line({ invoiceNumber: "INV-2", contactName: "Sample School 919", unitPriceUsd: 624.68 }),
+        line({ invoiceNumber: "INV-2", contactName: "Sample - School 919", unitPriceUsd: 624.68 }),
         line({ invoiceNumber: "INV-3", contactName: "Sample Person 900", unitPriceUsd: 40, description: "Wild Ones Fundraiser" }),
         line({ invoiceNumber: "INV-4", contactName: "SamplÃ© Person 902", unitPriceUsd: 6.06 }),
         line({ invoiceNumber: "INV-5", contactName: "Sam", unitPriceUsd: 10 }),
@@ -183,7 +183,7 @@ describe("buildStatements", () => {
     });
     const codes = (name: string) => r.donors.find((d) => d.name === name)!.flags.map((f) => f.code);
     expect(codes("Sample Foundation 918")).toContain("organisation");
-    expect(codes("Sample School 919")).toContain("organisation");
+    expect(codes("Sample - School 919")).toContain("organisation");
     expect(codes("Sample Person 900")).toContain("review_line");
     expect(codes("Samplé Person 902")).toContain("encoding_fixed");
     expect(codes("Sam")).toContain("incomplete_name");
