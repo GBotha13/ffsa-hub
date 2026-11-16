@@ -11,8 +11,12 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // The reference row shape this helper needs. Both callers load it with the same
 // joined select (see REFERENCE_EDIT_SELECT) so applicant/program/slot names are
 // available for the re-invite email.
+// A string literal, not a template: the typed client parses the select and
+// a widened string comes back as GenericStringError. Same columns as
+// REFERENCE_REQUEST_COLUMN_LIST, then the joins this editor needs.
+// status_token belongs to the application, not this table.
 export const REFERENCE_EDIT_SELECT =
-  "*, reference_slots(label), application_responses(status_token, program_id, applicant_info, programs(name), users!application_responses_user_id_fkey(first_name, last_name))";
+  "id, application_id, slot_id, referee_name, referee_email, status, relationship, known_duration, reference_text, form_data, submitted_at, email_sent_at, reminder_sent_at, created_at, updated_at, reference_slots(label), application_responses(status_token, program_id, applicant_info, programs(name), users!application_responses_user_id_fkey(first_name, last_name))" as const;
 
 type EditResult =
   | { ok: true; data: unknown; emailed: boolean; emailChanged: boolean }
