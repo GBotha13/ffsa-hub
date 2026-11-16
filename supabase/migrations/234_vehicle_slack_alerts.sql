@@ -15,11 +15,9 @@
 --     later (the request once it's decided, a sign-in once it's completed).
 --     Server-only: RLS on, no policies.
 --
--- Idempotent so it can be re-run from the SQL editor.
---
 -- Already applied in production, including the original coordinator row.
--- The name and id in the seed below are placeholders. This edit is text-only:
--- do not re-apply the file. ON CONFLICT DO NOTHING would leave the live row.
+-- The name and id in the seed below are placeholders. This edit is a
+-- text-only scrub: do not re-apply this file from the SQL editor.
 -- ----------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS public.vehicle_alert_settings (
