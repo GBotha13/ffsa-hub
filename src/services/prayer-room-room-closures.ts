@@ -10,7 +10,7 @@
  *
  * A read failure is returned, not thrown. The wall logs it and keeps drawing.
  * Practice booking does not trust this read: practice_assert_room_open
- * (migration 316) rejects the write if the check itself errors.
+ * (migration 327) rejects the write if the check itself errors.
  */
 
 import { PRAYER_ROOM_VENUE_SLUG } from "@/lib/prayer-room/venue";

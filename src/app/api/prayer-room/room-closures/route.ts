@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { closureRangeTooLong } from "@/lib/prayer-room/room-closure";
 import { getAuditoriumClosures } from "@/services/prayer-room-room-closures";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -20,6 +21,9 @@ export async function GET(request: Request) {
   const to = sp.get("to") ?? "";
   if (!DATE.test(from) || !DATE.test(to) || from > to) {
     return NextResponse.json({ error: "A from and to date are required" }, { status: 400 });
+  }
+  if (closureRangeTooLong(from, to)) {
+    return NextResponse.json({ error: "Date range must be 366 days or less" }, { status: 400 });
   }
 
   try {

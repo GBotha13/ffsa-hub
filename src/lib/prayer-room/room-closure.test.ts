@@ -4,9 +4,12 @@ import { PRAYER_ROOM_VENUE_SLUG } from "@/lib/prayer-room/venue";
 import {
   AUDITORIUM_BOOKED_LABEL,
   auditoriumClosure,
+  auditoriumClosuresToDraw,
   blockoutClosure,
   closureCovering,
+  closureRangeTooLong,
   johannesburgDate,
+  remainderSegments,
   type RoomClosure,
 } from "./room-closure";
 
@@ -81,6 +84,36 @@ describe("approved auditorium bookings close the prayer room", () => {
     expect(covers(c, NOV16, "17:30", "18:00")).toBeNull();
   });
 
+  it("does not let a later setup shrink the window, and keeps the later end", () => {
+    const c = booking({
+      setup_time: "16:30",
+      start_time: "16:00",
+      end_time: "17:15",
+      setdown_time: "17:00",
+    });
+    expect(c).toMatchObject({ start_time: "16:00", end_time: "17:15" });
+    expect(covers(c, NOV16, "16:00", "16:30")).not.toBeNull();
+  });
+
+  it("runs an overnight set-down through 24:00 on that day", () => {
+    const c = booking({
+      setup_time: "22:00",
+      start_time: "22:30",
+      end_time: "23:00",
+      setdown_time: "01:00",
+    });
+    expect(c).toMatchObject({ start_time: "22:00", end_time: "24:00" });
+    expect(covers(c, NOV16, "23:00", "24:00")).not.toBeNull();
+    expect(covers(c, NOV16, "16:00", "17:30")).toBeNull();
+    expect(covers(c, NOV16, "21:30", "22:00")).toBeNull();
+  });
+
+  it("overlaps a practice row the booking only partly covers", () => {
+    const c = booking({ start_time: "16:45", end_time: "17:15" });
+    expect(covers(c, NOV16, "16:30", "17:00")).not.toBeNull();
+    expect(covers(c, NOV16, "17:15", "17:45")).toBeNull();
+  });
+
   it("uses the event times when setup or set-down is missing", () => {
     expect(booking({ setup_time: "15:45", setdown_time: null })).toMatchObject({
       start_time: "15:45",
@@ -148,6 +181,53 @@ describe("Africa/Johannesburg date boundaries", () => {
     expect(covers(afterMidnight, "2026-11-16", "16:00", "17:30")).toBeNull();
     expect(covers(afterMidnight, "2026-11-17", "00:00", "00:30")).not.toBeNull();
     expect(covers(afterMidnight, "2026-11-17", "00:30", "01:00")).toBeNull();
+  });
+});
+
+describe("band-move remainders", () => {
+  const closure: RoomClosure = {
+    id: "auditorium:night",
+    block_date: NOV16,
+    end_date: NOV16,
+    start_time: "17:00",
+    end_time: "17:30",
+    label: AUDITORIUM_BOOKED_LABEL,
+    source: "auditorium",
+  };
+
+  it("drops the leftover that sits inside a closure and keeps the free side", () => {
+    expect(remainderSegments(16 * 60, 17 * 60 + 30, 16 * 60 + 30, 17 * 60, [closure], NOV16)).toEqual([
+      { start: 16 * 60, end: 16 * 60 + 30 },
+    ]);
+  });
+
+  it("keeps both sides when neither overlaps a closure", () => {
+    expect(remainderSegments(16 * 60, 17 * 60 + 30, 16 * 60 + 30, 17 * 60, [], NOV16)).toEqual([
+      { start: 16 * 60, end: 16 * 60 + 30 },
+      { start: 17 * 60, end: 17 * 60 + 30 },
+    ]);
+  });
+
+  it("keeps nothing when the only leftover is inside the closure", () => {
+    expect(remainderSegments(16 * 60 + 30, 17 * 60 + 30, 16 * 60 + 30, 17 * 60, [closure], NOV16)).toEqual([]);
+  });
+});
+
+describe("wall hatching", () => {
+  it("draws an auditorium booking once when a block-out or a pending suggestion already shows it", () => {
+    const rows = [{ id: "auditorium:aaa" }, { id: "auditorium:bbb" }];
+    expect(auditoriumClosuresToDraw(rows, ["aaa"])).toEqual([{ id: "auditorium:bbb" }]);
+    expect(auditoriumClosuresToDraw(rows, ["bbb"])).toEqual([{ id: "auditorium:aaa" }]);
+    expect(auditoriumClosuresToDraw(rows, [])).toEqual(rows);
+  });
+});
+
+describe("room-closure date cap", () => {
+  it("allows 366 days and rejects a longer span", () => {
+    expect(closureRangeTooLong("2026-01-01", "2027-01-02")).toBe(false);
+    expect(closureRangeTooLong("2024-01-01", "2025-01-01")).toBe(false);
+    expect(closureRangeTooLong("2026-01-01", "2027-01-03")).toBe(true);
+    expect(closureRangeTooLong("2024-01-01", "2025-01-02")).toBe(true);
   });
 });
 

@@ -11,7 +11,7 @@
  * never converts them through UTC. Touching at an edge is not an overlap.
  *
  * The same rules are enforced in the database by practice_assert_room_open
- * (migration 316). This module is what the wall and the practice UI grey
+ * (migration 327). This module is what the wall and the practice UI grey
  * against. It never carries a booking title.
  */
 
@@ -130,6 +130,48 @@ export function blockoutClosure(b: BlockoutSpan): RoomClosure {
 /** Strict overlap. Sharing an endpoint (one ends as the next starts) is free. */
 export function minutesOverlap(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
   return aStart < bEnd && bStart < aEnd;
+}
+
+/** Inclusive of neither extra day: the end may be at most this many days after the start. */
+export const ROOM_CLOSURE_MAX_DAYS = 366;
+
+export function closureRangeTooLong(from: string, to: string): boolean {
+  const start = Date.parse(`${from}T00:00:00Z`);
+  const end = Date.parse(`${to}T00:00:00Z`);
+  if (Number.isNaN(start) || Number.isNaN(end)) return true;
+  return Math.round((end - start) / 86_400_000) > ROOM_CLOSURE_MAX_DAYS;
+}
+
+/**
+ * The pieces of a station booking that sit outside a band, minus any piece
+ * that overlaps a closure. practice_move_plan / practice_move_and_book_band
+ * drop those pieces too, so a leftover inside the Auditorium cannot roll the
+ * whole move back.
+ */
+export function remainderSegments(
+  bookingStart: number,
+  bookingEnd: number,
+  bandStart: number,
+  bandEnd: number,
+  closures: RoomClosure[],
+  date: string
+): { start: number; end: number }[] {
+  const sides: { start: number; end: number }[] = [];
+  if (bookingStart < bandStart) sides.push({ start: bookingStart, end: bandStart });
+  if (bookingEnd > bandEnd) sides.push({ start: bandEnd, end: bookingEnd });
+  return sides.filter((side) => side.end > side.start && !closureCovering(closures, date, side.start, side.end));
+}
+
+/** Drop an auditorium hatch when a block-out or a pending suggestion already draws that booking. */
+export function auditoriumClosuresToDraw<T extends { id: string }>(
+  auditorium: T[],
+  coveredBookingIds: Iterable<string>
+): T[] {
+  const covered = new Set(coveredBookingIds);
+  return auditorium.filter((row) => {
+    const id = row.id.startsWith("auditorium:") ? row.id.slice("auditorium:".length) : row.id;
+    return !covered.has(id);
+  });
 }
 
 /** The first closure that covers this slot, or null when the slot is free. */

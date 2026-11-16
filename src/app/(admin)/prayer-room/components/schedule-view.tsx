@@ -31,7 +31,7 @@ import {
   monthParam,
 } from "@/lib/bookings/dates";
 import { ROLES, roleLabel, fullName, toISODate, addDays, formatDateLabel } from "./helpers";
-import { AUDITORIUM_BOOKED_LABEL, type RoomClosure } from "@/lib/prayer-room/room-closure";
+import { AUDITORIUM_BOOKED_LABEL, auditoriumClosuresToDraw, type RoomClosure } from "@/lib/prayer-room/room-closure";
 
 type ViewKind = "wall" | "month" | "day" | "list";
 
@@ -132,7 +132,9 @@ export default function ScheduleView({ userId, isStaff, isMember, inCatalogue, t
         loadAuditoriumBlocks(from, to),
       ]);
       setSets(setsRes.ok ? await setsRes.json() : []);
-      const real: CalendarBlockout[] = blockoutsRes.ok ? await blockoutsRes.json() : [];
+      const real: (CalendarBlockout & { source_booking_id?: string | null })[] = blockoutsRes.ok
+        ? await blockoutsRes.json()
+        : [];
       const pending: CalendarBlockout[] = [];
       if (sugRes?.ok) {
         const { suggestions } = (await sugRes.json()) as SuggestionsPayload;
@@ -152,9 +154,13 @@ export default function ScheduleView({ userId, isStaff, isMember, inCatalogue, t
           }
         }
       }
-      // Auditorium time sits under a real block-out and under a pending
-      // suggestion, so those keep the labels they already had.
-      setBlockouts([...auditorium, ...real, ...pending]);
+      // A booking that already has a block-out or a pending suggestion is
+      // drawn by that layer alone, so the hatch is not doubled.
+      const covered = [
+        ...real.map((b) => b.source_booking_id).filter((id): id is string => !!id),
+        ...pending.map((p) => (p.id.startsWith("pending:") ? p.id.slice("pending:".length) : "")),
+      ].filter(Boolean);
+      setBlockouts([...auditoriumClosuresToDraw(auditorium, covered), ...real, ...pending]);
     } finally {
       setLoading(false);
     }
