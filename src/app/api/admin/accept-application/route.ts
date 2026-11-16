@@ -178,7 +178,10 @@ export async function POST(request: Request) {
     }
     if (alreadyEnrolled === "yes") {
       return NextResponse.json(
-        { error: "This application has already been accepted" },
+        {
+          error: "This application has already been accepted",
+          code: "already_enrolled",
+        },
         { status: 400 }
       );
     }
@@ -250,17 +253,37 @@ export async function POST(request: Request) {
     );
   }
 
-  // Update response status to accepted
-  const { error: statusError } = await adminSupabase
+  // Compare-and-set claim. Two Accepts can both see "no enrolment" and both
+  // pass the check above; only the update that still matches the status we
+  // read is allowed to create an account, send mail, enrol, or bill.
+  // When the row is already accepted, reviewed_at is part of the claim so a
+  // second finish of the same snapshot loses.
+  const reviewedAt = (appResponse as { reviewed_at?: string | null }).reviewed_at ?? null;
+  const claimedAt = new Date().toISOString();
+  const claimBase = adminSupabase
     .from("application_responses")
     .update({
       status: "accepted",
       reviewed_by: authUser.id,
-      reviewed_at: new Date().toISOString(),
+      reviewed_at: claimedAt,
     })
-    .eq("id", response_id);
-  if (statusError) {
-    return NextResponse.json({ error: statusError.message }, { status: 500 });
+    .eq("id", response_id)
+    .eq("status", previousStatus);
+  const claim =
+    previousStatus === "accepted"
+      ? reviewedAt == null
+        ? claimBase.is("reviewed_at", null)
+        : claimBase.eq("reviewed_at", reviewedAt)
+      : claimBase;
+  const { data: claimed, error: claimError } = await claim.select("id");
+  if (claimError) {
+    return NextResponse.json({ error: claimError.message }, { status: 500 });
+  }
+  if (!claimed || claimed.length === 0) {
+    return NextResponse.json(
+      { error: "This application is already being accepted. Refresh and check." },
+      { status: 409 }
+    );
   }
 
   if (admin_notes !== undefined) {
@@ -496,7 +519,8 @@ export async function POST(request: Request) {
   // and newly-created accounts.
   await ensureStudentRole(adminSupabase, userId, authUser.id);
 
-  // Create enrollment
+  // Create enrollment. insertedThisRequest is false when the unique pair
+  // already existed, so billing must not rebuild a schedule that is there.
   const { data: enrollRow, error: enrollError } = await adminSupabase
     .from("enrollments")
     .insert({
@@ -506,6 +530,7 @@ export async function POST(request: Request) {
     })
     .select("id")
     .single();
+  const insertedThisRequest = Boolean(enrollRow?.id);
 
   if (enrollError && !enrollError.message.includes("duplicate")) {
     return NextResponse.json(
@@ -567,7 +592,22 @@ export async function POST(request: Request) {
 
   // Auto-set up the full-program billing schedule and generate the deposit
   // invoice. Non-throwing — never blocks acceptance if billing isn't configured.
-  if (enrollmentId) {
+  // replaceScheduledRows rewrites the whole schedule, so a second call can
+  // send a second deposit. Bill only for the row this request inserted, or
+  // when that enrolment has no plan yet.
+  let billingAlreadyExists = false;
+  if (enrollmentId && !insertedThisRequest) {
+    // student_billing_plans predates the generated Database types, same as
+    // the segment tables above.
+    const planDb = adminSupabase as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const { data: plan, error: planError } = await planDb
+      .from("student_billing_plans")
+      .select("id")
+      .eq("enrollment_id", enrollmentId)
+      .maybeSingle();
+    if (planError || plan?.id) billingAlreadyExists = true;
+  }
+  if (enrollmentId && !billingAlreadyExists) {
     const billing = await setupProgramBillingOnAcceptance(
       adminSupabase,
       enrollmentId,

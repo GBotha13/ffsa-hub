@@ -7,28 +7,47 @@ const h = vi.hoisted(() => ({
   /** Existing users row. Null means the applicant has no account yet. */
   account: { id: "user-1", first_name: "Ada" } as { id: string; first_name: string } | null,
   /** Existing enrollment. Null means Accept still has to create one. */
-  enrollment: null as { id: string } | null,
+  enrollment: null as { id: string; removed_at?: string | null } | null,
+  /** Rows the compare-and-set status claim returns. Empty means another Accept won. */
+  claimRows: [{ id: "app1" }] as Array<{ id: string }>,
+  /** Enrolment insert error. A duplicate makes Accept reuse the existing row. */
+  enrollInsertError: null as { message: string } | null,
+  /** Error from the "is there already an enrolment?" read. */
+  enrollmentLookupError: null as { message: string } | null,
+  /** Existing billing plan for the enrolment. Set when billing must not run again. */
+  billingPlan: null as { id: string } | null,
+  reviewedAt: null as string | null,
   filters: [] as Array<{ table: string; op: string; column: string; value: unknown }>,
   writes: [] as string[],
   billing: 0,
   emails: 0,
+  createUsers: 0,
+  invites: 0,
 }));
 
 function builder(table: string) {
   const b: Record<string, unknown> = {};
+  let op = "select";
   const self = () => b;
-  b.select = self;
+  b.select = () => b;
   b.insert = () => {
+    op = "insert";
     h.writes.push(`insert:${table}`);
     return b;
   };
   b.update = () => {
+    op = "update";
     h.writes.push(`update:${table}`);
     return b;
   };
   b.delete = self;
+  b.upsert = () => b;
   b.eq = (column: string, value: unknown) => {
     h.filters.push({ table, op: "eq", column, value });
+    return b;
+  };
+  b.is = (column: string, value: unknown) => {
+    h.filters.push({ table, op: "is", column, value });
     return b;
   };
   b.ilike = (column: string, value: unknown) => {
@@ -37,17 +56,29 @@ function builder(table: string) {
   };
   b.single = async () => {
     if (table === "application_responses") return { data: applicationRow(), error: null };
-    if (table === "enrollments") return { data: { id: "enr-1" }, error: null };
+    if (table === "enrollments") {
+      if (h.enrollInsertError) return { data: null, error: h.enrollInsertError };
+      return { data: { id: "enr-1" }, error: null };
+    }
     return { data: null, error: null };
   };
   b.maybeSingle = async () => {
     if (table === "users") return { data: h.account, error: null };
-    if (table === "enrollments") return { data: h.enrollment, error: null };
+    if (table === "enrollments") {
+      if (h.enrollmentLookupError) return { data: null, error: h.enrollmentLookupError };
+      return { data: h.enrollment, error: null };
+    }
+    if (table === "student_billing_plans") return { data: h.billingPlan, error: null };
     if (table === "application_responses") return { data: applicationRow(), error: null };
     return { data: null, error: null };
   };
-  b.then = (onFulfilled: (value: unknown) => unknown, onRejected?: (reason: unknown) => unknown) =>
-    Promise.resolve({ data: null, error: null }).then(onFulfilled, onRejected);
+  b.then = (onFulfilled: (value: unknown) => unknown, onRejected?: (reason: unknown) => unknown) => {
+    const value =
+      table === "application_responses" && op === "update"
+        ? { data: h.claimRows, error: null }
+        : { data: null, error: null };
+    return Promise.resolve(value).then(onFulfilled, onRejected);
+  };
   return b;
 }
 
@@ -63,6 +94,7 @@ function applicationRow() {
     status: h.status,
     program_id: "p1",
     applicant_email: h.email,
+    reviewed_at: h.reviewedAt,
     applicant_info: { first_name: "Ada", last_name: "Smith", email: h.email },
     programs: {
       id: "p1",
@@ -79,7 +111,10 @@ vi.mock("@/lib/supabase/admin", () => ({
     from: (table: string) => builder(table),
     auth: {
       admin: {
-        createUser: async () => ({ data: { user: { id: "new-user" } }, error: null }),
+        createUser: async () => {
+          h.createUsers += 1;
+          return { data: { user: { id: "new-user" } }, error: null };
+        },
       },
     },
   }),
@@ -91,7 +126,10 @@ vi.mock("@/lib/auth/application-expiry", () => ({
 }));
 vi.mock("@/lib/auth/membership-roles", () => ({ ensureStudentRole: async () => {} }));
 vi.mock("@/lib/auth/onboarding-invite", () => ({
-  createOnboardingInvite: async () => ({ ok: true, token: "tok", url: "https://hub.test/setup/tok" }),
+  createOnboardingInvite: async () => {
+    h.invites += 1;
+    return { ok: true, token: "tok", url: "https://hub.test/setup/tok" };
+  },
 }));
 vi.mock("@/lib/schools/setup-invite-schedule", () => ({
   resolveSetupInviteDueDate: async () => null,
@@ -129,10 +167,17 @@ describe("POST /api/admin/accept-application email match", () => {
     h.userId = null;
     h.account = { id: "user-1", first_name: "Ada" };
     h.enrollment = null;
+    h.claimRows = [{ id: "app1" }];
+    h.enrollInsertError = null;
+    h.enrollmentLookupError = null;
+    h.billingPlan = null;
+    h.reviewedAt = null;
     h.filters = [];
     h.writes = [];
     h.billing = 0;
     h.emails = 0;
+    h.createUsers = 0;
+    h.invites = 0;
   });
 
   it("matches an existing user with an escaped case-insensitive email", async () => {
@@ -171,10 +216,80 @@ describe("POST /api/admin/accept-application email match", () => {
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({
       error: "This application has already been accepted",
+      code: "already_enrolled",
     });
     expect(h.writes).toEqual([]);
     expect(h.billing).toBe(0);
     expect(h.emails).toBe(0);
+  });
+
+  it("returns 409 and does nothing else when the accept claim matches no row", async () => {
+    h.claimRows = [];
+    h.account = null;
+    const res = await post();
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: "This application is already being accepted. Refresh and check.",
+    });
+    expect(h.createUsers).toBe(0);
+    expect(h.invites).toBe(0);
+    expect(h.emails).toBe(0);
+    expect(h.billing).toBe(0);
+    expect(h.writes).toEqual(["update:application_responses"]);
+  });
+
+  it("does not bill again when the enrolment already has a billing plan", async () => {
+    h.enrollInsertError = { message: "duplicate key value violates unique constraint" };
+    h.enrollment = { id: "enr-existing", removed_at: null };
+    h.billingPlan = { id: "plan-1" };
+    const res = await post();
+    expect(res.status).toBe(200);
+    expect(h.billing).toBe(0);
+    expect(h.writes).toContain("insert:enrollments");
+  });
+
+  it("returns 500 and stops when the enrolment check fails", async () => {
+    h.status = "accepted";
+    h.userId = "user-1";
+    h.enrollmentLookupError = { message: "timeout" };
+    const res = await post();
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({
+      error: "Could not check whether this applicant is already enrolled.",
+    });
+    expect(h.writes).toEqual([]);
+    expect(h.emails).toBe(0);
+    expect(h.billing).toBe(0);
+    expect(h.createUsers).toBe(0);
+    expect(h.invites).toBe(0);
+  });
+
+  it("finishes an accepted row whose email matches an existing account", async () => {
+    h.status = "accepted";
+    h.userId = null;
+    h.account = { id: "user-1", first_name: "Ada" };
+    h.enrollment = null;
+    const res = await post();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(h.createUsers).toBe(0);
+    expect(h.invites).toBe(0);
+    expect(h.emails).toBe(1);
+    expect(h.billing).toBe(1);
+    expect(h.writes).toContain("insert:enrollments");
+    expect(h.filters).toContainEqual({
+      table: "application_responses",
+      op: "eq",
+      column: "status",
+      value: "accepted",
+    });
+    expect(h.filters).toContainEqual({
+      table: "application_responses",
+      op: "is",
+      column: "reviewed_at",
+      value: null,
+    });
   });
 
   it("rejects * before the user lookup and does not accept the application", async () => {

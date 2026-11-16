@@ -10,6 +10,7 @@ import {
   setResponseRemoved,
   removeEnrollmentForApplicant,
   ensureEnrollmentForApplicant,
+  setEnrollmentRemoved,
 } from "@/services/schools";
 import {
   programIdsForTargets,
@@ -387,6 +388,11 @@ function getApplicantDetails(response: any) {
 const NO_ACCOUNT_ACCEPT_MESSAGE =
   "This applicant has no account yet, so they were not marked accepted. Use Accept to invite them, enrol them, and send the acceptance email.";
 
+const ENROLL_FAILED_MESSAGE =
+  "Could not enrol this applicant, so they were not marked accepted.";
+
+const ENROLL_FAILED_SINGLE = "Could not enrol; status unchanged.";
+
 type ApplicantForEnrollment = {
   id: string;
   status?: string;
@@ -473,10 +479,14 @@ export async function PUT(request: Request) {
     const previousById = new Map(rows.map((row) => [row.id, row.status as string]));
     const rowById = new Map(rows.map((row) => [row.id, row]));
     let updated = 0;
-    // No-account rows are left on their previous status and reported per row.
-    // Marking them accepted here would hide them: no enrolment, invite, or email.
-    const notEnrolled: string[] = [];
-    const skipped: Array<{ id: string; code: "no_account"; message: string }> = [];
+    // Rows left on their previous status. no_account needs Accept; enroll_failed
+    // is a database error and must not be described as a missing account.
+    const skipped: Array<{
+      id: string;
+      code: "no_account" | "enroll_failed";
+      message: string;
+    }> = [];
+    const failures: Array<{ id: string; code: "status_failed"; message: string }> = [];
     // Acceptance emails that could not be delivered — returned so the admin
     // sees them instead of a clean success.
     const emailWarnings: string[] = [];
@@ -485,9 +495,11 @@ export async function PUT(request: Request) {
       // Enrol before the status write. no_account writes nothing, so the row
       // stays where it was. An account is enrolled first, then marked accepted,
       // so a saved "accepted" always has an enrolment behind it.
+      let enrollmentResult: Awaited<ReturnType<typeof ensureEnrollmentForApplicant>> | null =
+        null;
       if (status === "accepted") {
         const row = rowById.get(responseId);
-        const result = await ensureEnrollmentForApplicant(
+        enrollmentResult = await ensureEnrollmentForApplicant(
           adminSupabase,
           {
             id: responseId,
@@ -497,12 +509,19 @@ export async function PUT(request: Request) {
           },
           user.id
         );
-        if (result.outcome === "no_account") {
-          notEnrolled.push(responseId);
+        if (enrollmentResult.outcome === "no_account") {
           skipped.push({
             id: responseId,
             code: "no_account",
             message: NO_ACCOUNT_ACCEPT_MESSAGE,
+          });
+          continue;
+        }
+        if (enrollmentResult.outcome === "enroll_failed") {
+          skipped.push({
+            id: responseId,
+            code: "enroll_failed",
+            message: ENROLL_FAILED_MESSAGE,
           });
           continue;
         }
@@ -516,7 +535,18 @@ export async function PUT(request: Request) {
         admin_notes
       );
       if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        // The enrolment was written before this RLS update. If that write
+        // created the row and the status did not stick, take it back off the
+        // roster. Keep going so the rest of the batch still reports.
+        if (status === "accepted" && enrollmentResult?.outcome === "created" && enrollmentResult.enrollmentId) {
+          await setEnrollmentRemoved(adminSupabase, enrollmentResult.enrollmentId, user.id);
+        }
+        failures.push({
+          id: responseId,
+          code: "status_failed",
+          message: error.message,
+        });
+        continue;
       }
       if (resp) {
         updated++;
@@ -570,11 +600,13 @@ export async function PUT(request: Request) {
       }
     }
 
+    const partial = skipped.length > 0 || failures.length > 0;
     return NextResponse.json({
       success: true,
       updated,
-      notEnrolled,
       skipped,
+      failures,
+      partial,
       emailWarnings,
     });
   }
@@ -616,9 +648,12 @@ export async function PUT(request: Request) {
 
   // Same rule as the bulk path: do not save accepted unless an enrolment exists.
   // no_account is side-effect free, so this refusal leaves the previous status.
+  // enroll_failed is a database error and must not be saved as accepted either.
+  let enrollmentResult: Awaited<ReturnType<typeof ensureEnrollmentForApplicant>> | null =
+    null;
   if (status === "accepted") {
     const current = prevResponse as ApplicantForEnrollment | null;
-    const result = await ensureEnrollmentForApplicant(
+    enrollmentResult = await ensureEnrollmentForApplicant(
       adminSupabase,
       {
         id,
@@ -628,22 +663,27 @@ export async function PUT(request: Request) {
       },
       user.id
     );
-    if (result.outcome === "no_account") {
+    if (enrollmentResult.outcome === "no_account") {
       return NextResponse.json(
         { error: NO_ACCOUNT_ACCEPT_MESSAGE, code: "no_account" },
         { status: 409 }
       );
+    }
+    if (enrollmentResult.outcome === "enroll_failed") {
+      return NextResponse.json({ error: ENROLL_FAILED_SINGLE }, { status: 500 });
     }
   }
 
   const { data, error } = await updateResponseStatus(supabase, id, status, user.id, admin_notes);
 
   if (error) {
+    if (status === "accepted" && enrollmentResult?.outcome === "created" && enrollmentResult.enrollmentId) {
+      await setEnrollmentRemoved(adminSupabase, enrollmentResult.enrollmentId, user.id);
+    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
   // The enrolment was created above, before this status write.
-  const notEnrolled = false;
   let emailWarning: string | null = null;
   if (status === "accepted" && data && send_email && previousStatus !== "accepted") {
     const sent = await sendAcceptanceToLinkedAccount(adminSupabase, id);
@@ -691,7 +731,6 @@ export async function PUT(request: Request) {
   return NextResponse.json({
     success: true,
     response: data,
-    notEnrolled,
     ...(emailWarning ? { emailWarning } : {}),
   });
 }

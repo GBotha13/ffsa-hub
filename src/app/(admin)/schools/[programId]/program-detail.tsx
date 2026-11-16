@@ -2616,18 +2616,12 @@ function ApplicantsTab({
 
     try {
       // Accept flow — route through the accept-application pipeline so the
-      // student is automatically enrolled (and, for public applicants, a user
-      // account is created and an invite email is sent). Also finish a row
-      // that is already marked accepted but has no account: that is the
-      // stranded case, and Accept is what creates the invite, enrolment,
-      // billing and email. A row that is already accepted and already linked
-      // to an account falls through; re-running Accept would be refused.
-      const finishingStranded =
-        nextStatus === "accepted" && !reviewingResponse.user_id;
-      if (
-        nextStatus === "accepted" &&
-        (reviewingResponse.status !== "accepted" || finishingStranded)
-      ) {
+      // student is enrolled (and, for public applicants, invited and emailed).
+      // An already-accepted row also goes here, whether or not it has a user
+      // id: the missing piece may be the enrolment, not the account. If Accept
+      // finds an enrolment already, it returns already_enrolled and we save
+      // the note with the ordinary status update.
+      if (nextStatus === "accepted") {
         const res = await fetch("/api/admin/accept-application", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -2638,20 +2632,26 @@ function ApplicantsTab({
         });
 
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
+        if (data.code === "already_enrolled") {
+          alert(
+            data.error ||
+              "This applicant already has an enrolment. The note will be saved without running Accept again."
+          );
+        } else if (!res.ok) {
           alert(data.error || "Failed to accept application");
           return;
-        }
-        // Accepted, but the email didn't go out — say so. The route has
-        // returned this for months; nothing showed it, so a failed send
-        // looked exactly like a successful one.
-        if (data.emailWarning) {
-          alert(`Accepted — but the student was not emailed.\n\n${data.emailWarning}`);
-        }
+        } else {
+          // Accepted, but the email didn't go out — say so. The route has
+          // returned this for months; nothing showed it, so a failed send
+          // looked exactly like a successful one.
+          if (data.emailWarning) {
+            alert(`Accepted — but the student was not emailed.\n\n${data.emailWarning}`);
+          }
 
-        setReviewingResponse(null);
-        router.refresh();
-        return;
+          setReviewingResponse(null);
+          router.refresh();
+          return;
+        }
       }
 
       // Standard status update for non-accept statuses (rejected, waitlisted, etc.)
@@ -3267,11 +3267,9 @@ function ApplicantsTab({
           interviewSaving={interviewSaving}
           interviewFeedback={interviewFeedback}
           acceptConsequence={
-            reviewingResponse.status === "accepted" && reviewingResponse.user_id
-              ? "ALREADY ACCEPTED — SAVING AGAIN ONLY UPDATES THE NOTE."
-              : reviewingResponse.status === "accepted"
-                ? "NO ACCOUNT YET — ACCEPT SENDS THE INVITE, ENROLS THEM, AND EMAILS THEM."
-                : "ACCEPTING SENDS THE ACCEPTANCE EMAIL AND CREATES THEIR ENROLMENT."
+            reviewingResponse.status === "accepted"
+              ? "FINISH ACCEPTANCE"
+              : "ACCEPTING SENDS THE ACCEPTANCE EMAIL AND CREATES THEIR ENROLMENT."
           }
           busy={reviewLoading}
           renderAnswer={(answer) =>

@@ -352,8 +352,9 @@ export async function removeEnrollmentForApplicant(
  * status = accepted when the outcome is no_account.
  *
  * Returns { enrollmentId, outcome } so the caller can tell the difference
- * between "already fine", "created", "restored" and "no account to enrol".
- * Call with the service-role client.
+ * between "already fine", "created", "restored", "no account to enrol" and
+ * "the enrolment write failed". A database error is enroll_failed, never
+ * no_account. Call with the service-role client.
  */
 export async function ensureEnrollmentForApplicant(
   supabase: Client,
@@ -361,7 +362,7 @@ export async function ensureEnrollmentForApplicant(
   actorId: string
 ): Promise<{
   enrollmentId: string | null;
-  outcome: "existing" | "created" | "restored" | "no_account";
+  outcome: "existing" | "created" | "restored" | "no_account" | "enroll_failed";
 }> {
   let userId = response.user_id;
 
@@ -369,12 +370,26 @@ export async function ensureEnrollmentForApplicant(
     const email = response.applicant_email?.trim();
     if (!email) return { enrollmentId: null, outcome: "no_account" };
 
-    const { data: account } = await supabase
+    let pattern: string;
+    try {
+      pattern = applicantEmailIlikePattern(email);
+    } catch {
+      return { enrollmentId: null, outcome: "no_account" };
+    }
+
+    const { data: account, error: accountError } = await supabase
       .from("users")
       .select("id")
-      .ilike("email", email)
+      .ilike("email", pattern)
       .maybeSingle();
 
+    if (accountError) {
+      console.error(
+        "[schools] failed to look up an account for an accepted applicant:",
+        accountError.message
+      );
+      return { enrollmentId: null, outcome: "enroll_failed" };
+    }
     if (!account) return { enrollmentId: null, outcome: "no_account" };
     userId = account.id as string;
 
@@ -384,12 +399,20 @@ export async function ensureEnrollmentForApplicant(
       .eq("id", response.id);
   }
 
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await supabase
     .from("enrollments")
     .select("id, removed_at")
     .eq("user_id", userId)
     .eq("program_id", response.program_id)
     .maybeSingle();
+
+  if (existingError) {
+    console.error(
+      "[schools] failed to read enrollment for accepted applicant:",
+      existingError.message
+    );
+    return { enrollmentId: null, outcome: "enroll_failed" };
+  }
 
   if (existing) {
     // (user_id, program_id) is unique, so a re-accepted applicant reuses the
@@ -407,7 +430,7 @@ export async function ensureEnrollmentForApplicant(
         "[schools] failed to restore enrollment for accepted applicant:",
         error.message
       );
-      return { enrollmentId: null, outcome: "no_account" };
+      return { enrollmentId: null, outcome: "enroll_failed" };
     }
     return { enrollmentId: existing.id as string, outcome: "restored" };
   }
@@ -428,7 +451,7 @@ export async function ensureEnrollmentForApplicant(
       "[schools] failed to create enrollment for accepted applicant:",
       error.message
     );
-    return { enrollmentId: null, outcome: "no_account" };
+    return { enrollmentId: null, outcome: "enroll_failed" };
   }
   return { enrollmentId: created.id as string, outcome: "created" };
 }

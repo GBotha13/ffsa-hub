@@ -12,9 +12,11 @@ const h = vi.hoisted(() => ({
   notesError: null as string | null,
   previousStatus: "submitted",
   /** Default enrollment outcome. "created" means the applicant already has an account. */
-  enrollOutcome: "created" as "created" | "existing" | "restored" | "no_account",
+  enrollOutcome: "created" as "created" | "existing" | "restored" | "no_account" | "enroll_failed",
   /** Per-row override for a bulk mix. Missing ids use enrollOutcome. */
-  outcomeById: {} as Record<string, "created" | "existing" | "restored" | "no_account">,
+  outcomeById: {} as Record<string, "created" | "existing" | "restored" | "no_account" | "enroll_failed">,
+  removed: [] as string[],
+  failIds: {} as Record<string, string>,
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -69,6 +71,9 @@ vi.mock("@/services/schools", () => ({
   updateResponseStatus: async (_supabase: unknown, id: string) => {
     h.updates += 1;
     h.updatedIds.push(id);
+    if (h.failIds[id]) {
+      return { data: null, error: { message: h.failIds[id] } };
+    }
     if (h.notesError) {
       return {
         data: { id, program_id: "p1", user_id: null },
@@ -83,11 +88,15 @@ vi.mock("@/services/schools", () => ({
   createReferenceRequest: async () => ({ error: null }),
   setResponseRemoved: async () => ({ error: null }),
   removeEnrollmentForApplicant: async () => {},
+  setEnrollmentRemoved: async (_supabase: unknown, enrollmentId: string) => {
+    h.removed.push(enrollmentId);
+    return { data: { id: enrollmentId }, error: null };
+  },
   ensureEnrollmentForApplicant: async (_supabase: unknown, response: { id: string }) => {
     h.enrollCalls.push(response.id);
     const outcome = h.outcomeById[response.id] ?? h.enrollOutcome;
     return {
-      enrollmentId: outcome === "no_account" ? null : "enr-1",
+      enrollmentId: outcome === "no_account" || outcome === "enroll_failed" ? null : "enr-1",
       outcome,
     };
   },
@@ -130,6 +139,8 @@ beforeEach(() => {
   h.previousStatus = "submitted";
   h.enrollOutcome = "created";
   h.outcomeById = {};
+  h.removed = [];
+  h.failIds = {};
 });
 
 function put(body: unknown) {
@@ -199,15 +210,25 @@ describe("application status changes", () => {
     expect(h.emails).toBe(0);
   });
 
-  it("returns a failed notes write on a bulk update", async () => {
+  it("reports a failed notes write per row instead of aborting the bulk update", async () => {
     h.notesError = "new row violates row-level security policy";
     const res = await put({
       ids: ["app1"],
       status: "interview_scheduled",
       admin_notes: "kept",
     });
-    expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe("new row violates row-level security policy");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      updated: 0,
+      partial: true,
+      failures: [
+        {
+          id: "app1",
+          code: "status_failed",
+          message: "new row violates row-level security policy",
+        },
+      ],
+    });
   });
 
   it("does not persist accepted when the applicant has no account", async () => {
@@ -228,7 +249,7 @@ describe("application status changes", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.success).toBe(true);
-    expect(body.notEnrolled).toBe(false);
+    expect(body.notEnrolled).toBeUndefined();
     expect(h.updatedIds).toEqual(["app1"]);
     expect(h.enrollCalls).toEqual(["app1"]);
     expect(h.emails).toBe(1);
@@ -254,7 +275,8 @@ describe("application status changes", () => {
     const body = await res.json();
     expect(body.updated).toBe(1);
     expect(h.updatedIds).toEqual(["has-account"]);
-    expect(body.notEnrolled).toEqual(["no-account"]);
+    expect(body.notEnrolled).toBeUndefined();
+    expect(body.partial).toBe(true);
     expect(body.skipped).toEqual([
       {
         id: "no-account",
@@ -263,5 +285,58 @@ describe("application status changes", () => {
       },
     ]);
     expect(h.emails).toBe(1);
+  });
+
+  it("returns 500 and leaves the status unsaved when enrolment fails", async () => {
+    h.enrollOutcome = "enroll_failed";
+    const res = await put({ id: "app1", status: "accepted" });
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "Could not enrol; status unchanged." });
+    expect(h.updatedIds).toEqual([]);
+    expect(h.emails).toBe(0);
+  });
+
+  it("skips an enrol failure in a bulk change and reports it on its own", async () => {
+    h.outcomeById = { ok: "created", bad: "enroll_failed" };
+    const res = await put({ ids: ["ok", "bad"], status: "accepted", send_email: false });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.updated).toBe(1);
+    expect(h.updatedIds).toEqual(["ok"]);
+    expect(body.partial).toBe(true);
+    expect(body.skipped).toEqual([
+      expect.objectContaining({ id: "bad", code: "enroll_failed" }),
+    ]);
+  });
+
+  it("soft-removes an enrolment created in this request when the status write fails", async () => {
+    h.enrollOutcome = "created";
+    h.notesError = "could not save";
+    const res = await put({ id: "app1", status: "accepted" });
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "could not save" });
+    expect(h.removed).toEqual(["enr-1"]);
+  });
+
+  it("keeps going through a bulk status failure and soft-removes only the new enrolment", async () => {
+    h.outcomeById = { ok: "created", bad: "created" };
+    h.failIds = { bad: "could not save" };
+    const res = await put({ ids: ["ok", "bad"], status: "accepted", send_email: false });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.updated).toBe(1);
+    expect(body.partial).toBe(true);
+    expect(body.failures).toEqual([
+      { id: "bad", code: "status_failed", message: "could not save" },
+    ]);
+    expect(h.removed).toEqual(["enr-1"]);
+  });
+
+  it("refuses a bulk status change before any enrolment when the caller cannot decide", async () => {
+    h.canManage = false;
+    const res = await put({ ids: ["has-account", "no-account"], status: "accepted" });
+    expect(res.status).toBe(403);
+    expect(h.enrollCalls).toEqual([]);
+    expect(h.updatedIds).toEqual([]);
   });
 });
