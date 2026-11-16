@@ -347,8 +347,9 @@ export async function removeEnrollmentForApplicant(
  * A public application carries no user_id, so we resolve the account by email
  * first — case-insensitively, because a self-registered address rarely matches
  * the typed one exactly — and link the application to it. If there is still no
- * account we stop: creating one means invites and acceptance emails, which is
- * the Accept route's job, not a status change's.
+ * account we stop and write nothing: creating one means invites and acceptance
+ * emails, which is the Accept route's job. Callers must not persist
+ * status = accepted when the outcome is no_account.
  *
  * Returns { enrollmentId, outcome } so the caller can tell the difference
  * between "already fine", "created", "restored" and "no account to enrol".

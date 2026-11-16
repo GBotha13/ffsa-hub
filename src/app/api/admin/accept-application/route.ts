@@ -19,6 +19,78 @@ import {
 } from "@/lib/email/placeholders";
 import { applicantEmailIlikePattern } from "@/lib/applications/applicant-identity";
 
+type EnrollmentLookup = {
+  from: (table: string) => {
+    select: (columns: string) => {
+      ilike: (
+        column: string,
+        value: string
+      ) => {
+        maybeSingle: () => PromiseLike<{
+          data: { id?: string } | null;
+          error: { message: string } | null;
+        }>;
+      };
+      eq: (
+        column: string,
+        value: string
+      ) => {
+        eq: (
+          column: string,
+          value: string
+        ) => {
+          maybeSingle: () => PromiseLike<{
+            data: { id?: string } | null;
+            error: { message: string } | null;
+          }>;
+        };
+      };
+    };
+  };
+};
+
+// An application already marked accepted can still be finished when no
+// enrolment exists (the status dropdown used to save "accepted" and stop).
+// An enrolment row — including a soft-removed one — means Accept must stop,
+// or a second click would enrol, bill, and email again.
+async function acceptedApplicantAlreadyEnrolled(
+  admin: EnrollmentLookup,
+  app: {
+    user_id: string | null;
+    program_id: string;
+    applicant_email: string | null;
+  }
+): Promise<"yes" | "no" | "error"> {
+  let userId = app.user_id;
+  if (!userId) {
+    const email = app.applicant_email;
+    if (!email) return "no";
+    let pattern: string;
+    try {
+      pattern = applicantEmailIlikePattern(email);
+    } catch {
+      return "no";
+    }
+    const { data: account, error } = await admin
+      .from("users")
+      .select("id")
+      .ilike("email", pattern)
+      .maybeSingle();
+    if (error) return "error";
+    if (!account?.id) return "no";
+    userId = account.id as string;
+  }
+
+  const { data: enrollment, error: enrollmentError } = await admin
+    .from("enrollments")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("program_id", app.program_id)
+    .maybeSingle();
+  if (enrollmentError) return "error";
+  return enrollment?.id ? "yes" : "no";
+}
+
 
 export async function POST(request: Request) {
   // Verify the calling user has schools-management access
@@ -86,10 +158,30 @@ export async function POST(request: Request) {
   }
 
   if (appResponse.status === "accepted") {
-    return NextResponse.json(
-      { error: "This application has already been accepted" },
-      { status: 400 }
-    );
+    const infoEmail =
+      appResponse.applicant_info &&
+      typeof appResponse.applicant_info === "object" &&
+      "email" in appResponse.applicant_info &&
+      typeof appResponse.applicant_info.email === "string"
+        ? appResponse.applicant_info.email
+        : null;
+    const alreadyEnrolled = await acceptedApplicantAlreadyEnrolled(adminSupabase, {
+      user_id: appResponse.user_id,
+      program_id: appResponse.program_id,
+      applicant_email: appResponse.applicant_email ?? infoEmail,
+    });
+    if (alreadyEnrolled === "error") {
+      return NextResponse.json(
+        { error: "Could not check whether this applicant is already enrolled." },
+        { status: 500 }
+      );
+    }
+    if (alreadyEnrolled === "yes") {
+      return NextResponse.json(
+        { error: "This application has already been accepted" },
+        { status: 400 }
+      );
+    }
   }
 
   const applicantInfo = appResponse.applicant_info as {

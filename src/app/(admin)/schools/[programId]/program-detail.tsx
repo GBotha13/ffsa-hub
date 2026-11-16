@@ -2403,16 +2403,16 @@ function ApplicantsTab({
         alert(data.error || "Failed to update statuses");
         return;
       }
-      // Accepting now also puts people on the roster. Anyone we couldn't
-      // enrol has no account for their email yet and needs the Accept
-      // button, which invites them — say so rather than letting them look
-      // accepted while being absent from the Arrival tab.
-      const stranded = (data.notEnrolled ?? []).length;
-      if (stranded > 0) {
-        alert(
-          `${stranded} applicant${stranded === 1 ? " was" : "s were"} marked accepted but not added to the roster — ` +
-            `they have no account yet. Use Accept on each so they get an invite.`
-        );
+      // No-account rows are not marked accepted. Name each one so a mixed
+      // bulk change does not look like a clean success.
+      const skipped = (data.skipped ?? []) as Array<{ id: string; message?: string }>;
+      if (skipped.length > 0) {
+        const lines = skipped.map((row) => {
+          const applicant = responses.find((item) => item.id === row.id);
+          const who = applicant ? respName(applicant) : "An applicant";
+          return `${who}: ${row.message || "Not marked accepted. Use Accept."}`;
+        });
+        alert(lines.join("\n\n"));
       }
       const emailWarnings: string[] = data.emailWarnings ?? [];
       if (emailWarnings.length > 0) {
@@ -2617,11 +2617,17 @@ function ApplicantsTab({
     try {
       // Accept flow — route through the accept-application pipeline so the
       // student is automatically enrolled (and, for public applicants, a user
-      // account is created and an invite email is sent). Only do this when the
-      // application is *transitioning* into accepted — if it's already accepted
-      // and we're just editing the notes, fall through to the standard update
-      // below (re-running accept would fail with "already accepted").
-      if (nextStatus === "accepted" && reviewingResponse.status !== "accepted") {
+      // account is created and an invite email is sent). Also finish a row
+      // that is already marked accepted but has no account: that is the
+      // stranded case, and Accept is what creates the invite, enrolment,
+      // billing and email. A row that is already accepted and already linked
+      // to an account falls through; re-running Accept would be refused.
+      const finishingStranded =
+        nextStatus === "accepted" && !reviewingResponse.user_id;
+      if (
+        nextStatus === "accepted" &&
+        (reviewingResponse.status !== "accepted" || finishingStranded)
+      ) {
         const res = await fetch("/api/admin/accept-application", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -3261,9 +3267,11 @@ function ApplicantsTab({
           interviewSaving={interviewSaving}
           interviewFeedback={interviewFeedback}
           acceptConsequence={
-            reviewingResponse.status === "accepted"
+            reviewingResponse.status === "accepted" && reviewingResponse.user_id
               ? "ALREADY ACCEPTED — SAVING AGAIN ONLY UPDATES THE NOTE."
-              : "ACCEPTING SENDS THE ACCEPTANCE EMAIL AND CREATES THEIR ENROLMENT."
+              : reviewingResponse.status === "accepted"
+                ? "NO ACCOUNT YET — ACCEPT SENDS THE INVITE, ENROLS THEM, AND EMAILS THEM."
+                : "ACCEPTING SENDS THE ACCEPTANCE EMAIL AND CREATES THEIR ENROLMENT."
           }
           busy={reviewLoading}
           renderAnswer={(answer) =>
