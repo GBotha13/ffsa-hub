@@ -7,7 +7,9 @@
 --
 -- The occupied window is the earlier of set-up and event start through the
 -- later of set-down and event end. A set-down earlier than set-up on a single
--- day runs through 24:00. Touching an edge is free.
+-- day runs through 24:00 on that booking's date. The morning after is not
+-- blocked: the teardown is stored on this row, and nothing is written onto
+-- the next calendar day. Touching an edge is free.
 --
 -- practice_book_station / practice_book_band / practice_move_and_book_band /
 -- practice_move_plan keep their signatures. Bookings go through
@@ -288,9 +290,21 @@ BEGIN
        AND b.end_time > p_start
   ), keep AS (
     SELECT h.*,
-           (h.bs < h.ls AND public.practice_room_closure_reason(p_date, h.bs, h.ls) IS NULL) AS keep_before,
-           (h.le < h.be AND public.practice_room_closure_reason(p_date, h.le, h.be) IS NULL) AS keep_after
+           CASE WHEN h.bs < h.ls THEN public.practice_room_closure_reason(p_date, h.bs, h.ls) END AS before_reason,
+           CASE WHEN h.le < h.be THEN public.practice_room_closure_reason(p_date, h.le, h.be) END AS after_reason
       FROM hit h
+  ), flagged AS (
+    SELECT k.*,
+           (k.bs < k.ls AND k.before_reason IS NULL) AS keep_before,
+           (k.le < k.be AND k.after_reason IS NULL) AS keep_after,
+           CASE
+             WHEN k.before_reason = 'auditorium' OR k.after_reason = 'auditorium' THEN
+               ' The rest is closed for an Auditorium booking.'
+             WHEN k.before_reason = 'blockout' OR k.after_reason = 'blockout' THEN
+               ' The rest is closed.'
+             ELSE ''
+           END AS closed_note
+      FROM keep k
   )
   SELECT k.id,
          p.user_id,
@@ -321,9 +335,9 @@ BEGIN
                   WHEN k.keep_after THEN
                     ' You still have ' || public.practice_hhmm(k.le) || '–' || public.practice_hhmm(k.be) || '.'
                   ELSE ''
-                END,
+                END || k.closed_note,
                 coalesce(nullif(admin_name, ''), 'Prayer room admin'))
-    FROM keep k
+    FROM flagged k
     JOIN public.practice_booking_people p ON p.booking_id = k.id
     JOIN public.users u ON u.id = p.user_id
    ORDER BY k.bs, k.st_label, u.first_name;
@@ -387,13 +401,30 @@ BEGIN
 
   band_id := public.practice_book_band(p_date, p_start, p_end, p_band_name, p_lineup);
 
+  -- A dropped remainder is part of what they lost, not a silent gap. The
+  -- recorded window grows to cover that piece; the plan's lost_start/lost_end
+  -- stay the band overlap, which is what the return type has always meant.
   INSERT INTO public.practice_moves
     (booking_id, band_booking_id, remainder_booking_id, affected_user_id, moved_by,
      reason, message, lost_start, lost_end)
   SELECT (e->>'booking_id')::uuid, band_id, (rem_ids->>(e->>'booking_id'))::uuid,
          (e->>'user_id')::uuid, me, btrim(p_reason), e->>'message',
-         (e->>'lost_start')::time, (e->>'lost_end')::time
-    FROM jsonb_array_elements(plan) e;
+         CASE
+           WHEN bk.start_time < p_start
+            AND public.practice_room_closure_reason(bk.practice_date, bk.start_time, p_start)
+                IN ('auditorium', 'blockout')
+           THEN bk.start_time
+           ELSE (e->>'lost_start')::time
+         END,
+         CASE
+           WHEN bk.end_time > p_end
+            AND public.practice_room_closure_reason(bk.practice_date, p_end, bk.end_time)
+                IN ('auditorium', 'blockout')
+           THEN bk.end_time
+           ELSE (e->>'lost_end')::time
+         END
+    FROM jsonb_array_elements(plan) e
+    JOIN public.practice_bookings bk ON bk.id = (e->>'booking_id')::uuid;
 
   RETURN band_id;
 END;

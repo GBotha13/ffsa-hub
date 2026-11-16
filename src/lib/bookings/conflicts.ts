@@ -46,8 +46,11 @@ function nullSafeMax(a: number | null, b: number | null): number | null {
  * Start is the earlier of set-up and event start (a later set-up must not
  * shrink the window). End is the later of set-down and event end. Multi-day
  * bookings and bookings with no times occupy the whole day. A single-day
- * booking whose set-down is earlier than its set-up runs through 24:00 —
- * the teardown is past midnight, and this date has no later column for it.
+ * booking whose set-down is earlier than its set-up runs through 24:00 on
+ * that booking's own date. The morning after is not blocked: 01:00 is stored
+ * on this row, and there is no following-day column for the teardown to spill
+ * into. Shared with Space Bookings clash warnings and with the prayer-room
+ * "Block out & notify" suggestion windows.
  */
 export function occupiedWindow(b: BookingWindow): { start: number; end: number } {
   if (isMultiDay(b)) return { start: DAY_START, end: DAY_END };

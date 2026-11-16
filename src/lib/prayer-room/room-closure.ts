@@ -135,6 +135,17 @@ export function minutesOverlap(aStart: number, aEnd: number, bStart: number, bEn
 /** Inclusive of neither extra day: the end may be at most this many days after the start. */
 export const ROOM_CLOSURE_MAX_DAYS = 366;
 
+/** True only for a real calendar day. 2026-02-30 matches the shape and is not a day. */
+export function isCalendarDate(iso: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day;
+}
+
 export function closureRangeTooLong(from: string, to: string): boolean {
   const start = Date.parse(`${from}T00:00:00Z`);
   const end = Date.parse(`${to}T00:00:00Z`);
@@ -143,10 +154,9 @@ export function closureRangeTooLong(from: string, to: string): boolean {
 }
 
 /**
- * The pieces of a station booking that sit outside a band, minus any piece
- * that overlaps a closure. practice_move_plan / practice_move_and_book_band
- * drop those pieces too, so a leftover inside the Auditorium cannot roll the
- * whole move back.
+ * Test mirror of the remainder filter in practice_move_plan and
+ * practice_move_and_book_band (migration 327). The app does not call this.
+ * Those SQL functions are what actually drop a leftover inside a closure.
  */
 export function remainderSegments(
   bookingStart: number,
@@ -162,7 +172,46 @@ export function remainderSegments(
   return sides.filter((side) => side.end > side.start && !closureCovering(closures, date, side.start, side.end));
 }
 
-/** Drop an auditorium hatch when a block-out or a pending suggestion already draws that booking. */
+/**
+ * Test mirror of the move message and of the lost window written by
+ * practice_move_and_book_band. Not used by the app. A dropped remainder is
+ * part of the loss, and the message says the rest is closed.
+ */
+export function bandMoveLossMirror(
+  bookingStart: number,
+  bookingEnd: number,
+  bandStart: number,
+  bandEnd: number,
+  closures: RoomClosure[],
+  date: string
+): { kept: { start: number; end: number }[]; lostStart: number; lostEnd: number; closedNote: string } {
+  const before = bookingStart < bandStart ? { start: bookingStart, end: bandStart } : null;
+  const after = bookingEnd > bandEnd ? { start: bandEnd, end: bookingEnd } : null;
+  const beforeHit = before ? closureCovering(closures, date, before.start, before.end) : null;
+  const afterHit = after ? closureCovering(closures, date, after.start, after.end) : null;
+  const kept = [before, after].filter((side): side is { start: number; end: number } => {
+    if (!side) return false;
+    return !closureCovering(closures, date, side.start, side.end);
+  });
+  const lostStart = before && beforeHit ? bookingStart : Math.max(bookingStart, bandStart);
+  const lostEnd = after && afterHit ? bookingEnd : Math.min(bookingEnd, bandEnd);
+  const auditorium = beforeHit?.source === "auditorium" || afterHit?.source === "auditorium";
+  const blockout = beforeHit?.source === "blockout" || afterHit?.source === "blockout";
+  const closedNote = auditorium
+    ? "The rest is closed for an Auditorium booking."
+    : blockout
+      ? "The rest is closed."
+      : "";
+  return { kept, lostStart, lostEnd, closedNote };
+}
+
+/**
+ * Drop an auditorium hatch when a block-out or a pending suggestion already
+ * names that booking. The match is the booking id only. If the block-out's
+ * times are later narrowed, the hatch stays hidden for the whole booking,
+ * including any part the block-out no longer covers. That is drawing only:
+ * practice still refuses the real occupied window.
+ */
 export function auditoriumClosuresToDraw<T extends { id: string }>(
   auditorium: T[],
   coveredBookingIds: Iterable<string>

@@ -5,9 +5,11 @@ import {
   AUDITORIUM_BOOKED_LABEL,
   auditoriumClosure,
   auditoriumClosuresToDraw,
+  bandMoveLossMirror,
   blockoutClosure,
   closureCovering,
   closureRangeTooLong,
+  isCalendarDate,
   johannesburgDate,
   remainderSegments,
   type RoomClosure,
@@ -106,6 +108,8 @@ describe("approved auditorium bookings close the prayer room", () => {
     expect(covers(c, NOV16, "23:00", "24:00")).not.toBeNull();
     expect(covers(c, NOV16, "16:00", "17:30")).toBeNull();
     expect(covers(c, NOV16, "21:30", "22:00")).toBeNull();
+    // The teardown's 01:00 is stored on the 16th. The morning of the 17th stays open.
+    expect(covers(c, "2026-11-17", "00:00", "01:00")).toBeNull();
   });
 
   it("overlaps a practice row the booking only partly covers", () => {
@@ -211,6 +215,21 @@ describe("band-move remainders", () => {
   it("keeps nothing when the only leftover is inside the closure", () => {
     expect(remainderSegments(16 * 60 + 30, 17 * 60 + 30, 16 * 60 + 30, 17 * 60, [closure], NOV16)).toEqual([]);
   });
+
+  it("says the rest is closed and widens the loss to cover the dropped piece", () => {
+    const loss = bandMoveLossMirror(16 * 60, 17 * 60 + 30, 16 * 60 + 30, 17 * 60, [closure], NOV16);
+    expect(loss.kept).toEqual([{ start: 16 * 60, end: 16 * 60 + 30 }]);
+    expect(loss.lostStart).toBe(16 * 60 + 30);
+    expect(loss.lostEnd).toBe(17 * 60 + 30);
+    expect(loss.closedNote).toBe("The rest is closed for an Auditorium booking.");
+  });
+
+  it("leaves the loss as the band overlap when both sides are kept", () => {
+    const loss = bandMoveLossMirror(16 * 60, 17 * 60 + 30, 16 * 60 + 30, 17 * 60, [], NOV16);
+    expect(loss.lostStart).toBe(16 * 60 + 30);
+    expect(loss.lostEnd).toBe(17 * 60);
+    expect(loss.closedNote).toBe("");
+  });
 });
 
 describe("wall hatching", () => {
@@ -219,6 +238,16 @@ describe("wall hatching", () => {
     expect(auditoriumClosuresToDraw(rows, ["aaa"])).toEqual([{ id: "auditorium:bbb" }]);
     expect(auditoriumClosuresToDraw(rows, ["bbb"])).toEqual([{ id: "auditorium:aaa" }]);
     expect(auditoriumClosuresToDraw(rows, [])).toEqual(rows);
+  });
+});
+
+describe("calendar dates", () => {
+  it("rejects a day that is not on the calendar", () => {
+    expect(isCalendarDate("2026-02-30")).toBe(false);
+    expect(isCalendarDate("2026-02-29")).toBe(false);
+    expect(isCalendarDate("2024-02-29")).toBe(true);
+    expect(isCalendarDate("2026-02-28")).toBe(true);
+    expect(isCalendarDate("2026-13-01")).toBe(false);
   });
 });
 

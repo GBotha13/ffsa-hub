@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { closureRangeTooLong } from "@/lib/prayer-room/room-closure";
+import { closureRangeTooLong, isCalendarDate } from "@/lib/prayer-room/room-closure";
 import { getAuditoriumClosures } from "@/services/prayer-room-room-closures";
-
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 // GET ?from=YYYY-MM-DD&to=YYYY-MM-DD — approved auditorium bookings as
 // generic closures. Any signed-in user can read this. Titles stay on the
@@ -19,7 +17,7 @@ export async function GET(request: Request) {
   const sp = new URL(request.url).searchParams;
   const from = sp.get("from") ?? "";
   const to = sp.get("to") ?? "";
-  if (!DATE.test(from) || !DATE.test(to) || from > to) {
+  if (!isCalendarDate(from) || !isCalendarDate(to) || from > to) {
     return NextResponse.json({ error: "A from and to date are required" }, { status: 400 });
   }
   if (closureRangeTooLong(from, to)) {
