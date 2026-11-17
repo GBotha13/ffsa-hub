@@ -25,7 +25,11 @@ before(async () => {
   for (let i = 0; i < 50; i++) { try { if ((await fetch(BASE + '/api/health')).ok) return; } catch (e) {} await new Promise(r => setTimeout(r, 100)); }
   throw new Error('server did not start');
 });
-after(() => { proc && proc.kill(); mock && mock.server.close(); fs.rmSync(DATA, { recursive: true, force: true }); });
+after(async () => {
+  if (proc && proc.exitCode === null) await new Promise(r => { proc.once('exit', r); proc.kill(); });
+  mock && mock.server.close();
+  fs.rmSync(DATA, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+});
 
 const j = (p, o) => fetch(BASE + p, o).then(async r => ({ status: r.status, body: await r.json() }));
 const send = (method, p, body) => j(p, { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
