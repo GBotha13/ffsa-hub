@@ -60,6 +60,8 @@ export interface FleetPageData {
   vehicleRows: Record<string, any>[]; // eslint-disable-line @typescript-eslint/no-explicit-any
   providers: Record<string, any>[]; // eslint-disable-line @typescript-eslint/no-explicit-any
   coordinator: Coordinator | null;
+  /** Everyone holding the role (normally one person). */
+  coordinators: Coordinator[];
 }
 
 /** Everything the rules need, as of today in South Africa. */
@@ -86,7 +88,7 @@ export async function loadFleet(supabase: Client, today: string = todayInSA()): 
     coordinator,
     fallbackChecklist: defaultChecklist(),
   });
-  return { F, vehicleRows: vehicles.data ?? [], providers: providers.data ?? [], coordinator };
+  return { F, vehicleRows: vehicles.data ?? [], providers: providers.data ?? [], coordinator, coordinators };
 }
 
 export type { FleetAccess };

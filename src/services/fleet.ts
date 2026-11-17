@@ -253,3 +253,9 @@ export async function moveBookingAssignment(supabase: Client, bookingId: string,
     .select("vehicle_booking_id, vehicle_id")
     .maybeSingle();
 }
+
+// ── Daily reminder log ─────────────────────────────────────
+
+export async function getFleetReminderSends(supabase: Client, limit = 7) {
+  return supabase.from("fleet_reminder_sends").select("date, subject, recipients, sent_at").order("date", { ascending: false }).limit(limit);
+}

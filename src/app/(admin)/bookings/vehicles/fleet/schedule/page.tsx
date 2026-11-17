@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FLEET } from "../_components/ui";
 import { createClient } from "@/lib/supabase/server";
 import { loadFleet, requireFleet } from "@/lib/fleet/load";
 import { Masthead, SectionBar } from "@/components/ffsa";
@@ -93,6 +94,14 @@ export default async function FleetSchedulePage() {
       )}
 
       <CoordinatorPanel coordinator={coordinator} notify={notifyState(F)} canWrite={canWrite} />
+      {access.isAdmin && (
+        <p className="px-5 pb-6 text-[13px] text-[#55524A] md:px-8">
+          <Link href={`${FLEET}/reminder`} className="underline">
+            Preview the 07:00 reminder
+          </Link>{" "}
+          for any date, without sending it.
+        </p>
+      )}
     </>
   );
 }

@@ -253,7 +253,7 @@
           "h": "Daily reminders"
         },
         {
-          "p": "At 7am the person with the Vehicle Co-ordinator role gets an email and a Slack message (from FFSA Fleet) listing the checks due today, tomorrow and the day after, overdue checks, booking clashes, vehicles leaving or coming back, postponed checks, workshop visits and services due by km. On Mondays it also lists in-car guides to reprint. Nothing is sent on days with nothing to do."
+          "p": "At 7am the person with the Vehicle Co-ordinator role gets an email and a Slack message (from the Hub’s Slack app) listing the checks due today, tomorrow and the day after, overdue checks, booking clashes, vehicles leaving or coming back, postponed checks, workshop visits and services due by km. On Mondays it also lists in-car guides to reprint. Nothing is sent on days with nothing to do."
         },
         {
           "h": "The checklist"
@@ -308,6 +308,10 @@
     [
       "2026-11-17",
       "Today, Calendar and Schedule are in Fleet. Today is the first page you see. On the Calendar, a booking that clashes with a workshop visit can be moved to a similar free vehicle with one tap; tell the person who booked it."
+    ],
+    [
+      "2026-11-17",
+      "The 7am reminder now comes from the Hub, to whoever has the Vehicle Co-ordinator role, by email and Slack. Switch either off on the Schedule page. Admins can preview it for any date."
     ]
   ]
 }
