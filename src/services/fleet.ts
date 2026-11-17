@@ -215,3 +215,17 @@ export async function insertFleetFile(supabase: Client, row: Record<string, unkn
 export async function getFleetGuideProgress(supabase: Client, userId: string) {
   return supabase.from("fleet_guide_progress").select("step, done_at").eq("user_id", userId);
 }
+
+// ── Vehicle Coordinator (role holder) ──────────────────────
+
+/** Whoever holds the vehicle_coordinator role: name, phone, email, Slack id.
+ *  Call with the service-role client (people/users rows are not readable by
+ *  every co-ordinator under RLS); project the result before it reaches a page. */
+export async function getFleetCoordinators(admin: Client) {
+  return admin
+    .from("user_roles")
+    .select(
+      "user_id, roles!inner(name), user:users!inner(id, display_name, email, is_active, slack_user_id, person:people(first_name, last_name, preferred_name, phone))"
+    )
+    .eq("roles.name", "vehicle_coordinator");
+}
