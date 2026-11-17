@@ -23,13 +23,15 @@ export interface VisitCtx {
   today: string;
 }
 
-type Mode = "book" | "log" | "outcome" | "edit";
+export type VisitMode = "book" | "log" | "outcome" | "edit";
+type Mode = VisitMode;
 
 /** A button that opens the visit form. */
 export function VisitButton({
   ctx,
   mode,
   visit,
+  prefill,
   children,
   tone = "outline",
   className,
@@ -37,6 +39,8 @@ export function VisitButton({
   ctx: VisitCtx;
   mode: Mode;
   visit?: Visit;
+  /** Kind, dates and workshop to start with (the app's "Book" and "Move the workshop visit to …"). */
+  prefill?: VisitPrefill;
   children: React.ReactNode;
   tone?: "solid" | "outline";
   className?: string;
@@ -47,16 +51,32 @@ export function VisitButton({
       <ActionButton tone={tone} onClick={() => setOpen(true)} className={className}>
         {children}
       </ActionButton>
-      {open && <VisitDialog ctx={ctx} mode={mode} visit={visit} onClose={() => setOpen(false)} />}
+      {open && <VisitDialog ctx={ctx} mode={mode} visit={visit} prefill={prefill} onClose={() => setOpen(false)} />}
     </>
   );
 }
 
-function VisitDialog({ ctx, mode, visit, onClose }: { ctx: VisitCtx; mode: Mode; visit?: Visit; onClose: () => void }) {
+export interface VisitPrefill {
+  kind?: string;
+  date?: string;
+  until?: string;
+  provider?: string;
+}
+
+export function VisitDialog({ ctx, mode, visit, prefill, onClose }: { ctx: VisitCtx; mode: Mode; visit?: Visit; prefill?: VisitPrefill; onClose: () => void }) {
   const router = useRouter();
   const rec = mode === "outcome" || mode === "edit" ? visit || null : null;
   const start: "booked" | "done" = mode === "book" ? "booked" : mode === "outcome" || mode === "log" ? "done" : visit?.status === "booked" ? "booked" : "done";
-  const [f, setF] = useState<VisitFormState>(() => initialVisitForm(start, ctx.today, ctx.providers, rec));
+  const [f, setF] = useState<VisitFormState>(() => {
+    const base = initialVisitForm(start, ctx.today, ctx.providers, rec);
+    if (!prefill) return base;
+    const p: Partial<VisitFormState> = {};
+    if (prefill.kind) p.kind = prefill.kind;
+    if (prefill.date) p.date = prefill.date;
+    if (prefill.until) p.until = prefill.until;
+    if (prefill.provider) Object.assign(p, ctx.providers.includes(prefill.provider) ? { provider: prefill.provider, providerOther: "" } : { provider: "__other", providerOther: prefill.provider });
+    return { ...base, ...p };
+  });
   const [openedAt] = useState(() => Date.now());
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -83,7 +103,9 @@ function VisitDialog({ ctx, mode, visit, onClose }: { ctx: VisitCtx; mode: Mode;
       }
       toast.success(r.message || (booked ? "Workshop booking saved." : "Workshop visit saved."));
       onClose();
-      router.push(vehicleHref(ctx.vehicle.id, "history"));
+      // As the app: on the vehicle's own page, show History; elsewhere (Today, Calendar)
+      // stay where you are.
+      if (window.location.pathname === vehicleHref(ctx.vehicle.id)) router.push(vehicleHref(ctx.vehicle.id, "history"));
       router.refresh();
     } catch (e) {
       if (!(e instanceof ClashError)) toast.error((e as Error).message);

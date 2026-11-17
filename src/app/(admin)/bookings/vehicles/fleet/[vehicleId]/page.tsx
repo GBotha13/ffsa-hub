@@ -13,9 +13,7 @@ import {
   fmtKm,
   nextTrip,
   profileOf,
-  suggestGap,
   tripName,
-  tripsOf,
   vehicleAlerts,
   weekly,
   whereList,
@@ -51,6 +49,7 @@ import { ConditionTab, HistoryTab, ManualTab, OverviewTab, PhotosTab } from "./s
 import { EditDetailsButton, type EditableVehicle } from "./vehicle-dialog";
 import { vehicleFormOf } from "./vehicle-form";
 import { VisitButton, type VisitCtx } from "./visit-dialog";
+import { buildVisitCtx } from "./visit-ctx";
 import type { WatchPanelProps } from "./watch-panel";
 
 // The vehicle page (SPEC 5.3; the Fleet app's vehicleView): header, actions and the
@@ -106,14 +105,7 @@ export default async function FleetVehiclePage({
   const tripLine = t ? `${tripName(t)} until ${fmtDay(t.to)}` : n ? `Next: ${tripName(n)} ${fmtDay(n.from)} – ${fmtDay(n.to)}` : "";
   const li = x.lastInspection;
 
-  const ctx: VisitCtx = {
-    vehicle: { id, name: v.name, odometer: v.odometer ?? null },
-    providers: providers.map((p) => String(p.name)),
-    trips: tripsOf(F, id).map((tr) => ({ id: tr.id, from: tr.from, to: tr.to, label: tr.label })),
-    // Only a booked visit blocks days, so only a booked one needs a gap that ignores itself.
-    gaps: Object.fromEntries([["new", suggestGap(F, id)], ...bookedVisits(visits).map((r) => [r.id, suggestGap(F, id, { ignore: r.id })])]),
-    today,
-  };
+  const ctx: VisitCtx = buildVisitCtx(F, providers, id);
   const pr = profileOf(v);
   const watch: WatchPanelProps = {
     vehicleId: id,

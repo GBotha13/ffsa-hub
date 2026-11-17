@@ -239,3 +239,17 @@ export async function getFleetCoordinators(admin: Client) {
 export async function deleteFleetProvider(supabase: Client, id: string) {
   return supabase.from("fleet_providers").delete().eq("id", id);
 }
+
+// ── Trips (moving a booking to another vehicle) ────────────
+
+/** Move one vehicle assignment of a Hub booking to another vehicle (the Calendar's
+ *  "Move … to …"). Returns the updated assignment, or null when it wasn't on `fromVehicleId`. */
+export async function moveBookingAssignment(supabase: Client, bookingId: string, fromVehicleId: string, toVehicleId: string) {
+  return supabase
+    .from("vehicle_booking_assignments")
+    .update({ vehicle_id: toVehicleId })
+    .eq("vehicle_booking_id", bookingId)
+    .eq("vehicle_id", fromVehicleId)
+    .select("vehicle_booking_id, vehicle_id")
+    .maybeSingle();
+}

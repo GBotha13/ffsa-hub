@@ -26,11 +26,16 @@ vi.mock("@/services/fleet", () => ({
   insertFleetVisit: record("insertFleetVisit"),
   updateFleetVisit: record("updateFleetVisit"),
   getFleetVisits: async () => ({ data: [], error: null }),
+  moveBookingAssignment: record("moveBookingAssignment", { data: { vehicle_booking_id: "b", vehicle_id: "v" }, error: null }),
 }));
 
 // Seed vehicles have string ids ("h1-2"); the routes want uuids.
 const UUID: Record<string, string> = {
+  "h1-1": "00000000-0000-0000-0000-000000000001",
   "h1-2": "00000000-0000-0000-0000-000000000002",
+  "h1-3": "00000000-0000-0000-0000-000000000003",
+  kombi: "00000000-0000-0000-0000-000000000004",
+  crv: "00000000-0000-0000-0000-000000000005",
   almera: "00000000-0000-0000-0000-000000000006",
 };
 function withUuids(F: FleetData): FleetData {
@@ -115,5 +120,29 @@ describe("POST /api/vehicles/fleet/visits", () => {
     expect(row).toMatchObject({ odometer_km: 225010, cost: 3450.5 });
     const patch = calls.find((c) => c.fn === "updateFleetVehicleDetails")!.args[2] as Record<string, unknown>;
     expect(patch).toMatchObject({ odometer_km: 225010, last_service: { date: TODAY, km: 225010, provider: "Motech" } });
+  });
+});
+
+describe("POST /api/vehicles/fleet/trips/move", () => {
+  const BOOKING = "00000000-0000-0000-0000-0000000000b7";
+  const kombiTrip = () => {
+    data = { ...data, trips: [...data.trips, { id: `${BOOKING}:${UUID.kombi}`, vehicleId: UUID.kombi, from: "2026-11-19", to: "2026-11-21", label: "HULC", source: "hub" }] };
+  };
+
+  it("moves a Kombi booking over its workshop visit to H1 #1 (SPEC 10.7)", async () => {
+    kombiTrip();
+    const { POST } = await import("./trips/move/route");
+    const res = await POST(req({ tripId: `${BOOKING}:${UUID.kombi}`, to: UUID["h1-1"] }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).message).toBe("Moved to Hyundai H1 #1.");
+    expect(calls.find((c) => c.fn === "moveBookingAssignment")!.args.slice(1)).toEqual([BOOKING, UUID.kombi, UUID["h1-1"]]);
+  });
+
+  it("refuses a vehicle that isn't free for the whole trip (H1 #3 is at Motech on 19 Nov)", async () => {
+    kombiTrip();
+    const { POST } = await import("./trips/move/route");
+    const res = await POST(req({ tripId: `${BOOKING}:${UUID.kombi}`, to: UUID["h1-3"] }));
+    expect(res.status).toBe(409);
+    expect(calls.some((c) => c.fn === "moveBookingAssignment")).toBe(false);
   });
 });

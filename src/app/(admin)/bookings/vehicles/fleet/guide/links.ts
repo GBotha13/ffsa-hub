@@ -3,19 +3,19 @@
 // screen keys of guide-hub.json ("today", "vehicle", "calendar", …). Both map to Hub
 // routes here.
 //
-// Today, Calendar and Schedule arrive in the next pull request (vehicles-module/
-// HUB-PLAN.md, PR 3). Until then they open Vehicles: change PENDING below when they land.
+// Today, Calendar and Schedule are their own screens (added in vehicles-module/
+// HUB-PLAN.md, PR 3); they're in PENDING below.
 
 import { FLEET, vehicleHref } from "../_components/ui";
 import { guideText, type GuideTokens } from "@/lib/fleet/guide";
 
 const VEHICLES = `${FLEET}/vehicles`;
 
-/** Screens that don't exist in the Hub yet, and where their links go meanwhile. */
+/** Today, Calendar and Schedule (added in PR 3). Kept as a named map for links.test.ts. */
 export const PENDING: Record<string, string> = {
-  today: VEHICLES,
-  calendar: VEHICLES,
-  schedule: VEHICLES,
+  today: FLEET,
+  calendar: `${FLEET}/calendar`,
+  schedule: `${FLEET}/schedule`,
 };
 
 const SCREENS: Record<string, string> = {

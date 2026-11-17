@@ -304,6 +304,10 @@
     [
       "2026-11-17",
       "In the Hub: add or remove vehicles under Fleet → Settings; trips and rentals are the Hub’s vehicle bookings; an inspection draft is also saved to the Hub, so you can finish it on another device; a post-trip check is linked to its booking. The in-car guide and manual PDFs come in a later update."
+    ],
+    [
+      "2026-11-17",
+      "Today, Calendar and Schedule are in Fleet. Today is the first page you see. On the Calendar, a booking that clashes with a workshop visit can be moved to a similar free vehicle with one tap; tell the person who booked it."
     ]
   ]
 }
