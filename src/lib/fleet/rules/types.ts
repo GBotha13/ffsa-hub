@@ -73,6 +73,7 @@ export interface FleetVehicle {
   where?: string | null;
   watch?: WatchNote[] | null;
   condition?: Record<string, ConditionEntry> | null;
+  lastInspection?: { id?: string; date?: ISODate; type?: string; counts?: Record<string, number> } | null;
   lastCheck?: { id?: string; date?: ISODate; type?: string } | null;
   lastMonthly?: { id?: string; date?: ISODate } | null;
   lastPost?: { id?: string; date?: ISODate } | null;

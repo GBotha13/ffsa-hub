@@ -13,6 +13,7 @@ import type {
   Trip,
   WorkshopVisit,
 } from "./rules/types";
+import { asType, type Inspection } from "./inspection";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Row = Record<string, any>;
@@ -49,6 +50,7 @@ export function vehicleFromRow(row: Row): FleetVehicle {
     where: d.where_text ?? null,
     watch: d.watch ?? [],
     condition: d.condition ?? {},
+    lastInspection: d.last_inspection ?? null,
     lastCheck: d.last_check ?? null,
     lastMonthly: d.last_monthly ?? null,
     lastPost: d.last_post ?? null,
@@ -165,13 +167,63 @@ export function settingsFromRow(
       weeklyOnly: (row.weekly_only ?? []) as ISODate[],
       budgetHours: num(row.budget_hours) ?? 5,
     },
-    checklist: row.checklist ?? null,
+    // As the app: an empty saved checklist falls back to the standard list.
+    checklist: row.checklist && Array.isArray(row.checklist.sections) && row.checklist.sections.length ? row.checklist : null,
     notify: row.notify ?? {},
   };
 }
 
 export function timeLogFromRow(r: Row): TimeLogEntry {
   return { date: r.date, week: r.week, kind: r.kind, type: r.type ?? undefined, vehicleId: r.vehicle_id ?? undefined, mins: Number(r.mins) };
+}
+
+// ── Inspections ────────────────────────────────────────────
+// fleet_inspections columns ↔ the app's names (src/lib/fleet/inspection.ts).
+
+export function inspectionToRow(doc: Inspection, userId: string | null) {
+  return {
+    vehicle_id: doc.vehicleId,
+    type: doc.type,
+    date: doc.date,
+    odometer_km: doc.odometer,
+    fuel: doc.fuel || null,
+    inspector: doc.inspector || null,
+    provider: doc.provider || null,
+    booking_id: doc.bookingId,
+    docs: doc.docs,
+    results: doc.results,
+    walk: doc.walk,
+    extra: doc.extra,
+    summary: doc.summary || null,
+    counts: doc.counts,
+    mins: doc.mins,
+    started_at: doc.startedAt || null,
+    created_by: userId,
+  };
+}
+
+export function inspectionFromRow(r: Record<string, any>): Inspection {
+  return {
+    id: r.id,
+    vehicleId: r.vehicle_id,
+    type: asType(r.type),
+    date: r.date,
+    odometer: Number(r.odometer_km),
+    fuel: r.fuel ?? "",
+    inspector: r.inspector ?? "",
+    provider: r.provider ?? "",
+    bookingId: r.booking_id ?? null,
+    docs: r.docs ?? [],
+    results: r.results ?? {},
+    walk: r.walk ?? {},
+    extra: r.extra ?? [],
+    summary: r.summary ?? "",
+    counts: { ok: 0, mon: 0, fix: 0, na: 0, ...(r.counts ?? {}) },
+    mins: r.mins === null || r.mins === undefined ? null : Number(r.mins),
+    startedAt: r.started_at ?? "",
+    createdAt: r.created_at ?? "",
+    createdBy: r.created_by ?? null,
+  };
 }
 
 // ── Everything the rules need ──────────────────────────────

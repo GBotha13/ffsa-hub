@@ -67,7 +67,7 @@ export async function saveVisit(auth: Extract<FleetAuth, { ok: true }>, id: stri
 
   const work = status === "done" && Array.isArray(b.work)
     ? b.work
-        .map((w: any) => ({ d: str(w?.d, 500), cost: moneyOrNull(w?.cost), chk: ["ok", "bad", "na"].includes(w?.chk) ? w.chk : "na" }))
+        .map((w: any) => ({ d: str(w?.d, 500), cost: moneyOrNull(w?.cost), chk: ["ok", "bad", "na"].includes(w?.chk) ? w.chk : "" /* not checked yet */ }))
         .filter((w: any) => w.d)
     : Array.isArray(b.work) ? b.work : [];
   let cost = status === "done" ? moneyOrNull(b.cost) : null;

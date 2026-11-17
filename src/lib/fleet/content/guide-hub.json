@@ -6,7 +6,10 @@
       "title": "Start here",
       "blocks": [
         {
-          "p": "The Vehicles section of the FFSA Hub is where the vehicle co-ordinator looks after the FFSA vehicles: regular inspections, km readings, bookings, workshop visits, and the in-car guides drivers use. It works on a phone."
+          "p": "Fleet is where the vehicle co-ordinator looks after the FFSA vehicles: regular inspections, km readings, bookings, workshop visits, and the in-car guides drivers use. It works on a phone."
+        },
+        {
+          "p": "Fleet is part of the FFSA Hub: open Bookings → Vehicles → Fleet. It’s for the person with the Vehicle Co-ordinator role and for Hub admins, each signed in with their own Hub account."
         },
         {
           "h": "The co-ordinator’s week"
@@ -293,6 +296,14 @@
     [
       "go-live",
       "Vehicles section added to the FFSA Hub, built from the FFSA Fleet app: Today, inspections, Calendar with booking clashes, km readings, services by km, time tracker, in-car guides and this guide."
+    ],
+    [
+      "2026-11-17",
+      "Fleet is now part of the FFSA Hub: Bookings → Vehicles → Fleet, for the Vehicle Co-ordinator and Hub admins."
+    ],
+    [
+      "2026-11-17",
+      "In the Hub: add or remove vehicles under Fleet → Settings; trips and rentals are the Hub’s vehicle bookings; an inspection draft is also saved to the Hub, so you can finish it on another device; a post-trip check is linked to its booking. The in-car guide and manual PDFs come in a later update."
     ]
   ]
 }

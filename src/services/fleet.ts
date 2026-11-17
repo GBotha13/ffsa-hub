@@ -105,6 +105,10 @@ export async function insertFleetVisit(supabase: Client, row: Record<string, unk
   return supabase.from("fleet_workshop_visits").insert(row).select().single();
 }
 
+export async function deleteFleetVisit(supabase: Client, id: string) {
+  return supabase.from("fleet_workshop_visits").delete().eq("id", id).select("id, vehicle_id").maybeSingle();
+}
+
 export async function updateFleetVisit(supabase: Client, id: string, patch: Record<string, unknown>) {
   return supabase.from("fleet_workshop_visits").update(patch).eq("id", id).select().single();
 }
@@ -228,4 +232,10 @@ export async function getFleetCoordinators(admin: Client) {
       "user_id, roles!inner(name), user:users!inner(id, display_name, email, is_active, slack_user_id, person:people(first_name, last_name, preferred_name, phone))"
     )
     .eq("roles.name", "vehicle_coordinator");
+}
+
+/** Delete a workshop. Past visits keep the name (fleet_workshop_visits.provider is text;
+ *  provider_id is ON DELETE SET NULL). */
+export async function deleteFleetProvider(supabase: Client, id: string) {
+  return supabase.from("fleet_providers").delete().eq("id", id);
 }

@@ -9,7 +9,7 @@ import { updateFleetVehicleDetails } from "@/services/fleet";
 const EDITABLE = new Set([
   "name", "make", "model", "profile", "year", "colour", "transmission", "vin", "engineNo", "insurer", "policyNo",
   "tracker", "base", "photo", "status", "statusSince", "licenceExpiry", "serviceKm", "serviceMonths", "inspectionDay",
-  "tyres", "where", "watch", "notes", "lastService", "lastB2B", "cardPrinted",
+  "tyres", "where", "watch", "notes", "lastService", "lastB2B", "cardPrinted", "followUp",
 ]);
 
 // PATCH /api/vehicles/fleet/vehicles/[id] — body {patch: {field: value}} in the Fleet
@@ -25,6 +25,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!patch || typeof patch !== "object" || !Object.keys(patch).length) return bad("Nothing to change");
   const unknown = Object.keys(patch).filter((k) => !EDITABLE.has(k));
   if (unknown.length) return bad(`Can't change: ${unknown.join(", ")}`);
+  // "Mark done" on a follow-up clears it; follow-ups are otherwise set by the visit routes.
+  if ("followUp" in patch && patch.followUp !== null) return bad("A follow-up can only be cleared here");
   if ("status" in patch && !VSTATUS.includes(String(patch.status))) return bad("Unknown status");
   if ("watch" in patch && !Array.isArray(patch.watch)) return bad("watch must be a list");
   if ("inspectionDay" in patch && patch.inspectionDay !== null && !(Number(patch.inspectionDay) >= 1 && Number(patch.inspectionDay) <= 7))
