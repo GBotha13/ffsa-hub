@@ -251,6 +251,18 @@ Supabase runs in the cloud (no local Postgres). Migrations are applied via the S
 
 ---
 
+## Fleet (vehicle inspections) — standing rules
+
+Fleet is the FFSA Fleet app rebuilt in the Hub, under Bookings → Vehicles → Fleet. The plan is `vehicles-module/HUB-PLAN.md`; the spec is `vehicles-module/docs/SPEC.md`; `vehicles-module/app/ffsa-fleet.html` is the reference for flow, rules and text.
+
+- **Every change to Fleet updates its Guide and What's new.** Change the Guide text in `src/lib/fleet/content/guide-hub.json` to match, and add a dated line to What's new. A Fleet change isn't done until the Guide matches it.
+- **Rules don't change silently.** `src/lib/fleet/rules/` is SPEC section 6, ported line by line and checked against the reference app by `parity.test.ts`. If a rule looks wrong, ask Gideon; don't "fix" it.
+- **Phone first:** every Fleet screen works at 390 px wide with no sideways scrolling; one tap per checklist point.
+- **Field names:** the rules use the Fleet app's names (SPEC section 4); `src/lib/fleet/mapping.ts` is the only place that maps them to columns.
+- `vehicles-module/seed` is FFSA's real data (VINs, insurer details, workshop reports): never copy it anywhere public or into a migration.
+
+---
+
 # FFSA Hub — redesign context
 
 Redesign of the FFSA Hub (Next.js admin platform in the attached `ffsa-platform` folder)
