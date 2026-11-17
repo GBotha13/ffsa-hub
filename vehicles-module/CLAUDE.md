@@ -80,12 +80,17 @@ Collections: `fleet` (vehicles), `records` (workshop visits, `status` booked|don
 
 ## Bringing it into the Hub
 
-Work in small steps on a branch, keep the app working after each one, and check against SPEC section 10. Suggested order (prompts in `CLAUDE-CODE-PROMPTS.md`):
+**Decided (17 Nov 2026): a native rebuild, not an embed.** The app is rebuilt in the Hub's own stack and look as **Fleet**, under Bookings → Vehicles → Fleet (`/bookings/vehicles/fleet`). `app/ffsa-fleet.html` is the reference for flow, rules and text and is not served by the Hub. The plan is `HUB-PLAN.md`; the prompts, one pull request each, are in `CLAUDE-CODE-PROMPTS.md`:
 
-1. **Run it next to the Hub.** Serve it under a Hub route (e.g. `/vehicles`) behind Hub login, with this server or the shim's endpoints implemented in the Hub's backend. No UI changes.
-2. **Swap the backend, keep the UI.** Implement the same `window.claude.use()` contract on the Hub's database, storage, auth/roles and AI. The app file doesn't change. This is the fastest way to "same app, in the Hub".
-3. **Hub integration** (SPEC section 7): Hub bookings replace `trips`; workshop visits block vehicles; renter notices with a one-tap switch; km at handover; reminder to the Vehicle Co-ordinator role via the Hub's Slack app and email.
-4. **Optional native rebuild**, screen by screen, in the Hub's own framework, using `docs/content/*.json` as-is and the rule functions unchanged.
+1. **Foundations:** role and permissions, `fleet_` tables with RLS, `fleet-files` bucket, the rules as pure TypeScript with tests, the seed import.
+2. **Core screens:** Vehicles, Vehicle page, Inspection, Workshops, Checklist, Guide.
+3. **Daily work:** Today, Calendar, Schedule, time tracker, Settings; then the SPEC section 10 check side by side with this app, and go-live.
+4. **07:00 reminder** to the Vehicle Co-ordinator role by Slack and email.
+5. **Bookings** (SPEC section 7). Hub bookings replace `trips` from step 1 onwards.
+6. **PDFs** with `@react-pdf/renderer`.
+7. **Ask** (optional).
+
+In the Hub, the Guide is rendered from `docs/content/guide-hub.json` (copied to `src/lib/fleet/content/`); that copy is what non-negotiable 3 refers to there, not `GUIDE_PAGES` in the HTML file. Use `docs/content/*.json` as-is and port the rule functions without changing them.
 
 ## Don'ts
 
