@@ -67,7 +67,6 @@ CREATE TABLE public.fleet_providers (
 CREATE TABLE public.fleet_vehicle_details (
   vehicle_id        uuid PRIMARY KEY REFERENCES public.vehicles(id) ON DELETE CASCADE,
   legacy_id         text UNIQUE,           -- "h1-2", "crv", … in the Fleet app
-  display_name      text,                  -- the app's `name` when it differs from vehicles.name
   make              text,
   model             text,
   profile           text,                  -- vehicle-profiles.json key; null = guess from make/model

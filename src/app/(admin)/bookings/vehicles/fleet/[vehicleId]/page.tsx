@@ -119,6 +119,7 @@ export default async function FleetVehiclePage({
   const editable: EditableVehicle = {
     ...vehicleFormOf(v, x),
     id,
+    name: v.name,
     reg: v.reg || "",
     fuel: v.fuel || "",
     seats: v.seats != null ? String(v.seats) : "",

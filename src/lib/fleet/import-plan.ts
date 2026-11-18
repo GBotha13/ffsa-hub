@@ -124,11 +124,9 @@ export function planFleetImport(seed: Seed, hubVehicles: HubVehicle[], hubBookin
     .filter(([legacy]) => vehicleId[legacy])
     .map(([legacy, v]) => {
       const fu = v.followUp ? { ...v.followUp, recId: v.followUp.recId ? visitId[v.followUp.recId] || null : null } : null;
-      const hub = hubVehicles.find((h) => h.id === vehicleId[legacy]);
       return {
         vehicle_id: vehicleId[legacy],
         legacy_id: legacy,
-        display_name: hub && hub.name !== v.name ? v.name : null,
         make: nul(v.make),
         model: nul(v.model),
         profile: nul(v.profile),

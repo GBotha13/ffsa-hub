@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Masthead, SectionBar } from "@/components/ffsa";
 import { requireFleet } from "@/lib/fleet/load";
-import { canSendFleetReminder, reminderSlackText, runFleetReminder } from "@/lib/fleet/reminder-send";
+import { canSendFleetReminder, reminderDigestParts, runFleetReminder } from "@/lib/fleet/reminder-send";
 import { REMINDER_SECTIONS, fmtDate, todayInSA } from "@/lib/fleet/rules";
 import { getFleetReminderSends } from "@/services/fleet";
 import { FLEET } from "../_components/ui";
@@ -24,7 +24,7 @@ export default async function ReminderPreview({ searchParams }: { searchParams: 
   const r = run.reminder;
   const live = canSendFleetReminder();
   const { data: sends } = await getFleetReminderSends(supabase);
-  const channels = [run.notify.email && "email", run.notify.slack && "Slack"].filter(Boolean).join(" and ") || "nothing (both switched off on the Schedule page)";
+  const channels = [run.notify.email && "email", run.notify.slack && "Slack (inside the 07:00 vehicle digest)"].filter(Boolean).join(" and ") || "nothing (both switched off on the Schedule page)";
 
   return (
     <>
@@ -65,8 +65,8 @@ export default async function ReminderPreview({ searchParams }: { searchParams: 
             </div>
           ))}
           <details className="border-t border-rule pt-3">
-            <summary className="cursor-pointer font-mono text-[10px] font-bold uppercase tracking-[0.14em]">The Slack message as sent</summary>
-            <pre className="mt-2 whitespace-pre-wrap break-words bg-bone p-3 text-[12px]">{reminderSlackText(r, run.url)}</pre>
+            <summary className="cursor-pointer font-mono text-[10px] font-bold uppercase tracking-[0.14em]">Its part of the Slack digest</summary>
+            <pre className="mt-2 whitespace-pre-wrap break-words bg-bone p-3 text-[12px]">{reminderDigestParts(r, run.url).join("\n\n")}</pre>
           </details>
         </div>
       )}

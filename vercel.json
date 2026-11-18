@@ -67,10 +67,6 @@
     {
       "path": "/api/cron/xero-code-mirror",
       "schedule": "30 2 * * *"
-    },
-    {
-      "path": "/api/cron/fleet-reminder",
-      "schedule": "0 5 * * *"
     }
   ]
 }

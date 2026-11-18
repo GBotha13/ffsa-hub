@@ -1,6 +1,7 @@
-// The 07:00 Fleet reminder (SPEC 6.11): build it with the tested rules, then send it to
-// whoever holds the Vehicle Coordinator role, by email and by Slack DM from the Hub's
-// Slack app. Replaces the claude.ai scheduled task "FFSA vehicle inspection reminders".
+// The 07:00 Fleet reminder (SPEC 6.11): build it with the tested rules, then email it to
+// whoever holds the Vehicle Coordinator role. On Slack it is part of the vehicle team's
+// 07:00 digest (lib/vehicles/slack-alerts.ts), so people get one Slack message, not two
+// (Jack, 18 Nov 2026). Replaces the claude.ai scheduled task "FFSA vehicle inspection reminders".
 //
 // Sending is OFF everywhere except the live site (VERCEL_ENV=production and preview
 // writes not disabled), so local runs, Vercel previews (which share the production
@@ -58,6 +59,19 @@ export function reminderSlackText(r: Reminder, url: string): string {
     .join("\n\n");
   return `*${esc(r.subject)}*\n\n${body}\n\n<${url}|Open Fleet>`;
 }
+
+/** The Fleet part of the vehicle team's Slack digest: a heading, then one block per section. */
+export function reminderDigestParts(r: Reminder, url: string): string[] {
+  if (r.empty) return [];
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return [
+    `*🔧 Inspections – <${url}|open Fleet>*`,
+    ...REMINDER_SECTIONS.filter(([k]) => r.sections[k].length).map(([k, title]) => `*${title}*\n${r.sections[k].map((l) => "• " + esc(l)).join("\n")}`),
+  ];
+}
+
+/** Lines in the Fleet part, counted toward the digest's "N things to know". */
+export const reminderItemCount = (r: Reminder) => REMINDER_SECTIONS.reduce((n, [k]) => n + r.sections[k].length, 0);
 
 // ── Sending ────────────────────────────────────────────────
 
@@ -173,7 +187,37 @@ export async function runFleetReminder(
     if (claim.error.code === "23505") return { ...base, outcome: "already-sent" };
     throw new Error(claim.error.message);
   }
-  const results = await deliverReminder(reminder, url, coordinators, n, opts.deps || realDeps);
+  // Email only: Slack carries the same sections inside the vehicle digest (fleetDigestPart).
+  const results = await deliverReminder(reminder, url, coordinators, { ...n, slack: false }, opts.deps || realDeps);
   await admin.from("fleet_reminder_sends").update({ recipients: results }).eq("date", date);
   return { ...base, outcome: "sent", results };
+}
+
+export interface FleetDigestPart {
+  outcome: ReminderRun["outcome"];
+  /** Slack blocks to add to the digest; empty when there's nothing to say or Slack is off. */
+  parts: string[];
+  items: number;
+  /** The coordinators' Slack ids, so they get the digest even if not on its alert list. */
+  slackUserIds: string[];
+}
+
+/**
+ * Run at 07:00 by the vehicle digest cron: emails the reminder (once a day, live site only)
+ * and returns the Fleet sections for the digest's single Slack message. Off the live site
+ * it returns no parts, so previews and local runs never put Fleet into a Slack message.
+ */
+export async function fleetDigestPart(
+  admin: Client,
+  opts: { date?: ISODate; deps?: ReminderDeps; env?: NodeJS.ProcessEnv } = {}
+): Promise<FleetDigestPart> {
+  const send = canSendFleetReminder(opts.env);
+  const run = await runFleetReminder(admin, { date: opts.date, send, deps: opts.deps });
+  const on = send && run.notify.slack && !run.reminder.empty;
+  return {
+    outcome: run.outcome,
+    parts: on ? reminderDigestParts(run.reminder, run.url) : [],
+    items: on ? reminderItemCount(run.reminder) : 0,
+    slackUserIds: on ? run.coordinators.map((c) => c.slackUserId).filter((x): x is string => !!x) : [],
+  };
 }

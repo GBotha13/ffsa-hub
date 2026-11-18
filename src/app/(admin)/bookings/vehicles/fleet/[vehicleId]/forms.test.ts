@@ -51,9 +51,10 @@ describe("visit form", () => {
 describe("vehicle form", () => {
   const v = { id: "v", name: "Honda CR-V", status: "In service", odometer: 312606, lastService: { date: "2026-01-01", km: 300000, provider: "Honda" } };
   const x = { photo: null, transmission: "Automatic", vin: null, engineNo: null, insurer: null, policyNo: null, tracker: null, base: null, notes: null, inspectionDay: null, lastInspection: null };
-  it("needs a fleet name", () => {
+  it("never renames the vehicle: the Hub's name is the only name", () => {
     const f = vehicleFormOf(v, x);
-    expect(vehiclePatch(f, { ...f, name: " " }, TUE)).toEqual({ error: "Give the vehicle a fleet name." });
+    expect("name" in f).toBe(false);
+    expect("name" in (vehiclePatch(f, f, TUE) as { patch: Record<string, unknown> }).patch).toBe(false);
   });
   it("sets statusSince only when the status changes, and logs the odometer only when it changes", () => {
     const f = { ...vehicleFormOf(v, x), lastServiceProvider: "Honda" };

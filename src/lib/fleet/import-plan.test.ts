@@ -53,9 +53,9 @@ describe("fleet import plan", () => {
     expect(normReg("kvs 119 nw")).toBe(normReg("KVS119NW"));
   });
 
-  it("keeps the app's names where the Hub's differ, and the file ids", () => {
+  it("keeps the Hub's names (no name of its own), and the file ids", () => {
     const h12 = plan.details.find((d) => d.legacy_id === "h1-2")!;
-    expect(h12.display_name).toBe("Hyundai H1 #2");
+    expect("display_name" in h12).toBe(false);
     expect(plan.files).toHaveLength(19);
     expect(plan.files.every((f) => /^[0-9a-f]{32}$/.test(f.row.id))).toBe(true);
     expect(plan.files.filter((f) => f.row.owner_type === "vehicle")).toHaveLength(5);
@@ -104,7 +104,12 @@ describe("fleet import plan", () => {
       }));
       const viaDb = fleetDataFromRows({
         today,
-        vehicles: HUB.map((h) => ({ ...h, details: plan.details.find((d) => d.vehicle_id === h.id) })),
+        // Names come from the Hub now (H1, H2, …). To compare everything else, give the
+        // Hub rows here the app's names.
+        vehicles: HUB.map((h) => {
+          const details = plan.details.find((d) => d.vehicle_id === h.id)!;
+          return { ...h, name: seed.fleet[details.legacy_id].name, details };
+        }),
         bookings,
         visits: plan.visits,
         settings: plan.settings,

@@ -18,7 +18,7 @@ vi.mock("./load", () => ({
   loadFleet: async () => ({ F: data, vehicleRows: [], providers: [], coordinator: coordinators[0] ?? null, coordinators }),
 }));
 
-import { canSendFleetReminder, deliverReminder, reminderSlackText, runFleetReminder, type ReminderDeps } from "./reminder-send";
+import { canSendFleetReminder, deliverReminder, fleetDigestPart, reminderDigestParts, reminderSlackText, runFleetReminder, type ReminderDeps } from "./reminder-send";
 import { buildReminder } from "./rules";
 
 function fakeDeps() {
@@ -81,18 +81,18 @@ describe("runFleetReminder", () => {
     expect(admin.log).toHaveLength(0);
   });
 
-  it("sends by email and Slack once, and logs it; a second run the same day sends nothing", async () => {
+  it("emails once and logs it, with no Slack DM of its own (Slack is the digest); a second run the same day sends nothing", async () => {
     const admin = fakeAdmin();
     const { sent, deps } = fakeDeps();
     const run = await runFleetReminder(admin, { date: "2026-11-17", send: true, deps, url: "https://hub.example/x" });
     expect(run.outcome).toBe("sent");
-    expect(sent.map((s) => [s.channel, s.to])).toEqual([["email", "thabo@example.org"], ["slack", "U123"]]);
+    expect(sent.map((s) => [s.channel, s.to])).toEqual([["email", "thabo@example.org"]]);
     expect(sent[0].subject).toBe("FFSA inspections – Tuesday, 17 Nov: 2 due today");
-    expect(admin.log[0]).toMatchObject({ date: "2026-11-17", recipients: [{ name: "Thabo Mokoena", email: "ok", slack: "ok" }] });
+    expect(admin.log[0]).toMatchObject({ date: "2026-11-17", recipients: [{ name: "Thabo Mokoena", email: "ok", slack: "off" }] });
 
     const again = await runFleetReminder(admin, { date: "2026-11-17", send: true, deps, url: "https://hub.example/x" });
     expect(again.outcome).toBe("already-sent");
-    expect(sent).toHaveLength(2);
+    expect(sent).toHaveLength(1);
   });
 
   it("sends nothing when every section is empty", async () => {
@@ -135,5 +135,42 @@ describe("deliverReminder", () => {
     expect(text.startsWith("*FFSA inspections – Tuesday, 17 Nov: 2 due today*")).toBe(true);
     expect(text).toContain("*Today*\n• Hyundai H1 #1 (KVS 119 NW) – weekly check\n• Hyundai H1 #2 (JYD 637 NW) – weekly check");
     expect(text.endsWith("<https://hub.example/bookings/vehicles/fleet|Open Fleet>")).toBe(true);
+  });
+});
+
+describe("fleetDigestPart: one Slack message, not two (Jack, 18 Nov 2026)", () => {
+  const live = { VERCEL_ENV: "production" } as unknown as NodeJS.ProcessEnv;
+
+  it("on the live site: emails, and hands the digest the sections and the coordinator's Slack id", async () => {
+    const admin = fakeAdmin();
+    const { sent, deps } = fakeDeps();
+    const part = await fleetDigestPart(admin, { date: "2026-11-17", deps, env: live });
+    expect(part.outcome).toBe("sent");
+    expect(sent.map((s) => s.channel)).toEqual(["email"]);
+    expect(part.slackUserIds).toEqual(["U123"]);
+    expect(part.parts[0]).toMatch(/^\*🔧 Inspections – <.+\/bookings\/vehicles\/fleet\|open Fleet>\*$/);
+    expect(part.parts[1]).toBe("*Today*\n• Hyundai H1 #1 (KVS 119 NW) – weekly check\n• Hyundai H1 #2 (JYD 637 NW) – weekly check");
+    expect(part.items).toBeGreaterThanOrEqual(2);
+  });
+
+  it("anywhere else: sends nothing and adds nothing to the digest", async () => {
+    for (const env of [{}, { VERCEL_ENV: "preview" }, { VERCEL_ENV: "production", FLEET_REMINDER_DISABLED: "1" }] as unknown as NodeJS.ProcessEnv[]) {
+      const admin = fakeAdmin();
+      const { sent, deps } = fakeDeps();
+      const part = await fleetDigestPart(admin, { date: "2026-11-17", deps, env });
+      expect(part).toMatchObject({ outcome: "preview", parts: [], items: 0, slackUserIds: [] });
+      expect(sent).toHaveLength(0);
+    }
+  });
+
+  it("adds nothing when Slack is switched off on the Schedule page", async () => {
+    data = { ...data, notify: { ...(data.notify || {}), slack: false } } as FleetData;
+    const { deps } = fakeDeps();
+    const part = await fleetDigestPart(fakeAdmin(), { date: "2026-11-17", deps, env: live });
+    expect(part.parts).toEqual([]);
+  });
+
+  it("adds nothing on an empty day", () => {
+    expect(reminderDigestParts({ subject: "", text: "", sections: {} as never, empty: true }, "X")).toEqual([]);
   });
 });

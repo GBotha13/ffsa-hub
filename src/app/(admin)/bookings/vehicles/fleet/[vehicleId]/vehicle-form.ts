@@ -4,9 +4,9 @@ import { has } from "@/lib/fleet/rules/format";
 import type { FleetVehicle, KmAt } from "@/lib/fleet/rules/types";
 import type { VehicleExtra } from "../vehicles/model";
 
-/** Every editable field as the text in its input. */
+/** Every editable field as the text in its input. The name isn't one: the Hub's vehicle
+ *  list owns it (Settings), and Fleet never renames a vehicle. */
 export interface VehicleForm {
-  name: string;
   status: string;
   base: string;
   make: string;
@@ -38,7 +38,6 @@ export function vehicleFormOf(v: FleetVehicle, x: VehicleExtra): VehicleForm {
   const ls: KmAt = v.lastService || {};
   const lb: KmAt = v.lastB2B || {};
   return {
-    name: s(v.name),
     status: s(v.status) || "In service",
     base: s(x.base),
     make: s(v.make),
@@ -77,9 +76,7 @@ export function vehiclePatch(
   f: VehicleForm,
   today: string
 ): { error: string } | { patch: Record<string, unknown>; odometer: number | null } {
-  if (!f.name.trim()) return { error: "Give the vehicle a fleet name." };
   const patch: Record<string, unknown> = {
-    name: f.name.trim(),
     status: f.status,
     base: txt(f.base),
     make: txt(f.make),

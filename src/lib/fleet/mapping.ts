@@ -27,7 +27,7 @@ export function vehicleFromRow(row: Row): FleetVehicle {
   const d: Row = (Array.isArray(row.details) ? row.details[0] : row.details) || {};
   return {
     id: row.id,
-    name: d.display_name || row.name,
+    name: row.name, // the Hub's name wins (Jack, 18 Nov 2026): Fleet never renames a vehicle
     reg: row.registration_plate ?? null,
     make: d.make ?? null,
     model: d.model ?? row.make_model ?? null,
@@ -60,7 +60,6 @@ export function vehicleFromRow(row: Row): FleetVehicle {
 }
 
 const VEHICLE_COLUMNS: Record<string, string> = {
-  name: "display_name",
   make: "make",
   model: "model",
   profile: "profile",

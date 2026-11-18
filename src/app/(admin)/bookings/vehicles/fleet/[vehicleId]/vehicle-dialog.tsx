@@ -16,6 +16,8 @@ import { vehiclePatch, type VehicleForm } from "./vehicle-form";
 
 export interface EditableVehicle extends VehicleForm {
   id: string;
+  /** Shown in the title only: the name is edited on the Hub's vehicle list. */
+  name: string;
   reg: string;
   fuel: string;
   seats: string;
@@ -27,7 +29,7 @@ export interface EditableVehicle extends VehicleForm {
 type Fld = [keyof VehicleForm, string, { ph?: string; hint?: string; num?: boolean; date?: boolean; opts?: string[]; area?: boolean }?];
 
 const GROUPS = (statuses: string[]): [string, Fld[]][] => [
-  ["Identity", [["name", "Fleet name", { ph: "e.g. Hyundai H1 #2" }], ["status", "Status", { opts: statuses }], ["base", "Based at / allocated to"]]],
+  ["Identity", [["status", "Status", { opts: statuses }], ["base", "Based at / allocated to"]]],
   [
     "Vehicle",
     [

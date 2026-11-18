@@ -97,7 +97,7 @@ The Bookings → Vehicles sub-navigation gets a **Fleet** link for people with `
 
 At this point Fleet matches the Fleet app. **Check against SPEC 10 on the test project, side by side with the old app on the same seed data.** Then Jack merges, runs the import on production with a fresh export, and the co-ordinator switches.
 
-**PR 4 – 07:00 reminder**: Vercel cron `0 5 * * *` → `/api/cron/fleet-reminder`, to the Vehicle Co-ordinator by Slack DM and email, link to Fleet → Today; nothing sent when empty; admin preview for any date; a send guard so local and preview runs never send. Then the old Cowork task is switched off.
+**PR 4 – 07:00 reminder**: by email to the Vehicle Co-ordinator, and on Slack inside the existing 07:00 `vehicle-slack-digest` (Jack, 18 Nov: one message, not two), link to Fleet → Today; nothing sent when empty; admin preview for any date; a send guard so local and preview runs never send. Then the old Cowork task is switched off.
 
 **PR 5 – Bookings** (SPEC 7): booked workshop visits block the vehicle in the booking calendar and in `vehicle_availability`; renter notices with a one-tap switch to a similar free vehicle (using `requester-notify.ts`); bookings within 7 days get a heads-up; handover mileage from `vehicle_inspections` saved as odometer readings.
 
@@ -124,7 +124,28 @@ At this point Fleet matches the Fleet app. **Check against SPEC 10 on the test p
 - **Vehicle Coordinator:** Gideon holds the role for now, so he gets the 07:00 reminder.
 - **Supabase password** shared in Slack: not used; Jack is changing it.
 
-Still open below: vehicle names (6), status mapping (7), the Slack sender name and the overlap with `vehicle-slack-digest` (8), the Ask API key (9).
+Later the same day:
+
+- **Vehicle names: the Hub's win** (H1 / H2 / H3). Fleet reads `vehicles.name` and can't rename a vehicle; renaming is done in the Hub's vehicle list (Fleet → Settings). `fleet_vehicle_details.display_name` is gone.
+- **Slack: one message, not two.** The Fleet reminder's sections go inside the existing 07:00 `vehicle-slack-digest`, to its alert list plus the Vehicle Coordinator. The email still goes on its own. `/api/cron/fleet-reminder` and its cron entry are removed; the digest cron runs Fleet first, and a Fleet failure never stops the bookings digest. This also settles the sender name: it's whatever the digest uses.
+- **Status mapping:** Jack asked for a proposal in the PR description, to be checked in review (below).
+
+### Status mapping (proposal for review)
+
+Fleet's six statuses stay in `fleet_vehicle_details.fleet_status`. The Hub's `vehicles.status` decides whether a vehicle can be booked, so it should follow Fleet:
+
+| Fleet status | Hub status | Why |
+|---|---|---|
+| In service | active | |
+| On a trip | active | A trip is a Hub booking; the vehicle is still in the fleet. |
+| Booked for workshop | active | Bookable until the visit; the visit's own dates block it (PR 5, migration 354). |
+| In workshop | maintenance | Not bookable while it's there. |
+| Off the road | maintenance | Not bookable, but still ours. |
+| For sale | retired | Leaving the fleet. |
+
+Fleet writes the Hub status when its status changes, never the other way. The reverse is only for the first seed (352): active → In service, maintenance → Off the road, retired → For sale. Today 352 maps retired → Off the road and maintenance → In service; it changes to this once review agrees. The sync itself comes after review.
+
+Still open below: the Ask API key (9).
 
 ## What we need from Jack
 

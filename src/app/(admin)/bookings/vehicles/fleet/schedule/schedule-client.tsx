@@ -289,7 +289,7 @@ export function ReminderSettings({ initial }: { initial: { email: boolean; slack
       </label>
       <label className={box}>
         <input type="checkbox" className="h-5 w-5 shrink-0 accent-ink" checked={n.slack} onChange={(e) => setN({ ...n, slack: e.target.checked })} />
-        Also send it on Slack to the same person
+        Also put it in the 07:00 vehicles message on Slack
       </label>
       <div className="pt-2">
         <ActionButton onClick={save} disabled={busy}>
