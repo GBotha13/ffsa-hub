@@ -10,6 +10,8 @@
 // Tables arrive in migrations 370–372; regenerate src/types/database.ts
 // after applying them and swap `any` for the generated types.
 
+import { CLOSED_APPLICATION_STATUSES } from "@/lib/legal/status";
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Client = any;
 
@@ -31,11 +33,6 @@ export type LegalApplicationStatus =
   | "refused"
   | "withdrawn";
 
-export const CLOSED_APPLICATION_STATUSES: LegalApplicationStatus[] = [
-  "approved",
-  "refused",
-  "withdrawn",
-];
 
 // ────────────────────────────────────────────────────────────
 // ACCESS
@@ -51,7 +48,7 @@ export async function getLegalAccessList(supabase: Client) {
   return supabase
     .from("legal_access")
     .select(
-      "id, access_role, folder_id, can_edit, ends_on, note, created_at, users:user_id(first_name, last_name, email)"
+      "id, user_id, access_role, folder_id, can_edit, ends_on, note, created_at"
     )
     .order("created_at", { ascending: true });
 }
@@ -75,7 +72,7 @@ export async function getLegalFolders(
 
 export async function createLegalFolder(
   supabase: Client,
-  data: { name: string; kind: LegalFolderKind; description?: string | null }
+  data: { name: string; kind: LegalFolderKind; description?: string | null; created_by: string }
 ) {
   return supabase.from("legal_folders").insert(data).select().single();
 }
@@ -216,6 +213,11 @@ export async function createLegalFile(
   return supabase.from("legal_files").insert(data).select(FILE_SELECT).single();
 }
 
+/** Returns the deleted row's storage path, so the caller can remove the object. */
+export async function deleteLegalFile(supabase: Client, id: string) {
+  return supabase.from("legal_files").delete().eq("id", id).select("storage_path");
+}
+
 export async function updateLegalFile(
   supabase: Client,
   id: string,
@@ -310,6 +312,19 @@ export async function setLegalApplicationStepDone(
     .eq("id", id)
     .select()
     .single();
+}
+
+export async function updateLegalApplicationStep(
+  supabase: Client,
+  id: string,
+  data: Partial<{ label: string; due_on: string | null; position: number; notes: string | null }>
+) {
+  return supabase.from("legal_application_steps").update(data).eq("id", id).select().single();
+}
+
+/** Returns the deleted ids, so a caller can tell "not yours" from "gone". */
+export async function deleteLegalApplicationStep(supabase: Client, id: string) {
+  return supabase.from("legal_application_steps").delete().eq("id", id).select("id");
 }
 
 // ────────────────────────────────────────────────────────────

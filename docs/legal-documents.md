@@ -5,8 +5,12 @@ officer's own papers: what we hold, what it says, when it runs out, and what
 is being applied for. Built for the legal officer (Coreen). Reminders by email
 and on the Hub dashboard.
 
-Status: **step 1 of 4 written, not applied.** Migrations 370–372 are drafts.
-Do not run them until Jack says so.
+Status: **steps 1 and 2 written, not applied.** Migrations 370–372 are drafts.
+Do not run them until Jack says so. Until they are applied the page sends
+everyone to the dashboard and the menu entry stays hidden.
+
+Where it lives: **`/legal-documents`** (System → Documents in the sidebar).
+Not under `/legal/`: that path is public in `src/middleware.ts`.
 
 ---
 
@@ -65,9 +69,14 @@ A short, named access list (`legal_access`), and nothing else.
 
 1. **Data layer** — migrations 370 (schema), 371 (RLS, grants, bucket),
    372 (draft types, the access list, starter folders); `src/services/legal-documents.ts`.
-2. **Screens** — Legal → Documents: overview (expired / expiring / in
-   progress / unmatched scans), folders, a document drawer with its files
-   and history, applications with their checklist. Works at 390 px.
+2. **Screens** — done. One page with four tabs (Needs attention,
+   Documents, Applications, Folders) and the 470 px drawer for a document
+   (details, scans, applications, history), an application (checklist,
+   details, history) or a folder (scans to match, details, archive).
+   Single scans can already be added to a document or a folder: the API
+   adds the row as the user, then signs a one-time upload, and the browser
+   sends the file straight to storage (no 4.5 MB serverless limit).
+   Routes under `/api/legal/*`; rules in `src/lib/legal/status.ts` (tested).
 3. **Scanning in** — upload many scans at once into a folder; text is
    extracted and fields suggested; Coreen confirms or corrects them.
    How the reading is done (Claude in the Hub, or in a session with

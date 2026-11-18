@@ -262,6 +262,10 @@ Migrations 370–372 (drafts: do not apply until Jack says so).
   never read `legal_*` tables with `createAdminClient()` for a page — the legal
   officer is a super admin, so a role rule would open her papers to every admin.
 - **The reviewer rows (Gideon, Jack) are temporary.** Remove them before go-live.
+- **The page lives at `/legal-documents`, never under `/legal/`** — `/legal` is a public
+  route in `src/middleware.ts` (the privacy page), so anything below it skips the
+  sign-in check. The menu entry is in `ACCESS_LIST_MODULES` (`src/config/modules.ts`):
+  only the list shows it, whatever the role.
 - **Files** go in the private `legal-documents` bucket at `<folder id>/<file id>.<ext>`
   (CHECK in 370). Read the `legal_files` row as the user first, then sign the URL.
 - **What is read from a scan is a suggestion** (`extracted_fields`, each with
