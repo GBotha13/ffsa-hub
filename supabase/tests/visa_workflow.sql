@@ -286,15 +286,23 @@ SELECT pg_temp.expect_text('status after a send-back',
   (SELECT status || '/' || waiting_on FROM public.visa_cases WHERE id = 'c0000000-0000-0000-0000-000000000001'),
   'sent_back/school_leader');
 
+-- This time legal sends the request itself, so legal can't decide it.
+SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000001', 'false', 'visas.manage', 'visas.manage:*');
+SET ROLE authenticated;
+SELECT public.visa_request_approval('c0000000-0000-0000-0000-000000000001', 'Bank letter added');
+SELECT pg_temp.refused('legal: decides own request',
+  $q$SELECT public.visa_decide((SELECT id FROM public.visa_approval_requests WHERE decision IS NULL), true)$q$, 'P0001');
+RESET ROLE;
+
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000002', 'false',
                        'visas.follow_up', 'visas.follow_up:a0000000-0000-0000-0000-00000000000a');
 SET ROLE authenticated;
-SELECT public.visa_request_approval('c0000000-0000-0000-0000-000000000001', 'Bank letter added');
 SELECT pg_temp.refused('leader: lodge before approval',
   $q$SELECT public.visa_record_progress('c0000000-0000-0000-0000-000000000001', 'lodged', '{"lodged_on":"2026-12-01"}')$q$, 'P0001');
 RESET ROLE;
 
-SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000001', 'false', 'visas.manage', 'visas.manage:*');
+-- A backup approver (visas.manage for school A) decides it.
+SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000007', 'false', 'visas.manage', 'visas.manage:a0000000-0000-0000-0000-00000000000a');
 SET ROLE authenticated;
 SELECT public.visa_decide((SELECT id FROM public.visa_approval_requests WHERE decision IS NULL), true);
 SELECT pg_temp.refused('legal: decides twice',

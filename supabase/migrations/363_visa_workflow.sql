@@ -343,6 +343,7 @@ $$;
 -- ────────────────────────────────────────────────────────────
 -- Approving here records the decision. Signing FFSA's letters with legal's
 -- digital signature ("Approve and sign") arrives with the letters in step 3.
+-- The person who sent the request never decides it.
 CREATE OR REPLACE FUNCTION public.visa_decide(
   p_request_id uuid,
   p_approve    boolean,
@@ -366,6 +367,11 @@ BEGIN
   END IF;
   IF v_req.decision IS NOT NULL THEN
     RAISE EXCEPTION 'This request has already been decided' USING ERRCODE = 'P0001';
+  END IF;
+  -- Two people on every approval: whoever sent the request can't decide it,
+  -- even when they also hold visas.manage (a backup approver, say).
+  IF v_req.requested_by = auth.uid() THEN
+    RAISE EXCEPTION 'Someone else has to decide a request you sent' USING ERRCODE = 'P0001';
   END IF;
   SELECT status INTO v_status FROM public.visa_cases WHERE id = v_req.case_id FOR UPDATE;
   IF v_status <> 'awaiting_legal' THEN
