@@ -18,9 +18,9 @@ export const maxDuration = 60;
 // A system job, so it reads with the service role; what it sends is titles
 // and dates only, to the owner only.
 //
-// Sends only on the live site: VERCEL_ENV=production, preview writes not
-// disabled, and LEGAL_REMINDER_DISABLED not set. Anywhere else it builds the
-// email and reports what it would have done. The day is claimed in
+// OFF BY DEFAULT. Sends only when switched on: VERCEL_ENV=production,
+// preview writes not disabled, AND LEGAL_REMINDERS_ACTIVE=1. Until then (and
+// anywhere else) it builds the email and reports what it would have done. The day is claimed in
 // legal_reminder_sends (migration 373) BEFORE anything is sent, so a
 // doubled run never emails twice.
 
@@ -64,12 +64,21 @@ export async function GET(request: Request) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.ffsahub.com";
   const email = reminderEmail(reminder, today, appUrl);
 
+  // OFF until Gideon and Jack say to activate it (18 Nov 2026): the email
+  // goes out only when LEGAL_REMINDERS_ACTIVE=1 is set on production.
   const live =
     process.env.VERCEL_ENV === "production" &&
     !previewWritesDisabled() &&
-    process.env.LEGAL_REMINDER_DISABLED !== "1";
+    process.env.LEGAL_REMINDERS_ACTIVE === "1";
   if (!live) {
-    return NextResponse.json({ ok: true, today, dryRun: true, subject: email.subject, recipients: to.length });
+    return NextResponse.json({
+      ok: true,
+      today,
+      dryRun: true,
+      reason: "reminders are not switched on (LEGAL_REMINDERS_ACTIVE)",
+      subject: email.subject,
+      recipients: to.length,
+    });
   }
 
   const lines = [...reminder.today, ...reminder.open];

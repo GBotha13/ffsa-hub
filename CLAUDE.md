@@ -277,6 +277,12 @@ Migrations 370–373 (drafts: do not apply until Jack says so).
   a scan for reading through the service role alone.
 - **The event log stores column names, never values**, so it can't become a second
   copy of reference numbers.
+- **The reminder email is OFF until Gideon and Jack activate it.** It sends only
+  with `LEGAL_REMINDERS_ACTIVE=1` on production. Never turn it on, or make it
+  default on, without their word.
+- **Colour scale:** green 90 · yellow 60 · orange 30 · red 7 days (applications:
+  21 / 14 / 7 / 2 before lodge-by). Expired papers: Mon/Wed/Fri. Quiet days list
+  the next 5. Defined once in `src/lib/legal/reminders.ts`.
 - **No Google Calendar** for now. Reminders are the 07:00 email and the dashboard
   card; the dashboard's one yellow band stays staff approvals. Reminder rules live in
   `src/lib/legal/reminders.ts` and are shared by the email, its preview and the card.

@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils/cn";
 import type { Tone } from "@/components/ffsa";
 import type { ApplicationState, DocumentState } from "@/lib/legal/status";
+import { URGENCY_COLOUR, URGENCY_LABEL, type Urgency } from "@/lib/legal/reminders";
 
 // ────────────────────────────────────────────────────────────
 // DATA SHAPES (what page.tsx passes down)
@@ -146,6 +147,43 @@ export function formatDate(ymd: string | null): string {
 export function formatBytes(n: number): string {
   if (n < 1024 * 1024) return `${Math.max(1, Math.round(n / 1024))} KB`;
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// ────────────────────────────────────────────────────────────
+// COLOUR SCALE — green 90 · yellow 60 · orange 30 · red 7 (reminders.ts)
+// ────────────────────────────────────────────────────────────
+
+/** Inline style for a row's coloured left edge; nothing beyond the scale. */
+export function urgencyEdge(u: Urgency | null): React.CSSProperties | undefined {
+  return u ? { boxShadow: `inset 4px 0 0 ${URGENCY_COLOUR[u].bg}` } : undefined;
+}
+
+/** A filled square chip on the scale, with optional words. */
+export function UrgencyChip({ urgency, children }: { urgency: Urgency | null; children?: React.ReactNode }) {
+  if (!urgency) return children ? <span className="font-mono text-[10px] tracking-[0.06em]">{children}</span> : null;
+  const c = URGENCY_COLOUR[urgency];
+  return (
+    <span
+      className="inline-flex items-center px-2 py-1 font-mono text-[9px] font-bold uppercase tracking-[0.12em]"
+      style={{ background: c.bg, color: c.fg }}
+    >
+      {children ?? URGENCY_LABEL[urgency]}
+    </span>
+  );
+}
+
+/** The four colours and what they mean, for the attention tab. */
+export function UrgencyKey() {
+  return (
+    <span className="flex flex-wrap gap-x-4 gap-y-1">
+      {(Object.keys(URGENCY_COLOUR) as Urgency[]).map((u) => (
+        <span key={u} className="inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.06em] text-[color:var(--text-secondary)]">
+          <span className="inline-block h-2.5 w-2.5" style={{ background: URGENCY_COLOUR[u].bg }} />
+          {URGENCY_LABEL[u]}
+        </span>
+      ))}
+    </span>
+  );
 }
 
 // ────────────────────────────────────────────────────────────

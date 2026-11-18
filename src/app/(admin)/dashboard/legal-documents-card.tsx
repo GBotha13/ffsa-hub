@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { StatusPill } from "@/components/ffsa";
-import type { ReminderLine } from "@/lib/legal/reminders";
+import { URGENCY_COLOUR, type ReminderLine } from "@/lib/legal/reminders";
 import { WidgetEmpty, WidgetShell } from "./widget-shell";
 
 type Data = {
@@ -59,6 +58,7 @@ export function LegalDocumentsCard() {
               <li key={`${l.kind}:${l.id}`}>
                 <Link
                   href="/legal-documents"
+                  style={l.urgency ? { boxShadow: `inset 4px 0 0 ${URGENCY_COLOUR[l.urgency].bg}` } : undefined}
                   className="flex min-h-[52px] items-center justify-between gap-3 border-b border-rule px-5 py-2.5 hover:bg-bone"
                 >
                   <span className="min-w-0">
@@ -68,7 +68,16 @@ export function LegalDocumentsCard() {
                       {l.kind === "application" ? " · application" : ""}
                     </span>
                   </span>
-                  <StatusPill tone={l.tone}>{l.when.replace(/ \(.*\)$/, "")}</StatusPill>
+                  <span
+                    className="shrink-0 px-2 py-1 font-mono text-[9px] font-bold uppercase tracking-[0.1em]"
+                    style={
+                      l.urgency
+                        ? { background: URGENCY_COLOUR[l.urgency].bg, color: URGENCY_COLOUR[l.urgency].fg }
+                        : { border: "1px solid var(--rule-strong)", color: "var(--text-secondary)" }
+                    }
+                  >
+                    {l.when.replace(/ \(.*\)$/, "")}
+                  </span>
                 </Link>
               </li>
             ))}

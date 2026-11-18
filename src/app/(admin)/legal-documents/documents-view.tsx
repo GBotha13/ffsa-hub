@@ -36,7 +36,11 @@ import {
   type FolderRow,
   type Person,
   type TypeRow,
+  UrgencyKey,
+  urgencyEdge,
 } from "./legal-ui";
+import { documentUrgency, lodgeUrgency } from "@/lib/legal/reminders";
+import { daysBetween } from "@/lib/legal/status";
 import { DocumentPanel } from "./document-drawer";
 import { ApplicationPanel, type NewApplicationSeed } from "./application-drawer";
 import { FolderPanel } from "./folder-drawer";
@@ -55,6 +59,13 @@ type Open =
 type DocView = DocRow & DocumentStateResult & { folderName: string };
 
 const PRESSING_APPLICATION: ApplicationState[] = ["late", "due_soon", "overdue"];
+
+/** An application's colour: lodge-by while not lodged; red once past the expected date. */
+function appUrgency(a: AppRow & { state: ApplicationState }, today: string) {
+  if (a.state === "closed") return null;
+  if (["planned", "gathering"].includes(a.status)) return a.lodge_by ? lodgeUrgency(daysBetween(today, a.lodge_by)) : null;
+  return a.state === "overdue" ? "red" : null;
+}
 
 export function DocumentsView({
   folders,
@@ -205,7 +216,7 @@ export function DocumentsView({
             {pressingApps.length > 0 && (
               <div>
                 <SectionBar title="Applications" meta={`${pressingApps.length}`} />
-                <AppList rows={pressingApps} people={people} onOpen={(id) => setOpen({ kind: "application", id })} />
+                <AppList rows={pressingApps} people={people} today={today} onOpen={(id) => setOpen({ kind: "application", id })} />
               </div>
             )}
             {unmatched.length > 0 && (
@@ -238,11 +249,15 @@ export function DocumentsView({
 
         {tab === "attention" && (
           <p className="px-5 pt-6 text-[13px] text-[color:var(--text-secondary)] md:px-0">
-            The owner gets an email at 07:00 when something hits 90, 60, 30 or 7 days, on the day, and weekly after;
-            on Mondays, everything still open.{" "}
+            At 07:00 the owner is emailed when something hits 90, 60, 30 or 7 days and on the day; expired papers
+            every Monday, Wednesday and Friday; on other days, the next five coming up. The email is switched off
+            until it is activated.{" "}
             <a href="/api/legal/reminder-preview" target="_blank" rel="noreferrer" className="font-semibold text-ink underline">
               Preview today&apos;s email
             </a>
+            <span className="mt-3 block">
+              <UrgencyKey />
+            </span>
           </p>
         )}
 
@@ -282,6 +297,7 @@ export function DocumentsView({
                     (a.lodge_by ?? "9999").localeCompare(b.lodge_by ?? "9999")
                 )}
                 people={people}
+                today={today}
                 onOpen={(id) => setOpen({ kind: "application", id })}
               />
             )}
@@ -415,6 +431,7 @@ function DocList({ rows, showFolder, onOpen }: { rows: DocView[]; showFolder?: b
           <button
             type="button"
             onClick={() => onOpen(d.id)}
+            style={urgencyEdge(d.state === "inactive" ? null : documentUrgency(d.daysLeft))}
             className="!font-sans !font-normal normal-case tracking-normal block w-full border-b border-rule bg-white px-5 py-3 text-left hover:bg-bone md:grid md:grid-cols-[minmax(0,1fr)_160px_150px_150px] md:items-center md:gap-4"
           >
             <span className="flex items-start justify-between gap-3 md:block">
@@ -452,10 +469,12 @@ function DocList({ rows, showFolder, onOpen }: { rows: DocView[]; showFolder?: b
 function AppList({
   rows,
   people,
+  today,
   onOpen,
 }: {
   rows: Array<AppRow & { state: ApplicationState; folderName: string }>;
   people: Person[];
+  today: string;
   onOpen: (id: string) => void;
 }) {
   const nameOf = new Map(people.map((p) => [p.id, p.name]));
@@ -475,6 +494,7 @@ function AppList({
             <button
               type="button"
               onClick={() => onOpen(a.id)}
+              style={urgencyEdge(appUrgency(a, today))}
               className="!font-sans !font-normal normal-case tracking-normal block w-full border-b border-rule bg-white px-5 py-3 text-left hover:bg-bone md:grid md:grid-cols-[minmax(0,1fr)_140px_130px_120px_150px] md:items-center md:gap-4"
             >
               <span className="flex items-start justify-between gap-3 md:block">

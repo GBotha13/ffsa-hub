@@ -23,7 +23,11 @@ export async function GET(request: Request) {
   const banner = `<div style="background:#FFB801;border-bottom:1px solid #0A0A0A;padding:12px 16px;font:600 14px/1.4 Roboto,Arial,sans-serif;">
 Preview only — nothing is sent from this page. For ${today}: ${
     goes ? `the email <strong>would go out</strong> with the subject “${email.subject}”.` : "<strong>no email</strong> (nothing hits a milestone today, and it isn't a Monday with anything open)."
-  } Try another day with <code>?date=YYYY-MM-DD</code>.</div>`;
+  } Try another day with <code>?date=YYYY-MM-DD</code>.<br>${
+    process.env.LEGAL_REMINDERS_ACTIVE === "1"
+      ? "Reminders are <strong>switched on</strong>: this goes to the owner at 07:00."
+      : "Reminders are <strong>switched off</strong>: nothing is emailed until they are activated."
+  }</div>`;
 
   return new NextResponse(email.html.replace("<body style=\"margin:0;background:#F4F2EA;\">", `<body style="margin:0;background:#F4F2EA;">${banner}`), {
     headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },

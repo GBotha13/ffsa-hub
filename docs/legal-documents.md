@@ -95,20 +95,30 @@ A short, named access list (`legal_access`), and nothing else.
    has no server-side refusal fallback, so a declined scan says so and
    is filled in by hand. Routes: `/api/legal/files/[id]/read` and
    `/apply`. Rules: `src/lib/legal/reading.ts` (tested).
-4. **Reminders** — done. `/api/cron/legal-reminders`, 05:00 UTC (07:00
-   Johannesburg), emails the **owner** only (not reviewers or helpers):
-   - documents at 90, 60, 30 and 7 days before expiry and on the day,
-     only the milestones inside the document's own renewal window (7 days
-     always counts); once a renewal is under way only 7 and 0; after
-     expiry, every 7 days;
-   - applications at 14, 7 and 1 days before lodge-by and on the day,
-     weekly while late, and weekly once past the expected date;
-   - on Mondays, everything still open, even without a milestone;
-   - nothing on a day with nothing to say; archived folders are quiet.
-   Titles and dates only — no reference numbers, holders or notes.
-   Sends only on production (and not with `LEGAL_REMINDER_DISABLED=1`);
-   elsewhere it reports what it would send. The day is claimed in
-   `legal_reminder_sends` (migration 373) before sending.
+4. **Reminders** — done. **Switched OFF until Gideon and Jack say to
+   activate it:** it sends only on production with
+   `LEGAL_REMINDERS_ACTIVE=1`; until then every run is a dry run.
+   `/api/cron/legal-reminders`, 05:00 UTC (07:00 Johannesburg), emails the
+   **owner** only (not reviewers or helpers). Rules (Gideon, 18 Nov 2026):
+   - **Colours:** green at 90 days, yellow at 60, orange at 30, red at 7
+     and after. Applications: the same colours at 21 / 14 / 7 / 2 days
+     before lodge-by; red once past the expected date. Shown in the email,
+     on the Documents lists (left edge of each row) and the dashboard card.
+   - **Documents:** 90, 60, 30 and 7 days before expiry and on the day,
+     for every document. Once a renewal is under way (an open application
+     for it, or status "applying") the 90/60/30 reminders are skipped and
+     only 7 days and the day itself still come up.
+   - **Expired documents and applications late to lodge:** every Monday,
+     Wednesday and Friday. Lodged applications past their expected date:
+     Mondays (they are waiting on someone else).
+   - **Applications:** 21, 14, 7 and 2 days before lodge-by and on the day.
+   - **A day with reminders:** those, then everything else still open.
+   - **A quiet day** (no reminder hits): the next 5 things coming up —
+     only on quiet days. A quiet Monday also lists everything still open.
+   - Nothing when there is nothing open and nothing dated; archived
+     folders are quiet.
+   Titles and dates only — no reference numbers, holders or notes. The day
+   is claimed in `legal_reminder_sends` (migration 373) before sending.
    **Preview:** Needs attention → *Preview today's email*
    (`/api/legal/reminder-preview?date=YYYY-MM-DD` to try another day).
    **Dashboard:** a *Legal papers* card for people on the access list —
