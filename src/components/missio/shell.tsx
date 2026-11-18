@@ -1,16 +1,25 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { canAccessMissio, missioSkinVars } from "./access";
+import { MissioViewerProvider } from "./viewer";
 import { MissioApiError, missioClient, type MissioClient } from "./api";
 import { loadFfsaRoleNames } from "./ffsa-roles";
+import { missioCrumbLabel } from "./crumb";
 import { BACK_TO_FFSA_HUB, missioOrgHeader, needsPlatformRoleLookup, type OrgHeaderState } from "./org-header";
 import { OrgSwitcher, OrgTile } from "./org-switcher";
 import type { MissioMe } from "./types-shim";
 import styles from "./shell.module.css";
+
+export function missioSection(pathname: string): "home" | "people" | "houses" | "follow" {
+  if (pathname.includes("/missio/people")) return "people";
+  if (pathname.includes("/missio/house-churches")) return "houses";
+  if (pathname.includes("/missio/follow-up")) return "follow";
+  return "home";
+}
 
 type Gate =
   | { kind: "loading" }
@@ -144,8 +153,9 @@ function MissioReady({
         <div className={styles.main}>
           <MissioTop me={me} ffsaRoleNames={ffsaRoleNames} navOpen={navOpen} />
           <div className={styles.content} data-missio-content="">
-            {children}
+            <MissioViewerProvider me={me}>{children}</MissioViewerProvider>
           </div>
+          <MissioTabBar me={me} />
         </div>
       </div>
       <SheetContent side="left" id="missio-nav" className={styles.drawer} style={skinStyle}>
@@ -171,8 +181,13 @@ function MissioSidebar({
   const pathname = usePathname();
   const header = missioOrgHeader({ orgs: me.orgs, ffsaRoleNames });
   const missio = me.orgs.find((org) => org.slug === "missio");
-  const home = pathname === "/missio";
-  const people = pathname.startsWith("/missio/people");
+  const section = missioSection(pathname);
+  const home = section === "home" && (pathname === "/missio" || pathname.endsWith("/missio"));
+  const people = section === "people";
+  const houses = section === "houses";
+  const follow = section === "follow";
+  const pastor = canAccessMissio(me);
+  const volunteers = pathname.startsWith("/missio/volunteers");
 
   const orgNode = <OrgHeader state={header} />;
 
@@ -192,11 +207,42 @@ function MissioSidebar({
           <PeopleIcon />
           <span>People</span>
         </Link>
-        <div className={styles.soon} aria-disabled="true">
-          <HomeIcon />
-          <span>House churches</span>
-          <span className={styles.soonTag}>Soon</span>
-        </div>
+        {pastor ? (
+          <Link
+            href="/missio/house-churches"
+            className={`${styles.navLink} ${houses ? styles.navOn : ""}`}
+            aria-current={houses ? "page" : undefined}
+            data-testid="missio-nav-house-churches"
+            onClick={onNavigate}
+          >
+            <HouseIcon />
+            <span>House churches</span>
+          </Link>
+        ) : null}
+        {pastor ? (
+          <Link
+            href="/missio/follow-up"
+            className={`${styles.navLink} ${follow ? styles.navOn : ""}`}
+            aria-current={follow ? "page" : undefined}
+            data-testid="missio-nav-follow-up"
+            onClick={onNavigate}
+          >
+            <FollowIcon />
+            <span>Follow-up</span>
+          </Link>
+        ) : null}
+        {pastor ? (
+          <Link
+            href="/missio/volunteers"
+            className={`${styles.navLink} ${volunteers ? styles.navOn : ""}`}
+            aria-current={volunteers ? "page" : undefined}
+            data-testid="missio-nav-volunteers"
+            onClick={onNavigate}
+          >
+            <CalendarIcon />
+            <span>Volunteers</span>
+          </Link>
+        ) : null}
         <div className={styles.soon} aria-disabled="true">
           <PeopleIcon />
           <span>Teams</span>
@@ -211,6 +257,50 @@ function MissioSidebar({
         </div>
       </div>
     </aside>
+  );
+}
+
+/**
+ * Phone only (CSS hides it from 768px). The daily sections, one thumb away.
+ * The drawer keeps the org switcher, search and everything else.
+ */
+function MissioTabBar({ me }: { me: MissioMe }) {
+  const pathname = usePathname();
+  const section = missioSection(pathname);
+  const pastor = canAccessMissio(me);
+  const volunteers = pathname.startsWith("/missio/volunteers");
+  const tabs: Array<{ key: string; href: string; label: string; on: boolean; icon: ReactNode }> = [
+    {
+      key: "home",
+      href: "/missio",
+      label: "Home",
+      on: section === "home" && !volunteers,
+      icon: <HomeIcon />,
+    },
+    { key: "people", href: "/missio/people", label: "People", on: section === "people", icon: <PeopleIcon /> },
+  ];
+  if (pastor) {
+    tabs.push(
+      { key: "house-churches", href: "/missio/house-churches", label: "Houses", on: section === "houses", icon: <HouseIcon /> },
+      { key: "follow-up", href: "/missio/follow-up", label: "Follow-up", on: section === "follow", icon: <FollowIcon /> },
+      { key: "volunteers", href: "/missio/volunteers", label: "Volunteers", on: volunteers, icon: <CalendarIcon /> }
+    );
+  }
+  return (
+    <nav className={styles.tabBar} aria-label="Missio sections" data-testid="missio-tab-bar">
+      {tabs.map((tab) => (
+        <Link
+          key={tab.key}
+          href={tab.href}
+          className={`${styles.tab} ${tab.on ? styles.tabOn : ""}`}
+          aria-current={tab.on ? "page" : undefined}
+          data-testid={`missio-tab-${tab.key}`}
+        >
+          {tab.icon}
+          <span>{tab.label}</span>
+        </Link>
+      ))}
+    </nav>
   );
 }
 
@@ -243,7 +333,7 @@ function MissioTop({
   navOpen: boolean;
 }) {
   const pathname = usePathname();
-  const section = pathname.startsWith("/missio/people") ? "People" : "Home";
+  const section = missioCrumbLabel(pathname);
   const orgName = me.orgs.find((org) => org.slug === "missio")?.name ?? "Missio";
   const header = missioOrgHeader({ orgs: me.orgs, ffsaRoleNames });
   return (
@@ -330,6 +420,34 @@ function HomeIcon() {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden>
       <path d="M3 10.5 12 3l9 7.5" />
       <path d="M5 9.5V21h14V9.5" />
+    </svg>
+  );
+}
+
+function HouseIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden>
+      <path d="M4 10.5 12 4l8 6.5" />
+      <path d="M7 9.8V20h10V9.8" />
+      <path d="M10 20v-5h4v5" />
+    </svg>
+  );
+}
+
+function FollowIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden>
+      <rect x="5" y="3.5" width="14" height="17" rx="1.5" />
+      <path d="M8.5 8h7M8.5 12h7M8.5 16h4" />
+    </svg>
+  );
+}
+
+function CalendarIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden>
+      <rect x="3.5" y="5" width="17" height="15" />
+      <path d="M3.5 9.5h17M8 3.5v3M16 3.5v3" />
     </svg>
   );
 }

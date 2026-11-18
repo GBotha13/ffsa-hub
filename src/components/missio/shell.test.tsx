@@ -98,8 +98,116 @@ describe("Missio access state", () => {
     expect(shell.style.getPropertyValue("--page").trim()).toBe("#F3F0E8");
     expect(shell.style.getPropertyValue("--panel").trim()).toBe("#FBF9F4");
     expect(host.textContent).toContain("People live here");
+    expect(host.textContent).toContain("Volunteers");
     expect(host.textContent).toContain("House churches");
     expect(host.textContent).toContain("Teams");
+    const houseLink = host.querySelector("a[href='/missio/house-churches']") as HTMLAnchorElement;
+    expect(houseLink).toBeTruthy();
+    expect(houseLink.textContent).toContain("House churches");
+    expect(houseLink.textContent?.toLowerCase()).not.toContain("soon");
+    expect(houseLink.getAttribute("data-testid")).toBe("missio-nav-house-churches");
+    const followLink = host.querySelector("[data-testid=missio-nav-follow-up]") as HTMLAnchorElement;
+    expect(followLink.getAttribute("href")).toBe("/missio/follow-up");
+    expect(followLink.textContent).toContain("Follow-up");
+    expect(followLink.textContent?.toLowerCase()).not.toContain("soon");
+    const soon = [...host.querySelectorAll("span")].filter((el) => el.textContent === "Soon");
+    expect(soon).toHaveLength(1);
+    expect(soon[0]?.parentElement?.textContent).toContain("Teams");
+  });
+
+  it("marks House churches current and names it in the crumb", async () => {
+    nav.pathname = "/missio/house-churches/review";
+    const { host, root } = render(
+      <MissioFrame client={client(async () => pastor)} loadFfsaRoles={noRoles}>
+        <p>Houses live here</p>
+      </MissioFrame>
+    );
+    roots.push(root);
+    hosts.push(host);
+    await settle();
+    const link = host.querySelector("a[href='/missio/house-churches']") as HTMLAnchorElement;
+    expect(link.getAttribute("aria-current")).toBe("page");
+    expect(link.textContent?.toLowerCase()).not.toContain("soon");
+    expect(host.textContent).toContain("Missio Church / House churches");
+    expect(host.textContent).not.toContain("Missio Church / Home");
+    const teams = [...host.querySelectorAll("span")].filter((el) => el.textContent === "Soon");
+    expect(teams).toHaveLength(1);
+    expect(teams[0]?.parentElement?.textContent).toContain("Teams");
+  });
+
+  it("names a house and Follow-up in the crumb", async () => {
+    for (const [pathname, section] of [
+      ["/missio/house-churches/house-2", "House churches"],
+      ["/missio/follow-up", "Follow-up"],
+      ["/missio/follow-up/r_1", "Follow-up"],
+    ] as const) {
+      nav.pathname = pathname;
+      const { host, root } = render(
+        <MissioFrame client={client(async () => pastor)} loadFfsaRoles={noRoles}>
+          <p>Section</p>
+        </MissioFrame>
+      );
+      roots.push(root);
+      hosts.push(host);
+      await settle();
+      expect(host.textContent).toContain(`Missio Church / ${section}`);
+    }
+  });
+
+  it("marks Follow-up current and names it in the crumb", async () => {
+    nav.pathname = "/missio/follow-up";
+    const { host, root } = render(
+      <MissioFrame client={client(async () => pastor)} loadFfsaRoles={noRoles}>
+        <p>Follow-up lives here</p>
+      </MissioFrame>
+    );
+    roots.push(root);
+    hosts.push(host);
+    await settle();
+    const link = host.querySelector("[data-testid=missio-nav-follow-up]") as HTMLAnchorElement;
+    expect(link.getAttribute("aria-current")).toBe("page");
+    expect(link.textContent?.toLowerCase()).not.toContain("soon");
+    expect(host.textContent).toContain("Missio Church / Follow-up");
+  });
+
+  it("gives a pastor a phone tab bar and marks the current section", async () => {
+    nav.pathname = "/missio/house-churches/house-2";
+    const { host, root } = render(
+      <MissioFrame client={client(async () => pastor)} loadFfsaRoles={noRoles}>
+        <p>House lives here</p>
+      </MissioFrame>
+    );
+    roots.push(root);
+    hosts.push(host);
+    await settle();
+    const bar = host.querySelector("[data-testid=missio-tab-bar]") as HTMLElement;
+    expect(bar.getAttribute("aria-label")).toBe("Missio sections");
+    const tabs = [...bar.querySelectorAll("a")];
+    expect(tabs.map((tab) => tab.getAttribute("href"))).toEqual([
+      "/missio",
+      "/missio/people",
+      "/missio/house-churches",
+      "/missio/follow-up",
+      "/missio/volunteers",
+    ]);
+    const current = tabs.filter((tab) => tab.getAttribute("aria-current") === "page");
+    expect(current).toHaveLength(1);
+    expect(current[0]?.getAttribute("data-testid")).toBe("missio-tab-house-churches");
+    expect(bar.textContent?.toLowerCase()).not.toContain("soon");
+  });
+
+  it("marks Volunteers, not Home, on the volunteers page", async () => {
+    nav.pathname = "/missio/volunteers";
+    const { host, root } = render(
+      <MissioFrame client={client(async () => pastor)} loadFfsaRoles={noRoles}>
+        <p>Volunteers live here</p>
+      </MissioFrame>
+    );
+    roots.push(root);
+    hosts.push(host);
+    await settle();
+    const on = [...host.querySelectorAll("[data-testid=missio-tab-bar] a[aria-current=page]")];
+    expect(on.map((tab) => tab.getAttribute("data-testid"))).toEqual(["missio-tab-volunteers"]);
   });
 
   it("shows no access for an FFSA admin with no Missio role", async () => {
@@ -112,6 +220,7 @@ describe("Missio access state", () => {
     hosts.push(host);
     await settle();
     expect(host.querySelector("[data-testid=missio-no-access]")?.textContent).toMatch(/Pastors only/);
+    expect(host.querySelector("a[href='/missio/house-churches']")).toBeNull();
     expect(host.querySelector("[data-access]")?.getAttribute("data-access")).toBe("denied");
     expect(host.textContent).not.toContain("People live here");
   });
@@ -154,6 +263,12 @@ describe("Missio access state", () => {
     const dialog = document.body.querySelector("[role='dialog']") as HTMLElement;
     expect(dialog).toBeTruthy();
     expect(dialog.textContent).toContain("House churches");
+    const drawerLink = dialog.querySelector("a[href='/missio/house-churches']");
+    expect(drawerLink?.textContent).toContain("House churches");
+    expect(drawerLink?.textContent?.toLowerCase()).not.toContain("soon");
+    const drawerSoon = [...dialog.querySelectorAll("span")].filter((el) => el.textContent === "Soon");
+    expect(drawerSoon).toHaveLength(1);
+    expect(drawerSoon[0]?.parentElement?.textContent).toContain("Teams");
     expect(openMenu.getAttribute("aria-expanded")).toBe("true");
     expect(document.body.getAttribute("data-scroll-locked")).toBe("1");
     expect(document.activeElement === dialog || dialog.contains(document.activeElement)).toBe(true);
