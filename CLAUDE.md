@@ -255,7 +255,7 @@ Supabase runs in the cloud (no local Postgres). Migrations are applied via the S
 
 FFSA's legal and compliance papers plus the legal officer's own papers, with
 expiry tracking, applications and reminders. Plan: `docs/legal-documents.md`.
-Migrations 370–373 (drafts: do not apply until Jack says so).
+Migrations 370–374 (drafts: do not apply until Jack says so).
 
 - **The wall is a named list, not a role.** Only people on `legal_access` get in.
   Never add `is_admin()`, `has_permission()` or a role to a `legal_*` policy, and
@@ -283,6 +283,11 @@ Migrations 370–373 (drafts: do not apply until Jack says so).
 - **Colour scale:** green 90 · yellow 60 · orange 30 · red 7 days (applications:
   21 / 14 / 7 / 2 before lodge-by). Expired papers: Mon/Wed/Fri. Quiet days list
   the next 5. Defined once in `src/lib/legal/reminders.ts`.
+- **The legal helper only drafts.** Its tools (`src/lib/legal/helper/tools.ts`) read and
+  save/update drafts, through the user's client. Never give it a tool that approves,
+  sends, deletes or edits a document. Only the owner approves, in the Drafts tab; the
+  trigger in migration 374 enforces it — don't move that rule into the app. Don't log
+  the helper's conversation to `ai_assistant_queries` (admins can read it).
 - **No Google Calendar** for now. Reminders are the 07:00 email and the dashboard
   card; the dashboard's one yellow band stays staff approvals. Reminder rules live in
   `src/lib/legal/reminders.ts` and are shared by the email, its preview and the card.

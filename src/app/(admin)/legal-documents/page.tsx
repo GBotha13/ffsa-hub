@@ -8,11 +8,14 @@ import {
   getLegalDocumentTypes,
   getLegalDocuments,
   getLegalFiles,
+  getLegalDrafts,
   getLegalFolders,
   hasLegalAccess,
+  isLegalOwner,
 } from "@/services/legal-documents";
 import { DocumentsView } from "./documents-view";
 import type { AppRow, DocRow, FileRow, FolderRow, Person, TypeRow } from "./legal-ui";
+import type { DraftRow } from "./drafts";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +25,12 @@ export const dynamic = "force-dynamic";
 // read below runs as the user, so RLS decides what comes back. The only
 // service-role read is the names of the people on that list, for the
 // "Responsible" picker.
-export default async function LegalDocumentsPage() {
+export default async function LegalDocumentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ draft?: string }>;
+}) {
+  const { draft: openDraftId } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -32,13 +40,16 @@ export default async function LegalDocumentsPage() {
   const { data: allowed } = await hasLegalAccess(supabase);
   if (allowed !== true) redirect("/dashboard");
 
-  const [folders, types, documents, files, applications, access] = await Promise.all([
+  const [folders, types, documents, files, applications, access, drafts, owner] = await Promise.all([
     getLegalFolders(supabase, { includeArchived: true }),
     getLegalDocumentTypes(supabase),
     getLegalDocuments(supabase),
     getLegalFiles(supabase),
     getLegalApplications(supabase),
     getLegalAccessList(supabase),
+    // Before migration 374 the drafts table doesn't exist: show none.
+    getLegalDrafts(supabase),
+    isLegalOwner(supabase),
   ]);
   const failed = [folders, types, documents, files, applications].find((r) => r.error);
   if (failed) throw new Error(`Could not load documents: ${failed.error.message}`);
@@ -68,6 +79,9 @@ export default async function LegalDocumentsPage() {
       files={(files.data ?? []) as FileRow[]}
       applications={apps}
       people={people}
+      drafts={(drafts.error ? [] : drafts.data ?? []) as DraftRow[]}
+      isOwner={owner.data === true}
+      initialDraftId={typeof openDraftId === "string" ? openDraftId : null}
       today={todayInSA()}
     />
   );

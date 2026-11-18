@@ -45,8 +45,9 @@ import { DocumentPanel } from "./document-drawer";
 import { ApplicationPanel, type NewApplicationSeed } from "./application-drawer";
 import { FolderPanel } from "./folder-drawer";
 import { ScanInPanel, ScanReviewPanel } from "./scan-review";
+import { DRAFT_STATUS, DraftPanel, HelperPanel, type DraftRow, type HelperMessage } from "./drafts";
 
-type Tab = "attention" | "documents" | "applications" | "folders";
+type Tab = "attention" | "documents" | "applications" | "drafts" | "folders";
 
 type Open =
   | { kind: "document"; id: string | null; folderId?: string }
@@ -54,6 +55,8 @@ type Open =
   | { kind: "folder"; id: string | null }
   | { kind: "scan"; id: string }
   | { kind: "scan-in" }
+  | { kind: "draft"; id: string }
+  | { kind: "helper" }
   | null;
 
 type DocView = DocRow & DocumentStateResult & { folderName: string };
@@ -74,6 +77,9 @@ export function DocumentsView({
   files,
   applications,
   people,
+  drafts,
+  isOwner,
+  initialDraftId,
   today,
 }: {
   folders: FolderRow[];
@@ -82,12 +88,17 @@ export function DocumentsView({
   files: FileRow[];
   applications: AppRow[];
   people: Person[];
+  drafts: DraftRow[];
+  isOwner: boolean;
+  initialDraftId: string | null;
   today: string;
 }) {
-  const [tab, setTab] = useState<Tab>("attention");
+  const [tab, setTab] = useState<Tab>(initialDraftId ? "drafts" : "attention");
   const [folderFilter, setFolderFilter] = useState<string>("");
   const [showReplaced, setShowReplaced] = useState(false);
-  const [open, setOpen] = useState<Open>(null);
+  const [open, setOpen] = useState<Open>(initialDraftId ? { kind: "draft", id: initialDraftId } : null);
+  // The helper chat lives here so closing the drawer doesn't lose it.
+  const [helperMessages, setHelperMessages] = useState<HelperMessage[]>([]);
 
   const folderName = useMemo(() => new Map(folders.map((f) => [f.id, f.name])), [folders]);
   const liveFolders = folders.filter((f) => !f.archived_at);
@@ -118,17 +129,23 @@ export function DocumentsView({
     .filter((d) => ATTENTION_STATES.includes(d.state))
     .sort((a, b) => (a.daysLeft ?? Infinity) - (b.daysLeft ?? Infinity));
   const pressingApps = inFolder(apps).filter((a) => PRESSING_APPLICATION.includes(a.state));
-  const unmatched = inFolder(files).filter((f) => !f.document_id);
+  // Approved drafts' PDFs are filed by the draft, not waiting to be matched.
+  const finalFiles = new Set(drafts.map((d) => d.final_file_id).filter(Boolean));
+  const unmatched = inFolder(files).filter((f) => !f.document_id && !finalFiles.has(f.id));
+  const waitingDrafts = drafts.filter((d) => d.status === "awaiting_approval").length;
 
   const expired = docs.filter((d) => d.state === "expired").length;
   const renewNow = docs.filter((d) => d.state === "expiring").length;
   const openApps = apps.filter((a) => a.state !== "closed").length;
-  const allUnmatched = files.filter((f) => !f.document_id).length;
+  const allUnmatched = files.filter((f) => !f.document_id && !finalFiles.has(f.id)).length;
 
   // The band says only what the data says (CLAUDE.md "Never invent a signal").
   const band = [
     expired ? `${expired} ${expired === 1 ? "document has" : "documents have"} expired` : null,
     renewNow ? `${renewNow} ${renewNow === 1 ? "needs" : "need"} renewing now` : null,
+    isOwner && waitingDrafts
+      ? `${waitingDrafts} ${waitingDrafts === 1 ? "draft is" : "drafts are"} waiting for your approval`
+      : null,
   ].filter(Boolean);
 
   // ── drawer lookups ──
@@ -137,12 +154,16 @@ export function DocumentsView({
   const openFolder = open?.kind === "folder" && open.id ? folders.find((f) => f.id === open.id) ?? null : null;
   const openFile = open?.kind === "scan" ? files.find((f) => f.id === open.id) ?? null : null;
   const reviewFile = (id: string) => setOpen({ kind: "scan", id });
+  const openDraft = open?.kind === "draft" ? drafts.find((d) => d.id === open.id) ?? null : null;
+  const showDraft = (id: string) => setOpen({ kind: "draft", id });
   const drawerLabel =
     open?.kind === "document" ? (open.id ? "DOCUMENT" : "NEW DOCUMENT")
     : open?.kind === "application" ? (open.id ? "APPLICATION" : "NEW APPLICATION")
     : open?.kind === "folder" ? (open.id ? "FOLDER" : "NEW FOLDER")
     : open?.kind === "scan" ? "SCAN"
     : open?.kind === "scan-in" ? "SCAN IN"
+    : open?.kind === "draft" ? "DRAFT"
+    : open?.kind === "helper" ? "LEGAL HELPER"
     : "";
 
   const startApplication = (doc: DocRow) =>
@@ -162,7 +183,8 @@ export function DocumentsView({
             <MastheadButton tone="outline" onClick={() => setOpen({ kind: "folder", id: null })}>New folder</MastheadButton>
             <MastheadButton tone="outline" onClick={() => setOpen({ kind: "application", id: null })}>New application</MastheadButton>
             <MastheadButton tone="outline" onClick={() => setOpen({ kind: "scan-in" })}>Scan in</MastheadButton>
-            <MastheadButton onClick={() => setOpen({ kind: "document", id: null })}>Add document</MastheadButton>
+            <MastheadButton tone="outline" onClick={() => setOpen({ kind: "document", id: null })}>Add document</MastheadButton>
+            <MastheadButton onClick={() => setOpen({ kind: "helper" })}>Ask the helper</MastheadButton>
           </>
         }
       />
@@ -181,12 +203,13 @@ export function DocumentsView({
           { key: "attention", label: "Needs attention", mark: attentionDocs.length + pressingApps.length > 0 },
           { key: "documents", label: "Documents" },
           { key: "applications", label: "Applications" },
+          { key: "drafts", label: "Drafts", mark: isOwner && waitingDrafts > 0 },
           { key: "folders", label: "Folders" },
         ]}
         active={tab}
         onChange={(k) => setTab(k as Tab)}
         trailing={
-          tab !== "folders" && (
+          tab !== "folders" && tab !== "drafts" && (
             <select
               aria-label="Folder"
               value={folderFilter}
@@ -304,6 +327,31 @@ export function DocumentsView({
           </div>
         )}
 
+        {tab === "drafts" && (
+          <div>
+            <SectionBar title="Drafts" meta={`${waitingDrafts} waiting for approval`} />
+            {drafts.length === 0 ? (
+              <Empty>No drafts yet. Ask the helper to fill out a form or draft a letter.</Empty>
+            ) : (
+              <ul>
+                {drafts.map((d) => (
+                  <li key={d.id}>
+                    <RowButton onClick={() => showDraft(d.id)}>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[15px] font-semibold">{d.title}</span>
+                        <span className="block truncate font-mono text-[10px] tracking-[0.06em] text-[color:var(--text-tertiary)]">
+                          {folderName.get(d.folder_id)} · {d.kind} · {formatDate(d.updated_at.slice(0, 10))}
+                        </span>
+                      </span>
+                      <StatusPill tone={DRAFT_STATUS[d.status].tone}>{DRAFT_STATUS[d.status].label}</StatusPill>
+                    </RowButton>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
         {tab === "folders" && (
           <div>
             <SectionBar title="Folders" meta={`${liveFolders.length}`} />
@@ -388,6 +436,23 @@ export function DocumentsView({
         )}
         {open?.kind === "scan" && !openFile && (
           <p className="px-6 py-6 text-[14px] text-[color:var(--text-secondary)]">Loading the scan…</p>
+        )}
+        {open?.kind === "draft" && openDraft && (
+          <DraftPanel
+            key={openDraft.id}
+            draft={openDraft}
+            folders={folders}
+            documents={documents}
+            applications={applications}
+            isOwner={isOwner}
+            onOpenDocument={(id) => setOpen({ kind: "document", id })}
+          />
+        )}
+        {open?.kind === "draft" && !openDraft && (
+          <p className="px-6 py-6 text-[14px] text-[color:var(--text-secondary)]">That draft isn&apos;t here any more.</p>
+        )}
+        {open?.kind === "helper" && (
+          <HelperPanel messages={helperMessages} setMessages={setHelperMessages} onOpenDraft={showDraft} />
         )}
         {open?.kind === "scan-in" && (
           <ScanInPanel folders={folders} defaultFolderId={defaultFolderId} onReview={reviewFile} />

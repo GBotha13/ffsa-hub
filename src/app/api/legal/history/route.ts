@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { bad, dbError, isUuid, legalGate } from "@/lib/legal/api";
 import { getLegalEvents } from "@/services/legal-documents";
 
-const TABLES = ["legal_documents", "legal_files", "legal_applications", "legal_folders"];
+const TABLES = ["legal_documents", "legal_files", "legal_applications", "legal_folders", "legal_drafts"];
 
 // GET ?table=legal_documents&id=<uuid> — who changed what on one row.
 // Events are read as the user (RLS: whole-module members). Only the names

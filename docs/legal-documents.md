@@ -5,7 +5,7 @@ officer's own papers: what we hold, what it says, when it runs out, and what
 is being applied for. Built for the legal officer (Coreen). Reminders by email
 and on the Hub dashboard.
 
-Status: **all four steps written, not applied.** Migrations 370–373 are drafts.
+Status: **steps 1–5 written, not applied.** Migrations 370–374 are drafts.
 Do not run them until Jack says so. Until they are applied the page sends
 everyone to the dashboard and the menu entry stays hidden.
 
@@ -124,6 +124,32 @@ A short, named access list (`legal_access`), and nothing else.
    **Dashboard:** a *Legal papers* card for people on the access list —
    not a band, because the dashboard's one band is staff approvals.
    Rules: `src/lib/legal/reminders.ts` (tested).
+
+5. **Legal helper and drafts** — done. Migration 374.
+   - **Ask the helper** (masthead) opens a chat on Claude Opus 5.5. It
+     reads documents, scan text, applications and drafts, and can save
+     or update a **draft** — nothing else. No approve, send or delete tool
+     exists. Every tool runs as the signed-in person (RLS), so it sees only
+     what they may see. Scan text is treated as data, never instructions.
+   - **Filling out forms:** scan the blank form in, then ask. It answers
+     field by field in the form's order, each with its source; anything
+     the Hub doesn't hold is marked missing (never guessed) and listed in
+     "Check before approving". Letters mark gaps as `[MISSING: …]`.
+   - **Where it saves:** it picks the folder (organisation / personal /
+     project) and attaches the document or application the draft belongs
+     to; the legal officer can change it before approving.
+   - **Approval:** the Drafts tab. Only the OWNER (legal officer) can
+     approve or send back; reviewers can draft and edit. The rule is in
+     the database (trigger in 374): nothing starts approved, only the
+     owner's own session can approve (not the service role), an approval
+     must name its PDF, and an approved draft never changes or goes away.
+     Approving renders a PDF (`src/lib/legal/draft-pdf.tsx`), files it in
+     the folder under the document, and records who and when.
+   - **Privacy:** the chat is not stored (unlike the Hub assistant, which
+     logs to `ai_assistant_queries`); only token counts reach the log.
+   - Not yet: writing into an official PDF's own form fields. The approved
+     PDF is FFSA's completed answer sheet; copying it onto the issuer's
+     form or portal is still done by hand.
 
 Not now: Google Calendar; helpers chosen by Coreen; sharing outside the Hub.
 

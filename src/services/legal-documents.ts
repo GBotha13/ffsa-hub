@@ -328,6 +328,34 @@ export async function deleteLegalApplicationStep(supabase: Client, id: string) {
 }
 
 // ────────────────────────────────────────────────────────────
+// DRAFTS (migration 374) — only the owner can approve; the DB enforces it
+// ────────────────────────────────────────────────────────────
+
+export const DRAFT_SELECT =
+  "id, folder_id, document_id, application_id, title, kind, body, fields, notes_for_approver, status, sent_back_note, created_via, final_file_id, approved_by, approved_at, created_by, created_at, updated_at";
+
+export async function getLegalDrafts(supabase: Client) {
+  return supabase.from("legal_drafts").select(DRAFT_SELECT).order("updated_at", { ascending: false });
+}
+
+export async function getLegalDraft(supabase: Client, id: string) {
+  return supabase.from("legal_drafts").select(DRAFT_SELECT).eq("id", id).single();
+}
+
+export async function updateLegalDraft(supabase: Client, id: string, data: Record<string, unknown>) {
+  return supabase.from("legal_drafts").update(data).eq("id", id).select(DRAFT_SELECT).single();
+}
+
+export async function deleteLegalDraft(supabase: Client, id: string) {
+  return supabase.from("legal_drafts").delete().eq("id", id).select("id");
+}
+
+/** true when the signed-in person is the owner (the only one who approves). */
+export async function isLegalOwner(supabase: Client) {
+  return supabase.rpc("legal_is_owner");
+}
+
+// ────────────────────────────────────────────────────────────
 // EVENT LOG
 // ────────────────────────────────────────────────────────────
 
