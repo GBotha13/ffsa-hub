@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // One-off import of the FFSA Fleet app's export (vehicles-module/seed) into Fleet.
-// For Gideon/Jack to run by hand AFTER migrations 329–331 are applied. Nothing in the app
+// For Jack to run by hand AFTER migrations 350–353 are applied. Nothing in the app
 // runs this. SPEC section 9; the plan itself is src/lib/fleet/import-plan.ts (tested).
 //
 //   SUPABASE_URL=https://<test-project>.supabase.co \
@@ -90,7 +90,7 @@ async function main() {
     "read bookings"
   ) as { id: string; booking_name: string; checkout_date: string; return_date: string; status: string; assignments: { vehicle_id: string }[] }[];
   const bookings: HubBooking[] = bookingRows.map((b) => ({ ...b, vehicle_ids: (b.assignments || []).map((a) => a.vehicle_id) }));
-  const prov = must(await sb.from("fleet_providers").select("id, legacy_id"), "read fleet_providers (are migrations 329–331 applied?)") as { id: string; legacy_id: string }[];
+  const prov = must(await sb.from("fleet_providers").select("id, legacy_id"), "read fleet_providers (are migrations 350–353 applied?)") as { id: string; legacy_id: string }[];
   const vis = must(await sb.from("fleet_workshop_visits").select("id, legacy_id"), "read fleet_workshop_visits") as { id: string; legacy_id: string }[];
   const fil = must(await sb.from("fleet_files").select("id"), "read fleet_files") as { id: string }[];
 
