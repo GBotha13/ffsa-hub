@@ -4,7 +4,10 @@
 -- permission keys)
 -- ============================================================
 -- Who sees what:
---   * Legal (the visa officer): is_admin() or visas.manage (global). Everything.
+--   * Legal (the visa officer): is_admin() or a GLOBAL visas.manage grant
+--     sees and writes everything, including the reference tables. A
+--     visas.manage grant scoped to a program manages only the cases that
+--     cover that program (has_permission_for, as 312/313 do).
 --   * School leaders: visas.follow_up, normally granted SCOPED to their
 --     program (user_roles / user_permissions scope_type = 'program'). They
 --     see a case only if it covers one of their programs, through
@@ -24,9 +27,12 @@
 -- access through the tables above, then signs a short-lived URL with the
 -- service role.
 --
+-- One transaction: it applies whole or not at all.
 -- Additive only. Idempotent: CREATE OR REPLACE, DROP POLICY IF EXISTS,
 -- ON CONFLICT DO NOTHING; REVOKE ALL before GRANT so re-running is clean.
 -- ============================================================
+
+BEGIN;
 
 -- ────────────────────────────────────────────────────────────
 -- 1. PERMISSION KEYS (no role gets them by default; grant per person)
@@ -40,6 +46,8 @@ ON CONFLICT (key) DO NOTHING;
 -- 2. HELPERS (definer, so they don't depend on the caller's visibility
 --    of visa_cases / visa_case_schools — which would recurse)
 -- ────────────────────────────────────────────────────────────
+-- Global legal: an unscoped visas.manage grant. has_permission_for with a
+-- NULL program matches only unscoped grants (scope_id = NULL is never true).
 CREATE OR REPLACE FUNCTION public.visa_is_legal()
 RETURNS boolean
 LANGUAGE sql
@@ -47,7 +55,25 @@ STABLE
 SECURITY DEFINER
 SET search_path = ''
 AS $$
-  SELECT public.is_admin() OR public.has_permission('visas.manage');
+  SELECT public.is_admin() OR public.has_permission_for('visas.manage', NULL);
+$$;
+
+-- Legal for one case: global legal, or visas.manage scoped to a program
+-- the case covers.
+CREATE OR REPLACE FUNCTION public.visa_can_manage(p_case_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT public.visa_is_legal()
+      OR EXISTS (
+        SELECT 1
+          FROM public.visa_case_schools s
+         WHERE s.case_id = p_case_id
+           AND public.has_permission_for('visas.manage', s.program_id)
+      );
 $$;
 
 CREATE OR REPLACE FUNCTION public.visa_can_follow_up(p_case_id uuid)
@@ -80,9 +106,11 @@ AS $$
 $$;
 
 REVOKE ALL ON FUNCTION public.visa_is_legal() FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.visa_can_manage(uuid) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.visa_can_follow_up(uuid) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.visa_is_own_case(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.visa_is_legal() TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.visa_can_manage(uuid) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.visa_can_follow_up(uuid) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.visa_is_own_case(uuid) TO authenticated, service_role;
 
@@ -180,12 +208,14 @@ CREATE POLICY "Visa document types: legal delete"
   USING (public.visa_is_legal());
 
 -- 5b. Cases: legal, the case's school leaders, and the student read.
---     Only legal writes in step 1.
+--     Only legal writes in step 1. A new case has no schools yet, so only
+--     global legal inserts one directly; the app creates cases on
+--     acceptance through a server route (ensureVisaCase, step 2).
 DROP POLICY IF EXISTS "Visa cases: read" ON public.visa_cases;
 CREATE POLICY "Visa cases: read"
   ON public.visa_cases FOR SELECT TO authenticated
   USING (
-    public.visa_is_legal()
+    public.visa_can_manage(id)
     OR user_id = auth.uid()
     OR public.visa_can_follow_up(id)
   );
@@ -196,18 +226,18 @@ CREATE POLICY "Visa cases: legal insert"
 DROP POLICY IF EXISTS "Visa cases: legal update" ON public.visa_cases;
 CREATE POLICY "Visa cases: legal update"
   ON public.visa_cases FOR UPDATE TO authenticated
-  USING (public.visa_is_legal()) WITH CHECK (public.visa_is_legal());
+  USING (public.visa_can_manage(id)) WITH CHECK (public.visa_can_manage(id));
 DROP POLICY IF EXISTS "Visa cases: legal delete" ON public.visa_cases;
 CREATE POLICY "Visa cases: legal delete"
   ON public.visa_cases FOR DELETE TO authenticated
-  USING (public.visa_is_legal());
+  USING (public.visa_can_manage(id));
 
 -- 5c. Case schools and documents: same readers as the case.
 DROP POLICY IF EXISTS "Visa case schools: read" ON public.visa_case_schools;
 CREATE POLICY "Visa case schools: read"
   ON public.visa_case_schools FOR SELECT TO authenticated
   USING (
-    public.visa_is_legal()
+    public.visa_can_manage(case_id)
     OR public.visa_is_own_case(case_id)
     -- A leader of any school on the case sees all its schools, so a
     -- FFX + Leadership Track student's whole stay is visible to both.
@@ -216,79 +246,79 @@ CREATE POLICY "Visa case schools: read"
 DROP POLICY IF EXISTS "Visa case schools: legal insert" ON public.visa_case_schools;
 CREATE POLICY "Visa case schools: legal insert"
   ON public.visa_case_schools FOR INSERT TO authenticated
-  WITH CHECK (public.visa_is_legal());
+  WITH CHECK (public.visa_can_manage(case_id));
 DROP POLICY IF EXISTS "Visa case schools: legal update" ON public.visa_case_schools;
 CREATE POLICY "Visa case schools: legal update"
   ON public.visa_case_schools FOR UPDATE TO authenticated
-  USING (public.visa_is_legal()) WITH CHECK (public.visa_is_legal());
+  USING (public.visa_can_manage(case_id)) WITH CHECK (public.visa_can_manage(case_id));
 DROP POLICY IF EXISTS "Visa case schools: legal delete" ON public.visa_case_schools;
 CREATE POLICY "Visa case schools: legal delete"
   ON public.visa_case_schools FOR DELETE TO authenticated
-  USING (public.visa_is_legal());
+  USING (public.visa_can_manage(case_id));
 
 DROP POLICY IF EXISTS "Visa case documents: read" ON public.visa_case_documents;
 CREATE POLICY "Visa case documents: read"
   ON public.visa_case_documents FOR SELECT TO authenticated
   USING (
-    public.visa_is_legal()
+    public.visa_can_manage(case_id)
     OR public.visa_is_own_case(case_id)
     OR public.visa_can_follow_up(case_id)
   );
 DROP POLICY IF EXISTS "Visa case documents: legal insert" ON public.visa_case_documents;
 CREATE POLICY "Visa case documents: legal insert"
   ON public.visa_case_documents FOR INSERT TO authenticated
-  WITH CHECK (public.visa_is_legal());
+  WITH CHECK (public.visa_can_manage(case_id));
 DROP POLICY IF EXISTS "Visa case documents: legal update" ON public.visa_case_documents;
 CREATE POLICY "Visa case documents: legal update"
   ON public.visa_case_documents FOR UPDATE TO authenticated
-  USING (public.visa_is_legal()) WITH CHECK (public.visa_is_legal());
+  USING (public.visa_can_manage(case_id)) WITH CHECK (public.visa_can_manage(case_id));
 DROP POLICY IF EXISTS "Visa case documents: legal delete" ON public.visa_case_documents;
 CREATE POLICY "Visa case documents: legal delete"
   ON public.visa_case_documents FOR DELETE TO authenticated
-  USING (public.visa_is_legal());
+  USING (public.visa_can_manage(case_id));
 
 -- 5d. Approval requests and questions: internal between leaders and
 --     legal. The student does not see them.
 DROP POLICY IF EXISTS "Visa approval requests: read" ON public.visa_approval_requests;
 CREATE POLICY "Visa approval requests: read"
   ON public.visa_approval_requests FOR SELECT TO authenticated
-  USING (public.visa_is_legal() OR public.visa_can_follow_up(case_id));
+  USING (public.visa_can_manage(case_id) OR public.visa_can_follow_up(case_id));
 DROP POLICY IF EXISTS "Visa approval requests: legal insert" ON public.visa_approval_requests;
 CREATE POLICY "Visa approval requests: legal insert"
   ON public.visa_approval_requests FOR INSERT TO authenticated
-  WITH CHECK (public.visa_is_legal());
+  WITH CHECK (public.visa_can_manage(case_id));
 DROP POLICY IF EXISTS "Visa approval requests: legal update" ON public.visa_approval_requests;
 CREATE POLICY "Visa approval requests: legal update"
   ON public.visa_approval_requests FOR UPDATE TO authenticated
-  USING (public.visa_is_legal()) WITH CHECK (public.visa_is_legal());
+  USING (public.visa_can_manage(case_id)) WITH CHECK (public.visa_can_manage(case_id));
 DROP POLICY IF EXISTS "Visa approval requests: legal delete" ON public.visa_approval_requests;
 CREATE POLICY "Visa approval requests: legal delete"
   ON public.visa_approval_requests FOR DELETE TO authenticated
-  USING (public.visa_is_legal());
+  USING (public.visa_can_manage(case_id));
 
 DROP POLICY IF EXISTS "Visa questions: read" ON public.visa_case_questions;
 CREATE POLICY "Visa questions: read"
   ON public.visa_case_questions FOR SELECT TO authenticated
-  USING (public.visa_is_legal() OR public.visa_can_follow_up(case_id));
+  USING (public.visa_can_manage(case_id) OR public.visa_can_follow_up(case_id));
 DROP POLICY IF EXISTS "Visa questions: legal insert" ON public.visa_case_questions;
 CREATE POLICY "Visa questions: legal insert"
   ON public.visa_case_questions FOR INSERT TO authenticated
-  WITH CHECK (public.visa_is_legal());
+  WITH CHECK (public.visa_can_manage(case_id));
 DROP POLICY IF EXISTS "Visa questions: legal update" ON public.visa_case_questions;
 CREATE POLICY "Visa questions: legal update"
   ON public.visa_case_questions FOR UPDATE TO authenticated
-  USING (public.visa_is_legal()) WITH CHECK (public.visa_is_legal());
+  USING (public.visa_can_manage(case_id)) WITH CHECK (public.visa_can_manage(case_id));
 DROP POLICY IF EXISTS "Visa questions: legal delete" ON public.visa_case_questions;
 CREATE POLICY "Visa questions: legal delete"
   ON public.visa_case_questions FOR DELETE TO authenticated
-  USING (public.visa_is_legal());
+  USING (public.visa_can_manage(case_id));
 
 -- 5e. Event log: leaders and legal read; nobody writes through the API
 --     as a user (service role and step-2 definer functions append).
 DROP POLICY IF EXISTS "Visa events: read" ON public.visa_case_events;
 CREATE POLICY "Visa events: read"
   ON public.visa_case_events FOR SELECT TO authenticated
-  USING (public.visa_is_legal() OR public.visa_can_follow_up(case_id));
+  USING (public.visa_can_manage(case_id) OR public.visa_can_follow_up(case_id));
 
 -- ────────────────────────────────────────────────────────────
 -- 6. PRIVATE BUCKET — no storage.objects policies (see header)
@@ -302,3 +332,5 @@ VALUES (
   ARRAY['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/heic']
 )
 ON CONFLICT (id) DO NOTHING;
+
+COMMIT;

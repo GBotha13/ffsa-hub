@@ -13,11 +13,11 @@
 -- is a comma-separated list of 'key:program-uuid' (or 'key:*' for an
 -- unscoped grant) that has_permission_for() answers yes to.
 
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 DO $$ BEGIN CREATE ROLE anon NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN CREATE ROLE authenticated NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN CREATE ROLE service_role NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+ALTER ROLE service_role BYPASSRLS;  -- as in Supabase
 
 CREATE SCHEMA IF NOT EXISTS auth;
 CREATE OR REPLACE FUNCTION auth.uid()
@@ -212,8 +212,8 @@ BEGIN
   END;
 END $$;
 
--- ── Legal (visas.manage) ─────────────────────────────────
-SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000001', 'false', 'visas.manage', '');
+-- ── Legal (global visas.manage) ──────────────────────────
+SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000001', 'false', 'visas.manage', 'visas.manage:*');
 SET ROLE authenticated;
 SELECT pg_temp.expect('legal: cases', (SELECT count(*) FROM public.visa_cases), 3);
 SELECT pg_temp.expect('legal: documents', (SELECT count(*) FROM public.visa_case_documents), 2);
@@ -236,6 +236,33 @@ RESET ROLE;
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000007', 'true', '', '');
 SET ROLE authenticated;
 SELECT pg_temp.expect('admin: cases', (SELECT count(*) FROM public.visa_cases), 3);
+RESET ROLE;
+
+-- ── Legal scoped to school A ─────────────────────────────
+SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000007', 'false',
+                       'visas.manage', 'visas.manage:a0000000-0000-0000-0000-00000000000a');
+SET ROLE authenticated;
+SELECT pg_temp.expect('scoped legal A: cases (1 and 3)', (SELECT count(*) FROM public.visa_cases), 2);
+SELECT pg_temp.expect('scoped legal A: requests', (SELECT count(*) FROM public.visa_approval_requests), 1);
+WITH u AS (UPDATE public.visa_cases SET lodged_where = 'x'
+            WHERE id = 'c0000000-0000-0000-0000-000000000001' RETURNING 1)
+SELECT pg_temp.expect('scoped legal A: updates case 1', (SELECT count(*) FROM u), 1);
+WITH u AS (UPDATE public.visa_cases SET lodged_where = 'x'
+            WHERE id = 'c0000000-0000-0000-0000-000000000002' RETURNING 1)
+SELECT pg_temp.expect('scoped legal A: not case 2', (SELECT count(*) FROM u), 0);
+DO $$
+BEGIN
+  INSERT INTO public.visa_country_rules (country_iso, country_name) VALUES ('GB', 'United Kingdom');
+  RAISE EXCEPTION 'scoped legal edited country rules';
+EXCEPTION WHEN insufficient_privilege THEN NULL;
+END $$;
+RESET ROLE;
+UPDATE public.visa_cases SET lodged_where = NULL;
+
+-- has_permission() alone (module visibility) opens no rows.
+SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000007', 'false', 'visas.manage,visas.follow_up', '');
+SET ROLE authenticated;
+SELECT pg_temp.expect('module visibility only: cases', (SELECT count(*) FROM public.visa_cases), 0);
 RESET ROLE;
 
 -- ── Leader of school A (scoped) ──────────────────────────
