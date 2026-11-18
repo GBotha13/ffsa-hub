@@ -155,6 +155,11 @@ Fleet writes the Hub status when its status changes, never the other way. The re
 - **Insurer:** its name is gone from the checklist, vehicle profiles and the reference app; the workshop that keeps the Kombi's service record is unnamed too.
 - **Vercel preview:** not authorised (production secrets); review happens on the branch.
 
+### Gideon, 18 Nov: messages off, no bookings carried over
+
+- **No Fleet messages for now.** Fleet sends nothing (no reminder email, nothing in the Slack digest) unless `FLEET_MESSAGES_ENABLED=1` is set on the live site. It replaces the old opt-out `FLEET_REMINDER_DISABLED`. The old claude.ai routine "FFSA vehicle inspection reminders" is paused too. Gideon will review the messages before anything is switched on.
+- **No bookings from the old app.** The import never brings in the Fleet app's trips and rentals; they're only listed. Bookings will be uploaded into the Hub separately.
+
 Still open below: the Ask API key (9).
 
 ## What we need from Jack

@@ -16,7 +16,7 @@
         },
         {
           "ul": [
-            "Every morning: open Today. It lists everything to do that day, in order, with a button to start each one. A reminder also arrives by email and Slack at 7am.",
+            "Every morning: open Today. It lists everything to do that day, in order, with a button to start each one. (The 7am reminder by email and Slack is switched off for now.)",
             "On inspection days ({days}): do the weekly check on the vehicles planned for that day, at most {max} a day. Once a month the weekly check is replaced by the longer monthly check. The Hub picks which one is due.",
             "When a vehicle goes out on a booking: a 2-minute pre-trip check. When it comes back: a post-trip check. The km entered at handover keeps the service warnings right.",
             "When a service or bumper-to-bumper inspection is coming up: book it in the first free 48 hours the Hub suggests. Anyone with a clashing booking is told automatically.",
@@ -253,7 +253,7 @@
           "h": "Daily reminders"
         },
         {
-          "p": "At 7am the person with the Vehicle Co-ordinator role gets an email listing the checks due today, tomorrow and the day after, overdue checks, booking clashes, vehicles leaving or coming back, postponed checks, workshop visits and services due by km. On Mondays it also lists in-car guides to reprint. On Slack the same list is part of the 7am vehicles message (pickups, returns, overdue and waiting bookings), so it’s one message, not two. Nothing is sent on days with nothing to do."
+          "p": "Switched off for now: Fleet sends no email or Slack messages until an admin turns them on. When it’s on, at 7am the person with the Vehicle Co-ordinator role gets an email listing the checks due today, tomorrow and the day after, overdue checks, booking clashes, vehicles leaving or coming back, postponed checks, workshop visits and services due by km. On Mondays it also lists in-car guides to reprint. On Slack the same list is part of the 7am vehicles message (pickups, returns, overdue and waiting bookings), so it’s one message, not two. Nothing is sent on days with nothing to do."
         },
         {
           "h": "The checklist"
@@ -324,6 +324,10 @@
     [
       "2026-11-18",
       "Fixed: the Calendar no longer fails to open when a vehicle has a workshop visit due."
+    ],
+    [
+      "2026-11-18",
+      "Fleet’s email and Slack messages are switched off until they’ve been reviewed. The reminder preview still shows what would be sent. Trips and rentals from the old Fleet app are not brought into the Hub: the bookings will be uploaded separately."
     ]
   ]
 }

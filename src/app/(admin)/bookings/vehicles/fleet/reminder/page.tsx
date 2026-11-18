@@ -41,7 +41,7 @@ export default async function ReminderPreview({ searchParams }: { searchParams: 
         </form>
         <p className="text-[14px] text-[#55524A]">
           Sent every day at 07:00 to whoever holds the Vehicle Coordinator role, by {channels}. Nothing is sent when every section is empty. This page never sends anything.{" "}
-          {live ? "Sending is on for this site." : "This site doesn’t send reminders (only the live Hub does)."}
+          {live ? "Sending is on for this site." : "Sending is off: Fleet sends no email or Slack messages until it’s switched on (FLEET_MESSAGES_ENABLED on the live Hub)."}
         </p>
       </div>
 

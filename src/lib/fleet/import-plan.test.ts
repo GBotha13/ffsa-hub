@@ -72,7 +72,7 @@ describe("fleet import plan", () => {
       ["Nissan Almera", null],
       ["Honda CR-V", null],
     ]);
-    expect(plan.warnings.filter((w) => w.includes("isn't a Hub booking yet"))).toHaveLength(2);
+    expect(plan.warnings.filter((w) => w.includes("is not imported (bookings are uploaded separately)"))).toHaveLength(2);
   });
 
   it("recognises a rental that is already a Hub booking", () => {

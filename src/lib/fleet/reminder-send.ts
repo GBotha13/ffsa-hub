@@ -18,9 +18,14 @@ import { REMINDER_SECTIONS, buildReminder, todayInSA, type ISODate, type Reminde
 
 type Client = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-/** True only on the live site. Everything else builds the message without sending it. */
+/**
+ * Fleet sends nothing (no email, nothing in the Slack digest) until it is switched on
+ * on purpose: FLEET_MESSAGES_ENABLED=1, and only on the live site. Gideon wants to
+ * revisit the messages before they go out (18 Nov 2026). Off, it only builds the message,
+ * which the admin preview page shows.
+ */
 export function canSendFleetReminder(env: NodeJS.ProcessEnv = process.env): boolean {
-  if (env.FLEET_REMINDER_DISABLED === "1" || env.FLEET_REMINDER_DISABLED === "true") return false;
+  if (env.FLEET_MESSAGES_ENABLED !== "1" && env.FLEET_MESSAGES_ENABLED !== "true") return false;
   return env.VERCEL_ENV === "production" && !previewWritesDisabled(env);
 }
 

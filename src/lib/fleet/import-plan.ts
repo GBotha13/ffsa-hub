@@ -189,7 +189,8 @@ export function planFleetImport(seed: Seed, hubVehicles: HubVehicle[], hubBookin
     notify: { email: !!seed.config.notify?.email, slack: !!seed.config.notify?.slack },
   };
 
-  // Trips: Hub bookings replace them. Only report the ones that aren't bookings yet.
+  // Trips and rentals are never imported: Hub bookings replace them, and Gideon will
+  // upload the bookings himself later (18 Nov 2026). They're only listed, for reference.
   const tripReport = Object.entries(seed.trips).map(([legacy, t]) => {
     const vid = vehicleId[t.vehicleId];
     const match = hubBookings.find(
@@ -198,7 +199,7 @@ export function planFleetImport(seed: Seed, hubVehicles: HubVehicle[], hubBookin
     return { legacy, vehicle: seed.fleet[t.vehicleId]?.name ?? t.vehicleId, from: t.from, to: t.to, label: t.label, booking: match ? `${match.booking_name} (${match.status})` : null };
   });
   for (const t of tripReport)
-    if (!t.booking) warnings.push(`${t.vehicle}: ${t.label} ${t.from} – ${t.to} isn't a Hub booking yet. Add it under Bookings → Vehicles so Fleet sees it.`);
+    if (!t.booking) warnings.push(`${t.vehicle}: ${t.label} ${t.from} – ${t.to} is in the old app only and is not imported (bookings are uploaded separately).`);
 
   // Km readings and time log (empty in the 17 Nov 2026 export; a later export may have some)
   const odometer = Object.values(seed.odometer || {})

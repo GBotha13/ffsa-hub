@@ -59,13 +59,15 @@ beforeEach(() => {
 });
 
 describe("send guard", () => {
-  it("sends only on the live site", () => {
-    expect(canSendFleetReminder({} as NodeJS.ProcessEnv)).toBe(false); // local
-    expect(canSendFleetReminder({ VERCEL_ENV: "development" } as unknown as NodeJS.ProcessEnv)).toBe(false);
-    expect(canSendFleetReminder({ VERCEL_ENV: "preview" } as unknown as NodeJS.ProcessEnv)).toBe(false);
-    expect(canSendFleetReminder({ VERCEL_ENV: "production", PREVIEW_WRITES_DISABLED: "1" } as unknown as NodeJS.ProcessEnv)).toBe(false);
-    expect(canSendFleetReminder({ VERCEL_ENV: "production", FLEET_REMINDER_DISABLED: "1" } as unknown as NodeJS.ProcessEnv)).toBe(false);
-    expect(canSendFleetReminder({ VERCEL_ENV: "production" } as unknown as NodeJS.ProcessEnv)).toBe(true);
+  it("is off until switched on, and then sends only on the live site", () => {
+    const e = (x: Record<string, string>) => x as unknown as NodeJS.ProcessEnv;
+    expect(canSendFleetReminder(e({ VERCEL_ENV: "production" }))).toBe(false); // not switched on
+    expect(canSendFleetReminder(e({ VERCEL_ENV: "production", FLEET_MESSAGES_ENABLED: "" }))).toBe(false);
+    expect(canSendFleetReminder(e({ FLEET_MESSAGES_ENABLED: "1" }))).toBe(false); // local
+    expect(canSendFleetReminder(e({ VERCEL_ENV: "development", FLEET_MESSAGES_ENABLED: "1" }))).toBe(false);
+    expect(canSendFleetReminder(e({ VERCEL_ENV: "preview", FLEET_MESSAGES_ENABLED: "1" }))).toBe(false);
+    expect(canSendFleetReminder(e({ VERCEL_ENV: "production", FLEET_MESSAGES_ENABLED: "1", PREVIEW_WRITES_DISABLED: "1" }))).toBe(false);
+    expect(canSendFleetReminder(e({ VERCEL_ENV: "production", FLEET_MESSAGES_ENABLED: "1" }))).toBe(true);
   });
 });
 
@@ -139,7 +141,7 @@ describe("deliverReminder", () => {
 });
 
 describe("fleetDigestPart: one Slack message, not two (Jack, 18 Nov 2026)", () => {
-  const live = { VERCEL_ENV: "production" } as unknown as NodeJS.ProcessEnv;
+  const live = { VERCEL_ENV: "production", FLEET_MESSAGES_ENABLED: "1" } as unknown as NodeJS.ProcessEnv;
 
   it("on the live site: emails, and hands the digest the sections and the coordinator's Slack id", async () => {
     const admin = fakeAdmin();
@@ -153,8 +155,8 @@ describe("fleetDigestPart: one Slack message, not two (Jack, 18 Nov 2026)", () =
     expect(part.items).toBeGreaterThanOrEqual(2);
   });
 
-  it("anywhere else: sends nothing and adds nothing to the digest", async () => {
-    for (const env of [{}, { VERCEL_ENV: "preview" }, { VERCEL_ENV: "production", FLEET_REMINDER_DISABLED: "1" }] as unknown as NodeJS.ProcessEnv[]) {
+  it("switched off or anywhere else: sends nothing and adds nothing to the digest", async () => {
+    for (const env of [{}, { VERCEL_ENV: "production" }, { VERCEL_ENV: "preview", FLEET_MESSAGES_ENABLED: "1" }] as unknown as NodeJS.ProcessEnv[]) {
       const admin = fakeAdmin();
       const { sent, deps } = fakeDeps();
       const part = await fleetDigestPart(admin, { date: "2026-11-17", deps, env });

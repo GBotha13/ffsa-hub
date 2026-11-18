@@ -18,8 +18,8 @@
 //   • --apply writes only when the URL's project ref equals FLEET_TEST_PROJECT_REF, or when
 //     --production is passed as well.
 //   • Vehicles are matched by registration; unmatched ones are left out with a warning.
-//   • Trips are not imported: Hub bookings replace them. Rentals that aren't Hub bookings
-//     yet are listed so someone adds them as bookings.
+//   • Trips and rentals are not imported: Hub bookings replace them, and the bookings are
+//     uploaded separately later. The old app's are only listed, for reference.
 //   • Safe to run twice: rows are matched by their Fleet app id (legacy_id), files by id.
 //     Km readings and time logs are only added while those tables are empty.
 //   • Never deletes anything, never prints the key.
@@ -104,7 +104,7 @@ async function main() {
   for (const m of plan.matches) console.log(`  ${m.reg.padEnd(11)} ${m.name.padEnd(16)} → ${m.hubName ?? "NOT FOUND"}`);
   console.log(`\nWorkshops: ${plan.providers.length} · workshop visits: ${plan.visits.length} · files: ${plan.files.length} (${plan.files.filter((f) => !f.exists).length} new)`);
   console.log(`Km readings: ${plan.odometer.length} · time log: ${plan.timelog.length} · checklist: ${plan.settings.checklist ? "yes" : "no"}`);
-  console.log("\nRentals in the export (Hub bookings replace them):");
+  console.log("\nTrips and rentals in the export (not imported; bookings are uploaded separately):");
   for (const t of plan.tripReport) console.log(`  ${t.vehicle}: ${t.label} ${t.from} – ${t.to} → ${t.booking ?? "not a Hub booking yet"}`);
   if (plan.warnings.length) console.log("\nWarnings:\n" + plan.warnings.map((w) => "  • " + w).join("\n"));
 
