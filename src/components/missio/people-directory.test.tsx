@@ -104,6 +104,8 @@ describe("people directory", () => {
     });
     expect(host.textContent).toContain("Mina Osei");
     expect(host.textContent).toContain("Missio JHB");
+    expect(host.textContent).toContain("No one is deleted. Mark someone inactive when they leave.");
+    expect(host.textContent).not.toContain("Potch is the main church");
     expect(host.textContent).toContain("—");
     expect(host.textContent).not.toMatch(/Delete/);
     const campusSelect = host.querySelector("[aria-label=Campus]") as HTMLSelectElement;
@@ -137,6 +139,42 @@ describe("people directory", () => {
     expect(calls.at(-1)).toMatchObject({ q: "mina" });
     expect(host.textContent).toContain("Mina Osei");
     expect(host.textContent).not.toContain("Hugo Steyn");
+  });
+
+  it("hides an empty stage, drops a line with no stage and no date, and names each Edit button", async () => {
+    const { client } = directoryClient();
+    const { host, root } = render(<PeopleDirectory client={client} />);
+    roots.push(root);
+    hosts.push(host);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const card = (name: string) =>
+      [...host.querySelectorAll("[data-testid=people-cards] li")].find((item) => item.textContent?.includes(name));
+    const row = (name: string) =>
+      [...host.querySelectorAll("[data-testid=people-table] tr")].find((item) => item.textContent?.includes(name));
+
+    const neither = card("Lerato Dlamini");
+    expect(neither?.querySelector("[class*=joined]")).toBeNull();
+    expect(neither?.textContent).not.toContain("—");
+
+    const dateOnly = card("Hugo Steyn");
+    const joined = dateOnly?.querySelector("[class*=joined]");
+    expect(joined?.textContent).toBe("Joined 2 Jan 2020");
+    expect(joined?.className).not.toMatch(/campusMain/);
+    expect(dateOnly?.textContent).not.toContain("—");
+
+    const neitherCells = row("Lerato Dlamini")?.querySelectorAll("td");
+    expect(neitherCells?.[3]?.textContent).toBe("—");
+    expect(neitherCells?.[4]?.textContent).toBe("—");
+    const dateOnlyCells = row("Hugo Steyn")?.querySelectorAll("td");
+    expect(dateOnlyCells?.[3]?.textContent).toBe("—");
+    expect(dateOnlyCells?.[4]?.textContent).toBe("2 Jan 2020");
+
+    for (const name of ["Mina Osei", "Lerato Dlamini", "Hugo Steyn"]) {
+      expect(host.querySelectorAll(`button[aria-label='Edit ${name}']`)).toHaveLength(2);
+    }
   });
 
   it("marks a person inactive with PATCH and does not offer delete", async () => {

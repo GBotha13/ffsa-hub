@@ -13,6 +13,7 @@ import { MissioApiError, missioClient, missioErrorCopy, type MissioClient } from
 import { AddPersonDialog } from "./add-person";
 import { MissioDialog } from "./missio-dialog";
 import type { MissioCampus, MissioPerson, MissioStatus } from "./types-shim";
+import content from "./content.module.css";
 import styles from "./shell.module.css";
 
 type ListState =
@@ -69,14 +70,12 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
   const to = Math.min(offset + DEFAULT_PEOPLE_LIMIT, total);
 
   return (
-    <div>
+    <div className={content.page}>
       <div className={styles.headRow}>
         <div>
-          <p className={styles.eyebrow}>Missio people</p>
-          <h1>People</h1>
-          <p className={styles.lede}>
-            Potch is the main church. Johannesburg is listed as Missio JHB. Inactive is the end of the record — people aren’t deleted.
-          </p>
+          <p className={`${styles.eyebrow} ${content.eyebrow}`}>Missio people</p>
+          <h1 className={content.title}>People</h1>
+          <p className={`${styles.lede} ${content.lede}`}>No one is deleted. Mark someone inactive when they leave.</p>
         </div>
         <button type="button" className={styles.primary} onClick={() => setAdding(true)}>
           Add person
@@ -84,7 +83,7 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
       </div>
 
       <form
-        className={styles.toolbar}
+        className={`${styles.toolbar} ${content.toolbar}`}
         data-testid="people-search"
         onSubmit={(event) => {
           event.preventDefault();
@@ -177,17 +176,19 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
                     <span className={styles.campus}>{CAMPUS_LABEL[person.campus]}</span>
                     {person.campus === "potch" ? <span className={styles.campusMain}>Main</span> : null}
                   </div>
-                  <div className={styles.muted}>
-                    {person.currentStage?.trim() ? person.currentStage : "—"}
-                    <span className={styles.campusMain}>{formatJoined(person.joinedAt)}</span>
-                  </div>
-                  <button type="button" className={styles.textButton} onClick={() => setEditing(person)}>
+                  {personStage(person) || personJoined(person) ? (
+                    <div className={styles.muted}>
+                      {personStage(person) ? <span>{personStage(person)}</span> : null}
+                      {personJoined(person) ? <span className={styles.joined}>Joined {personJoined(person)}</span> : null}
+                    </div>
+                  ) : null}
+                  <button type="button" className={styles.textButton} aria-label={`Edit ${person.name}`} onClick={() => setEditing(person)}>
                     Edit
                   </button>
                 </li>
               ))}
             </ul>
-            <table className={styles.table} data-testid="people-table">
+            <table className={`${styles.table} ${content.table}`} data-testid="people-table">
             <thead>
               <tr>
                 <th>Name</th>
@@ -211,10 +212,10 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
                       {STATUS_LABEL[person.status]}
                     </span>
                   </td>
-                  <td className={styles.muted}>{person.currentStage?.trim() ? person.currentStage : "—"}</td>
-                  <td>{formatJoined(person.joinedAt)}</td>
+                  <td className={styles.muted}>{personStage(person) || "—"}</td>
+                  <td className={styles.muted}>{person.joinedAt ? formatJoined(person.joinedAt) : "—"}</td>
                   <td>
-                    <button type="button" className={styles.textButton} onClick={() => setEditing(person)}>
+                    <button type="button" className={styles.textButton} aria-label={`Edit ${person.name}`} onClick={() => setEditing(person)}>
                       Edit
                     </button>
                   </td>
@@ -282,6 +283,14 @@ function badgeClass(status: MissioStatus): string {
   if (status === "active") return styles.badgeActive;
   if (status === "visitor") return styles.badgeVisitor;
   return styles.badgeInactive;
+}
+
+function personStage(person: MissioPerson): string {
+  return person.currentStage?.trim() ?? "";
+}
+
+function personJoined(person: MissioPerson): string {
+  return person.joinedAt ? formatJoined(person.joinedAt) : "";
 }
 
 function EditPerson({

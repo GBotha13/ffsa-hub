@@ -1,4 +1,5 @@
 import Link from "next/link";
+import content from "./content.module.css";
 import styles from "./shell.module.css";
 
 function johannesburgNow(now = new Date()) {
@@ -21,40 +22,13 @@ function johannesburgNow(now = new Date()) {
 export function MissioHome() {
   const { greeting, date } = johannesburgNow();
   return (
-    <div>
-      <p className={styles.eyebrow}>{date}</p>
-      <h1>{greeting}</h1>
-      <p className={styles.lede}>
-        This is Missio’s own workspace. The people here are Missio people. Potch is the main church, and Johannesburg meets as Missio JHB.
-      </p>
-      <div className={styles.grid}>
-        <Link href="/missio/people" className={styles.card}>
-          <div className={styles.cardTitle}>People</div>
-          <p className={styles.cardBody}>Names, campus and where someone is in the life of the church.</p>
-        </Link>
-        <div className={styles.card}>
-          <div className={styles.cardTitle}>Potch</div>
-          <p className={styles.cardBody}>
-            The main church. <span className={styles.tagQuiet + " " + styles.tag}>Missio Potch</span>
-          </p>
-        </div>
-        <div className={styles.card}>
-          <div className={styles.cardTitle}>Johannesburg</div>
-          <p className={styles.cardBody}>
-            Shown with the campus tag. <span className={styles.tag}>Missio JHB</span>
-          </p>
-        </div>
-      </div>
-      <div className={styles.grid}>
-        <div className={styles.card}>
-          <div className={styles.cardTitle}>House churches</div>
-          <p className={styles.cardBody}>Coming soon.</p>
-        </div>
-        <div className={styles.card}>
-          <div className={styles.cardTitle}>Teams</div>
-          <p className={styles.cardBody}>Coming soon.</p>
-        </div>
-      </div>
+    <div className={`${content.page} ${content.reveal}`}>
+      <p className={`${styles.eyebrow} ${content.eyebrow}`}>{date}</p>
+      <h1 className={content.title}>{greeting}</h1>
+      <Link href="/missio/people" className={`${styles.card} ${content.card} ${content.solo}`}>
+        <div className={`${styles.cardTitle} ${content.cardTitle}`}>People</div>
+        <p className={`${styles.cardBody} ${content.cardBody}`}>Names and where someone is in the life of the church.</p>
+      </Link>
     </div>
   );
 }
