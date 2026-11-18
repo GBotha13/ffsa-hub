@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  splitStays,
   addMonths,
   computeStay,
   daysInclusive,
@@ -125,5 +126,34 @@ describe("requiredDocuments", () => {
   it("short list up to 90 days, long list beyond, never inactive types", () => {
     expect(requiredDocuments(types, 88).map((t) => t.code)).toEqual(["passport"]);
     expect(requiredDocuments(types, 187).map((t) => t.code)).toEqual(["passport", "police_clearance"]);
+  });
+});
+
+describe("splitStays (gap rule)", () => {
+  const school = (start: string, end: string) => ({ startDate: start, endDate: end });
+
+  it("one visa covers two schools and a gap of up to 90 days", () => {
+    const out = splitStays([school("2027-07-01", "2027-09-30"), school("2027-01-10", "2027-04-08")]);
+    // 9 Apr – 30 Jun is 83 days between schools.
+    expect(out).toHaveLength(1);
+    expect(out[0].stay).toEqual({ from: "2027-01-10", to: "2027-09-30", days: 264 });
+    expect(out[0].schools.map((s) => s.startDate)).toEqual(["2027-01-10", "2027-07-01"]);
+  });
+
+  it("a gap of exactly 90 days still shares a visa; 91 days splits", () => {
+    // Leave 1 Mar; days between = arrive − 2 Mar.
+    const first = school("2027-01-01", "2027-03-01");
+    expect(splitStays([first, school("2027-05-31", "2027-07-01")])).toHaveLength(1); // 2 Mar–30 May = 90
+    expect(splitStays([first, school("2027-06-01", "2027-07-01")])).toHaveLength(2); // 91
+  });
+
+  it("overlapping or back-to-back schools are one stay; undated schools are left out", () => {
+    const out = splitStays([
+      school("2027-01-10", "2027-04-08"),
+      school("2027-04-09", "2027-06-30"),
+      { startDate: null, endDate: null },
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0].schools).toHaveLength(2);
   });
 });
