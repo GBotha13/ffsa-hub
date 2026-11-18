@@ -145,6 +145,16 @@ Fleet's six statuses stay in `fleet_vehicle_details.fleet_status`. The Hub's `ve
 
 Fleet writes the Hub status when its status changes, never the other way. The reverse is only for the first seed (352): active → In service, maintenance → Off the road, retired → For sale. Today 352 maps retired → Off the road and maintenance → In service; it changes to this once review agrees. The sync itself comes after review.
 
+### Review of #623 (18 Nov), and what changed
+
+- **Calendar crash:** `bookPrefill` moved out of the client file into `calendar/model.ts`; a test now fails if any Fleet/Vehicles server file calls a function from a `"use client"` file.
+- **Fake data for CI:** `src/lib/fleet/testing/fixture` replaces the real export in every test, so all Fleet tests run in CI. VINs, engine numbers, insurer, report and invoice numbers, workshop contacts, notes, costs and files are made up.
+- **Grants:** 351 revokes every fleet table from PUBLIC, anon and authenticated, then gives authenticated only SELECT/INSERT/UPDATE/DELETE (no TRUNCATE); 353 the same for the reminder log. The helpers run with `search_path = ''` and anon can't execute them.
+- **Re-runnable:** 350–353 use IF NOT EXISTS / DROP … IF EXISTS / ON CONFLICT, and each is one transaction. Checked by running all four twice on a local Postgres.
+- **Cron:** `vehicle-slack-digest` refuses every call when `CRON_SECRET` isn't set, and compares it timing-safely (`src/lib/cron-auth.ts`).
+- **Insurer:** its name is gone from the checklist, vehicle profiles and the reference app; the workshop that keeps the Kombi's service record is unnamed too.
+- **Vercel preview:** not authorised (production secrets); review happens on the branch.
+
 Still open below: the Ask API key (9).
 
 ## What we need from Jack

@@ -9,6 +9,8 @@
 -- that data is private and never goes into a migration.
 -- ============================================================
 
+BEGIN;
+
 INSERT INTO public.fleet_settings (id) VALUES ('global')
 ON CONFLICT (id) DO NOTHING;
 
@@ -20,6 +22,8 @@ SELECT v.id,
        COALESCE(v.sort_order, 0)
 FROM public.vehicles v
 ON CONFLICT (vehicle_id) DO NOTHING;
+
+COMMIT;
 
 -- ────────────────────────────────────────────────────────────
 -- Validation

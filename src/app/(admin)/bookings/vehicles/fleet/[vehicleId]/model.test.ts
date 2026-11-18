@@ -101,7 +101,7 @@ describe("Overview", () => {
     const get = (k: string) => kd.find((d) => d.k === k)!;
     expect(get("Licence disc expires")).toMatchObject({ v: "01 Nov 2026", expired: true });
     expect(get("Service interval").v).toBe("10 000 km (FFSA rule)");
-    expect(get("Workshop spend, last 12 months").v?.replace(/\s/g, " ")).toBe("R 5 692,50");
+    expect(get("Workshop spend, last 12 months").v?.replace(/\s/g, " ")).toBe("R 600,00"); // the fake data set's body-repair visit
     expect(workshopSpend(visitsOf(F, "h1-1"), "2027-11-01")).toBe(0);
   });
 

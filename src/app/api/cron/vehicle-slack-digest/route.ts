@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { cronAuthorized } from "@/lib/cron-auth";
 import { fleetDigestPart, type FleetDigestPart } from "@/lib/fleet/reminder-send";
 import { sendVehicleDigest } from "@/lib/vehicles/slack-alerts";
 
@@ -12,10 +13,8 @@ export const maxDuration = 60;
 // checks (the Fleet reminder is emailed from here too, and is no longer a separate
 // Slack message). Quiet days send nothing. (Hobby plan: crons must be once-per-day.)
 export async function GET(request: Request) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  // Refuses when CRON_SECRET is missing, not just when it doesn't match.
+  if (!cronAuthorized(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   // Fleet first, and never at the bookings digest's expense: if it fails, the digest still goes.
   let fleet: FleetDigestPart | null = null;
   try {

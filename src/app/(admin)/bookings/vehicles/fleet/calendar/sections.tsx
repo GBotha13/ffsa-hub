@@ -8,8 +8,8 @@ import { MoveTripButton } from "../_components/task-actions";
 import { SevDot, sevLabel, vehicleHref } from "../_components/ui";
 import { VisitButton } from "../[vehicleId]/visit-dialog";
 import { fmtRange } from "@/lib/fleet/rules/format";
-import { GapFinder, bookPrefill, type BookCtx } from "./calendar-client";
-import type { CalCell, CalGrid, ClashItem, DueItem, GapChoice, ListItem } from "./model";
+import { GapFinder, type BookCtx } from "./calendar-client";
+import { bookPrefill, type CalCell, type CalGrid, type ClashItem, type DueItem, type GapChoice, type ListItem } from "./model";
 
 const pad = "px-5 md:px-8";
 const muted = "text-[13px] text-[#55524A]";

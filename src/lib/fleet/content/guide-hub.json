@@ -320,6 +320,10 @@
     [
       "2026-11-18",
       "On Slack, the 7am inspection reminder is now part of the 7am vehicles message, so you get one message, not two. The email is unchanged."
+    ],
+    [
+      "2026-11-18",
+      "Fixed: the Calendar no longer fails to open when a vehicle has a workshop visit due."
     ]
   ]
 }

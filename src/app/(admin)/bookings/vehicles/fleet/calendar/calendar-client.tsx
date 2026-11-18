@@ -9,19 +9,13 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { MastheadButton } from "@/components/ffsa";
 import { fmtRange } from "@/lib/fleet/rules/format";
-import { VisitButton, VisitDialog, type VisitCtx, type VisitPrefill } from "../[vehicleId]/visit-dialog";
-import type { GapChoice } from "./model";
+import { VisitButton, VisitDialog, type VisitCtx } from "../[vehicleId]/visit-dialog";
+import { bookPrefill, type GapChoice } from "./model";
 
 export interface BookCtx {
   ctx: VisitCtx;
   /** The workshop the app suggests (lastProvider). */
   provider: string;
-}
-
-/** The booking form's starting values for a vehicle and a free 48 hours (the app's 'book-gap'). */
-export function bookPrefill(c: { gap: GapChoice["gap"]; kind: string }, provider: string, today: string): VisitPrefill {
-  const from = c.gap ? c.gap.from : today;
-  return { kind: c.kind, date: from, until: c.gap ? c.gap.to : from, provider };
 }
 
 export function BookPickButton({ choices, ctxs }: { choices: GapChoice[]; ctxs: Record<string, BookCtx> }) {

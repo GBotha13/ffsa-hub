@@ -2,6 +2,7 @@
 // 'book-pick' and the gap finder) as pure functions of FleetData. The page and the client
 // components only draw what these return.
 
+import type { VisitPrefill } from "../[vehicleId]/visit-dialog";
 import {
   CAL_DAYS,
   KM_RULES,
@@ -253,4 +254,11 @@ export function listItems(F: FleetData, start: ISODate): ListItem[] {
     .filter((x) => names[x.vehicleId])
     .map((x) => ({ ...x, vehicleName: names[x.vehicleId] }))
     .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** The booking form's starting values for a vehicle and a free 48 hours (the app's 'book-gap').
+ *  Here, not in calendar-client, because the server-rendered sections call it too. */
+export function bookPrefill(c: { gap: GapChoice["gap"]; kind: string }, provider: string, today: string): VisitPrefill {
+  const from = c.gap ? c.gap.from : today;
+  return { kind: c.kind, date: from, until: c.gap ? c.gap.to : from, provider };
 }

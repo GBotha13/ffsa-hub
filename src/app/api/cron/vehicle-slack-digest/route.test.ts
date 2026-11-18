@@ -34,6 +34,13 @@ describe("GET /api/cron/vehicle-slack-digest", () => {
     expect(digests).toHaveLength(0);
   });
 
+  it("refuses every call when CRON_SECRET isn't set", async () => {
+    vi.stubEnv("CRON_SECRET", "");
+    const res = await GET(new Request("http://x", { headers: { authorization: "Bearer " } }));
+    expect(res.status).toBe(401);
+    expect(digests).toHaveLength(0);
+  });
+
   it("hands Fleet's part to the one digest message", async () => {
     vi.stubEnv("CRON_SECRET", "s3cret");
     const res = await call();

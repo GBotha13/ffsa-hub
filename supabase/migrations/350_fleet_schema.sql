@@ -19,7 +19,12 @@
 --
 -- Apply 350, then 351 (RLS), then 352 (seed), then 353 (reminder log) in the
 -- Supabase SQL Editor.
+--
+-- Safe to re-run: IF NOT EXISTS / ON CONFLICT / DROP … IF EXISTS throughout,
+-- and the whole file is one transaction. Grants and RLS are in 351.
 -- ============================================================
+
+BEGIN;
 
 -- ────────────────────────────────────────────────────────────
 -- 1. Role and permissions
@@ -43,7 +48,7 @@ ON CONFLICT (role_id, permission_id) DO NOTHING;
 -- ────────────────────────────────────────────────────────────
 -- 2. Workshops (the app's `providers`)
 -- ────────────────────────────────────────────────────────────
-CREATE TABLE public.fleet_providers (
+CREATE TABLE IF NOT EXISTS public.fleet_providers (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   legacy_id   text UNIQUE,                 -- id in the Fleet app's export
   name        text NOT NULL,
@@ -64,7 +69,7 @@ CREATE TABLE public.fleet_providers (
 -- 3. Vehicle details, 1:1 with public.vehicles
 --    (registration, name, make/model, fuel, seats stay on vehicles)
 -- ────────────────────────────────────────────────────────────
-CREATE TABLE public.fleet_vehicle_details (
+CREATE TABLE IF NOT EXISTS public.fleet_vehicle_details (
   vehicle_id        uuid PRIMARY KEY REFERENCES public.vehicles(id) ON DELETE CASCADE,
   legacy_id         text UNIQUE,           -- "h1-2", "crv", … in the Fleet app
   make              text,
@@ -113,7 +118,7 @@ CREATE TABLE public.fleet_vehicle_details (
 -- 4. Workshop visits (the app's `records`)
 --    A booked visit blocks the vehicle from date to until (PR 5).
 -- ────────────────────────────────────────────────────────────
-CREATE TABLE public.fleet_workshop_visits (
+CREATE TABLE IF NOT EXISTS public.fleet_workshop_visits (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   legacy_id       text UNIQUE,
   vehicle_id      uuid NOT NULL REFERENCES public.vehicles(id) ON DELETE CASCADE,
@@ -138,13 +143,13 @@ CREATE TABLE public.fleet_workshop_visits (
   updated_at      timestamptz NOT NULL DEFAULT now(),
   CHECK (until IS NULL OR until >= date)
 );
-CREATE INDEX idx_fleet_visits_vehicle ON public.fleet_workshop_visits (vehicle_id, date DESC);
-CREATE INDEX idx_fleet_visits_booked ON public.fleet_workshop_visits (date) WHERE status = 'booked';
+CREATE INDEX IF NOT EXISTS idx_fleet_visits_vehicle ON public.fleet_workshop_visits (vehicle_id, date DESC);
+CREATE INDEX IF NOT EXISTS idx_fleet_visits_booked ON public.fleet_workshop_visits (date) WHERE status = 'booked';
 
 -- ────────────────────────────────────────────────────────────
 -- 5. Inspections and drafts
 -- ────────────────────────────────────────────────────────────
-CREATE TABLE public.fleet_inspections (
+CREATE TABLE IF NOT EXISTS public.fleet_inspections (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   vehicle_id    uuid NOT NULL REFERENCES public.vehicles(id) ON DELETE CASCADE,
   type          text NOT NULL CHECK (type IN ('pre','post','weekly','monthly','workshop')),
@@ -166,10 +171,10 @@ CREATE TABLE public.fleet_inspections (
   created_at    timestamptz NOT NULL DEFAULT now(),
   updated_at    timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX idx_fleet_inspections_vehicle ON public.fleet_inspections (vehicle_id, date DESC);
+CREATE INDEX IF NOT EXISTS idx_fleet_inspections_vehicle ON public.fleet_inspections (vehicle_id, date DESC);
 
 -- A draft is kept per person and vehicle, so it can be finished on another device.
-CREATE TABLE public.fleet_inspection_drafts (
+CREATE TABLE IF NOT EXISTS public.fleet_inspection_drafts (
   user_id     uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   vehicle_id  uuid NOT NULL REFERENCES public.vehicles(id) ON DELETE CASCADE,
   data        jsonb NOT NULL,
@@ -180,7 +185,7 @@ CREATE TABLE public.fleet_inspection_drafts (
 -- ────────────────────────────────────────────────────────────
 -- 6. Odometer readings and time log
 -- ────────────────────────────────────────────────────────────
-CREATE TABLE public.fleet_odometer_readings (
+CREATE TABLE IF NOT EXISTS public.fleet_odometer_readings (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   vehicle_id  uuid NOT NULL REFERENCES public.vehicles(id) ON DELETE CASCADE,
   km          integer NOT NULL CHECK (km > 0),
@@ -192,11 +197,11 @@ CREATE TABLE public.fleet_odometer_readings (
   created_by  uuid REFERENCES public.users(id) ON DELETE SET NULL,
   created_at  timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX idx_fleet_odometer_vehicle ON public.fleet_odometer_readings (vehicle_id, date DESC);
+CREATE INDEX IF NOT EXISTS idx_fleet_odometer_vehicle ON public.fleet_odometer_readings (vehicle_id, date DESC);
 -- One reading per handover form (PR 5 saves handover mileage here).
-CREATE UNIQUE INDEX uq_fleet_odometer_source ON public.fleet_odometer_readings (source, source_id) WHERE source_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_fleet_odometer_source ON public.fleet_odometer_readings (source, source_id) WHERE source_id IS NOT NULL;
 
-CREATE TABLE public.fleet_time_logs (
+CREATE TABLE IF NOT EXISTS public.fleet_time_logs (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   date        date NOT NULL,
   week        date NOT NULL,             -- the Monday
@@ -207,12 +212,12 @@ CREATE TABLE public.fleet_time_logs (
   user_id     uuid REFERENCES public.users(id) ON DELETE SET NULL,
   created_at  timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX idx_fleet_time_logs_date ON public.fleet_time_logs (date);
+CREATE INDEX IF NOT EXISTS idx_fleet_time_logs_date ON public.fleet_time_logs (date);
 
 -- ────────────────────────────────────────────────────────────
 -- 7. Settings (one row) and tutorial progress
 -- ────────────────────────────────────────────────────────────
-CREATE TABLE public.fleet_settings (
+CREATE TABLE IF NOT EXISTS public.fleet_settings (
   id            text PRIMARY KEY DEFAULT 'global' CHECK (id = 'global'),
   days          smallint[] NOT NULL DEFAULT '{2,3,4}',   -- inspection weekdays, Mon = 1
   max_per_day   smallint NOT NULL DEFAULT 2,
@@ -224,7 +229,7 @@ CREATE TABLE public.fleet_settings (
   updated_at    timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE public.fleet_guide_progress (
+CREATE TABLE IF NOT EXISTS public.fleet_guide_progress (
   user_id   uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   step      text NOT NULL,
   done_at   timestamptz NOT NULL DEFAULT now(),
@@ -235,7 +240,7 @@ CREATE TABLE public.fleet_guide_progress (
 -- 8. Files (photos and PDFs) in the private fleet-files bucket
 --    id is a 32-character hex id; the import keeps the Fleet app's ids.
 -- ────────────────────────────────────────────────────────────
-CREATE TABLE public.fleet_files (
+CREATE TABLE IF NOT EXISTS public.fleet_files (
   id            text PRIMARY KEY CHECK (id ~ '^[0-9a-f]{32}$'),
   path          text NOT NULL UNIQUE,     -- object path in fleet-files
   content_type  text NOT NULL,
@@ -246,7 +251,7 @@ CREATE TABLE public.fleet_files (
   created_by    uuid REFERENCES public.users(id) ON DELETE SET NULL,
   created_at    timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX idx_fleet_files_owner ON public.fleet_files (owner_type, owner_id);
+CREATE INDEX IF NOT EXISTS idx_fleet_files_owner ON public.fleet_files (owner_type, owner_id);
 
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
@@ -261,18 +266,26 @@ ON CONFLICT (id) DO NOTHING;
 -- ────────────────────────────────────────────────────────────
 -- 9. updated_at
 -- ────────────────────────────────────────────────────────────
+DROP TRIGGER IF EXISTS fleet_providers_updated_at ON public.fleet_providers;
 CREATE TRIGGER fleet_providers_updated_at BEFORE UPDATE ON public.fleet_providers
   FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+DROP TRIGGER IF EXISTS fleet_vehicle_details_updated_at ON public.fleet_vehicle_details;
 CREATE TRIGGER fleet_vehicle_details_updated_at BEFORE UPDATE ON public.fleet_vehicle_details
   FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+DROP TRIGGER IF EXISTS fleet_workshop_visits_updated_at ON public.fleet_workshop_visits;
 CREATE TRIGGER fleet_workshop_visits_updated_at BEFORE UPDATE ON public.fleet_workshop_visits
   FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+DROP TRIGGER IF EXISTS fleet_inspections_updated_at ON public.fleet_inspections;
 CREATE TRIGGER fleet_inspections_updated_at BEFORE UPDATE ON public.fleet_inspections
   FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+DROP TRIGGER IF EXISTS fleet_inspection_drafts_updated_at ON public.fleet_inspection_drafts;
 CREATE TRIGGER fleet_inspection_drafts_updated_at BEFORE UPDATE ON public.fleet_inspection_drafts
   FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+DROP TRIGGER IF EXISTS fleet_settings_updated_at ON public.fleet_settings;
 CREATE TRIGGER fleet_settings_updated_at BEFORE UPDATE ON public.fleet_settings
   FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+COMMIT;
 
 -- ────────────────────────────────────────────────────────────
 -- Validation

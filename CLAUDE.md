@@ -259,7 +259,7 @@ Fleet is the FFSA Fleet app rebuilt in the Hub, under Bookings → Vehicles → 
 - **Rules don't change silently.** `src/lib/fleet/rules/` is SPEC section 6, ported line by line and checked against the reference app by `parity.test.ts`. If a rule looks wrong, ask Gideon; don't "fix" it.
 - **Phone first:** every Fleet screen works at 390 px wide with no sideways scrolling; one tap per checklist point.
 - **Field names:** the rules use the Fleet app's names (SPEC section 4); `src/lib/fleet/mapping.ts` is the only place that maps them to columns.
-- `vehicles-module/seed` is FFSA's real data (VINs, insurer details, workshop reports). It is **not committed** (it's in `vehicles-module/.gitignore` and was removed from the branch history): it lives only on Gideon's Mac. Never commit it, copy it anywhere public or put it in a migration. Without it, the Fleet tests that need it are skipped (see `vitest.config.ts`).
+- `vehicles-module/seed` is FFSA's real data (VINs, insurer details, workshop reports). It is **not committed** (it's in `vehicles-module/.gitignore` and was removed from the branch history): it lives only on Gideon's Mac, for the one-off import. Never commit it, copy it anywhere public or put it in a migration. Tests use the fake data set in `src/lib/fleet/testing/fixture` (same shape, ids, dates and km; every identifying value made up), so they run everywhere, CI included. Never copy real values into the fixture.
 
 ---
 

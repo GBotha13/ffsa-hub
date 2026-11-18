@@ -10,7 +10,7 @@ import { defaultChecklist } from "./content";
 import { seedFleetData } from "./testing/seed";
 import { buildReminder, todayTasks, vehicleAlerts } from "./rules";
 
-const SEED = path.resolve(__dirname, "../../../vehicles-module/seed");
+const SEED = path.resolve(__dirname, "testing/fixture"); // the fake data set, shaped like an export
 const read = (f: string) => JSON.parse(fs.readFileSync(path.join(SEED, f), "utf8"));
 const seed = {
   fleet: read("db/fleet.json"),

@@ -443,7 +443,7 @@
         "safetyFirst": "",
         "howToCheck": [
           "Look for the insurance card or sticker with the policy number, the claims number and the roadside assistance number.",
-          "Check the numbers are current. FFSA’s vehicle insurance is through Mooirivier."
+          "Check the numbers are current."
         ],
         "markOk": "Card is there and the numbers are current.",
         "markMonitor": "Card is old or hard to read.",
@@ -3974,13 +3974,13 @@
         "safetyFirst": "",
         "howToCheck": [
           "Check the card is in the cubby hole or on the sun visor.",
-          "Check it has the vehicle coordinator’s number and the insurer’s claims and roadside-assistance numbers (Mooirivier). The insurance and registration papers themselves stay in the legal office.",
+          "Check it has the vehicle coordinator’s number and the insurer’s claims and roadside-assistance numbers. The insurance and registration papers themselves stay in the legal office.",
           "Check the numbers are current."
         ],
         "markOk": "There and current.",
         "markMonitor": "Some numbers are old.",
         "markFixNow": "Missing.",
-        "looksLike": "A card in the cubby hole or on the sun visor with: the FFSA vehicle coordinator’s number, the insurance and roadside-assistance numbers (Mooirivier), the tracking company’s number, and emergency numbers (112 from a cellphone, 10111 for police). The registration papers and insurance documents themselves are kept in the legal office.",
+        "looksLike": "A card in the cubby hole or on the sun visor with: the FFSA vehicle coordinator’s number, the insurance and roadside-assistance numbers, the tracking company’s number, and emergency numbers (112 from a cellphone, 10111 for police). The registration papers and insurance documents themselves are kept in the legal office.",
         "whatGoesWrong": [
           {
             "problem": "Missing card",

@@ -1,11 +1,14 @@
-// Test helper: the FFSA Fleet export in vehicles-module/seed/db as FleetData.
-// Used by tests only. The seed is FFSA's real data: never copy it anywhere public.
+// Test helper: Fleet's fake data set (./fixture) as FleetData. It has the shape, ids,
+// dates and km of the old Fleet app's export, with every identifying or private value
+// (VINs, engine numbers, insurer, report and invoice numbers, contacts, notes, files)
+// replaced, so it can live in the repo and the Fleet tests run in CI. The real export
+// (vehicles-module/seed) is never committed and isn't used by tests.
 
 import fs from "node:fs";
 import path from "node:path";
 import type { Checklist, FleetData, FleetVehicle, ISODate, Schedule, Trip, WorkshopVisit } from "../rules/types";
 
-const SEED = path.resolve(__dirname, "../../../../vehicles-module/seed/db");
+const SEED = path.resolve(__dirname, "fixture/db");
 const read = <T>(name: string): Record<string, T> => JSON.parse(fs.readFileSync(path.join(SEED, name + ".json"), "utf8"));
 const withIds = <T>(m: Record<string, T>) => Object.entries(m).map(([id, d]) => Object.assign({ id }, d));
 
