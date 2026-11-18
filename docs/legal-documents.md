@@ -5,7 +5,7 @@ officer's own papers: what we hold, what it says, when it runs out, and what
 is being applied for. Built for the legal officer (Coreen). Reminders by email
 and on the Hub dashboard.
 
-Status: **steps 1 and 2 written, not applied.** Migrations 370–372 are drafts.
+Status: **steps 1–3 written, not applied.** Migrations 370–372 are drafts.
 Do not run them until Jack says so. Until they are applied the page sends
 everyone to the dashboard and the menu entry stays hidden.
 
@@ -77,10 +77,24 @@ A short, named access list (`legal_access`), and nothing else.
    adds the row as the user, then signs a one-time upload, and the browser
    sends the file straight to storage (no 4.5 MB serverless limit).
    Routes under `/api/legal/*`; rules in `src/lib/legal/status.ts` (tested).
-3. **Scanning in** — upload many scans at once into a folder; text is
-   extracted and fields suggested; Coreen confirms or corrects them.
-   How the reading is done (Claude in the Hub, or in a session with
-   Gideon) is decided when the scans exist.
+3. **Scanning in** — done. *Scan in* (masthead) takes many scans into a
+   folder; each is read as it lands, one at a time. Claude Opus 5.5 reads a
+   copy (same set-up as the Slack receipt reader) and returns the full
+   text (first 8 pages), a short summary, *things to watch* taken from
+   the paper, and suggested details (type, title, holder, issuer,
+   reference number, issue and expiry dates), each marked sure or not.
+   All of it is stored on the file as **unconfirmed** suggestions.
+   The scan review drawer pre-ticks only what the reader was sure of,
+   lets the person correct any value, suggests which document it belongs
+   to (same reference number → same type → same title; a later expiry
+   than the one on file means a renewal, so a new document), and writes
+   nothing until **Apply**. The summary and things to watch can be added
+   to the document's notes, marked as read by Claude.
+   Limits: PDFs over 22 MB are kept but not read; iPhone HEIC photos
+   can't be read here (scan to PDF or JPG). The installed SDK (0.98)
+   has no server-side refusal fallback, so a declined scan says so and
+   is filled in by hand. Routes: `/api/legal/files/[id]/read` and
+   `/apply`. Rules: `src/lib/legal/reading.ts` (tested).
 4. **Reminders** — 07:00 Johannesburg cron. Email at 90, 60, 30 and 7 days
    and on the day, then weekly while overdue; one "needs you" band on the
    dashboard. A send log claims each reminder once.

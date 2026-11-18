@@ -24,12 +24,14 @@ export function FolderPanel({
   documents,
   files,
   onCreated,
+  onReviewFile,
 }: {
   /** null = a new folder. */
   folder: FolderRow | null;
   documents: DocRow[];
   files: FileRow[];
   onCreated: (id: string) => void;
+  onReviewFile: (fileId: string) => void;
 }) {
   const router = useRouter();
   const [name, setName] = useState(folder?.name ?? "");
@@ -95,9 +97,9 @@ export function FolderPanel({
       {folder && (
         <DrawerSection title="Scans to match" meta={unmatched.length ? `${unmatched.length}` : undefined}>
           <p className="mb-3 text-[13px] text-[color:var(--text-secondary)]">
-            Scan papers into the folder first, then match each one to its document.
+            Scan papers into the folder, then review each one: check what was read and file it under its document.
           </p>
-          <FileList files={unmatched} matchTo={folderDocs} onChanged={() => router.refresh()} />
+          <FileList files={unmatched} matchTo={folderDocs} onChanged={() => router.refresh()} onReview={onReviewFile} />
           <div className="mt-3">
             <Uploader folderId={folder.id} />
           </div>

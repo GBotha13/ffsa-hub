@@ -97,6 +97,7 @@ export function DocumentPanel({
   onCreated,
   onOpenApplication,
   onStartApplication,
+  onReviewFile,
 }: {
   /** null = a new document. */
   doc: DocRow | null;
@@ -110,6 +111,7 @@ export function DocumentPanel({
   onCreated: (id: string) => void;
   onOpenApplication: (id: string) => void;
   onStartApplication: (doc: DocRow) => void;
+  onReviewFile: (fileId: string) => void;
 }) {
   const router = useRouter();
   const [form, setForm] = useState<Form>(() => toForm(doc, defaultFolderId));
@@ -279,7 +281,7 @@ export function DocumentPanel({
       {doc && (
         <>
           <DrawerSection title="Scans and files" meta={docFiles.length ? `${docFiles.length}` : undefined}>
-            <FileList files={docFiles} onChanged={() => router.refresh()} />
+            <FileList files={docFiles} onChanged={() => router.refresh()} onReview={onReviewFile} />
             <div className="mt-3">
               <Uploader folderId={doc.folder_id} documentId={doc.id} />
             </div>
@@ -329,11 +331,14 @@ export function FileList({
   files,
   onChanged,
   matchTo,
+  onReview,
 }: {
   files: FileRow[];
   onChanged: () => void;
   /** When given, each file gets a "match to document" picker. */
   matchTo?: DocRow[];
+  /** When given, each file gets a button to its scan review. */
+  onReview?: (fileId: string) => void;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -384,8 +389,18 @@ export function FileList({
                 <span className="block truncate text-[14px] font-semibold">{f.original_name || "Scan"}</span>
                 <span className="block font-mono text-[10px] tracking-[0.06em] text-[color:var(--text-tertiary)]">
                   {f.mime_type === "application/pdf" ? "PDF" : "Photo"} · {formatBytes(f.size_bytes)} · added {formatDate(f.created_at.slice(0, 10))}
+                  {f.extraction_status === "done" ? " · read" : f.extraction_status === "failed" ? " · not read" : f.extraction_status === "pending" ? " · reading" : ""}
                 </span>
               </button>
+              {onReview && (
+                <button
+                  type="button"
+                  onClick={() => onReview(f.id)}
+                  className="inline-flex min-h-11 shrink-0 items-center border border-ink px-3 text-[9.5px] hover:bg-bone"
+                >
+                  Review
+                </button>
+              )}
               <button
                 type="button"
                 disabled={busy === f.id}
@@ -432,7 +447,18 @@ const ACCEPT = "application/pdf,image/jpeg,image/png,image/webp,image/heic";
  * The API adds the row and signs a one-time upload; the browser sends the
  * file straight to storage; a failed upload removes the row again.
  */
-export function Uploader({ folderId, documentId }: { folderId: string; documentId?: string | null }) {
+export function Uploader({
+  folderId,
+  documentId,
+  onUploaded,
+  label = "Add scans",
+}: {
+  folderId: string;
+  documentId?: string | null;
+  /** Called with the files that landed, e.g. to read them next. */
+  onUploaded?: (items: Array<{ id: string; name: string }>) => void;
+  label?: string;
+}) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [progress, setProgress] = useState<string | null>(null);
@@ -442,6 +468,7 @@ export function Uploader({ folderId, documentId }: { folderId: string; documentI
   async function upload(list: FileList | null) {
     if (!list?.length) return;
     const failed: string[] = [];
+    const landed: Array<{ id: string; name: string }> = [];
     const all = Array.from(list);
     for (const [i, file] of all.entries()) {
       setProgress(`Uploading ${i + 1} of ${all.length}…`);
@@ -457,6 +484,7 @@ export function Uploader({ folderId, documentId }: { folderId: string; documentI
           .from(r.upload.bucket)
           .uploadToSignedUrl(r.upload.path, r.upload.token, file, { contentType: file.type });
         if (error) throw new Error(error.message);
+        landed.push({ id: fileId, name: file.name });
       } catch (e) {
         failed.push(`${file.name}: ${(e as Error).message}`);
         if (fileId) await callApi("DELETE", `/api/legal/files/${fileId}`).catch(() => undefined);
@@ -466,6 +494,7 @@ export function Uploader({ folderId, documentId }: { folderId: string; documentI
     setErrors(failed);
     if (input.current) input.current.value = "";
     router.refresh();
+    if (landed.length) onUploaded?.(landed);
   }
 
   return (
@@ -480,9 +509,11 @@ export function Uploader({ folderId, documentId }: { folderId: string; documentI
         aria-label="Choose scans to upload"
       />
       <Button tone="outline" onClick={() => input.current?.click()} disabled={!!progress}>
-        {progress ?? "Add scans"}
+        {progress ?? label}
       </Button>
-      <p className="text-[12px] text-[color:var(--text-tertiary)]">PDF or photos, up to 50 MB each.</p>
+      <p className="text-[12px] text-[color:var(--text-tertiary)]">
+        PDF or photos, up to 50 MB each. PDFs over 22 MB are kept but can&apos;t be read; scan long papers in parts.
+      </p>
       {errors.map((e) => (
         <ErrorLine key={e} message={e} />
       ))}

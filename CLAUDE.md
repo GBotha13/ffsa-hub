@@ -269,7 +269,10 @@ Migrations 370–372 (drafts: do not apply until Jack says so).
 - **Files** go in the private `legal-documents` bucket at `<folder id>/<file id>.<ext>`
   (CHECK in 370). Read the `legal_files` row as the user first, then sign the URL.
 - **What is read from a scan is a suggestion** (`extracted_fields`, each with
-  `confirmed`). Nothing is copied onto a document until a person confirms it.
+  `confirmed`). Nothing is copied onto a document until a person ticks it and
+  presses Apply (`/api/legal/files/[id]/apply`). Claude reads a copy of the scan
+  only after the file row was read and marked pending *as the user*; never send
+  a scan for reading through the service role alone.
 - **The event log stores column names, never values**, so it can't become a second
   copy of reference numbers.
 - **No Google Calendar** for now. Reminders are email and the dashboard.

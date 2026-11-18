@@ -23,6 +23,7 @@ export type FolderRow = {
 
 export type TypeRow = {
   id: string;
+  key: string;
   name: string;
   category: "organisation" | "personal";
   issuer: string | null;
@@ -54,6 +55,9 @@ export type FileRow = {
   mime_type: string;
   size_bytes: number;
   created_at: string;
+  extraction_status: "none" | "pending" | "done" | "failed";
+  /** The stored reading (see src/lib/legal/reading.ts StoredReading). */
+  extracted_fields: { document_kind?: string; error?: string } & Record<string, unknown>;
 };
 
 export type StepRow = {

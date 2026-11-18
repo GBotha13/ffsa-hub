@@ -40,6 +40,7 @@ import {
 import { DocumentPanel } from "./document-drawer";
 import { ApplicationPanel, type NewApplicationSeed } from "./application-drawer";
 import { FolderPanel } from "./folder-drawer";
+import { ScanInPanel, ScanReviewPanel } from "./scan-review";
 
 type Tab = "attention" | "documents" | "applications" | "folders";
 
@@ -47,6 +48,8 @@ type Open =
   | { kind: "document"; id: string | null; folderId?: string }
   | { kind: "application"; id: string | null; seed?: NewApplicationSeed }
   | { kind: "folder"; id: string | null }
+  | { kind: "scan"; id: string }
+  | { kind: "scan-in" }
   | null;
 
 type DocView = DocRow & DocumentStateResult & { folderName: string };
@@ -121,10 +124,14 @@ export function DocumentsView({
   const openDoc = open?.kind === "document" && open.id ? documents.find((d) => d.id === open.id) ?? null : null;
   const openApp = open?.kind === "application" && open.id ? applications.find((a) => a.id === open.id) ?? null : null;
   const openFolder = open?.kind === "folder" && open.id ? folders.find((f) => f.id === open.id) ?? null : null;
+  const openFile = open?.kind === "scan" ? files.find((f) => f.id === open.id) ?? null : null;
+  const reviewFile = (id: string) => setOpen({ kind: "scan", id });
   const drawerLabel =
     open?.kind === "document" ? (open.id ? "DOCUMENT" : "NEW DOCUMENT")
     : open?.kind === "application" ? (open.id ? "APPLICATION" : "NEW APPLICATION")
     : open?.kind === "folder" ? (open.id ? "FOLDER" : "NEW FOLDER")
+    : open?.kind === "scan" ? "SCAN"
+    : open?.kind === "scan-in" ? "SCAN IN"
     : "";
 
   const startApplication = (doc: DocRow) =>
@@ -143,6 +150,7 @@ export function DocumentsView({
           <>
             <MastheadButton tone="outline" onClick={() => setOpen({ kind: "folder", id: null })}>New folder</MastheadButton>
             <MastheadButton tone="outline" onClick={() => setOpen({ kind: "application", id: null })}>New application</MastheadButton>
+            <MastheadButton tone="outline" onClick={() => setOpen({ kind: "scan-in" })}>Scan in</MastheadButton>
             <MastheadButton onClick={() => setOpen({ kind: "document", id: null })}>Add document</MastheadButton>
           </>
         }
@@ -204,19 +212,24 @@ export function DocumentsView({
               <div>
                 <SectionBar title="Scans to match" meta={`${unmatched.length}`} />
                 <ul>
-                  {Array.from(new Set(unmatched.map((f) => f.folder_id))).map((fid) => {
-                    const n = unmatched.filter((f) => f.folder_id === fid).length;
-                    return (
-                      <li key={fid}>
-                        <RowButton onClick={() => setOpen({ kind: "folder", id: fid })}>
-                          <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{folderName.get(fid)}</span>
-                          <span className="font-mono text-[11px] tracking-[0.06em] text-[color:var(--text-secondary)]">
-                            {n} {n === 1 ? "scan" : "scans"} to match
+                  {unmatched.map((f) => (
+                    <li key={f.id}>
+                      <RowButton onClick={() => reviewFile(f.id)}>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[15px] font-semibold">
+                            {f.extracted_fields?.document_kind || f.original_name || "Scan"}
                           </span>
-                        </RowButton>
-                      </li>
-                    );
-                  })}
+                          <span className="block truncate font-mono text-[10px] tracking-[0.06em] text-[color:var(--text-tertiary)]">
+                            {folderName.get(f.folder_id)}
+                            {f.extracted_fields?.document_kind && f.original_name ? ` · ${f.original_name}` : ""}
+                          </span>
+                        </span>
+                        <StatusPill tone={f.extraction_status === "failed" ? "bad" : f.extraction_status === "done" ? "warn" : "quiet"}>
+                          {f.extraction_status === "done" ? "Review" : f.extraction_status === "failed" ? "Not read" : f.extraction_status === "pending" ? "Reading…" : "Not read yet"}
+                        </StatusPill>
+                      </RowButton>
+                    </li>
+                  ))}
                 </ul>
               </div>
             )}
@@ -311,6 +324,7 @@ export function DocumentsView({
             onCreated={(id) => setOpen({ kind: "document", id })}
             onOpenApplication={(id) => setOpen({ kind: "application", id })}
             onStartApplication={startApplication}
+            onReviewFile={reviewFile}
           />
         )}
         {open?.kind === "application" && (
@@ -333,7 +347,24 @@ export function DocumentsView({
             documents={documents}
             files={files}
             onCreated={(id) => setOpen({ kind: "folder", id })}
+            onReviewFile={reviewFile}
           />
+        )}
+        {open?.kind === "scan" && openFile && (
+          <ScanReviewPanel
+            key={openFile.id}
+            file={openFile}
+            folders={folders}
+            types={types}
+            documents={documents}
+            onApplied={(id) => setOpen({ kind: "document", id })}
+          />
+        )}
+        {open?.kind === "scan" && !openFile && (
+          <p className="px-6 py-6 text-[14px] text-[color:var(--text-secondary)]">Loading the scan…</p>
+        )}
+        {open?.kind === "scan-in" && (
+          <ScanInPanel folders={folders} defaultFolderId={defaultFolderId} onReview={reviewFile} />
         )}
       </Drawer>
     </div>
