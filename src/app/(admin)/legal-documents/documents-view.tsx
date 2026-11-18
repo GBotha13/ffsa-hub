@@ -236,6 +236,16 @@ export function DocumentsView({
           </div>
         )}
 
+        {tab === "attention" && (
+          <p className="px-5 pt-6 text-[13px] text-[color:var(--text-secondary)] md:px-0">
+            The owner gets an email at 07:00 when something hits 90, 60, 30 or 7 days, on the day, and weekly after;
+            on Mondays, everything still open.{" "}
+            <a href="/api/legal/reminder-preview" target="_blank" rel="noreferrer" className="font-semibold text-ink underline">
+              Preview today&apos;s email
+            </a>
+          </p>
+        )}
+
         {tab === "documents" && (
           <div>
             <SectionBar

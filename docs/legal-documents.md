@@ -5,7 +5,7 @@ officer's own papers: what we hold, what it says, when it runs out, and what
 is being applied for. Built for the legal officer (Coreen). Reminders by email
 and on the Hub dashboard.
 
-Status: **steps 1–3 written, not applied.** Migrations 370–372 are drafts.
+Status: **all four steps written, not applied.** Migrations 370–373 are drafts.
 Do not run them until Jack says so. Until they are applied the page sends
 everyone to the dashboard and the menu entry stays hidden.
 
@@ -95,9 +95,25 @@ A short, named access list (`legal_access`), and nothing else.
    has no server-side refusal fallback, so a declined scan says so and
    is filled in by hand. Routes: `/api/legal/files/[id]/read` and
    `/apply`. Rules: `src/lib/legal/reading.ts` (tested).
-4. **Reminders** — 07:00 Johannesburg cron. Email at 90, 60, 30 and 7 days
-   and on the day, then weekly while overdue; one "needs you" band on the
-   dashboard. A send log claims each reminder once.
+4. **Reminders** — done. `/api/cron/legal-reminders`, 05:00 UTC (07:00
+   Johannesburg), emails the **owner** only (not reviewers or helpers):
+   - documents at 90, 60, 30 and 7 days before expiry and on the day,
+     only the milestones inside the document's own renewal window (7 days
+     always counts); once a renewal is under way only 7 and 0; after
+     expiry, every 7 days;
+   - applications at 14, 7 and 1 days before lodge-by and on the day,
+     weekly while late, and weekly once past the expected date;
+   - on Mondays, everything still open, even without a milestone;
+   - nothing on a day with nothing to say; archived folders are quiet.
+   Titles and dates only — no reference numbers, holders or notes.
+   Sends only on production (and not with `LEGAL_REMINDER_DISABLED=1`);
+   elsewhere it reports what it would send. The day is claimed in
+   `legal_reminder_sends` (migration 373) before sending.
+   **Preview:** Needs attention → *Preview today's email*
+   (`/api/legal/reminder-preview?date=YYYY-MM-DD` to try another day).
+   **Dashboard:** a *Legal papers* card for people on the access list —
+   not a band, because the dashboard's one band is staff approvals.
+   Rules: `src/lib/legal/reminders.ts` (tested).
 
 Not now: Google Calendar; helpers chosen by Coreen; sharing outside the Hub.
 

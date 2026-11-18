@@ -255,12 +255,14 @@ Supabase runs in the cloud (no local Postgres). Migrations are applied via the S
 
 FFSA's legal and compliance papers plus the legal officer's own papers, with
 expiry tracking, applications and reminders. Plan: `docs/legal-documents.md`.
-Migrations 370–372 (drafts: do not apply until Jack says so).
+Migrations 370–373 (drafts: do not apply until Jack says so).
 
 - **The wall is a named list, not a role.** Only people on `legal_access` get in.
   Never add `is_admin()`, `has_permission()` or a role to a `legal_*` policy, and
   never read `legal_*` tables with `createAdminClient()` for a page — the legal
   officer is a super admin, so a role rule would open her papers to every admin.
+  The one service-role reader is the 07:00 cron (`/api/cron/legal-reminders`),
+  which emails titles and dates to the owner only.
 - **The reviewer rows (Gideon, Jack) are temporary.** Remove them before go-live.
 - **The page lives at `/legal-documents`, never under `/legal/`** — `/legal` is a public
   route in `src/middleware.ts` (the privacy page), so anything below it skips the
@@ -275,7 +277,9 @@ Migrations 370–372 (drafts: do not apply until Jack says so).
   a scan for reading through the service role alone.
 - **The event log stores column names, never values**, so it can't become a second
   copy of reference numbers.
-- **No Google Calendar** for now. Reminders are email and the dashboard.
+- **No Google Calendar** for now. Reminders are the 07:00 email and the dashboard
+  card; the dashboard's one yellow band stays staff approvals. Reminder rules live in
+  `src/lib/legal/reminders.ts` and are shared by the email, its preview and the card.
 
 ---
 
