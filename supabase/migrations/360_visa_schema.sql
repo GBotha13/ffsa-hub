@@ -14,14 +14,19 @@
 -- 361; draft document types are seeded in 362. Letter templates, issued
 -- letters and FFSA's standing attachments come in a later step.
 --
+-- One transaction: it applies whole or not at all.
 -- Additive only: new tables, indexes and triggers. No existing table or
 -- function changes. Idempotent (IF NOT EXISTS / DROP TRIGGER IF EXISTS).
 --
 -- Personal data: passport numbers are NEVER stored here. They stay on
--- public.people and are read from there. Document files live in the
+-- public.users (and household_members), whose RLS stays "own row +
+-- admins" (002). The visa API reads them for staff only after a scoped
+-- visas.* check, never through a broad users select. Document files live in the
 -- private 'visa-documents' bucket under '<case id>/<document id>.<ext>',
 -- enforced by a CHECK below, so no file name carries a person's name.
 -- ============================================================
+
+BEGIN;
 
 -- ────────────────────────────────────────────────────────────
 -- 1. COUNTRY RULES — kept by legal (visas.manage)
@@ -129,7 +134,9 @@ CREATE INDEX IF NOT EXISTS idx_visa_cases_lodge_by ON public.visa_cases (lodge_b
 -- billing_course_id NULL = the whole program (same convention as
 -- application_segment_choices, 221). The dates are a snapshot taken when
 -- the stay was last worked out, so a later change to the school's dates
--- shows up as a difference. School leaders who hold visas.follow_up for
+-- shows up as a difference. start/end/arrival come from billing_courses;
+-- departure_date lives only here, on the case (billing_courses is the
+-- shared course calendar and gets no departure column). School leaders who hold visas.follow_up for
 -- one of these programs follow the case up (see 361).
 CREATE TABLE IF NOT EXISTS public.visa_case_schools (
   id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -254,3 +261,5 @@ CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.visa_document_types
 DROP TRIGGER IF EXISTS set_updated_at ON public.visa_cases;
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.visa_cases
   FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+COMMIT;

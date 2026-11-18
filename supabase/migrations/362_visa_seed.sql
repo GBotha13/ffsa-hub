@@ -14,9 +14,12 @@
 -- No personal data. Country rules are NOT seeded: legal enters them
 -- (exempt days, embassy processing times) so nothing here guesses.
 --
+-- One transaction: it applies whole or not at all.
 -- Additive only. Idempotent: ON CONFLICT (code) DO NOTHING, so a re-run
 -- never overwrites legal's later edits.
 -- ============================================================
+
+BEGIN;
 
 INSERT INTO public.visa_document_types
   (code, label, guidance, needed_up_to_90, needed_over_90, is_conditional,
@@ -65,3 +68,5 @@ VALUES
    'An official or certified copy.',
    false, true, false, false, true, 4, NULL, 140)
 ON CONFLICT (code) DO NOTHING;
+
+COMMIT;

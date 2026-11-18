@@ -7,7 +7,7 @@
 type Client = any;
 
 // Columns safe to list. No passport numbers live in these tables; the
-// student's passport details stay on public.people.
+// student's passport details stay on public.users (read after a scoped visas.* check).
 const CASE_COLUMNS =
   "id, user_id, visa_type, status, waiting_on, stay_from, stay_to, stay_override_reason, " +
   "lodge_by, start_documents_by, is_standard, lodged_on, lodged_where, embassy_reference, " +
