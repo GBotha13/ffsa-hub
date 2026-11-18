@@ -356,6 +356,17 @@ export async function isLegalOwner(supabase: Client) {
 }
 
 // ────────────────────────────────────────────────────────────
+// HELPER BACKGROUND TASKS (migration 375)
+// ────────────────────────────────────────────────────────────
+
+export const TASK_SELECT =
+  "id, title, request, status, progress, result, draft_ids, error, attempts, created_by, started_at, heartbeat_at, finished_at, created_at";
+
+export async function getLegalHelperTasks(supabase: Client, limit = 30) {
+  return supabase.from("legal_helper_tasks").select(TASK_SELECT).order("created_at", { ascending: false }).limit(limit);
+}
+
+// ────────────────────────────────────────────────────────────
 // EVENT LOG
 // ────────────────────────────────────────────────────────────
 

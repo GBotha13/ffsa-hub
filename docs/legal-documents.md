@@ -5,7 +5,7 @@ officer's own papers: what we hold, what it says, when it runs out, and what
 is being applied for. Built for the legal officer (Coreen). Reminders by email
 and on the Hub dashboard.
 
-Status: **steps 1–5 written, not applied.** Migrations 370–374 are drafts.
+Status: **steps 1–6 written, not applied.** Migrations 370–375 are drafts.
 Do not run them until Jack says so. Until they are applied the page sends
 everyone to the dashboard and the menu entry stays hidden.
 
@@ -150,6 +150,55 @@ A short, named access list (`legal_access`), and nothing else.
    - Not yet: writing into an official PDF's own form fields. The approved
      PDF is FFSA's completed answer sheet; copying it onto the issuer's
      form or portal is still done by hand.
+
+6. **Voice and background work** — done (night of 18 Nov 2026, not pushed).
+   Migration 375.
+   - **Talk** (microphone) in the helper: speak a question; it's sent when
+     you stop. **Reading aloud** reads answers out, kept short and spoken
+     naturally (dates in words, no symbols or ids; long answers say "the
+     rest is on the screen"). **Hands-free** listens again after each
+     answer; "that's all" ends it. Uses the browser's own speech: Chrome
+     and Edge send the audio to Google to turn into text, Safari to Apple;
+     the Hub never receives or stores audio. Reading aloud runs on the
+     device. Firefox can't listen (typing still works). South African
+     English (en-ZA) is asked for, British English as fallback.
+   - **Background tasks:** the helper hands bigger jobs ("prepare the PBO
+     renewal pack", several forms, many scans) to the background with its
+     `start_background_task` tool, or the person presses *Work on this in
+     the background* / ends a spoken request with "in the background". A
+     task runs in its own request after the reply (`next/server` after()),
+     as the person who asked, for up to ~4½ minutes at high effort, saves
+     drafts as it goes, and ends with a short report. Closing the page
+     doesn't stop it. Progress shows live in *Working on* (helper) and
+     *Helper tasks* (Drafts tab); **Stop** cancels between steps; a task
+     with no heartbeat for 6 minutes shows as stopped and can be run again.
+     With reading aloud on, the page says when a task finishes.
+   - **Spending guard:** at most 2 tasks working at once and 15 a day per
+     person (`task-state.ts`). The chat itself has no daily cap yet.
+   - A task can't start more tasks. Tasks are stored (they must be, to run
+     unattended) behind the same wall: whole-module members only.
+
+Ideas for the next round (not built — for Gideon to decide):
+- **FFSA facts sheet:** one page of confirmed facts (registered name,
+  NPO/PBO/tax/CIPC numbers, addresses, signatories, year end) that the
+  helper uses first for every form. The biggest gain in accuracy: today it
+  pieces these together from scans each time.
+- **Morning briefing:** opening Documents (or a dashboard button) reads a
+  30-second spoken brief: what's due, what's waiting for approval, what the
+  background tasks finished. Built from the reminder rules; no AI needed.
+- **Renewal plans:** the helper proposes an application with its checklist
+  (steps and dates) as a draft; one tap on approval creates it.
+- **Filling the issuer's own PDF form:** when SARS/CIPC/DSD forms are
+  fillable PDFs, write the approved answers into the form itself. Needs a
+  new library (pdf-lib), so needs a yes first.
+- **A natural voice:** a cloud text-to-speech voice instead of the
+  device's. Better sound, but a new service, key and cost.
+- **Talk from anywhere:** a microphone on the dashboard card / phone tab
+  bar that opens the helper hands-free.
+- **Tell me when it's done:** an email or Slack note when a background
+  task finishes. Sends messages, so only with Gideon's OK.
+- **A daily cap on the chat** (like the Hub assistant's), with token
+  counts stored per person.
 
 Not now: Google Calendar; helpers chosen by Coreen; sharing outside the Hub.
 

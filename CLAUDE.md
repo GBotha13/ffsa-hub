@@ -255,7 +255,7 @@ Supabase runs in the cloud (no local Postgres). Migrations are applied via the S
 
 FFSA's legal and compliance papers plus the legal officer's own papers, with
 expiry tracking, applications and reminders. Plan: `docs/legal-documents.md`.
-Migrations 370–374 (drafts: do not apply until Jack says so).
+Migrations 370–375 (drafts: do not apply until Jack says so).
 
 - **The wall is a named list, not a role.** Only people on `legal_access` get in.
   Never add `is_admin()`, `has_permission()` or a role to a `legal_*` policy, and
@@ -288,6 +288,11 @@ Migrations 370–374 (drafts: do not apply until Jack says so).
   sends, deletes or edits a document. Only the owner approves, in the Drafts tab; the
   trigger in migration 374 enforces it — don't move that rule into the app. Don't log
   the helper's conversation to `ai_assistant_queries` (admins can read it).
+- **Background tasks run as the person who asked** (`after()` in their own request,
+  their Supabase client) — never with the service role. A task can't start tasks.
+  Keep the spending guard (`task-state.ts`: 2 working, 15 a day) unless Gideon says.
+- **Voice uses the browser only** (Web Speech API). Adding a cloud speech service is a
+  new provider, key and cost: ask Gideon first.
 - **No Google Calendar** for now. Reminders are the 07:00 email and the dashboard
   card; the dashboard's one yellow band stays staff approvals. Reminder rules live in
   `src/lib/legal/reminders.ts` and are shared by the email, its preview and the card.

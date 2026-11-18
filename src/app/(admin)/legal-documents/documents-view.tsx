@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Drawer,
   Kpi,
@@ -45,7 +45,10 @@ import { DocumentPanel } from "./document-drawer";
 import { ApplicationPanel, type NewApplicationSeed } from "./application-drawer";
 import { FolderPanel } from "./folder-drawer";
 import { ScanInPanel, ScanReviewPanel } from "./scan-review";
-import { DRAFT_STATUS, DraftPanel, HelperPanel, type DraftRow, type HelperMessage } from "./drafts";
+import { DRAFT_STATUS, DraftPanel, type DraftRow } from "./drafts";
+import { HelperPanel, TaskList, type HelperMessage } from "./helper-panel";
+import { useSpeaker } from "./use-voice";
+import type { TaskRow } from "@/lib/legal/helper/task-state";
 
 type Tab = "attention" | "documents" | "applications" | "drafts" | "folders";
 
@@ -78,6 +81,7 @@ export function DocumentsView({
   applications,
   people,
   drafts,
+  tasks,
   isOwner,
   initialDraftId,
   today,
@@ -89,6 +93,7 @@ export function DocumentsView({
   applications: AppRow[];
   people: Person[];
   drafts: DraftRow[];
+  tasks: TaskRow[];
   isOwner: boolean;
   initialDraftId: string | null;
   today: string;
@@ -99,6 +104,27 @@ export function DocumentsView({
   const [open, setOpen] = useState<Open>(initialDraftId ? { kind: "draft", id: initialDraftId } : null);
   // The helper chat lives here so closing the drawer doesn't lose it.
   const [helperMessages, setHelperMessages] = useState<HelperMessage[]>([]);
+  // Voice lives here too, so a finished background task can be announced
+  // even with the helper closed.
+  const speaker = useSpeaker();
+  const [readAloud, setReadAloud] = useState(false);
+  const seenDone = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const done = tasks.filter((t) => t.status === "done" || t.status === "failed");
+    if (seenDone.current === null) {
+      seenDone.current = new Set(done.map((t) => t.id)); // don't announce what was already finished
+      return;
+    }
+    const fresh = done.filter((t) => !seenDone.current!.has(t.id));
+    fresh.forEach((t) => seenDone.current!.add(t.id));
+    if (fresh.length && readAloud) {
+      speaker.speak(
+        fresh
+          .map((t) => (t.status === "done" ? `${t.title} is done. It's waiting in Drafts.` : `${t.title} didn't finish.`))
+          .join(" ")
+      );
+    }
+  }, [tasks, readAloud, speaker]);
 
   const folderName = useMemo(() => new Map(folders.map((f) => [f.id, f.name])), [folders]);
   const liveFolders = folders.filter((f) => !f.archived_at);
@@ -327,6 +353,15 @@ export function DocumentsView({
           </div>
         )}
 
+        {tab === "drafts" && tasks.length > 0 && (
+          <div className="mb-6">
+            <SectionBar title="Helper tasks" meta={`${tasks.filter((t) => t.status === "running" || t.status === "queued").length} working`} />
+            <div className="px-5 md:px-0">
+              <TaskList tasks={tasks} onOpenDraft={showDraft} />
+            </div>
+          </div>
+        )}
+
         {tab === "drafts" && (
           <div>
             <SectionBar title="Drafts" meta={`${waitingDrafts} waiting for approval`} />
@@ -452,7 +487,15 @@ export function DocumentsView({
           <p className="px-6 py-6 text-[14px] text-[color:var(--text-secondary)]">That draft isn&apos;t here any more.</p>
         )}
         {open?.kind === "helper" && (
-          <HelperPanel messages={helperMessages} setMessages={setHelperMessages} onOpenDraft={showDraft} />
+          <HelperPanel
+            messages={helperMessages}
+            setMessages={setHelperMessages}
+            tasks={tasks}
+            onOpenDraft={showDraft}
+            speaker={speaker}
+            readAloud={readAloud}
+            setReadAloud={setReadAloud}
+          />
         )}
         {open?.kind === "scan-in" && (
           <ScanInPanel folders={folders} defaultFolderId={defaultFolderId} onReview={reviewFile} />

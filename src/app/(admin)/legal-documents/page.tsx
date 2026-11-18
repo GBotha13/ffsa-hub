@@ -10,12 +10,14 @@ import {
   getLegalFiles,
   getLegalDrafts,
   getLegalFolders,
+  getLegalHelperTasks,
   hasLegalAccess,
   isLegalOwner,
 } from "@/services/legal-documents";
 import { DocumentsView } from "./documents-view";
 import type { AppRow, DocRow, FileRow, FolderRow, Person, TypeRow } from "./legal-ui";
 import type { DraftRow } from "./drafts";
+import type { TaskRow } from "@/lib/legal/helper/task-state";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +42,7 @@ export default async function LegalDocumentsPage({
   const { data: allowed } = await hasLegalAccess(supabase);
   if (allowed !== true) redirect("/dashboard");
 
-  const [folders, types, documents, files, applications, access, drafts, owner] = await Promise.all([
+  const [folders, types, documents, files, applications, access, drafts, owner, tasks] = await Promise.all([
     getLegalFolders(supabase, { includeArchived: true }),
     getLegalDocumentTypes(supabase),
     getLegalDocuments(supabase),
@@ -50,6 +52,8 @@ export default async function LegalDocumentsPage({
     // Before migration 374 the drafts table doesn't exist: show none.
     getLegalDrafts(supabase),
     isLegalOwner(supabase),
+    // Before migration 375 the tasks table doesn't exist: show none.
+    getLegalHelperTasks(supabase),
   ]);
   const failed = [folders, types, documents, files, applications].find((r) => r.error);
   if (failed) throw new Error(`Could not load documents: ${failed.error.message}`);
@@ -80,6 +84,7 @@ export default async function LegalDocumentsPage({
       applications={apps}
       people={people}
       drafts={(drafts.error ? [] : drafts.data ?? []) as DraftRow[]}
+      tasks={(tasks.error ? [] : tasks.data ?? []) as TaskRow[]}
       isOwner={owner.data === true}
       initialDraftId={typeof openDraftId === "string" ? openDraftId : null}
       today={todayInSA()}

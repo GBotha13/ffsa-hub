@@ -12,6 +12,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { loadReminder } from "@/lib/legal/reminder-data";
 import { todayInSA } from "@/lib/legal/status";
+import { taskLimitProblem } from "./task-state";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Client = any;
@@ -142,6 +143,30 @@ export const LEGAL_HELPER_TOOLS: Anthropic.Tool[] = [
   },
 ];
 
+/**
+ * Offered in the chat and voice modes only (never inside a background
+ * task, so a task can't spawn more tasks). Creates a task row as the
+ * person; the route starts it after replying.
+ */
+export const START_TASK_TOOL: Anthropic.Tool = {
+  name: "start_background_task",
+  description:
+    "Hand a bigger job to the background so the legal officer can carry on while you work: e.g. preparing a renewal pack, filling out several forms, or going through many scans. Use it when the job needs more than a few lookups and drafts, or when asked to 'work on it in the background'. Write the request so it stands on its own: the background run sees only this text, not this chat.",
+  input_schema: {
+    type: "object",
+    properties: {
+      title: { type: "string", description: "Short title, e.g. 'PBO renewal pack'." },
+      request: {
+        type: "string",
+        description: "The full instructions, with every detail from this conversation the work needs (which documents, folders, what to draft).",
+      },
+    },
+    required: ["title", "request"],
+    additionalProperties: false,
+  },
+  strict: true,
+};
+
 // ────────────────────────────────────────────────────────────
 // EXECUTION
 // ────────────────────────────────────────────────────────────
@@ -183,7 +208,11 @@ async function belongsIn(supabase: Client, table: string, id: string | null, fol
   return null;
 }
 
-export type ToolOutcome = { output: unknown; draft?: { id: string; title: string } };
+export type ToolOutcome = {
+  output: unknown;
+  draft?: { id: string; title: string };
+  task?: { id: string; title: string };
+};
 
 export async function executeLegalTool(
   name: string,
@@ -383,6 +412,29 @@ export async function executeLegalTool(
         .single();
       if (error) return { output: { error: `Could not update: ${error.message}` } };
       return { output: { updated: true, draft_id: data.id, status: "awaiting approval" }, draft: { id: data.id, title: data.title } };
+    }
+
+    case "start_background_task": {
+      const title = text(input.title, 200).trim();
+      const request = text(input.request, 20000).trim();
+      if (!title || !request) return { output: { error: "A background task needs a title and a request." } };
+      const { data: recent } = await supabase
+        .from("legal_helper_tasks")
+        .select("status, heartbeat_at, created_at")
+        .eq("created_by", userId)
+        .gte("created_at", new Date(Date.now() - 24 * 3600 * 1000).toISOString());
+      const limit = taskLimitProblem(recent ?? [], Date.now());
+      if (limit) return { output: { error: `${limit} Do it here in the chat instead, or tell the legal officer.` } };
+      const { data, error } = await supabase
+        .from("legal_helper_tasks")
+        .insert({ title, request, created_by: userId })
+        .select("id, title")
+        .single();
+      if (error) return { output: { error: `Could not start it: ${error.message}` } };
+      return {
+        output: { started: true, task_id: data.id, where: "Documents → Drafts, under Helper tasks" },
+        task: { id: data.id, title: data.title },
+      };
     }
 
     default:
