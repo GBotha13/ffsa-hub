@@ -251,6 +251,27 @@ Supabase runs in the cloud (no local Postgres). Migrations are applied via the S
 
 ---
 
+## Legal → Documents — standing rules
+
+FFSA's legal and compliance papers plus the legal officer's own papers, with
+expiry tracking, applications and reminders. Plan: `docs/legal-documents.md`.
+Migrations 370–372 (drafts: do not apply until Jack says so).
+
+- **The wall is a named list, not a role.** Only people on `legal_access` get in.
+  Never add `is_admin()`, `has_permission()` or a role to a `legal_*` policy, and
+  never read `legal_*` tables with `createAdminClient()` for a page — the legal
+  officer is a super admin, so a role rule would open her papers to every admin.
+- **The reviewer rows (Gideon, Jack) are temporary.** Remove them before go-live.
+- **Files** go in the private `legal-documents` bucket at `<folder id>/<file id>.<ext>`
+  (CHECK in 370). Read the `legal_files` row as the user first, then sign the URL.
+- **What is read from a scan is a suggestion** (`extracted_fields`, each with
+  `confirmed`). Nothing is copied onto a document until a person confirms it.
+- **The event log stores column names, never values**, so it can't become a second
+  copy of reference numbers.
+- **No Google Calendar** for now. Reminders are email and the dashboard.
+
+---
+
 # FFSA Hub — redesign context
 
 Redesign of the FFSA Hub (Next.js admin platform in the attached `ffsa-platform` folder)
