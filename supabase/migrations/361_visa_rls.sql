@@ -55,7 +55,10 @@ STABLE
 SECURITY DEFINER
 SET search_path = ''
 AS $$
-  SELECT public.is_admin() OR public.has_permission_for('visas.manage', NULL);
+  -- coalesce: always a real true/false, so a NOT around it can't let a
+  -- NULL through in the step-2 functions.
+  SELECT coalesce(public.is_admin(), false)
+      OR coalesce(public.has_permission_for('visas.manage', NULL), false);
 $$;
 
 -- Legal for one case: global legal, or visas.manage scoped to a program
@@ -72,7 +75,7 @@ AS $$
         SELECT 1
           FROM public.visa_case_schools s
          WHERE s.case_id = p_case_id
-           AND public.has_permission_for('visas.manage', s.program_id)
+           AND coalesce(public.has_permission_for('visas.manage', s.program_id), false)
       );
 $$;
 
@@ -87,7 +90,7 @@ AS $$
     SELECT 1
       FROM public.visa_case_schools s
      WHERE s.case_id = p_case_id
-       AND public.has_permission_for('visas.follow_up', s.program_id)
+       AND coalesce(public.has_permission_for('visas.follow_up', s.program_id), false)
   );
 $$;
 
