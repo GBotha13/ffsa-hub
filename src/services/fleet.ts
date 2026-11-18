@@ -1,5 +1,5 @@
 // Fleet (vehicle inspections, km, workshop visits) — data access only.
-// Tables: fleet_* (migrations 329–331) plus public.vehicles and the approved
+// Tables: fleet_* (migrations 350–353) plus public.vehicles and the approved
 // vehicle_bookings that act as trips. Rows are mapped onto the rule shapes in
 // src/lib/fleet/mapping.ts; business logic lives in src/lib/fleet/.
 

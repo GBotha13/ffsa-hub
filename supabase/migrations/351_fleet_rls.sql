@@ -1,7 +1,7 @@
 -- ============================================================
--- FFSA Hub — Migration 330: Fleet — row level security + Realtime
+-- FFSA Hub — Migration 351: Fleet — row level security + Realtime
 -- ============================================================
--- PROVISIONAL NUMBER (see 329).
+-- Requires 350.
 --
 -- Who can do what (vehicles-module/docs/SPEC.md section 3):
 --   • admins and fleet.manage (the Vehicle Coordinator): everything

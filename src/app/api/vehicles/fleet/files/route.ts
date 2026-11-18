@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { bad, fleetAuth } from "@/lib/fleet/api";
 import { insertFleetFile } from "@/services/fleet";
 
-// Same types and size as the Fleet app (and the fleet-files bucket, migration 329).
+// Same types and size as the Fleet app (and the fleet-files bucket, migration 350).
 const ALLOWED = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif", "application/pdf"];
 const MAX_BYTES = 20 * 1024 * 1024;
 const EXT: Record<string, string> = {

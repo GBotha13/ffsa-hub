@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 // Every open Fleet page sees everyone's saves within about a second (the Fleet app's
-// onSnapshot). Supabase Realtime on the fleet tables (migration 330) → refresh the
+// onSnapshot). Supabase Realtime on the fleet tables (migration 351) → refresh the
 // server components. RLS applies to what Realtime sends. Bursts are coalesced, and a
 // page that was hidden refreshes when it's shown again.
 const TABLES = [

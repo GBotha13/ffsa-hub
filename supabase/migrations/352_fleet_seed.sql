@@ -1,7 +1,7 @@
 -- ============================================================
--- FFSA Hub — Migration 331: Fleet — seed
+-- FFSA Hub — Migration 352: Fleet — seed
 -- ============================================================
--- PROVISIONAL NUMBER (see 329).
+-- Requires 350 and 351.
 --
 -- Only the empty settings row and a details row per existing vehicle. FFSA's
 -- real data (workshops, km, workshop visits, photos, the live checklist and

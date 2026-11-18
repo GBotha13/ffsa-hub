@@ -1,7 +1,7 @@
 -- ============================================================
--- FFSA Hub — Migration 332: Fleet — daily reminder log
+-- FFSA Hub — Migration 353: Fleet — daily reminder log
 -- ============================================================
--- PROVISIONAL NUMBER (see 329): renumber with 329–331 if needed.
+-- Requires 350 and 351.
 --
 -- One row per day the 07:00 Fleet reminder went out (SPEC 6.11), so a retried
 -- or doubled cron never sends it twice, and admins can see when it last went

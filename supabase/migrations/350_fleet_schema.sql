@@ -1,9 +1,8 @@
 -- ============================================================
--- FFSA Hub — Migration 329: Fleet (vehicle inspections) — schema
+-- FFSA Hub — Migration 350: Fleet (vehicle inspections) — schema
 -- ============================================================
--- PROVISIONAL NUMBER: confirm with Jack before applying (see
--- vehicles-module/HUB-PLAN.md, "What we need from Jack" 4). Renumber 329/330/331
--- together if needed.
+-- Numbered 350–353 on Jack's instruction (main ends at 330; 331–333 and
+-- 316–326 are taken by other open branches).
 --
 -- The FFSA Fleet app (vehicles-module/) rebuilt in the Hub as "Fleet", under
 -- Bookings → Vehicles → Fleet. Field names follow vehicles-module/docs/SPEC.md
@@ -18,7 +17,8 @@
 --   • Private bucket fleet-files; every read goes through an API route that
 --     checks the role and hands out a short-lived signed URL.
 --
--- Apply 329, then 330 (RLS), then 331 (seed) in the Supabase SQL Editor.
+-- Apply 350, then 351 (RLS), then 352 (seed), then 353 (reminder log) in the
+-- Supabase SQL Editor.
 -- ============================================================
 
 -- ────────────────────────────────────────────────────────────

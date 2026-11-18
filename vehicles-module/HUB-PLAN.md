@@ -114,6 +114,18 @@ At this point Fleet matches the Fleet app. **Check against SPEC 10 on the test p
 - **Phone use.** The Hub's admin layout has a mobile tab bar; every Fleet screen, especially the inspection, must still work one-handed at 390 px.
 - **Offline in the yard.** Drafts stay in the browser so an inspection survives no signal; saving waits for a connection.
 
+## Jack's answers (18 Nov 2026)
+
+- **No staging database.** Fleet goes up as a draft PR; Jack's review team checks the migrations and applies them to the live Hub after Jack OKs it. Migrations stay additive.
+- **GitHub:** ffsa-hub is public. Fork it on GBotha13 and open the draft PR from the fork into `main`; no write access needed.
+- **Real data:** scrub VINs, insurer details and workshop reports from the history before pushing; seeds hold no real vehicle data. Done: `vehicles-module/seed` was removed from every Fleet commit and is ignored; it stays on Gideon's Mac only.
+- **Migration numbers:** main ends at 330; 331–333 (Missio drafts) and 316–326 (Departments) are taken. Fleet is **350–353** (350 schema, 351 RLS + Realtime, 352 seed, 353 reminder log); the bookings migration (PR 5) is 354.
+- **Realtime** on the fleet tables is fine, as long as 351's RLS covers them (it does: every fleet table has RLS on and policies).
+- **Vehicle Coordinator:** Gideon holds the role for now, so he gets the 07:00 reminder.
+- **Supabase password** shared in Slack: not used; Jack is changing it.
+
+Still open below: vehicle names (6), status mapping (7), the Slack sender name and the overlap with `vehicle-slack-digest` (8), the Ask API key (9).
+
 ## What we need from Jack
 
 1. **Agree to this plan**, including: native rebuild, Fleet under `/bookings/vehicles/fleet`, trips replaced by Hub bookings from the start.
