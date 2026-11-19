@@ -29,7 +29,7 @@
 --
 -- One transaction: it applies whole or not at all.
 -- Additive only. Idempotent: CREATE OR REPLACE, DROP POLICY IF EXISTS,
--- ON CONFLICT DO NOTHING; REVOKE ALL before GRANT so re-running is clean.
+-- ON CONFLICT; REVOKE ALL before GRANT so re-running is clean.
 -- ============================================================
 
 BEGIN;
@@ -148,8 +148,14 @@ FROM PUBLIC, anon, authenticated, service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
   public.visa_country_rules,
   public.visa_document_types,
+  public.visa_case_schools
+TO authenticated;
+
+-- Case data is never deleted through the API: a case is closed or
+-- withdrawn instead, and its documents, requests and questions are
+-- history (360, section 10).
+GRANT SELECT, INSERT, UPDATE ON TABLE
   public.visa_cases,
-  public.visa_case_schools,
   public.visa_case_documents,
   public.visa_approval_requests,
   public.visa_case_questions
@@ -231,9 +237,7 @@ CREATE POLICY "Visa cases: legal update"
   ON public.visa_cases FOR UPDATE TO authenticated
   USING (public.visa_can_manage(id)) WITH CHECK (public.visa_can_manage(id));
 DROP POLICY IF EXISTS "Visa cases: legal delete" ON public.visa_cases;
-CREATE POLICY "Visa cases: legal delete"
-  ON public.visa_cases FOR DELETE TO authenticated
-  USING (public.visa_can_manage(id));
+-- No delete (see grants above).
 
 -- 5c. Case schools and documents: same readers as the case.
 DROP POLICY IF EXISTS "Visa case schools: read" ON public.visa_case_schools;
@@ -276,9 +280,7 @@ CREATE POLICY "Visa case documents: legal update"
   ON public.visa_case_documents FOR UPDATE TO authenticated
   USING (public.visa_can_manage(case_id)) WITH CHECK (public.visa_can_manage(case_id));
 DROP POLICY IF EXISTS "Visa case documents: legal delete" ON public.visa_case_documents;
-CREATE POLICY "Visa case documents: legal delete"
-  ON public.visa_case_documents FOR DELETE TO authenticated
-  USING (public.visa_can_manage(case_id));
+-- No delete (see grants above).
 
 -- 5d. Approval requests and questions: internal between leaders and
 --     legal. The student does not see them.
@@ -295,9 +297,7 @@ CREATE POLICY "Visa approval requests: legal update"
   ON public.visa_approval_requests FOR UPDATE TO authenticated
   USING (public.visa_can_manage(case_id)) WITH CHECK (public.visa_can_manage(case_id));
 DROP POLICY IF EXISTS "Visa approval requests: legal delete" ON public.visa_approval_requests;
-CREATE POLICY "Visa approval requests: legal delete"
-  ON public.visa_approval_requests FOR DELETE TO authenticated
-  USING (public.visa_can_manage(case_id));
+-- No delete (see grants above).
 
 DROP POLICY IF EXISTS "Visa questions: read" ON public.visa_case_questions;
 CREATE POLICY "Visa questions: read"
@@ -312,9 +312,7 @@ CREATE POLICY "Visa questions: legal update"
   ON public.visa_case_questions FOR UPDATE TO authenticated
   USING (public.visa_can_manage(case_id)) WITH CHECK (public.visa_can_manage(case_id));
 DROP POLICY IF EXISTS "Visa questions: legal delete" ON public.visa_case_questions;
-CREATE POLICY "Visa questions: legal delete"
-  ON public.visa_case_questions FOR DELETE TO authenticated
-  USING (public.visa_can_manage(case_id));
+-- No delete (see grants above).
 
 -- 5e. Event log: leaders and legal read; nobody writes through the API
 --     as a user (service role and step-2 definer functions append).
@@ -334,6 +332,11 @@ VALUES (
   10485760,  -- 10 MB
   ARRAY['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/heic']
 )
-ON CONFLICT (id) DO NOTHING;
+-- DO UPDATE, not DO NOTHING: if the bucket already exists (made by hand,
+-- say, and public), this makes it private with these limits.
+ON CONFLICT (id) DO UPDATE
+  SET public             = false,
+      file_size_limit    = EXCLUDED.file_size_limit,
+      allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 COMMIT;
