@@ -16,10 +16,10 @@ import {
 import { useState } from "react";
 import { View } from "react-native";
 
-import { Banner, Button, LargeTitleScrollView, ListRow, StatusChip, Text } from "@/components";
+import { Banner, Button, FadeIn, LargeTitleScrollView, ListRow, StaticRow, StatusChip, Text } from "@/components";
 import { AppearanceIcon, appearanceStrings, useAppearance } from "@/features/appearance";
 import { clearFeedCaches } from "@/features/home/feed-cache";
-import { Group, GroupSkeleton, Section, StaticRow } from "@/features/me/components/me-kit";
+import { Group, GroupSkeleton, Section } from "@/features/me/components/me-kit";
 import { isStaff } from "@/features/me/docs-logic";
 import { ACCOUNT_DELETION_ROUTE, DOC_ROUTES, FULL_PROFILE_PATH, PRIVACY_POLICY_PATH } from "@/features/me/links";
 import { meStrings as s } from "@/features/me/strings";
@@ -68,24 +68,26 @@ export default function MeScreen() {
       ) : null}
 
       {me ? (
-        <View style={{ gap: 12 }} testID="profile-card">
-          <View accessible accessibilityLabel={s.a11y.field(s.email, me.user.email ?? "—")} style={{ gap: 2 }}>
-            <Text variant="label">{s.email}</Text>
-            <Text selectable>{me.user.email ?? "—"}</Text>
+        <FadeIn>
+          <View style={{ gap: 12 }} testID="profile-card">
+            <View accessible accessibilityLabel={s.a11y.field(s.email, me.user.email ?? "—")} style={{ gap: 2 }}>
+              <Text variant="label">{s.email}</Text>
+              <Text selectable>{me.user.email ?? "—"}</Text>
+            </View>
+            <View accessible accessibilityLabel={s.a11y.field(s.roles, roles.length ? roles.join(", ") : s.noRoles)} style={{ gap: 4 }}>
+              <Text variant="label">{s.roles}</Text>
+              {roles.length ? (
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                  {roles.map((role) => (
+                    <StatusChip key={role} label={role} variant="quiet" icon={null} />
+                  ))}
+                </View>
+              ) : (
+                <Text>{s.noRoles}</Text>
+              )}
+            </View>
           </View>
-          <View accessible accessibilityLabel={s.a11y.field(s.roles, roles.length ? roles.join(", ") : s.noRoles)} style={{ gap: 4 }}>
-            <Text variant="label">{s.roles}</Text>
-            {roles.length ? (
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                {roles.map((role) => (
-                  <StatusChip key={role} label={role} variant="quiet" icon={null} />
-                ))}
-              </View>
-            ) : (
-              <Text>{s.noRoles}</Text>
-            )}
-          </View>
-        </View>
+        </FadeIn>
       ) : null}
 
       <Section title={s.sections.profile} />

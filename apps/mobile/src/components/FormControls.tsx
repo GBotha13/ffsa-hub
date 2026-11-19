@@ -1,13 +1,14 @@
-// Form controls for Add / Edit expense (frames 3.4, 3.8, 3.9) that the shared
-// kit doesn't have yet: choice chips, a select field, a disclosure row and the
-// Cancel bar of a pushed form. Kit follow-ups, like components/parts.tsx.
-
 import { ChevronDown, ChevronUp, CircleAlert } from "lucide-react-native";
 import { Pressable, View } from "react-native";
 
-import { Button, Text } from "@/components";
 import { fontFamily, fontSize, hairline, radius, space, touch } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
+
+import { Text } from "./Text";
+
+// Form controls beyond TextField: choice chips, a select field, the field
+// error line for controls that aren't text fields, and a disclosure row.
+// (First built for Add expense, frames 3.4/3.8; now used across the app.)
 
 // Chips are 36pt tall; the slop takes the target to 44 (rows are 8 apart).
 const CHIP_HEIGHT = 36;
@@ -131,7 +132,9 @@ export function SelectField({
   error,
   disabled = false,
   accessibilityHint,
+  accessibilityLabel,
   onPress,
+  testID,
 }: {
   label: string;
   value?: string;
@@ -139,7 +142,10 @@ export function SelectField({
   error?: string;
   disabled?: boolean;
   accessibilityHint: string;
+  /** Defaults to "label: value" (or the placeholder when empty). */
+  accessibilityLabel?: string;
   onPress: () => void;
+  testID?: string;
 }) {
   const { colors } = useTheme();
   return (
@@ -149,7 +155,8 @@ export function SelectField({
       </Text>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${label}: ${value ?? placeholder}`}
+        testID={testID}
+        accessibilityLabel={accessibilityLabel ?? `${label}: ${value ?? placeholder}`}
         accessibilityHint={error ? `${error} ${accessibilityHint}` : accessibilityHint}
         accessibilityState={{ disabled }}
         disabled={disabled}
@@ -212,20 +219,5 @@ export function Disclosure({ label, expanded, accessibilityHint, onPress }: { la
         <Icon size={18} color={colors.text} />
       </View>
     </Pressable>
-  );
-}
-
-// ── The bar over a pushed form: Cancel on the left, the title centred ──────
-
-export function FormNavBar({ title, cancelLabel, onCancel }: { title: string; cancelLabel: string; onCancel: () => void }) {
-  return (
-    <View style={{ minHeight: touch.floor, flexDirection: "row", alignItems: "center", marginHorizontal: -space.sm }}>
-      <View pointerEvents="none" style={{ position: "absolute", left: 88, right: 88, alignItems: "center" }}>
-        <Text accessibilityRole="header" numberOfLines={1} maxFontSizeMultiplier={1.3} style={{ fontFamily: fontFamily.bodySemibold, fontSize: fontSize.navTitle }}>
-          {title}
-        </Text>
-      </View>
-      <Button label={cancelLabel} variant="ghost" onPress={onCancel} />
-    </View>
   );
 }

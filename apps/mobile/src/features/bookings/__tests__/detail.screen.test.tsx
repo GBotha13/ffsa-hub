@@ -30,6 +30,7 @@ jest.mock("@react-native-community/datetimepicker", () => ({ __esModule: true, d
 let mockMeState: MeState;
 jest.mock("@/features/shell", () => ({ ...jest.requireActual("@/features/shell"), useMe: () => mockMeState }));
 jest.mock("@/features/finance/cache", () => ({ readCache: jest.fn(async () => null), writeCache: jest.fn(async () => {}), formatSavedAt: () => "09:05" }));
+jest.mock("@/lib/saved-at", () => ({ formatSavedAt: () => "09:05" }));
 jest.mock("../data", () => ({ ...jest.requireActual("../data"), loadSpaceBooking: jest.fn(), loadVehicleBooking: jest.fn() }));
 jest.mock("../client", () => ({ bookingsFetch: jest.fn() }));
 jest.mock("../capture", () => ({
@@ -412,7 +413,7 @@ describe("Detail screens: the redesign (7.4, 7.11, 7.13, 7.14)", () => {
     expect(screen.getByRole("link", { name: new RegExp(strings.inspection.terms) })).toBeTruthy();
     expect(screen.queryByTestId("truthful")).toBeNull();
     expect(screen.getByRole("button", { name: strings.inspection.submit("collection") })).toBeTruthy();
-    await fireEvent.press(screen.getByRole("button", { name: "Back to Booking" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Back to Airport run" }));
     expect(mockRouter.back).toHaveBeenCalled();
   });
 

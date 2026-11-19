@@ -4,13 +4,13 @@ import { useCallback } from "react";
 import { RefreshControl, View } from "react-native";
 
 import { useSession } from "@/auth/session-provider";
-import { EmptyState, LargeTitleScrollView, ListGroup, ListRow, NeedsYouBand, SkeletonList, Text } from "@/components";
+import { Bleed, EmptyState, FadeIn, Freshness, GroupRow, IconTile, LargeTitleScrollView, ListGroup, ListRow, LoadError, NeedsYouBand, SectionTitle, SkeletonList, Text } from "@/components";
 import { useCachedLoad } from "@/features/finance/use-cached-load";
 import { openWebPage } from "@/features/shell";
 import { refreshControlColors } from "@/theme/styles";
 import { useTheme } from "@/theme/use-theme";
 
-import { Bleed, Freshness, GroupRow, IconTile, LoadError, SectionCount, StatusTag } from "../components/parts";
+import { StatusTag } from "../components/parts";
 import { loadErrorMessage, loadSchools, type SchoolsList } from "../data";
 import { applicationStatus, enrolmentStatus, formatDate, notYetApplied, staffName } from "../logic";
 import { strings } from "../strings";
@@ -69,7 +69,7 @@ export default function SchoolsListScreen() {
           <LoadError title={s.errorTitle} message={state.message} onRetry={retry} />
         </Bleed>
       ) : null}
-      <Freshness state={state} onRetry={retry} />
+      <Freshness state={state} onRetry={retry} bleed />
 
       {/* The page's one yellow band, driven by the same data as the web's. */}
       {unapplied.length > 0 ? (
@@ -78,6 +78,7 @@ export default function SchoolsListScreen() {
             eyebrow={s.needsYouTitle}
             text={unapplied.length === 1 ? s.needsYouOne(unapplied[0].name) : s.needsYouMany(unapplied.length)}
             actionLabel={s.apply}
+            actionAccessibilityHint={s.applyHint}
             onAction={() => open(unapplied.length === 1 ? `/my-schools/apply/${unapplied[0].id}` : "/my-schools")}
             testID="needs-you"
           />
@@ -85,8 +86,8 @@ export default function SchoolsListScreen() {
       ) : null}
 
       {data ? (
-        <View>
-          <SectionCount title={s.enrolments} meta={String(data.enrolments.length)} tight />
+        <FadeIn>
+          <SectionTitle title={s.enrolments} meta={String(data.enrolments.length)} tight />
           <Bleed>
             <ListGroup inset={false}>
               {data.enrolments.length === 0 ? (
@@ -109,7 +110,7 @@ export default function SchoolsListScreen() {
 
           {data.applications.length > 0 ? (
             <>
-              <SectionCount title={s.applications} meta={String(data.applications.length)} />
+              <SectionTitle title={s.applications} meta={String(data.applications.length)} />
               <Bleed>
                 <ListGroup inset={false}>
                   {data.applications.map((a) => (
@@ -122,7 +123,7 @@ export default function SchoolsListScreen() {
 
           {unapplied.length > 0 ? (
             <>
-              <SectionCount title={s.open} meta={String(unapplied.length)} />
+              <SectionTitle title={s.open} meta={String(unapplied.length)} />
               <Bleed>
                 <ListGroup inset={false}>
                   {unapplied.map((p) => (
@@ -132,7 +133,7 @@ export default function SchoolsListScreen() {
               </Bleed>
             </>
           ) : null}
-        </View>
+        </FadeIn>
       ) : null}
     </LargeTitleScrollView>
   );

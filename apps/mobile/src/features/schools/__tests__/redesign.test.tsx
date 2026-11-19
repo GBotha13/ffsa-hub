@@ -34,6 +34,7 @@ jest.mock("@/lib/supabase", () => ({ supabase: {} }));
 jest.mock("@/auth/session-provider", () => ({ useSession: () => ({ status: "signedIn", session: { user: { id: "user-1" } } }) }));
 jest.mock("expo-web-browser", () => ({ openBrowserAsync: jest.fn() }));
 jest.mock("@/features/finance/cache", () => ({ readCache: jest.fn(async () => null), writeCache: jest.fn(async () => {}), formatSavedAt: () => "09:05" }));
+jest.mock("@/lib/saved-at", () => ({ formatSavedAt: () => "09:05" }));
 jest.mock("../data", () => ({ ...jest.requireActual("../data"), loadSchools: jest.fn(), loadEnrolment: jest.fn(), loadAttendance: jest.fn() }));
 
 const schools = loadSchools as jest.Mock;
@@ -87,7 +88,9 @@ describe("My Schools (8.1)", () => {
     expect(screen.getAllByTestId("needs-you")).toHaveLength(1);
     expect(flat(band)).toMatchObject({ backgroundColor: colors.light.accent, borderRadius: 8 });
     expect(flat(within(band).getByText(strings.list.needsYouOne("Missions School 2027"))).color).toBe(colors.light.onAccent);
-    await fireEvent.press(within(band).getByRole("button", { name: strings.list.apply }));
+    const apply = within(band).getByRole("button", { name: strings.list.apply });
+    expect(apply.props.accessibilityHint).toBe(strings.list.applyHint);
+    await fireEvent.press(apply);
     expect(openBrowser).toHaveBeenCalledWith("https://hub.example.test/my-schools/apply/p2", expect.anything());
   });
 

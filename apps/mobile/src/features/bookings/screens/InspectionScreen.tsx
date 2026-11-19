@@ -6,8 +6,7 @@ import { useCallback, useMemo, useState } from "react";
 import { KeyboardAvoidingView, Platform, View } from "react-native";
 
 import { useSession } from "@/auth/session-provider";
-import { Banner, Button, EmptyState, LargeTitleScrollView, ListGroup, ListRow, SkeletonList, Text, TextField, type BackAction } from "@/components";
-import { ChoiceChips } from "@/features/finance/components/form-parts";
+import { type BackAction, Banner, Bleed, Button, ChoiceChips, EmptyState, LargeTitleScrollView, ListGroup, ListRow, LoadFailed, PushedPage, SectionTitle, SkeletonList, Text, TextField } from "@/components";
 import { useCachedLoad } from "@/features/finance/use-cached-load";
 import { openWebPage, useMe } from "@/features/shell";
 import { announce } from "@/lib/a11y";
@@ -19,7 +18,7 @@ import { loadErrorMessage } from "../api";
 import { chooseVehiclePhotos, takeVehiclePhoto, type DraftPhoto } from "../capture";
 import { DateTimeField } from "../components/DateTimeField";
 import { QueueList } from "../components/QueueList";
-import { Bleed, CheckRow, FormError, LoadFailed, Panel, PushedPage, SectionTitle, YesNo } from "../components/ui";
+import { CheckRow, FormError, Panel, YesNo } from "../components/ui";
 import { loadVehicleBooking, type VehicleDetail } from "../data";
 import {
   DAMAGE_PANELS,
@@ -133,17 +132,19 @@ export default function InspectionScreen({ bookingId, kind }: { bookingId: strin
   }
 
   const b = detail.booking;
+  // Once the booking is known, Back names it, as its page is titled.
+  const backToBooking: BackAction = { ...back, label: b.booking_name };
   const mayInspect = b.requested_by === userId || access.vehicles.manage;
   if (!mayInspect) {
     return (
-      <PushedPage back={back}>
+      <PushedPage back={backToBooking}>
         <EmptyState testID="no-access" title={title} body={t.noAccess} />
       </PushedPage>
     );
   }
   if (detail.inspections.some((i) => i.kind === kind)) {
     return (
-      <PushedPage back={back}>
+      <PushedPage back={backToBooking}>
         <EmptyState testID="already" title={title} body={t.alreadyRecorded} />
       </PushedPage>
     );
@@ -224,7 +225,7 @@ export default function InspectionScreen({ bookingId, kind }: { bookingId: strin
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <LargeTitleScrollView back={back} eyebrow={t.context(b.booking_name)} title={title} edges={["top", "bottom"]} gap={space.lg}>
+      <LargeTitleScrollView back={backToBooking} eyebrow={t.context(b.booking_name)} title={title} edges={["top", "bottom"]} gap={space.lg}>
         {notice ? (
           <Bleed>
             <Banner tone="positive">{notice}</Banner>

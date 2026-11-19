@@ -3,12 +3,13 @@ import { ScanLine, Ticket as TicketIcon } from "lucide-react-native";
 import { useState, type ReactNode } from "react";
 import { View } from "react-native";
 
-import { Banner, Button, EmptyState, ListGroup, ListRow, NeedsYouBand, SkeletonList } from "@/components";
+import { Banner, Button, EmptyState, FadeIn, ListGroup, ListRow, NeedsYouBand, SectionTitle, SkeletonList } from "@/components";
 import { openWebPage, useMe } from "@/features/shell";
+import { space } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
 
 import type { MyRegistration, MyTicket } from "../api";
-import { CountedSectionHeader, SavedCue } from "../components/ListHeader";
+import { SavedCue } from "../components/ListHeader";
 import { RegistrationRow, TicketRow } from "../components/TicketRow";
 import { TicketsScreen } from "../components/TicketsScreen";
 import { formatStamp, splitByWhen } from "../dates";
@@ -34,18 +35,20 @@ export function MyTicketsScreen({ now = () => new Date() }: { now?: () => Date }
       <RegistrationRow key={`r-${item.registration.id}`} registration={item.registration} />
     );
 
-  // Buying stays on the website: one row that says so.
-  const getTickets = (
+  // Buying stays on the website: one row that says so, once there's a public
+  // events page to send people to (see web.ts).
+  const getTicketsPath = GET_TICKETS_WEB_PATH;
+  const getTickets = getTicketsPath ? (
     <ListGroup inset={false} testID="get-tickets">
       <ListRow
         icon={TicketIcon}
         title={strings.myTickets.getTickets}
         subtitle={strings.myTickets.getTicketsBody}
         trailing="web"
-        onPress={() => void openWebPage(GET_TICKETS_WEB_PATH, colors)}
+        onPress={() => void openWebPage(getTicketsPath, colors)}
       />
     </ListGroup>
-  );
+  ) : null;
 
   let body: ReactNode = null;
   if (t.status === "loading") {
@@ -88,11 +91,11 @@ export function MyTicketsScreen({ now = () => new Date() }: { now?: () => Date }
         {items.length === 0 ? (
           <EmptyState icon={TicketIcon} title={strings.myTickets.emptyTitle} body={strings.myTickets.emptyBody} testID="empty-state" />
         ) : (
-          <>
+          <FadeIn style={{ gap: space.md }}>
             {t.data.tickets.length > 0 ? <SavedCue text={strings.myTickets.savedOnPhone} hint={strings.myTickets.savedOnPhoneHint} /> : null}
             {upcoming.length > 0 ? (
               <View>
-                <CountedSectionHeader title={strings.myTickets.upcoming} count={upcoming.length} />
+                <SectionTitle title={strings.myTickets.upcoming} meta={upcoming.length} tight />
                 <ListGroup inset={false}>{upcoming.map(renderItem)}</ListGroup>
               </View>
             ) : null}
@@ -108,13 +111,13 @@ export function MyTicketsScreen({ now = () => new Date() }: { now?: () => Date }
                 />
                 {showPast ? (
                   <View testID="past-list">
-                    <CountedSectionHeader title={strings.myTickets.past} count={past.length} />
+                    <SectionTitle title={strings.myTickets.past} meta={past.length} tight />
                     <ListGroup inset={false}>{past.map(renderItem)}</ListGroup>
                   </View>
                 ) : null}
               </View>
             ) : null}
-          </>
+          </FadeIn>
         )}
         {getTickets}
       </>

@@ -34,17 +34,7 @@ export type TextVariantNew =
   | "kpi"
   | "note";
 
-/**
- * Old names kept working until R2/R3 migrate the screens (see the PR's
- * migration table). They now render in Roboto, not Roboto Condensed.
- *   display    -> pageTitle
- *   title      -> Roboto 900 caps 20 (use sectionTitle or pageTitle instead)
- *   numeral    -> Roboto 900 40 tabular (use kpi instead)
- *   bodyStrong -> Roboto 500 16 (use rowTitle instead)
- */
-export type TextVariantLegacy = "display" | "title" | "numeral" | "bodyStrong";
-
-export type TextVariant = TextVariantNew | TextVariantLegacy;
+export type TextVariant = TextVariantNew;
 
 export type TextTone =
   | "default"
@@ -103,22 +93,6 @@ export const textVariants: Record<TextVariant, TextStyle> = {
   kpi: { fontFamily: fontFamily.bodyMedium, fontSize: fontSize.kpi, lineHeight: 32, fontVariant: ["tabular-nums"] },
   note: { fontFamily: fontFamily.condensed, fontSize: fontSize.note, lineHeight: 20 },
 
-  // Legacy aliases.
-  display: pageTitle,
-  title: {
-    fontFamily: fontFamily.display,
-    fontSize: fontSize.title,
-    lineHeight: 24,
-    letterSpacing: fontSize.title * letterSpacingEm.display,
-    ...caps,
-  },
-  numeral: {
-    fontFamily: fontFamily.display,
-    fontSize: fontSize.numeral,
-    lineHeight: 44,
-    fontVariant: ["tabular-nums"],
-  },
-  bodyStrong: { ...body, fontFamily: fontFamily.bodyMedium },
 };
 
 // Variants whose colour defaults to secondary text when tone is "default".
@@ -144,7 +118,7 @@ export function textStyle(variant: TextVariant, tone: TextTone, c: SemanticColor
 }
 
 /** Variants read as headings by screen readers. */
-export const HEADING_VARIANTS: ReadonlySet<TextVariant> = new Set(["pageTitle", "hero", "display", "title"]);
+export const HEADING_VARIANTS: ReadonlySet<TextVariant> = new Set(["pageTitle", "hero"]);
 
 // Big display type can't grow without limit or it stops fitting; everything
 // else follows the OS setting fully (rows grow, titles wrap).
@@ -160,20 +134,15 @@ export const maxFontScale: Record<TextVariant, number | undefined> = {
   hero: 1.3,
   kpi: 1.6,
   note: undefined,
-  display: 1.4,
-  title: 1.6,
-  numeral: 1.4,
-  bodyStrong: undefined,
 };
 
 // ── Button ──────────────────────────────────────────────────────────────────
 
 /**
  * primary / secondary / text / danger / dangerFill (design-spec §4).
- * Legacy: `ghost` (plain, no underline: sheet Close buttons) and
- * `destructive` (= danger).
+ * Plus `ghost` (plain, no underline: sheet Close buttons, Cancel in a bar).
  */
-export type ButtonVariant = "primary" | "secondary" | "text" | "danger" | "dangerFill" | "ghost" | "destructive";
+export type ButtonVariant = "primary" | "secondary" | "text" | "danger" | "dangerFill" | "ghost";
 export type ButtonSize = "default" | "small";
 
 export function buttonStyle(
@@ -229,7 +198,6 @@ export function buttonStyle(
         state.disabled ? c.textTertiary : c.text,
       );
     case "danger":
-    case "destructive":
       return out({ backgroundColor: state.pressed ? c.surface : "transparent", borderColor: c.danger }, c.danger);
     case "dangerFill":
       return out({ backgroundColor: c.danger, borderColor: c.danger, opacity: state.pressed ? 0.85 : 1 }, c.onDanger);
@@ -240,10 +208,9 @@ export function buttonStyle(
 
 /**
  * info / offline / error / queued (full 1px border + leading icon).
- * `needsYou` is THE yellow band (prefer NeedsYouBand): at most one per screen.
- * Legacy: `danger` (= error), `positive`.
+ * Also `danger` (= error) and `positive`. The yellow band is NeedsYouBand.
  */
-export type BannerTone = "info" | "offline" | "error" | "queued" | "positive" | "needsYou" | "danger";
+export type BannerTone = "info" | "offline" | "error" | "queued" | "positive" | "danger";
 
 export function bannerStyle(
   tone: BannerTone,
@@ -261,12 +228,6 @@ export function bannerStyle(
     backgroundColor: c.surface,
   };
   switch (tone) {
-    case "needsYou":
-      return {
-        container: { ...base, ...needsYouBandStyle(c), borderWidth: 0 },
-        text: "onAccent",
-        iconColor: c.onAccent,
-      };
     case "error":
     case "danger":
       return { container: { ...base, borderColor: c.danger }, text: "default", iconColor: c.danger };

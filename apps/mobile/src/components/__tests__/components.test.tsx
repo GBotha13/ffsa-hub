@@ -3,7 +3,7 @@ import { StyleSheet } from "react-native";
 
 import { palette } from "@/theme/tokens";
 
-import { Banner, Button, Divider, Masthead, Screen, Text, TextField } from "..";
+import { Banner, Button, Divider, LargeTitle, NeedsYouBand, Screen, Text, TextField } from "..";
 
 function flat(style: unknown) {
   return StyleSheet.flatten(style as never) ?? {};
@@ -11,7 +11,7 @@ function flat(style: unknown) {
 
 describe("Text", () => {
   it("gives headings the header role and scales with the OS font size", async () => {
-    await render(<Text variant="display">Sign in</Text>);
+    await render(<Text variant="pageTitle">Sign in</Text>);
     const el = screen.getByRole("header", { name: "Sign in" });
     expect(el.props.allowFontScaling).toBe(true);
     expect(flat(el.props.style)).toMatchObject({ textTransform: "uppercase", color: palette.ink });
@@ -72,9 +72,7 @@ describe("Banner", () => {
   it("renders the yellow needs-you band with black text", async () => {
     await render(
       <Screen>
-        <Banner tone="needsYou" title="Needs you" testID="band">
-          4 staff members are waiting on approval
-        </Banner>
+        <NeedsYouBand eyebrow="Needs you" text="4 staff members are waiting on approval" testID="band" />
       </Screen>,
     );
     expect(flat(screen.getByTestId("band").props.style).backgroundColor).toBe(palette.yellow);
@@ -97,8 +95,8 @@ describe("Banner", () => {
     const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
     await render(
       <Screen>
-        <Banner tone="needsYou">One</Banner>
-        <Banner tone="needsYou">Two</Banner>
+        <NeedsYouBand eyebrow="Needs you" text="One" />
+        <NeedsYouBand eyebrow="Needs you" text="Two" />
       </Screen>,
     );
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("at most one per screen"));
@@ -110,11 +108,11 @@ describe("Banner", () => {
     await render(
       <>
         <Screen>
-          <Banner tone="needsYou">One</Banner>
+          <NeedsYouBand eyebrow="Needs you" text="One" />
           <Banner tone="danger">Not yellow</Banner>
         </Screen>
         <Screen>
-          <Banner tone="needsYou">Another screen</Banner>
+          <NeedsYouBand eyebrow="Needs you" text="Another screen" />
         </Screen>
       </>,
     );
@@ -123,7 +121,7 @@ describe("Banner", () => {
   });
 });
 
-describe("Divider and Masthead", () => {
+describe("Divider and LargeTitle", () => {
   it("draws a hairline or a strong rule, hidden from screen readers", async () => {
     const { rerender } = await render(<Divider />);
     expect(flat(screen.getByTestId("divider", { includeHiddenElements: true }).props.style).height).toBe(1);
@@ -134,8 +132,8 @@ describe("Divider and Masthead", () => {
     });
   });
 
-  it("Masthead (deprecated) now draws the LargeTitle: yellow tick, eyebrow and title", async () => {
-    await render(<Masthead context="FFSA Hub · Home" title="Hello, Jo" />);
+  it("LargeTitle: yellow tick, eyebrow and title", async () => {
+    await render(<LargeTitle eyebrow="FFSA Hub · Home" title="Hello, Jo" />);
     // The tick is decoration: drawn, but hidden from screen readers.
     const tick = screen.getByTestId("large-title-tick", { includeHiddenElements: true });
     expect(flat(tick.props.style).backgroundColor).toBe(palette.yellow);

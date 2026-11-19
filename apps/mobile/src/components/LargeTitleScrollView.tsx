@@ -1,4 +1,4 @@
-import { useState, type ReactElement, type ReactNode } from "react";
+import { useRef, useState, type ReactElement, type ReactNode } from "react";
 import { View, type RefreshControlProps, type ViewStyle } from "react-native";
 import Animated, {
   Extrapolation,
@@ -15,6 +15,7 @@ import { useTheme } from "@/theme/use-theme";
 
 import { LargeTitle, NavBar, type LargeTitleProps } from "./LargeTitle";
 import { NeedsYouBandScope } from "./Screen";
+import { useScrollToTopOnTabPress } from "./useTabReselect";
 
 export type LargeTitleScrollViewProps = LargeTitleProps & {
   children: ReactNode;
@@ -30,7 +31,8 @@ export type LargeTitleScrollViewProps = LargeTitleProps & {
  * scrolls away (spec §4, Reanimated). Pushed screens (`back`) keep a 44pt
  * nav bar with the back chevron; tab roots get a bar that only appears once
  * the title has scrolled off. Under Reduce Motion the nav title appears
- * without fading.
+ * without fading. Re-tapping the tab scrolls back to the top (then, at the
+ * top, pops to the tab root).
  */
 export function LargeTitleScrollView({
   children,
@@ -47,6 +49,8 @@ export function LargeTitleScrollView({
   const onScroll = useAnimatedScrollHandler((e) => {
     scrollY.value = e.contentOffset.y;
   });
+  const scrollRef = useRef<unknown>(null);
+  useScrollToTopOnTabPress(scrollRef, () => scrollY.value);
   const collapsed = useAnimatedStyle(() => {
     const y = scrollY.value;
     const opacity = reduceMotion
@@ -69,15 +73,15 @@ export function LargeTitleScrollView({
       {header.title}
     </Animated.Text>
   );
-  const pushed = Boolean(header.back || header.navRight);
-  const { back, navRight, ...titleProps } = header;
+  const pushed = Boolean(header.back || header.navRight || header.navLeft);
+  const { back, navRight, navLeft, ...titleProps } = header;
 
   return (
     <NeedsYouBandScope>
       <SafeAreaView edges={edges} style={{ flex: 1, backgroundColor: colors.bg }}>
         {pushed ? (
           <View style={{ paddingHorizontal: space.gutter, backgroundColor: colors.bg }}>
-            <NavBar back={back} right={navRight} title={navTitle} />
+            <NavBar back={back} left={navLeft} right={navRight} title={navTitle} />
             <Animated.View
               accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants"
@@ -108,6 +112,7 @@ export function LargeTitleScrollView({
           </Animated.View>
         )}
         <Animated.ScrollView
+          ref={scrollRef as never}
           onScroll={onScroll}
           scrollEventThrottle={16}
           refreshControl={refreshControl}

@@ -1,13 +1,12 @@
 import { CircleAlert, CircleCheck, Clock, CloudOff, Info, type LucideIcon } from "lucide-react-native";
 import { useEffect, type ReactNode } from "react";
-import { Platform, Pressable, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, View } from "react-native";
 
 import { announce, announcement } from "@/lib/a11y/announce";
 import { bannerStyle, type BannerTone } from "@/theme/styles";
 import { touch } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
 
-import { useRegisterNeedsYouBand } from "./Screen";
 import { Text } from "./Text";
 
 export type BannerProps = {
@@ -18,6 +17,8 @@ export type BannerProps = {
   /** Inline text action ("Try again"). */
   actionLabel?: string;
   onAction?: () => void;
+  /** The inline action is running ("Send now"): a spinner, and it can't be pressed twice. */
+  actionBusy?: boolean;
   /** Any other action (e.g. a Button), shown under the message. */
   action?: ReactNode;
   /** Replace the tone's icon; `null` for none. */
@@ -32,7 +33,6 @@ const TONE_ICON: Record<BannerTone, LucideIcon | null> = {
   danger: CircleAlert,
   queued: Clock,
   positive: CircleCheck,
-  needsYou: null,
 };
 
 const isAlert = (tone: BannerTone) => tone === "error" || tone === "danger";
@@ -42,13 +42,10 @@ const isAlert = (tone: BannerTone) => tone === "error" || tone === "danger";
  * ("Offline. Showing what was saved at 08:42."), error (danger border,
  * announced) and queued ("Saved on this phone, not yet sent"). Errors should
  * say what to do and offer Try again (actionLabel + onAction).
- *
- * tone="needsYou" still draws the yellow band for older screens; new code
- * uses NeedsYouBand.
+ * The yellow band is NeedsYouBand, not a Banner tone.
  */
-export function Banner({ tone = "info", title, children, actionLabel, onAction, action, icon, testID }: BannerProps) {
+export function Banner({ tone = "info", title, children, actionLabel, onAction, actionBusy = false, action, icon, testID }: BannerProps) {
   const { colors } = useTheme();
-  useRegisterNeedsYouBand(tone === "needsYou");
   const s = bannerStyle(tone, colors);
   const alert = isAlert(tone);
   const role = alert ? "alert" : "summary";
@@ -65,12 +62,12 @@ export function Banner({ tone = "info", title, children, actionLabel, onAction, 
   const message = (
     <>
       {title ? (
-        <Text variant={tone === "needsYou" ? "eyebrow" : "sectionTitle"} tone={s.text}>
+        <Text variant="sectionTitle" tone={s.text}>
           {title}
         </Text>
       ) : null}
       {typeof children === "string" ? (
-        <Text variant={tone === "needsYou" ? "rowTitle" : "caption"} tone={s.text}>
+        <Text variant="caption" tone={s.text}>
           {children}
         </Text>
       ) : (
@@ -99,6 +96,8 @@ export function Banner({ tone = "info", title, children, actionLabel, onAction, 
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={inlineAction.label}
+          accessibilityState={{ busy: actionBusy, disabled: actionBusy }}
+          disabled={actionBusy}
           onPress={inlineAction.onPress}
           hitSlop={4}
           style={({ pressed }) => ({
@@ -109,9 +108,13 @@ export function Banner({ tone = "info", title, children, actionLabel, onAction, 
             opacity: pressed ? 0.6 : 1,
           })}
         >
-          <Text variant="label" tone="default" style={{ textDecorationLine: "underline" }}>
-            {inlineAction.label}
-          </Text>
+          {actionBusy ? (
+            <ActivityIndicator testID="banner-action-busy" color={colors.text} />
+          ) : (
+            <Text variant="label" tone="default" style={{ textDecorationLine: "underline" }}>
+              {inlineAction.label}
+            </Text>
+          )}
         </Pressable>
       ) : null}
       {action ? <View style={{ flexBasis: "100%", alignItems: "flex-start" }}>{action}</View> : null}

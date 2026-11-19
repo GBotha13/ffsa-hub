@@ -15,13 +15,13 @@ import {
 import { RefreshControl, View } from "react-native";
 
 import { useSession } from "@/auth/session-provider";
-import { Banner, Button, EmptyState, LargeTitleScrollView, ListGroup, ListRow, SectionHeader } from "@/components";
+import { Banner, Button, EmptyState, FadeIn, LargeTitleScrollView, ListGroup, ListRow, NeedsYouBand, SectionHeader } from "@/components";
 import { strings as historyStrings } from "@/features/history/strings";
 import type { FeedItem } from "@/features/home/api";
 import { groupFeed, resolveTarget, timeAgo } from "@/features/home/feed-logic";
 import { NotificationRow } from "@/features/home/NotificationRow";
 import { homeStrings as s } from "@/features/home/strings";
-import { FeedSectionHeader, HomeNeedsYouBand, HomeSkeleton, refreshHaptic } from "@/features/home/ui";
+import { HomeSkeleton, refreshHaptic } from "@/features/home/ui";
 import { useFeed } from "@/features/home/use-feed";
 import { useMinistriesShortcut } from "@/features/ministries/shortcut";
 import { strings as ministriesStrings } from "@/features/ministries/strings";
@@ -103,7 +103,7 @@ export default function HomeScreen() {
       {/* The ONE yellow band on this screen, only when something is unread. */}
       {top ? (
         <View style={block}>
-          <HomeNeedsYouBand
+          <NeedsYouBand
             testID="needs-you"
             eyebrow={s.band.title}
             text={s.band.count(needsYou.length)}
@@ -142,24 +142,29 @@ export default function HomeScreen() {
         </View>
       ) : null}
 
-      {needsYou.length > 0 ? (
-        <View>
-          <FeedSectionHeader
-            title={s.sections.needsYou(needsYou.length)}
-            actionLabel={s.markAllRead}
-            actionAccessibilityLabel={s.markAllReadA11y(needsYou.length)}
-            actionTestID="mark-all-read"
-            onAction={() => feed.markRead(needsYou.map((i) => i.key))}
-          />
-          {rows(needsYou)}
-        </View>
-      ) : null}
+      {needsYou.length > 0 || earlier.length > 0 ? (
+        <FadeIn>
+          {needsYou.length > 0 ? (
+            <View>
+              <SectionHeader
+                inset={false}
+                title={s.sections.needsYou(needsYou.length)}
+                actionLabel={s.markAllRead}
+                actionAccessibilityLabel={s.markAllReadA11y(needsYou.length)}
+                actionTestID="mark-all-read"
+                onAction={() => feed.markRead(needsYou.map((i) => i.key))}
+              />
+              {rows(needsYou)}
+            </View>
+          ) : null}
 
-      {earlier.length > 0 ? (
-        <View>
-          <SectionHeader inset={false} title={s.sections.earlier} />
-          {rows(earlier)}
-        </View>
+          {earlier.length > 0 ? (
+            <View>
+              <SectionHeader inset={false} title={s.sections.earlier} />
+              {rows(earlier)}
+            </View>
+          ) : null}
+        </FadeIn>
       ) : null}
 
       {/* Fixed order; rows the person can't open simply drop out. */}

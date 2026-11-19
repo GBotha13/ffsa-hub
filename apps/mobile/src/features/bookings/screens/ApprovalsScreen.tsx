@@ -4,7 +4,7 @@ import { useCallback, useMemo, type ReactNode } from "react";
 import { RefreshControl, View } from "react-native";
 
 import { useSession } from "@/auth/session-provider";
-import { EmptyState, LargeTitleScrollView, ListGroup, SkeletonList, type BackAction } from "@/components";
+import { type BackAction, Bleed, EmptyState, FadeIn, LargeTitleScrollView, ListGroup, LoadFailed, SectionTitle, SkeletonList, StaleNote } from "@/components";
 import { formatSavedAt } from "@/features/finance/cache";
 import { useCachedLoad } from "@/features/finance/use-cached-load";
 import { useMe } from "@/features/shell";
@@ -14,7 +14,7 @@ import { useTheme } from "@/theme/use-theme";
 
 import { bookingsAccess } from "../access";
 import { loadErrorMessage } from "../api";
-import { Bleed, BookingRow, LoadFailed, SectionTitle, StaleNote } from "../components/ui";
+import { BookingRow } from "../components/ui";
 import { loadPending, type Pending } from "../data";
 import { spaceItem, vehicleItem, type BookingItem } from "../logic";
 import { goBackTo } from "../nav";
@@ -90,31 +90,35 @@ export default function ApprovalsScreen() {
         ) : null}
         {state.status === "ready" && spaces.length + vehicles.length === 0 ? <EmptyState testID="empty" icon={Check} title={a.emptyTitle} body={a.empty} /> : null}
       </Bleed>
-      {spaces.length > 0 ? (
-        <View>
-          <SectionTitle title={a.spaces} meta={String(spaces.length)} />
-          <Bleed>
-            <ListGroup inset={false}>
-              {spaces.map((b) => {
-                const item = spaceItem(b);
-                return <BookingRow key={b.id} item={{ ...item, place: `${item.place} · ${a.requestedBy(b.requester_name)}` }} onPress={() => open(item)} />;
-              })}
-            </ListGroup>
-          </Bleed>
-        </View>
-      ) : null}
-      {vehicles.length > 0 ? (
-        <View>
-          <SectionTitle title={a.vehicles} meta={String(vehicles.length)} />
-          <Bleed>
-            <ListGroup inset={false}>
-              {vehicles.map((b) => {
-                const item = vehicleItem(b);
-                return <BookingRow key={b.id} item={{ ...item, place: `${item.place} · ${a.requestedBy(b.requester_name)}` }} onPress={() => open(item)} />;
-              })}
-            </ListGroup>
-          </Bleed>
-        </View>
+      {spaces.length + vehicles.length > 0 ? (
+        <FadeIn>
+          {spaces.length > 0 ? (
+            <View>
+              <SectionTitle title={a.spaces} meta={String(spaces.length)} />
+              <Bleed>
+                <ListGroup inset={false}>
+                  {spaces.map((b) => {
+                    const item = spaceItem(b);
+                    return <BookingRow key={b.id} item={{ ...item, place: `${item.place} · ${a.requestedBy(b.requester_name)}` }} onPress={() => open(item)} />;
+                  })}
+                </ListGroup>
+              </Bleed>
+            </View>
+          ) : null}
+          {vehicles.length > 0 ? (
+            <View>
+              <SectionTitle title={a.vehicles} meta={String(vehicles.length)} />
+              <Bleed>
+                <ListGroup inset={false}>
+                  {vehicles.map((b) => {
+                    const item = vehicleItem(b);
+                    return <BookingRow key={b.id} item={{ ...item, place: `${item.place} · ${a.requestedBy(b.requester_name)}` }} onPress={() => open(item)} />;
+                  })}
+                </ListGroup>
+              </Bleed>
+            </View>
+          ) : null}
+        </FadeIn>
       ) : null}
     </>,
     true,

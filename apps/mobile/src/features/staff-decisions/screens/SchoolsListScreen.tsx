@@ -4,8 +4,7 @@ import { useCallback } from "react";
 import { RefreshControl, View } from "react-native";
 
 import { useSession } from "@/auth/session-provider";
-import { EmptyState, LargeTitleScrollView, ListGroup, SkeletonList, StatusChip, Text } from "@/components";
-import { Bleed, GroupRow, LoadError } from "@/features/finance/components/parts";
+import { Bleed, EmptyState, FadeIn, Freshness, GroupRow, LargeTitleScrollView, ListGroup, LoadError, SkeletonList, StatusChip, Text } from "@/components";
 import { useCachedLoad } from "@/features/finance/use-cached-load";
 import { apiFetch } from "@/lib/api-client";
 import { refreshControlColors } from "@/theme/styles";
@@ -13,7 +12,6 @@ import { space } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
 
 import { getSchools, loadErrorMessage, type School, type SchoolList } from "../api";
-import { Freshness } from "../components/ui";
 import { schoolA11yLabel } from "../logic";
 import { strings } from "../strings";
 
@@ -69,15 +67,17 @@ export default function SchoolsListScreen() {
           data.schools.length === 0 ? (
             <EmptyState testID="empty" icon={UserCheck} title={s.emptyTitle} body={s.emptyBody} />
           ) : (
-            <ListGroup inset={false}>
-              {data.schools.map((school) => (
-                <SchoolRow
-                  key={school.id}
-                  school={school}
-                  onPress={() => router.push({ pathname: "/staff-decisions/[programId]", params: { programId: school.id } })}
-                />
-              ))}
-            </ListGroup>
+            <FadeIn>
+              <ListGroup inset={false}>
+                {data.schools.map((school) => (
+                  <SchoolRow
+                    key={school.id}
+                    school={school}
+                    onPress={() => router.push({ pathname: "/staff-decisions/[programId]", params: { programId: school.id } })}
+                  />
+                ))}
+              </ListGroup>
+            </FadeIn>
           )
         ) : null}
       </Bleed>

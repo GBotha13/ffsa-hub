@@ -3,8 +3,7 @@ import { useCallback, useState } from "react";
 import { RefreshControl, View } from "react-native";
 
 import { useSession } from "@/auth/session-provider";
-import { Banner, EmptyState, LargeTitleScrollView, ListGroup, ListRow, SkeletonList, Text, type BackAction } from "@/components";
-import { Bleed, GroupRow, LoadError, PushedPage, SectionTitle } from "@/features/finance/components/parts";
+import { type BackAction, Banner, Bleed, EmptyState, FadeIn, GroupRow, LargeTitleScrollView, ListGroup, ListRow, LoadError, PushedPage, SectionTitle, SkeletonList, Text } from "@/components";
 import { useCachedLoad } from "@/features/finance/use-cached-load";
 import { timeAgo } from "@/features/home/feed-logic";
 import { openWebPage } from "@/features/shell";
@@ -13,7 +12,7 @@ import { hairline, radius, space } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
 
 import { okrsApi } from "../client";
-import { Bar, CycleSwitcher, Figure, FigureStrip, Freshness, StatusTag } from "../components/ui";
+import { Bar, CycleSwitcher, Figure, FigureStrip, StatusTag, Freshness } from "../components/ui";
 import { cacheName, isNotFound, loadErrorMessage, statusLabel, webPath } from "../logic";
 import { strings } from "../strings";
 import type { KeyResult, Objective, OwnerPage } from "../types";
@@ -94,33 +93,35 @@ export default function OwnerScreen({ ownerId, cycle }: { ownerId: string; cycle
           </Bleed>
         ) : null}
 
-        <Bleed>
-          <CycleSwitcher cycles={data.cycles} active={data.cycle} onChange={(slug) => router.setParams({ cycle: slug })} />
-        </Bleed>
+        <FadeIn>
+          <Bleed>
+            <CycleSwitcher cycles={data.cycles} active={data.cycle} onChange={(slug) => router.setParams({ cycle: slug })} />
+          </Bleed>
 
-        <View style={{ marginTop: space.lg }}>
-          <FigureStrip four>
-            <Figure label={s.kpiObjectives} value={data.totals.objectives} />
-            <Figure label={s.kpiKeyResults} value={data.totals.keyResults} />
-            <Figure label={s.kpiComplete} value={data.totals.complete} />
-            <Figure label={s.kpiStuck} value={data.totals.stuck} tone={data.totals.stuck > 0 ? "danger" : "default"} testID="kpi-stuck" />
-          </FigureStrip>
-        </View>
+          <View style={{ marginTop: space.lg }}>
+            <FigureStrip four>
+              <Figure label={s.kpiObjectives} value={data.totals.objectives} />
+              <Figure label={s.kpiKeyResults} value={data.totals.keyResults} />
+              <Figure label={s.kpiComplete} value={data.totals.complete} />
+              <Figure label={s.kpiStuck} value={data.totals.stuck} tone={data.totals.stuck > 0 ? "danger" : "default"} testID="kpi-stuck" />
+            </FigureStrip>
+          </View>
 
-        {/* Calm, not an alarm: who can change this, in a sentence. */}
-        <Bleed style={{ marginTop: space.lg }}>
-          <Banner tone="info" testID="access-note">
-            {data.canEdit ? s.canEdit : data.readOnly === "closed" ? s.closed : s.readAccess}
-          </Banner>
-        </Bleed>
+          {/* Calm, not an alarm: who can change this, in a sentence. */}
+          <Bleed style={{ marginTop: space.lg }}>
+            <Banner tone="info" testID="access-note">
+              {data.canEdit ? s.canEdit : data.readOnly === "closed" ? s.closed : s.readAccess}
+            </Banner>
+          </Bleed>
 
-        {data.objectives.length === 0 ? (
-          <Text tone="secondary" testID="empty" style={{ marginTop: space.lg }}>
-            {data.canEdit ? s.emptyEditable : s.emptyReadOnly}
-          </Text>
-        ) : (
-          data.objectives.map((o) => <ObjectiveBlock key={o.id} objective={o} canEdit={data.canEdit} onOpen={setOpenKrId} />)
-        )}
+          {data.objectives.length === 0 ? (
+            <Text tone="secondary" testID="empty" style={{ marginTop: space.lg }}>
+              {data.canEdit ? s.emptyEditable : s.emptyReadOnly}
+            </Text>
+          ) : (
+            data.objectives.map((o) => <ObjectiveBlock key={o.id} objective={o} canEdit={data.canEdit} onOpen={setOpenKrId} />)
+          )}
+        </FadeIn>
 
         {data.canEdit ? (
           <Bleed style={{ marginTop: space.xl }}>
