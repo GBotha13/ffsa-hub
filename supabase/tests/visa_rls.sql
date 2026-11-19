@@ -85,6 +85,9 @@ CREATE TABLE storage.buckets (
 -- still leave the event log append-only for it.
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO service_role;
 
+-- A bucket someone made by hand, public: 361 must make it private.
+INSERT INTO storage.buckets (id, name, public) VALUES ('visa-documents', 'visa-documents', true);
+
 \ir ../migrations/360_visa_schema.sql
 \ir ../migrations/361_visa_rls.sql
 \ir ../migrations/362_visa_seed.sql
@@ -121,13 +124,13 @@ INSERT INTO public.visa_case_schools (case_id, program_id) VALUES
   ('c0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-00000000000a'),
   ('c0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000b');
 
-INSERT INTO public.visa_case_documents (case_id, document_type_id, storage_path, status, uploaded_by)
-SELECT 'c0000000-0000-0000-0000-000000000001', t.id,
+INSERT INTO public.visa_case_documents (id, case_id, document_type_id, storage_path, status, uploaded_by)
+SELECT 'd0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', t.id,
        'c0000000-0000-0000-0000-000000000001/d0000000-0000-0000-0000-000000000001.pdf',
        'uploaded', '00000000-0000-0000-0000-000000000004'
   FROM public.visa_document_types t WHERE t.code = 'passport';
-INSERT INTO public.visa_case_documents (case_id, document_type_id, storage_path, status, uploaded_by)
-SELECT 'c0000000-0000-0000-0000-000000000002', t.id,
+INSERT INTO public.visa_case_documents (id, case_id, document_type_id, storage_path, status, uploaded_by)
+SELECT 'd0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000002', t.id,
        'c0000000-0000-0000-0000-000000000002/d0000000-0000-0000-0000-000000000002.pdf',
        'uploaded', '00000000-0000-0000-0000-000000000005'
   FROM public.visa_document_types t WHERE t.code = 'passport';
@@ -173,6 +176,55 @@ BEGIN
       FROM public.visa_document_types WHERE code = 'passport';
     RAISE EXCEPTION 'a file name with a person''s name was accepted';
   EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  -- A row on case 1 pointing at case 2's file (Jack's cross-school read).
+  BEGIN
+    INSERT INTO public.visa_case_documents (case_id, document_type_id, storage_path, status)
+    SELECT 'c0000000-0000-0000-0000-000000000001', id,
+           'c0000000-0000-0000-0000-000000000002/d0000000-0000-0000-0000-000000000002.pdf', 'uploaded'
+      FROM public.visa_document_types WHERE code = 'passport';
+    RAISE EXCEPTION 'a document pointing at another case''s file was accepted';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  -- Right case, but another row's id.
+  BEGIN
+    INSERT INTO public.visa_case_documents (id, case_id, document_type_id, storage_path, status)
+    SELECT 'd0000000-0000-0000-0000-000000000077', 'c0000000-0000-0000-0000-000000000001', id,
+           'c0000000-0000-0000-0000-000000000001/d0000000-0000-0000-0000-000000000001.pdf', 'uploaded'
+      FROM public.visa_document_types WHERE code = 'passport';
+    RAISE EXCEPTION 'a document pointing at another row''s file was accepted';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  -- Even the table owner can't repoint an existing row.
+  BEGIN
+    UPDATE public.visa_case_documents
+       SET storage_path = 'c0000000-0000-0000-0000-000000000002/d0000000-0000-0000-0000-000000000002.pdf'
+     WHERE id = 'd0000000-0000-0000-0000-000000000001';
+    RAISE EXCEPTION 'a document''s file was changed';
+  EXCEPTION WHEN insufficient_privilege OR check_violation THEN NULL;
+  END;
+  BEGIN
+    UPDATE public.visa_case_documents SET case_id = 'c0000000-0000-0000-0000-000000000002'
+     WHERE id = 'd0000000-0000-0000-0000-000000000001';
+    RAISE EXCEPTION 'a document moved to another case';
+  EXCEPTION WHEN insufficient_privilege OR check_violation THEN NULL;
+  END;
+  BEGIN
+    UPDATE public.visa_case_schools SET case_id = 'c0000000-0000-0000-0000-000000000002'
+     WHERE case_id = 'c0000000-0000-0000-0000-000000000001';
+    RAISE EXCEPTION 'a school moved to another case';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  -- Deleting a case with history is refused, for the owner too.
+  BEGIN
+    DELETE FROM public.visa_cases WHERE id = 'c0000000-0000-0000-0000-000000000001';
+    RAISE EXCEPTION 'a case with history was deleted';
+  EXCEPTION WHEN foreign_key_violation THEN NULL;
+  END;
+  BEGIN
+    DELETE FROM public.users WHERE id = '00000000-0000-0000-0000-000000000004';
+    RAISE EXCEPTION 'deleting a student took their case with it';
+  EXCEPTION WHEN foreign_key_violation THEN NULL;
   END;
   BEGIN
     INSERT INTO public.visa_case_documents (case_id, document_type_id, storage_path, status)
@@ -223,7 +275,22 @@ SELECT pg_temp.expect('legal: events', (SELECT count(*) FROM public.visa_case_ev
 INSERT INTO public.visa_cases (id, user_id) VALUES
   ('c0000000-0000-0000-0000-000000000009', '00000000-0000-0000-0000-000000000007');
 UPDATE public.visa_country_rules SET processing_weeks = 6 WHERE country_iso = 'US';
-DELETE FROM public.visa_cases WHERE id = 'c0000000-0000-0000-0000-000000000009';
+DO $$
+BEGIN
+  DELETE FROM public.visa_cases WHERE id = 'c0000000-0000-0000-0000-000000000009';
+  RAISE EXCEPTION 'legal deleted a case';
+EXCEPTION WHEN insufficient_privilege THEN NULL;
+END $$;
+DO $$
+BEGIN
+  DELETE FROM public.visa_case_documents;
+  RAISE EXCEPTION 'legal deleted documents';
+EXCEPTION WHEN insufficient_privilege THEN NULL;
+END $$;
+-- Global legal may change who a case is for (a case opened on the wrong
+-- person). The empty test case is then removed as the owner.
+UPDATE public.visa_cases SET user_id = '00000000-0000-0000-0000-000000000003'
+ WHERE id = 'c0000000-0000-0000-0000-000000000009';
 DO $$
 BEGIN
   INSERT INTO public.visa_case_events (case_id, kind) VALUES ('c0000000-0000-0000-0000-000000000001', 'tampered');
@@ -232,6 +299,9 @@ EXCEPTION WHEN insufficient_privilege THEN NULL;
 END $$;
 RESET ROLE;
 
+RESET ROLE;
+DELETE FROM public.visa_cases WHERE id = 'c0000000-0000-0000-0000-000000000009';  -- no history yet
+SET ROLE authenticated;
 -- An admin counts as legal.
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000007', 'true', '', '');
 SET ROLE authenticated;
@@ -250,6 +320,32 @@ SELECT pg_temp.expect('scoped legal A: updates case 1', (SELECT count(*) FROM u)
 WITH u AS (UPDATE public.visa_cases SET lodged_where = 'x'
             WHERE id = 'c0000000-0000-0000-0000-000000000002' RETURNING 1)
 SELECT pg_temp.expect('scoped legal A: not case 2', (SELECT count(*) FROM u), 0);
+-- Scoped legal can't hand a case they manage to another student, or swap
+-- its school for one they don't hold.
+DO $$
+BEGIN
+  UPDATE public.visa_cases SET user_id = '00000000-0000-0000-0000-000000000007'
+   WHERE id = 'c0000000-0000-0000-0000-000000000001';
+  RAISE EXCEPTION 'scoped legal changed who a case is for';
+EXCEPTION WHEN insufficient_privilege THEN NULL;
+END $$;
+DO $$
+BEGIN
+  UPDATE public.visa_case_schools SET program_id = 'b0000000-0000-0000-0000-00000000000b'
+   WHERE case_id = 'c0000000-0000-0000-0000-000000000001';
+  RAISE EXCEPTION 'scoped legal changed a case''s school';
+EXCEPTION WHEN insufficient_privilege THEN NULL;
+END $$;
+-- Scoped legal can add a document row to their own case only at its own path.
+DO $$
+BEGIN
+  INSERT INTO public.visa_case_documents (case_id, document_type_id, storage_path, status)
+  SELECT 'c0000000-0000-0000-0000-000000000001', id,
+         'c0000000-0000-0000-0000-000000000002/d0000000-0000-0000-0000-000000000002.pdf', 'uploaded'
+    FROM public.visa_document_types WHERE code = 'passport_photos';
+  RAISE EXCEPTION 'scoped legal pointed a document at case 2''s file';
+EXCEPTION WHEN check_violation THEN NULL;
+END $$;
 DO $$
 BEGIN
   INSERT INTO public.visa_country_rules (country_iso, country_name) VALUES ('GB', 'United Kingdom');

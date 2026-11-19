@@ -79,7 +79,8 @@ CREATE TABLE IF NOT EXISTS public.visa_document_types (
 -- stay_override_reason is set only when legal overrides them.
 CREATE TABLE IF NOT EXISTS public.visa_cases (
   id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id               uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  -- RESTRICT: a case and its history outlive nothing silently (see 10).
+  user_id               uuid NOT NULL REFERENCES public.users(id) ON DELETE RESTRICT,
   visa_type             text NOT NULL DEFAULT 'undecided'
                         CHECK (visa_type IN ('undecided', 'exempt', 'visitor', 'volunteer')),
   status                text NOT NULL DEFAULT 'collecting_documents'
@@ -165,12 +166,9 @@ CREATE INDEX IF NOT EXISTS idx_visa_case_schools_program ON public.visa_case_sch
 -- A redo adds a new row; the newest row per (case, type) counts.
 CREATE TABLE IF NOT EXISTS public.visa_case_documents (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  case_id           uuid NOT NULL REFERENCES public.visa_cases(id) ON DELETE CASCADE,
+  case_id           uuid NOT NULL REFERENCES public.visa_cases(id) ON DELETE RESTRICT,
   document_type_id  uuid NOT NULL REFERENCES public.visa_document_types(id) ON DELETE RESTRICT,
-  storage_path      text CHECK (
-                      storage_path IS NULL
-                      OR storage_path ~ '^[0-9a-f-]{36}/[0-9a-f-]{36}\.[a-z0-9]{2,5}$'
-                    ),
+  storage_path      text,
   mime_type         text,
   size_bytes        integer CHECK (size_bytes IS NULL OR size_bytes > 0),
   issued_on         date,
@@ -181,6 +179,13 @@ CREATE TABLE IF NOT EXISTS public.visa_case_documents (
   reviewed_by       uuid REFERENCES public.users(id) ON DELETE SET NULL,
   reviewed_at       timestamptz,
   created_at        timestamptz NOT NULL DEFAULT now(),
+  -- The file is always '<this row's case_id>/<this row's id>.<ext>', so a
+  -- row can only ever point at its own file, never another case's. The
+  -- id and case_id are uuids, so they hold no regex characters.
+  CONSTRAINT visa_case_documents_own_path CHECK (
+    storage_path IS NULL
+    OR storage_path ~ ('^' || case_id::text || '/' || id::text || '\.[a-z0-9]{2,5}$')
+  ),
   -- A ticked offline step has no file; everything else has one.
   CONSTRAINT visa_case_documents_file_or_tick CHECK (
     (status = 'ticked') = (storage_path IS NULL)
@@ -237,7 +242,7 @@ CREATE INDEX IF NOT EXISTS idx_visa_case_questions_open
 -- download. detail must never hold a passport number or file contents.
 CREATE TABLE IF NOT EXISTS public.visa_case_events (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  case_id     uuid NOT NULL REFERENCES public.visa_cases(id) ON DELETE CASCADE,
+  case_id     uuid NOT NULL REFERENCES public.visa_cases(id) ON DELETE RESTRICT,
   actor_id    uuid REFERENCES public.users(id) ON DELETE SET NULL,
   kind        text NOT NULL CHECK (kind ~ '^[a-z_]+$'),
   detail      jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -261,5 +266,78 @@ CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.visa_document_types
 DROP TRIGGER IF EXISTS set_updated_at ON public.visa_cases;
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.visa_cases
   FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+-- ────────────────────────────────────────────────────────────
+-- 10. LOCKED COLUMNS — for every role, the service role and definer
+--     functions included
+-- ────────────────────────────────────────────────────────────
+-- A document row's id, case, type and file never change after insert: a
+-- redo is a new row. Together with the own-path CHECK above, no row can
+-- be repointed at another case's file.
+CREATE OR REPLACE FUNCTION public.visa_case_documents_locked()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+  IF NEW.id IS DISTINCT FROM OLD.id
+     OR NEW.case_id IS DISTINCT FROM OLD.case_id
+     OR NEW.document_type_id IS DISTINCT FROM OLD.document_type_id
+     OR NEW.storage_path IS DISTINCT FROM OLD.storage_path THEN
+    RAISE EXCEPTION 'A document''s case, type and file can''t be changed; upload a new one'
+      USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS visa_case_documents_locked ON public.visa_case_documents;
+CREATE TRIGGER visa_case_documents_locked BEFORE UPDATE ON public.visa_case_documents
+  FOR EACH ROW EXECUTE FUNCTION public.visa_case_documents_locked();
+
+-- A case row never moves to another case. Who a case is for, and which
+-- school a stay row is for, change only by global legal (visa_is_legal,
+-- 361), never by legal scoped to one school: that would let them pull
+-- another school's student into a case they manage.
+CREATE OR REPLACE FUNCTION public.visa_case_owner_locked()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+  IF TG_TABLE_NAME = 'visa_cases' THEN
+    IF NEW.id IS DISTINCT FROM OLD.id THEN
+      RAISE EXCEPTION 'A case''s id can''t change' USING ERRCODE = '42501';
+    END IF;
+    IF NEW.user_id IS DISTINCT FROM OLD.user_id AND NOT public.visa_is_legal() THEN
+      RAISE EXCEPTION 'Only global legal can change who a case is for' USING ERRCODE = '42501';
+    END IF;
+  ELSE
+    IF NEW.case_id IS DISTINCT FROM OLD.case_id THEN
+      RAISE EXCEPTION 'A school can''t move to another case' USING ERRCODE = '42501';
+    END IF;
+    IF NEW.program_id IS DISTINCT FROM OLD.program_id AND NOT public.visa_is_legal() THEN
+      RAISE EXCEPTION 'Only global legal can change a case''s school' USING ERRCODE = '42501';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+-- visa_is_legal() is created in 361; plpgsql resolves it when the trigger
+-- first runs, and 360 and 361 apply together.
+
+DROP TRIGGER IF EXISTS visa_cases_owner_locked ON public.visa_cases;
+CREATE TRIGGER visa_cases_owner_locked BEFORE UPDATE ON public.visa_cases
+  FOR EACH ROW EXECUTE FUNCTION public.visa_case_owner_locked();
+
+DROP TRIGGER IF EXISTS visa_case_schools_owner_locked ON public.visa_case_schools;
+CREATE TRIGGER visa_case_schools_owner_locked BEFORE UPDATE ON public.visa_case_schools
+  FOR EACH ROW EXECUTE FUNCTION public.visa_case_owner_locked();
+
+-- Cases aren't deleted: documents, the event log and the student's user
+-- row all RESTRICT, so the history and the files can't vanish by cascade.
+-- A finished case is closed or withdrawn instead. Removing a case after
+-- the retention period is a deliberate job (build step 4) that deletes
+-- the files first.
 
 COMMIT;
