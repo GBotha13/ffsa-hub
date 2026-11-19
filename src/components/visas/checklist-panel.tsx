@@ -99,11 +99,11 @@ function ChecklistRow({
   const showReview = canReview && canChange && state === "uploaded" && latest;
 
   return (
-    <li className="border-b border-rule px-5 py-3.5 last:border-b-0 md:px-6">
+    <li className="border-b border-rule px-5 py-4 last:border-b-0 md:px-6">
       <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between md:gap-6">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[15px] font-semibold">{type.label}</span>
+            <span className="text-[14px] font-semibold">{type.label}</span>
             {type.is_conditional && <span className="mono-label">Only if it applies</span>}
             {type.is_offline && <span className="mono-label">Tick when done</span>}
           </div>

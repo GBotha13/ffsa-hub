@@ -72,6 +72,15 @@ describe("POST /api/visas/cases/[id]/documents", () => {
     });
   });
 
+  it("takes the type from the file's bytes, not its name", async () => {
+    const png = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0])], "scan.pdf", {
+      type: "application/pdf",
+    });
+    expect((await upload({ file: png, document_type_id: TYPE })).status).toBe(200);
+    expect(state.uploaded[0]).toMatch(/\.png$/);
+    expect(vi.mocked(addVisaDocument).mock.calls[0][1]).toMatchObject({ mime_type: "image/png" });
+  });
+
   it("removes the file when the database refuses it", async () => {
     state.rpcError = { code: "42501" };
     const res = await upload({ file: pdf(), document_type_id: TYPE });
@@ -95,6 +104,9 @@ describe("POST /api/visas/cases/[id]/documents", () => {
     vi.unstubAllEnvs();
     const exe = new File(["MZ"], "x.exe", { type: "application/x-msdownload" });
     expect((await upload({ file: exe, document_type_id: TYPE })).status).toBe(400);
+    // A program renamed .pdf, with the PDF type the browser guesses from the name.
+    const disguised = new File(["MZ\x90\x00"], "passport.pdf", { type: "application/pdf" });
+    expect((await upload({ file: disguised, document_type_id: TYPE })).status).toBe(400);
     expect((await upload({ file: pdf(), document_type_id: "nope" })).status).toBe(400);
     expect((await upload({ file: pdf(), document_type_id: TYPE, issued_on: "2026-02-30" })).status).toBe(400);
     expect(state.uploaded).toHaveLength(0);

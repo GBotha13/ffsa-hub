@@ -99,8 +99,11 @@ export default async function VisaCasePage({ params }: { params: Promise<{ caseI
     billing_courses: { name: string } | null;
   }>;
   const programIds = schools.map((s) => s.program_id);
-  const isLegal = isLegalFor(access, programIds);
-  const canFollow = canFollowUp(access, programIds);
+  // Nobody is staff on their own case (363 refuses it too): a leader or
+  // legal looking at their own visa sees it, but can't act on it.
+  const ownCase = c.user_id === user.id;
+  const isLegal = !ownCase && isLegalFor(access, programIds);
+  const canFollow = !ownCase && canFollowUp(access, programIds);
 
   const requests = (requestsRes.data ?? []) as Array<Omit<RequestRow, "requested_by_name" | "decided_by_name"> & {
     requested_by: string | null;
@@ -133,10 +136,13 @@ export default async function VisaCasePage({ params }: { params: Promise<{ caseI
   const collecting = c.status === "collecting_documents" || c.status === "sent_back";
   const reviewCount = toReview(items).length;
   const student = name(c.user_id);
+  // Two people on every approval: whoever sent the open request can't decide it.
+  const openRequest = requests.find((r) => r.decision === null);
+  const canDecide = isLegal && !!openRequest && openRequest.requested_by !== user.id;
 
   // One band: what this viewer has to do on this case, if anything.
   let band: string | null = null;
-  if (c.status === "awaiting_legal" && isLegal) band = "This case is waiting for your approval";
+  if (c.status === "awaiting_legal" && canDecide) band = "This case is waiting for your approval";
   else if (collecting && canFollow && reviewCount > 0)
     band = reviewCount === 1 ? "1 document is waiting for your review" : `${reviewCount} documents are waiting for your review`;
   else if (collecting && canFollow && missing.length === 0) band = "Every document is in. Request approval from legal";
@@ -172,6 +178,7 @@ export default async function VisaCasePage({ params }: { params: Promise<{ caseI
               missing={missing}
               isLegal={isLegal}
               canFollow={canFollow}
+              currentUserId={user.id}
               requests={requests.map((r) => ({
                 ...r,
                 requested_by_name: name(r.requested_by),
@@ -253,7 +260,7 @@ export default async function VisaCasePage({ params }: { params: Promise<{ caseI
             <SectionBar title="History" />
             <ul className="max-h-[420px] overflow-y-auto">
               {events.map((e) => (
-                <li key={e.id} className="flex items-baseline justify-between gap-3 border-b border-rule px-5 py-2.5 text-[13px] last:border-b-0">
+                <li key={e.id} className="flex items-baseline justify-between gap-3 border-b border-rule px-5 py-2 text-[13px] last:border-b-0">
                   <span>
                     {EVENT_LABEL[e.kind] ?? e.kind}
                     <span className="text-[#7C786C]"> · {name(e.actor_id)}</span>

@@ -40,7 +40,7 @@ export default async function MyVisaPage() {
     return (
       <div className="ffsa-screen">
         <Masthead context="Training · Visa" title="Your visa" />
-        <p className="px-5 py-8 text-[15px] md:px-8">
+        <p className="px-5 py-8 text-[14px] md:px-8">
           You don&apos;t have a visa case. If you&apos;ve been accepted to a school and need a visa, your school leader will
           open one for you. <Link href="/my-schools" className="underline">Back to My training</Link>
         </p>
@@ -82,7 +82,7 @@ export default async function MyVisaPage() {
             <div>
               <StatusPill tone={statusTone(c.status)}>{VISA_STATUS_LABEL[c.status]}</StatusPill>
             </div>
-            <p className="text-[15px]">{NEXT_STEP[c.status]}</p>
+            <p className="text-[14px]">{NEXT_STEP[c.status]}</p>
             {c.stay_from && (
               <p className="mono-label">
                 Your stay: {formatDay(c.stay_from)} – {formatDay(c.stay_to)}
