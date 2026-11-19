@@ -11,6 +11,7 @@ import {
   isUuid,
   refusePreviewWrite,
   rpcErrorResponse,
+  sniffUploadType,
 } from "@/lib/visas/api";
 
 // POST — upload one document to a case (multipart: file, document_type_id,
@@ -40,10 +41,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const issuedOn = form.get("issued_on");
   if (!(file instanceof File)) return NextResponse.json({ error: "No file provided" }, { status: 400 });
   if (!isUuid(documentTypeId)) return NextResponse.json({ error: "Missing document type" }, { status: 400 });
-  const ext = UPLOAD_TYPES[file.type];
-  if (!ext) return NextResponse.json({ error: "File must be a PDF or a photo (JPG, PNG, WEBP, HEIC)" }, { status: 400 });
   if (file.size <= 0 || file.size > UPLOAD_MAX_BYTES) {
     return NextResponse.json({ error: "File must be 10 MB or smaller" }, { status: 400 });
+  }
+  // The type comes from the file's first bytes, not from its name.
+  const mimeType = sniffUploadType(new Uint8Array(await file.slice(0, 16).arrayBuffer()));
+  const ext = mimeType ? UPLOAD_TYPES[mimeType] : undefined;
+  if (!mimeType || !ext) {
+    return NextResponse.json({ error: "File must be a PDF or a photo (JPG, PNG, WEBP, HEIC)" }, { status: 400 });
   }
   if (issuedOn !== null && issuedOn !== "" && !isIsoDate(issuedOn)) {
     return NextResponse.json({ error: "Issue date must be a date" }, { status: 400 });
@@ -58,7 +63,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const admin = createAdminClient() as any; // eslint-disable-line @typescript-eslint/no-explicit-any
   const { error: upErr } = await admin.storage
     .from(VISA_BUCKET)
-    .upload(path, file, { contentType: file.type, upsert: false });
+    .upload(path, file, { contentType: mimeType, upsert: false });
   if (upErr) return NextResponse.json({ error: "Upload failed" }, { status: 500 });
 
   const { error } = await addVisaDocument(supabase, {
@@ -66,7 +71,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     case_id: caseId,
     document_type_id: documentTypeId,
     storage_path: path,
-    mime_type: file.type,
+    mime_type: mimeType,
     size_bytes: file.size,
     issued_on: typeof issuedOn === "string" && issuedOn ? issuedOn : null,
   });

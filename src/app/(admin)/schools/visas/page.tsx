@@ -96,7 +96,7 @@ export default async function VisasPage({ searchParams }: { searchParams: Promis
         <Kpi label="Closed" value={String(all.length - open.length)} />
       </KpiStrip>
 
-      <div className="flex flex-wrap items-center gap-1.5 border-b border-rule bg-bone px-5 py-3 md:px-8">
+      <div className="flex flex-wrap items-center gap-2 border-b border-rule bg-bone px-5 py-3 md:px-8">
         {VIEWS.map(([key, label]) => (
           <Link key={key} href={key === "open" ? "/schools/visas" : `/schools/visas?view=${key}`}>
             <Chip active={view === key}>{label}</Chip>
@@ -119,14 +119,17 @@ export default async function VisasPage({ searchParams }: { searchParams: Promis
                   <li key={c.id} className="border-b border-rule last:border-b-0">
                     <Link
                       href={`/schools/visas/${c.id}`}
-                      className="flex min-h-[46px] flex-col gap-1.5 px-5 py-3.5 hover:bg-bone md:flex-row md:items-center md:gap-6 md:px-6"
+                      className="flex min-h-[46px] flex-col gap-2 px-5 py-4 hover:bg-bone md:flex-row md:items-center md:gap-6 md:px-6"
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="truncate font-display text-[19px] font-black uppercase leading-tight">
+                        <div className="truncate font-display text-[16px] font-black uppercase leading-[0.95] tracking-[0.05em]">
                           {personName(nameOf.get(c.user_id) as never)}
                         </div>
-                        <div className="mono-label mt-1 truncate">
-                          {programsOf(c).map((p) => programOf.get(p) ?? "School").join(" + ")} ·{" "}
+                        {/* Schools and stay on separate lines: at 390px one line cut the dates off. */}
+                        <div className="mono-label mt-2 truncate">
+                          {programsOf(c).map((p) => programOf.get(p) ?? "School").join(" + ")}
+                        </div>
+                        <div className="mono-label mt-1">
                           {c.stay_from ? `${formatDay(c.stay_from)} – ${formatDay(c.stay_to)}` : "Stay not dated"}
                         </div>
                       </div>

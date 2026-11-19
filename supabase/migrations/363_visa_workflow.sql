@@ -5,7 +5,13 @@
 -- Build step 2. Every move a student or school leader makes on a case goes
 -- through one of these SECURITY DEFINER functions, which check who is
 -- calling and where the case is before changing anything and append to the
--- event log. RLS (361) still lets only legal write the tables directly.
+-- event log. Users can't write the case tables directly at all (section 9):
+-- every change, legal's included, goes through these functions, so the
+-- two-person rule and the status order can't be skipped.
+--
+-- Nobody acts as staff on their own case: a leader or legal who is also
+-- the student on a case can upload and tick for it like any student, but
+-- can't review, request, decide, ask, answer, record progress or close.
 --
 --   Student (own case)        visa_add_document, visa_tick_offline
 --   School leader / legal     visa_review_document, visa_request_approval,
@@ -25,8 +31,9 @@
 -- Event detail never holds a passport number, a file name or a note's text
 -- beyond what the case already shows.
 --
--- One transaction. Additive only: new functions, no table changes.
--- Idempotent (CREATE OR REPLACE).
+-- One transaction. New functions, and it takes users' direct INSERT /
+-- UPDATE on the case tables away (361 gave them to legal for step 1).
+-- Idempotent (CREATE OR REPLACE, DROP POLICY IF EXISTS, REVOKE).
 -- ============================================================
 
 BEGIN;
@@ -225,6 +232,10 @@ BEGIN
   IF NOT FOUND OR NOT v_type.is_active OR NOT v_type.is_offline THEN
     RAISE EXCEPTION 'Only offline steps can be ticked' USING ERRCODE = 'P0001';
   END IF;
+  IF EXISTS (SELECT 1 FROM public.visa_latest_documents(p_case_id) d
+              WHERE d.document_type_id = p_document_type_id AND d.status = 'ticked') THEN
+    RAISE EXCEPTION '% is already ticked', v_type.label USING ERRCODE = 'P0001';
+  END IF;
 
   INSERT INTO public.visa_case_documents (case_id, document_type_id, status, uploaded_by)
   VALUES (p_case_id, p_document_type_id, 'ticked', auth.uid())
@@ -263,6 +274,9 @@ BEGIN
   IF auth.uid() IS NULL OR NOT (public.visa_can_follow_up(v_doc.case_id)
                                 OR public.visa_can_manage(v_doc.case_id)) THEN
     RAISE EXCEPTION 'Not allowed' USING ERRCODE = '42501';
+  END IF;
+  IF public.visa_is_own_case(v_doc.case_id) THEN
+    RAISE EXCEPTION 'You can''t act as staff on your own visa case' USING ERRCODE = '42501';
   END IF;
 
   SELECT status INTO v_status FROM public.visa_cases WHERE id = v_doc.case_id FOR UPDATE;
@@ -313,6 +327,9 @@ BEGIN
   IF auth.uid() IS NULL OR NOT (public.visa_can_follow_up(p_case_id)
                                 OR public.visa_can_manage(p_case_id)) THEN
     RAISE EXCEPTION 'Not allowed' USING ERRCODE = '42501';
+  END IF;
+  IF public.visa_is_own_case(p_case_id) THEN
+    RAISE EXCEPTION 'You can''t act as staff on your own visa case' USING ERRCODE = '42501';
   END IF;
 
   SELECT * INTO v_case FROM public.visa_cases WHERE id = p_case_id FOR UPDATE;
@@ -365,6 +382,9 @@ BEGIN
   IF auth.uid() IS NULL OR NOT public.visa_can_manage(v_req.case_id) THEN
     RAISE EXCEPTION 'Not allowed' USING ERRCODE = '42501';
   END IF;
+  IF public.visa_is_own_case(v_req.case_id) THEN
+    RAISE EXCEPTION 'You can''t act as staff on your own visa case' USING ERRCODE = '42501';
+  END IF;
   IF v_req.decision IS NOT NULL THEN
     RAISE EXCEPTION 'This request has already been decided' USING ERRCODE = 'P0001';
   END IF;
@@ -413,6 +433,9 @@ BEGIN
                                 OR public.visa_can_manage(p_case_id)) THEN
     RAISE EXCEPTION 'Not allowed' USING ERRCODE = '42501';
   END IF;
+  IF public.visa_is_own_case(p_case_id) THEN
+    RAISE EXCEPTION 'You can''t act as staff on your own visa case' USING ERRCODE = '42501';
+  END IF;
   IF coalesce(btrim(p_question), '') = '' THEN
     RAISE EXCEPTION 'Write the question' USING ERRCODE = 'P0001';
   END IF;
@@ -439,6 +462,9 @@ BEGIN
   END IF;
   IF auth.uid() IS NULL OR NOT public.visa_can_manage(v_q.case_id) THEN
     RAISE EXCEPTION 'Not allowed' USING ERRCODE = '42501';
+  END IF;
+  IF public.visa_is_own_case(v_q.case_id) THEN
+    RAISE EXCEPTION 'You can''t act as staff on your own visa case' USING ERRCODE = '42501';
   END IF;
   IF v_q.closed_at IS NOT NULL THEN
     RAISE EXCEPTION 'This question is already answered' USING ERRCODE = 'P0001';
@@ -474,6 +500,9 @@ BEGIN
   IF auth.uid() IS NULL OR NOT (public.visa_can_follow_up(p_case_id)
                                 OR public.visa_can_manage(p_case_id)) THEN
     RAISE EXCEPTION 'Not allowed' USING ERRCODE = '42501';
+  END IF;
+  IF public.visa_is_own_case(p_case_id) THEN
+    RAISE EXCEPTION 'You can''t act as staff on your own visa case' USING ERRCODE = '42501';
   END IF;
   SELECT * INTO v_case FROM public.visa_cases WHERE id = p_case_id FOR UPDATE;
 
@@ -535,6 +564,9 @@ BEGIN
   IF auth.uid() IS NULL OR NOT public.visa_can_manage(p_case_id) THEN
     RAISE EXCEPTION 'Not allowed' USING ERRCODE = '42501';
   END IF;
+  IF public.visa_is_own_case(p_case_id) THEN
+    RAISE EXCEPTION 'You can''t act as staff on your own visa case' USING ERRCODE = '42501';
+  END IF;
   SELECT status INTO v_status FROM public.visa_cases WHERE id = p_case_id FOR UPDATE;
   IF v_status IN ('closed', 'withdrawn') THEN
     RAISE EXCEPTION 'The case is already %', v_status USING ERRCODE = 'P0001';
@@ -554,7 +586,34 @@ END;
 $$;
 
 -- ────────────────────────────────────────────────────────────
--- 9. GRANTS — signed-in users only; each function checks the caller
+-- 9. NO DIRECT WRITES — the case tables change only through the
+--    functions above (which run as their owner) or the service role
+-- ────────────────────────────────────────────────────────────
+-- Without this, legal could UPDATE a request's decision or a case's
+-- status directly and skip the two-person rule. Reading is unchanged.
+-- Reference tables (country rules, document types) stay legal-editable.
+REVOKE INSERT, UPDATE, DELETE ON TABLE
+  public.visa_cases,
+  public.visa_case_schools,
+  public.visa_case_documents,
+  public.visa_approval_requests,
+  public.visa_case_questions
+FROM authenticated;
+
+DROP POLICY IF EXISTS "Visa cases: legal insert"              ON public.visa_cases;
+DROP POLICY IF EXISTS "Visa cases: legal update"              ON public.visa_cases;
+DROP POLICY IF EXISTS "Visa case schools: legal insert"       ON public.visa_case_schools;
+DROP POLICY IF EXISTS "Visa case schools: legal update"       ON public.visa_case_schools;
+DROP POLICY IF EXISTS "Visa case schools: legal delete"       ON public.visa_case_schools;
+DROP POLICY IF EXISTS "Visa case documents: legal insert"     ON public.visa_case_documents;
+DROP POLICY IF EXISTS "Visa case documents: legal update"     ON public.visa_case_documents;
+DROP POLICY IF EXISTS "Visa approval requests: legal insert"  ON public.visa_approval_requests;
+DROP POLICY IF EXISTS "Visa approval requests: legal update"  ON public.visa_approval_requests;
+DROP POLICY IF EXISTS "Visa questions: legal insert"          ON public.visa_case_questions;
+DROP POLICY IF EXISTS "Visa questions: legal update"          ON public.visa_case_questions;
+
+-- ────────────────────────────────────────────────────────────
+-- 10. GRANTS — signed-in users only; each function checks the caller
 -- ────────────────────────────────────────────────────────────
 REVOKE ALL ON FUNCTION public.visa_case_missing_documents(uuid) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.visa_add_document(uuid, uuid, uuid, text, text, integer, date) FROM PUBLIC, anon;

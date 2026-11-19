@@ -12,6 +12,7 @@ import type { VisaStatus } from "@/lib/visas/status";
 
 export interface RequestRow {
   id: string;
+  requested_by: string | null;
   requested_at: string;
   leader_note: string | null;
   decision: "approved" | "sent_back" | null;
@@ -37,6 +38,7 @@ export function ApprovalPanel({
   requests,
   isLegal,
   canFollow,
+  currentUserId,
 }: {
   caseId: string;
   status: VisaStatus;
@@ -44,11 +46,14 @@ export function ApprovalPanel({
   requests: RequestRow[];
   isLegal: boolean;
   canFollow: boolean;
+  currentUserId: string;
 }) {
   const { post, busy, error } = useVisaPost();
   const [note, setNote] = useState("");
   const [sendingBack, setSendingBack] = useState(false);
   const open = requests.find((r) => r.decision === null);
+  // Two people on every approval: the sender never sees Approve / Send back.
+  const sentByMe = open?.requested_by === currentUserId;
   const collecting = status === "collecting_documents" || status === "sent_back";
 
   return (
@@ -79,7 +84,7 @@ export function ApprovalPanel({
           </div>
         )}
 
-        {open && isLegal && (
+        {open && isLegal && !sentByMe && (
           <div className="flex flex-col gap-2">
             <p className="text-[14px]">
               {open.requested_by_name} asked for approval on {formatDay(open.requested_at)}.
@@ -118,6 +123,9 @@ export function ApprovalPanel({
             <p className="mono-label">Signing FFSA&apos;s letters arrives with the letters themselves.</p>
           </div>
         )}
+        {open && isLegal && sentByMe && (
+          <p className="text-[14px]">You sent this request, so someone else with legal access has to decide it.</p>
+        )}
         {open && !isLegal && <p className="text-[14px]">Waiting for legal to approve.</p>}
 
         {requests.filter((r) => r.decision).length > 0 && (
@@ -125,7 +133,7 @@ export function ApprovalPanel({
             {requests
               .filter((r) => r.decision)
               .map((r) => (
-                <li key={r.id} className="py-1.5 text-[13px]">
+                <li key={r.id} className="py-2 text-[13px]">
                   <span className="mono-label mr-2">{formatDay(r.decided_at)}</span>
                   {r.decision === "approved" ? "Approved" : "Sent back"}
                   {r.decided_by_name ? ` by ${r.decided_by_name}` : ""}

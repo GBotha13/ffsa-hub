@@ -108,6 +108,11 @@ INSERT INTO public.visa_cases (id, user_id, stay_from, stay_to) VALUES
   ('c0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000004', '2027-01-10', '2027-04-08');
 INSERT INTO public.visa_case_schools (case_id, program_id) VALUES
   ('c0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-00000000000a');
+-- Case 2: leader 2's own visa, on the school they lead.
+INSERT INTO public.visa_cases (id, user_id, stay_from, stay_to) VALUES
+  ('c0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000002', '2027-01-10', '2027-04-08');
+INSERT INTO public.visa_case_schools (case_id, program_id) VALUES
+  ('c0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-00000000000a');
 
 CREATE OR REPLACE FUNCTION pg_temp.as_user(p_uid text, p_admin text, p_perms text, p_scoped text)
 RETURNS void LANGUAGE sql AS $$
@@ -180,6 +185,43 @@ SELECT pg_temp.refused('leader B requests approval',
   $q$SELECT public.visa_request_approval('c0000000-0000-0000-0000-000000000001')$q$, '42501');
 RESET ROLE;
 
+-- ── A leader can't be staff on their own case ───────────
+SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000002', 'false',
+                       'visas.follow_up', 'visas.follow_up:a0000000-0000-0000-0000-00000000000a');
+SET ROLE authenticated;
+-- As the student on case 2 they upload like anyone.
+SELECT public.visa_add_document('e0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000002',
+  pg_temp.doc_type('passport'),
+  'c0000000-0000-0000-0000-000000000002/e0000000-0000-0000-0000-000000000001.pdf', 'application/pdf', 10);
+SELECT pg_temp.refused('leader: reviews a document on own case',
+  $q$SELECT public.visa_review_document('e0000000-0000-0000-0000-000000000001', true)$q$, '42501');
+SELECT pg_temp.refused('leader: requests approval on own case',
+  $q$SELECT public.visa_request_approval('c0000000-0000-0000-0000-000000000002')$q$, '42501');
+SELECT pg_temp.refused('leader: records progress on own case',
+  $q$SELECT public.visa_record_progress('c0000000-0000-0000-0000-000000000002', 'lodged', '{"lodged_on":"2026-12-01"}')$q$, '42501');
+RESET ROLE;
+-- Legal for everything, but this is their own case.
+SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000002', 'false', 'visas.manage', 'visas.manage:*');
+SET ROLE authenticated;
+SELECT pg_temp.refused('legal: closes own case',
+  $q$SELECT public.visa_close_case('c0000000-0000-0000-0000-000000000002', true)$q$, '42501');
+RESET ROLE;
+
+-- ── Nobody writes the case tables directly, legal included ──
+SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000001', 'false', 'visas.manage', 'visas.manage:*');
+SET ROLE authenticated;
+SELECT pg_temp.refused('legal: sets a status directly',
+  $q$UPDATE public.visa_cases SET status = 'approved' WHERE id = 'c0000000-0000-0000-0000-000000000001'$q$, '42501');
+SELECT pg_temp.refused('legal: inserts a decided request directly',
+  $q$INSERT INTO public.visa_approval_requests (case_id, decision, decided_at) VALUES ('c0000000-0000-0000-0000-000000000001', 'approved', now())$q$, '42501');
+SELECT pg_temp.refused('legal: approves a document directly',
+  $q$UPDATE public.visa_case_documents SET status = 'approved'$q$, '42501');
+SELECT pg_temp.refused('legal: moves a school directly',
+  $q$UPDATE public.visa_case_schools SET program_id = 'b0000000-0000-0000-0000-00000000000b'$q$, '42501');
+SELECT pg_temp.refused('legal: opens a case directly',
+  $q$INSERT INTO public.visa_cases (user_id) VALUES ('00000000-0000-0000-0000-000000000007')$q$, '42501');
+RESET ROLE;
+
 -- ── Student uploads ──────────────────────────────────────
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000004', 'false', '', '');
 SET ROLE authenticated;
@@ -210,12 +252,14 @@ BEGIN
     END IF;
   END LOOP;
 END $$;
+SELECT pg_temp.refused('student: ticks the same step twice',
+  $q$SELECT public.visa_tick_offline('c0000000-0000-0000-0000-000000000001', pg_temp.doc_type('application_form'))$q$, 'P0001');
 SELECT pg_temp.refused('student: requests approval',
   $q$SELECT public.visa_request_approval('c0000000-0000-0000-0000-000000000001')$q$, '42501');
 SELECT pg_temp.refused('student: reviews own document',
   $q$SELECT public.visa_review_document('d0000000-0000-0000-0000-000000000001', true)$q$, '42501');
-WITH u AS (UPDATE public.visa_cases SET status = 'approved' RETURNING 1)
-SELECT pg_temp.expect('student: still cannot update the case directly', (SELECT count(*) FROM u), 0);
+SELECT pg_temp.refused('student: updates the case directly',
+  $q$UPDATE public.visa_cases SET status = 'approved'$q$, '42501');
 RESET ROLE;
 SELECT pg_temp.expect_text('waiting on the leader once all is in',
   (SELECT waiting_on FROM public.visa_cases WHERE id = 'c0000000-0000-0000-0000-000000000001'), 'school_leader');
