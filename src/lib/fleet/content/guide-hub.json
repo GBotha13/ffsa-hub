@@ -224,7 +224,8 @@
             "A workshop visit blocks the vehicle from the day it goes in to the day it’s back, so nobody can book it for those days.",
             "When a workshop visit is booked or moved, anyone whose booking clashes with it gets a message offering a similar free vehicle (car or van) with a one-tap switch. If none is free, they’re told they can wait until it’s back or make other plans. You get a copy.",
             "Anyone whose booking starts within 7 days after a workshop visit gets a heads-up about that vehicle.",
-            "The first free 48 hours is the first two weekdays in a row with no booking or workshop visit."
+            "The first free 48 hours is the first two weekdays in a row with no booking or workshop visit.",
+            "Move: when a booking clashes with a workshop visit, Move puts it on a similar vehicle that’s free for the whole booking. The person who booked gets a Slack message and an email straight away: “Please be aware your vehicle has been changed from … to …”, with their booking details and a link to it in the Hub. It shows on the booking’s page too. If they can’t be reached, Fleet tells you, so you can let them know yourself."
           ]
         },
         {
@@ -307,7 +308,7 @@
     ],
     [
       "2026-11-17",
-      "Today, Calendar and Schedule are in Fleet. Today is the first page you see. On the Calendar, a booking that clashes with a workshop visit can be moved to a similar free vehicle with one tap; tell the person who booked it."
+      "Today, Calendar and Schedule are in Fleet. Today is the first page you see. On the Calendar, a booking that clashes with a workshop visit can be moved to a similar free vehicle with one tap."
     ],
     [
       "2026-11-17",
@@ -328,6 +329,10 @@
     [
       "2026-11-18",
       "Fleet’s email and Slack messages are switched off until they’ve been reviewed. The reminder preview still shows what would be sent. Trips and rentals from the old Fleet app are not brought into the Hub: the bookings will be uploaded separately."
+    ],
+    [
+      "2026-11-19",
+      "Move on the Calendar now tells the person who booked: they get a Slack message and an email saying their vehicle has been changed from the old one to the new one, with their booking details and a link. The booking’s Slack request message shows the new vehicle too."
     ]
   ]
 }
