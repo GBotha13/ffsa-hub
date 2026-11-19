@@ -117,7 +117,7 @@ function SectionSwitcher({
             })}
           >
             <Text
-              variant="label"
+              variant="monoLabel"
               tone={on ? "onInverse" : "default"}
               numberOfLines={1}
               adjustsFontSizeToFit
