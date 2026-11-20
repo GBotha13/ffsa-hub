@@ -174,3 +174,9 @@ Still open below: the Ask API key (9).
 8. **Later (PR 4):** whether the reminder can post from the Hub bot under the name "FFSA Fleet" (needs the `chat:write.customize` scope) or comes from "FFSA Hub Activity"; and whether it should replace or sit next to the existing `vehicle-slack-digest` (also 05:00 UTC).
 9. **Later (PR 7):** OK to use the Hub's existing `ANTHROPIC_API_KEY` for Ask.
 10. **Repo privacy:** confirm the Hub repo on GitHub is private before this branch is pushed (`vehicles-module/seed` holds VINs, insurer details and workshop reports).
+
+## Gideon, 20 Nov: the Workshop report follows Motech's 25-point check
+
+The Workshop report starts with Motech's 25-point check, in the sheet's order and wording (new section `m25`, 25 points with help), then the other mechanic points under "If the workshop checked them" (route stages `workshop` and `workshop-more`; the reference app's ROUTE changed to match). Each point is marked OK / Monitor / Fix now / N/A as before; on the Workshop report the note box sits next to the result, like the sheet's NOTES column. The old app's live checklist predates the 25 points, so the import adds them (`withWorkshop25`) and changes nothing else.
+
+The first three real checks (CR-V 18 Nov, Kombi 19 Nov, H1 KPH 387 NW 20 Nov) are transcribed in `vehicles-module/seed/` on Gideon's Mac (not committed), to enter as Workshop reports once this is live. Importing inspections isn't built.

@@ -221,6 +221,7 @@ export function Point({
   onToggleMore,
   onPhotos,
   onRemovePhoto,
+  inlineNote,
 }: {
   it: PointItem;
   r: DraftResult;
@@ -238,6 +239,8 @@ export function Point({
   onToggleMore: () => void;
   onPhotos: (files: File[]) => void;
   onRemovePhoto: (id: string) => void;
+  /** Workshop report: the note sits next to the result, like the workshop's sheet. */
+  inlineNote?: boolean;
 }) {
   const [helpOpen, setHelpOpen] = useState(false);
   const s = r.s || "";
@@ -313,6 +316,17 @@ export function Point({
             </button>
           ))}
         </div>
+        {inlineNote && (
+          <input
+            type="text"
+            data-note={it.id}
+            value={r.n || ""}
+            onChange={(e) => onNote(e.target.value)}
+            placeholder="What the report says, e.g. “Just below max mark”"
+            aria-label={`Note: ${it.t}`}
+            className="min-h-12 w-full border border-rule-strong bg-white px-3 text-[15px] focus:border-ink focus:outline-none"
+          />
+        )}
         <button
           type="button"
           aria-expanded={showMore}
@@ -322,7 +336,7 @@ export function Point({
             r.n || (r.p && r.p.length) ? "text-ink" : "text-[#55524A]"
           )}
         >
-          {moreLabel(r)}
+          {inlineNote ? ((r.p || []).length ? plural((r.p || []).length, "photo") : "Add photo") : moreLabel(r)}
         </button>
       </div>
 
@@ -334,7 +348,7 @@ export function Point({
 
       {showMore && (
         <div className="mt-3 space-y-2 border-t border-rule pt-3">
-          <textarea
+          {!inlineNote && <textarea
             data-note={it.id}
             rows={2}
             value={r.n || ""}
@@ -342,7 +356,7 @@ export function Point({
             placeholder="What did you see or hear?"
             aria-label={`Note: ${it.t}`}
             className="w-full border border-rule-strong bg-white px-3 py-2 text-[15px] focus:border-ink focus:outline-none"
-          />
+          />}
           <Thumbs ids={r.p} caption={it.t} onRemove={onRemovePhoto} />
           <UploadButton label="Add photo" multiple busy={uploading} onFiles={onPhotos} />
         </div>

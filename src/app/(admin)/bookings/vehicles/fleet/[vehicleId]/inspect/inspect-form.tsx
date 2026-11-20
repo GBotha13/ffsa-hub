@@ -126,6 +126,17 @@ function AttentionList({ list, ix }: { list: AttentionItem[]; ix: ReturnType<typ
   );
 }
 
+/** The full list's groups. A workshop report follows the workshop's own sheet: its
+ *  25-point check first, in the sheet's order, then the points it doesn't cover
+ *  (Gideon, 20 Nov 2026). A checklist without the 25 points keeps its sections. */
+const WORKSHOP_25 = "m25";
+function listSections(cl: Checklist, type: string): Checklist["sections"] {
+  const sheet = cl.sections.find((s) => s.id === WORKSHOP_25);
+  if (type !== "workshop" || !sheet || !sheet.items.some((it) => inType(it, type))) return cl.sections;
+  const rest = cl.sections.filter((s) => s.id !== WORKSHOP_25).flatMap((s) => s.items);
+  return [sheet, { id: "workshop-more", name: "If the workshop checked them", items: rest }];
+}
+
 export function InspectForm(props: InspectFormProps) {
   const { vehicle: v, checklist: cl, today } = props;
   const router = useRouter();
@@ -397,7 +408,8 @@ export function InspectForm(props: InspectFormProps) {
     const it = ix[id];
     if (!it) return null;
     const r = d.results[id] || {};
-    const open = d.open["i:" + id] ?? !!(r.n || (r.p && r.p.length));
+    // On a workshop report the note is always showing, so only photos open the panel.
+    const open = d.open["i:" + id] ?? !!((r.n && type !== "workshop") || (r.p && r.p.length));
     return (
       <Point
         key={id}
@@ -426,6 +438,7 @@ export function InspectForm(props: InspectFormProps) {
         }}
         onPhotos={(files) => upload("item:" + id, files)}
         onRemovePhoto={(pid) => removePhoto("item:" + id, pid)}
+        inlineNote={type === "workshop"}
       />
     );
   };
@@ -645,7 +658,7 @@ export function InspectForm(props: InspectFormProps) {
     let first = true;
     return (
       <>
-        {cl.sections.map((sec) => {
+        {listSections(cl, type).map((sec) => {
           const items = sec.items.filter((it) => inType(it, type));
           if (!items.length) return null;
           const open = d.open[sec.id] !== undefined ? d.open[sec.id] : first || !ROUTINE.includes(type);
