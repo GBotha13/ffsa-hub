@@ -18,15 +18,15 @@ import { View } from "react-native";
 
 import { Banner, Button, FadeIn, LargeTitleScrollView, ListRow, StaticRow, StatusChip, Text } from "@/components";
 import { AppearanceIcon, appearanceStrings, useAppearance } from "@/features/appearance";
-import { clearFeedCaches } from "@/features/home/feed-cache";
+import { LockSettingRow } from "@/features/lock";
 import { Group, GroupSkeleton, Section } from "@/features/me/components/me-kit";
 import { isStaff } from "@/features/me/docs-logic";
+import { emailParts } from "@/features/me/email-parts";
 import { ACCOUNT_DELETION_ROUTE, DOC_ROUTES, FULL_PROFILE_PATH, PRIVACY_POLICY_PATH } from "@/features/me/links";
+import { signOutOfThisPhone } from "@/features/me/sign-out";
 import { meStrings as s } from "@/features/me/strings";
-import { unregisterPushOnSignOut } from "@/features/push";
 import { openWebPage, roleLabels, useMe } from "@/features/shell";
 import { displayName } from "@/lib/api";
-import { supabase } from "@/lib/supabase";
 import { useTheme } from "@/theme/use-theme";
 
 function fullName(first: string | null | undefined, last: string | null | undefined) {
@@ -44,12 +44,8 @@ export default function MeScreen() {
 
   async function signOut() {
     setSigningOut(true);
-    // Stop pushes to this phone while the session can still say so (bounded).
-    await unregisterPushOnSignOut();
-    // Saved Home items belong to this person: don't leave them on the phone.
-    await clearFeedCaches();
-    // This device only: signing out on the phone shouldn't end web sessions.
-    await supabase.auth.signOut({ scope: "local" });
+    // The same cleanup as the lock screen's "Sign out instead".
+    await signOutOfThisPhone();
     setSigningOut(false);
   }
 
@@ -72,7 +68,15 @@ export default function MeScreen() {
           <View style={{ gap: 12 }} testID="profile-card">
             <View accessible accessibilityLabel={s.a11y.field(s.email, me.user.email ?? "—")} style={{ gap: 2 }}>
               <Text variant="label">{s.email}</Text>
-              <Text selectable>{me.user.email ?? "—"}</Text>
+              {/* Two pieces in a wrapping row, so a long address breaks before
+                  the "@" rather than inside the domain (QA pass 2: "…@g/mail.com"). */}
+              <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                {emailParts(me.user.email ?? "—").map((part) => (
+                  <Text key={part} selectable>
+                    {part}
+                  </Text>
+                ))}
+              </View>
             </View>
             <View accessible accessibilityLabel={s.a11y.field(s.roles, roles.length ? roles.join(", ") : s.noRoles)} style={{ gap: 4 }}>
               <Text variant="label">{s.roles}</Text>
@@ -135,6 +139,8 @@ export default function MeScreen() {
           subtitle={appearanceStrings.summary(appearance.preference, scheme)}
           onPress={() => router.push("/me/appearance")}
         />
+        {/* Only on phones with Face ID / Touch ID / a fingerprint set up. */}
+        <LockSettingRow />
       </Group>
 
       <Section title={s.sections.about} />

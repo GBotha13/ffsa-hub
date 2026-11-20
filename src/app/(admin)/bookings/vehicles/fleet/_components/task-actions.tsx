@@ -71,7 +71,7 @@ export function MoveTripButton({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   async function go() {
-    if (!window.confirm(`Move ${trip.label} (${fmtRange(trip.from, trip.to)}) to ${to.name}? Let the person who booked it know about the change of vehicle.`)) return;
+    if (!window.confirm(`Move ${trip.label} (${fmtRange(trip.from, trip.to)}) to ${to.name}? The person who booked it gets a message with the new vehicle and their booking details.`)) return;
     setBusy(true);
     try {
       const r = await fleetFetch<{ message: string }>("/api/vehicles/fleet/trips/move", { body: { tripId: trip.id, to: to.id } });

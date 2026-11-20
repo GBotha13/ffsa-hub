@@ -3,6 +3,8 @@
 export { Banner, type BannerProps } from "./Banner";
 export { Button, type ButtonProps } from "./Button";
 export { Divider } from "./Divider";
+export { Pressable, type PressableProps } from "./Pressable";
+export { KeyboardAvoidingView, keyboardBehavior } from "./KeyboardAvoidingView";
 export { EmptyState, type EmptyStateProps } from "./EmptyState";
 export { CONTENT_FADE_MS, FadeIn } from "./FadeIn";
 export { ChipButton, ChoiceChips, Disclosure, FieldError, SelectField } from "./FormControls";
@@ -29,6 +31,7 @@ export { Text, type TextProps } from "./Text";
 export { TextField, type TextFieldProps } from "./TextField";
 export { Toggle, type ToggleProps } from "./Toggle";
 export { useScrollToTopOnTabPress, useTabReselect } from "./useTabReselect";
+export { isLargeText, LARGE_TEXT_SCALE, useLargeText } from "./useLargeText";
 export { WebHint } from "./WebHint";
 export { LargeTitleList, type LargeTitleListProps } from "./LargeTitleList";
 export { ListGroupItem, type ListGroupItemProps } from "./ListGroupItem";

@@ -3,6 +3,7 @@ import { View } from "react-native";
 import { space, touch } from "@/theme/tokens";
 
 import { Text } from "./Text";
+import { useLargeText } from "./useLargeText";
 
 export type SectionTitleProps = {
   title: string;
@@ -22,18 +23,22 @@ export type SectionTitleProps = {
  */
 export function SectionTitle({ title, meta, accessibilityLabel, tight = false, testID }: SectionTitleProps) {
   const hasMeta = meta !== undefined && meta !== "";
+  // At large text the count goes under the title, so neither squeezes the other.
+  const stacked = useLargeText();
   return (
     <View
+      // New layout, new view: iOS keeps old measurements otherwise (see NeedsYouBand).
+      key={stacked ? "stacked" : "row"}
       accessible
       accessibilityRole="header"
       accessibilityLabel={accessibilityLabel ?? (hasMeta ? `${title}, ${meta}` : title)}
       testID={testID}
       style={{
         minHeight: touch.floor,
-        flexDirection: "row",
-        alignItems: "center",
+        flexDirection: stacked ? "column" : "row",
+        alignItems: stacked ? "flex-start" : "center",
         justifyContent: "space-between",
-        gap: space.md,
+        gap: stacked ? space.xs : space.md,
         paddingTop: tight ? space.md : space.xl,
         paddingBottom: space.sm,
       }}

@@ -1,5 +1,6 @@
 import { Tabs } from "expo-router/js-tabs";
 
+import { LockGate } from "@/features/lock";
 import { getOutbox } from "@/features/finance/outbox/live";
 import { OutboxProvider } from "@/features/finance/outbox/provider";
 import { PushProvider } from "@/features/push";
@@ -20,6 +21,9 @@ import { useTheme } from "@/theme/use-theme";
 // even if Finance is never opened. This layout only exists while signed in,
 // and the outbox reads the session's user on every run, so it stays tied to
 // the signed-in person exactly as before.
+//
+// LockGate (Face ID lock, off unless turned on in Me › Settings) covers the
+// whole area, tab bar included, while locked.
 export default function AppLayout() {
   const { colors } = useTheme();
   return (
@@ -27,6 +31,7 @@ export default function AppLayout() {
       <PushProvider>
       <TrainingBadge />
       <OutboxProvider outbox={getOutbox()}>
+      <LockGate>
         <Tabs
           tabBar={(props) => <TabBar {...props} />}
           screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.bg } }}
@@ -37,13 +42,19 @@ export default function AppLayout() {
           <Tabs.Screen name="prayer" options={{ title: "Prayer" }} />
           <Tabs.Screen name="tickets" options={{ title: "Tickets" }} />
           <Tabs.Screen name="me" options={{ title: "Me" }} />
-          <Tabs.Screen name="bookings" options={{ href: null }} />
-          <Tabs.Screen name="schools" options={{ href: null }} />
-          <Tabs.Screen name="history" options={{ href: null }} />
-          <Tabs.Screen name="okrs" options={{ href: null }} />
-          <Tabs.Screen name="ministries" options={{ href: null }} />
-          <Tabs.Screen name="staff-decisions" options={{ href: null }} />
+          {/* Hidden routes (HOME_ROUTES in shell/tabs.ts): no button because
+              TabBar draws only TABS. Never `href: null` here: SDK 58's tabs
+              turn that into `hidden`, and a focused hidden tab is replaced by
+              the first tab, so links, notification taps and router.push to
+              these screens all landed on Home (QA, Nov 2026). */}
+          <Tabs.Screen name="bookings" />
+          <Tabs.Screen name="schools" />
+          <Tabs.Screen name="history" />
+          <Tabs.Screen name="okrs" />
+          <Tabs.Screen name="ministries" />
+          <Tabs.Screen name="staff-decisions" />
         </Tabs>
+      </LockGate>
       </OutboxProvider>
       </PushProvider>
     </MeProvider>

@@ -40,16 +40,20 @@ export interface HouseSummary {
   location: string | null;
   /** Includes leaders and co-leaders. */
   memberCount: number;
+  /** Children of households in this house. Not in memberCount; the size dots stay adults only. */
+  kidsCount?: number;
+  /** People ready to lead (board M12d). "Ready to multiply" needs a full house and at least one. */
+  readyToLead?: number;
   leaders: PersonRef[];
   coLeaders: PersonRef[];
-  /** Pastoral covering for the leaders. Null when no coach is set. */
-  coach: PersonRef | null;
-  coachSince: string | null;
+  /** Pastoral covering for the leaders. A house can have several. */
+  coaches: CoachRef[];
 }
 
+export type CoachRef = PersonRef & { since: string | null };
+
 export interface CoachResponse {
-  coach: PersonRef | null;
-  coachSince: string | null;
+  coaches: CoachRef[];
 }
 
 export interface HouseMember extends PersonRef {
@@ -62,14 +66,23 @@ export interface HouseDetail extends HouseSummary {
   members: HouseMember[];
 }
 
+/** What the viewer may do. Pastors: both. Coaches: editMembers in houses they coach. */
+export interface HouseAbilities {
+  place: boolean;
+  editMembers: boolean;
+}
+
 export interface HouseListResponse {
   houses: HouseSummary[];
+  /** Pastor actions: add people, set coaches, review names. */
   canWrite: boolean;
+  abilities?: HouseAbilities;
 }
 
 export interface HouseDetailResponse {
   house: HouseDetail;
   canWrite: boolean;
+  abilities?: HouseAbilities;
 }
 
 export interface MemberMutationResponse {
@@ -145,3 +158,30 @@ export type HouseErrorCode =
   | "ended_at_in_future"
   | "rate_limited"
   | "server_error";
+
+export type FeedbackMood = "hard" | "okay" | "good" | "great";
+
+export interface FeedbackEntry {
+  meetingDate: string;
+  attendance: number;
+  mood: FeedbackMood;
+  newNames: string[];
+  prayer: string | null;
+  notes: string | null;
+  submittedAt: string;
+}
+
+export interface FeedbackHouse {
+  houseId: string;
+  number: number;
+  name: string | null;
+  meetingDay: string | null;
+  coaches: string[];
+  /** Newest first. A missed week has no entry. */
+  entries: FeedbackEntry[];
+}
+
+export interface FeedbackHistoryResponse {
+  houses: FeedbackHouse[];
+  since: string;
+}

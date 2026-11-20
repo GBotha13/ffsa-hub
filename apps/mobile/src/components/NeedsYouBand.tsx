@@ -1,4 +1,5 @@
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
+import { Pressable } from "./Pressable";
 
 import { needsYouBandStyle } from "@/theme/styles";
 import { fontFamily, fontSize, palette, radius, touch } from "@/theme/tokens";
@@ -6,6 +7,7 @@ import { useTheme } from "@/theme/use-theme";
 
 import { useRegisterNeedsYouBand } from "./Screen";
 import { Text } from "./Text";
+import { useLargeText } from "./useLargeText";
 
 export type NeedsYouBandProps = {
   /** Caps line, e.g. "Needs you · 3". */
@@ -33,17 +35,30 @@ export type NeedsYouBandProps = {
  */
 export function NeedsYouBand({ eyebrow, text, detail, actionLabel, onAction, actionAccessibilityLabel, actionAccessibilityHint, accessibilityLabel, testID }: NeedsYouBandProps) {
   const { colors } = useTheme();
+  // At large text the button goes under the text, which keeps the full width
+  // (QA: one or two words per line beside "Open").
+  const stacked = useLargeText();
   useRegisterNeedsYouBand(true);
   return (
     <View
+      // A new band when the layout flips: iOS kept the stacked band's old
+      // measurements when the text size went down with the app open, so the
+      // text ran off the right edge (QA pass 2).
+      key={stacked ? "stacked" : "row"}
       testID={testID}
-      style={{ ...needsYouBandStyle(colors), flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 12 }}
+      style={{
+        ...needsYouBandStyle(colors),
+        flexDirection: stacked ? "column" : "row",
+        alignItems: stacked ? "flex-start" : "center",
+        flexWrap: stacked ? "nowrap" : "wrap",
+        gap: 12,
+      }}
     >
       <View
         accessible
         accessibilityRole="summary"
         accessibilityLabel={accessibilityLabel ?? [eyebrow, text, detail].filter(Boolean).join(". ")}
-        style={{ flex: 1, minWidth: 180, gap: 2 }}
+        style={stacked ? { alignSelf: "stretch", gap: 2 } : { flex: 1, minWidth: 180, gap: 2 }}
       >
         <Text variant="eyebrow" tone="onAccent">
           {eyebrow}

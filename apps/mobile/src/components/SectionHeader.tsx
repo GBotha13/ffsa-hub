@@ -1,8 +1,10 @@
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
+import { Pressable } from "./Pressable";
 
 import { space, touch } from "@/theme/tokens";
 
 import { Text } from "./Text";
+import { useLargeText } from "./useLargeText";
 
 export type SectionHeaderProps = {
   title: string;
@@ -21,23 +23,31 @@ export type SectionHeaderProps = {
   testID?: string;
 };
 
-/** 15/600 sentence-case section title. Not caps: the page title is the one caps moment. */
+/**
+ * 15/600 sentence-case section title. Not caps: the page title is the one caps moment.
+ * The title keeps its words whole: the action wraps under it when the row is
+ * full, and always sits under it at large text (QA: "Need/s you/(11)").
+ */
 export function SectionHeader({ title, actionLabel, onAction, actionAccessibilityLabel, actionTestID, accessibilityLabel, tight = false, inset = true, testID }: SectionHeaderProps) {
+  const stacked = useLargeText();
   return (
     <View
+      // New layout, new view: iOS keeps old measurements otherwise (see NeedsYouBand).
+      key={stacked ? "stacked" : "row"}
       testID={testID}
       style={{
         minHeight: touch.floor,
-        flexDirection: "row",
-        alignItems: "center",
+        flexDirection: stacked ? "column" : "row",
+        flexWrap: stacked ? "nowrap" : "wrap",
+        alignItems: stacked ? "flex-start" : "center",
         justifyContent: "space-between",
-        gap: space.md,
+        columnGap: space.md,
         paddingTop: tight ? space.md : space.xl,
         paddingBottom: space.sm,
         paddingHorizontal: inset ? space.gutter : 0,
       }}
     >
-      <Text variant="sectionTitle" tone="default" accessibilityRole="header" accessibilityLabel={accessibilityLabel} style={{ flexShrink: 1 }}>
+      <Text variant="sectionTitle" tone="default" accessibilityRole="header" accessibilityLabel={accessibilityLabel} style={{ flexGrow: 1, flexShrink: 1 }}>
         {title}
       </Text>
       {actionLabel && onAction ? (
@@ -47,7 +57,7 @@ export function SectionHeader({ title, actionLabel, onAction, actionAccessibilit
           accessibilityLabel={actionAccessibilityLabel ?? actionLabel}
           onPress={onAction}
           hitSlop={4}
-          style={({ pressed }) => ({ minHeight: touch.floor, justifyContent: "center", paddingLeft: space.md, opacity: pressed ? 0.6 : 1 })}
+          style={({ pressed }) => ({ minHeight: touch.floor, justifyContent: "center", paddingLeft: stacked ? 0 : space.md, opacity: pressed ? 0.6 : 1 })}
         >
           <Text variant="sectionTitle" tone="default" style={{ textDecorationLine: "underline" }}>
             {actionLabel}

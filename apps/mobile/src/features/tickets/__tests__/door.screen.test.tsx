@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import * as Haptics from "expo-haptics";
 import { useKeepAwake } from "expo-keep-awake";
-import { Alert, Linking } from "react-native";
+import { Alert, BackHandler, Linking } from "react-native";
 
 import { ApiError } from "@/lib/api";
 
@@ -17,7 +17,10 @@ const mockCamera: { props: { onBarcodeScanned?: (r: { data: string; type: string
   props: null,
 };
 
-jest.mock("expo-router", () => ({ Stack: { Screen: () => null } }));
+// The door's stack screen and the screen holding its stack (swipe-back).
+const mockParentNav = { setOptions: jest.fn(), getParent: () => undefined };
+const mockNav = { setOptions: jest.fn(), getParent: () => mockParentNav };
+jest.mock("expo-router", () => ({ Stack: { Screen: () => null }, useNavigation: () => mockNav }));
 jest.mock("expo-network", () => ({ useNetworkState: () => mockNet }));
 jest.mock("expo-keep-awake", () => ({ useKeepAwake: jest.fn() }));
 jest.mock("expo-haptics", () => ({
@@ -318,6 +321,45 @@ describe("Door", () => {
       await fireEvent.press(screen.getByRole("button", { name: "Turn torch on" }));
       expect(mockCamera.props!.enableTorch).toBe(true);
       expect(screen.getByRole("button", { name: "Turn torch off" })).toBeTruthy();
+    });
+
+    it("Android back closes the camera, not the door", async () => {
+      let onBack: Parameters<typeof BackHandler.addEventListener>[1] | undefined;
+      const add = jest.spyOn(BackHandler, "addEventListener").mockImplementation((_e, fn) => {
+        onBack = fn;
+        return { remove: () => (onBack = undefined) };
+      });
+      try {
+        await render(<DoorScreen eventId="e1" door={makeDoor()} />);
+        await fireEvent.press(screen.getByRole("button", { name: "Scan tickets" }));
+        expect(screen.getByTestId("camera")).toBeTruthy();
+        let handled: boolean | null | undefined;
+        await act(async () => {
+          handled = onBack?.({} as never);
+        });
+        expect(handled).toBe(true);
+        expect(screen.queryByTestId("camera")).toBeNull();
+        expect(screen.getByRole("button", { name: "Scan tickets" })).toBeTruthy();
+        // Back on the door page, the system back works as normal again.
+        expect(onBack).toBeUndefined();
+      } finally {
+        add.mockRestore();
+      }
+    });
+
+    it("iOS swipe-back is off while the camera is open, so Close is the only way out", async () => {
+      await render(<DoorScreen eventId="e1" door={makeDoor()} />);
+      expect(mockNav.setOptions).not.toHaveBeenCalled();
+      await fireEvent.press(screen.getByRole("button", { name: "Scan tickets" }));
+      expect(screen.getByTestId("camera")).toBeTruthy();
+      // This screen and the one holding its stack (the volunteer door is the first route of /scan).
+      expect(mockNav.setOptions).toHaveBeenLastCalledWith({ gestureEnabled: false });
+      expect(mockParentNav.setOptions).toHaveBeenLastCalledWith({ gestureEnabled: false });
+
+      await fireEvent.press(screen.getByRole("button", { name: "Close scanner" }));
+      expect(screen.queryByTestId("camera")).toBeNull();
+      expect(mockNav.setOptions).toHaveBeenLastCalledWith({ gestureEnabled: true });
+      expect(mockParentNav.setOptions).toHaveBeenLastCalledWith({ gestureEnabled: true });
     });
 
     it("asks just in time, with a reason", async () => {

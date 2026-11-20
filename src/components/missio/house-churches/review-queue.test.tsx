@@ -71,7 +71,9 @@ function client(items: ReviewItem[], resolveReview?: HouseChurchesClient["resolv
       throw new Error("unused");
     },
     listReview: async () => ({ items }),
-    setCoach: async () => ({ coach: null, coachSince: null }),
+    setCoach: async () => ({ coaches: [] }),
+    feedbackHistory: async () => ({ houses: [], since: "2026-08-27" }),
+    feedbackLink: async () => ({ path: "/serve/missio/feedback/abc" }),
     searchReviewContacts,
     resolveReview:
       resolveReview ??

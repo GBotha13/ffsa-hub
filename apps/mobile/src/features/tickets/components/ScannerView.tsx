@@ -1,7 +1,9 @@
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
+import { useNavigation } from "expo-router";
 import { Camera, Flashlight, FlashlightOff, X } from "lucide-react-native";
-import { useState, type ReactNode } from "react";
-import { Linking, Pressable, View } from "react-native";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { BackHandler, Linking, ScrollView, View } from "react-native";
+import { Pressable } from "@/components/Pressable";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button, Text } from "@/components";
@@ -61,6 +63,31 @@ export function ScannerView({ onScanned, paused, onClose, onTypeCode, overlay }:
   const [torch, setTorch] = useState(false);
   const [mountError, setMountError] = useState(false);
 
+  // The camera is a state of the door screen, not a route of its own: without
+  // this, Android's back button would leave the door instead of closing it.
+  const close = useRef(onClose);
+  useEffect(() => {
+    close.current = onClose;
+  });
+  useEffect(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      close.current();
+      return true;
+    });
+    return () => sub.remove();
+  }, []);
+  // iOS: no swipe-back while the camera is open, so Close is the only way
+  // out (Jack, Nov 2026). Turned off on this screen and every screen holding
+  // it: the volunteer door is the first route of /scan, so the swipe that
+  // would leave it belongs to the root stack. Back on when the camera closes.
+  const navigation = useNavigation();
+  useEffect(() => {
+    const holders: { setOptions: (o: { gestureEnabled: boolean }) => void }[] = [];
+    for (let n: typeof navigation | undefined = navigation; n; n = n.getParent()) holders.push(n);
+    holders.forEach((n) => n.setOptions({ gestureEnabled: false }));
+    return () => holders.forEach((n) => n.setOptions({ gestureEnabled: true }));
+  }, [navigation]);
+
   const handle = (r: BarcodeScanningResult) => {
     if (r.data) onScanned(r.data);
   };
@@ -81,7 +108,8 @@ export function ScannerView({ onScanned, paused, onClose, onTypeCode, overlay }:
     const denied = !permission.canAskAgain;
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} testID={denied ? "camera-denied" : "camera-rationale"}>
-        <View style={{ paddingVertical: space.xl, paddingHorizontal: space.gutter, gap: space.md }}>
+        {/* Scrolls: at the largest text sizes the buttons would fall off a small phone. */}
+        <ScrollView contentContainerStyle={{ paddingVertical: space.xl, paddingHorizontal: space.gutter, gap: space.md }}>
           <View
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
@@ -107,7 +135,7 @@ export function ScannerView({ onScanned, paused, onClose, onTypeCode, overlay }:
           )}
           <Button label={strings.checkIn.typeCode} variant="secondary" onPress={onTypeCode} />
           <Button label={strings.camera.close} variant="text" onPress={onClose} />
-        </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }

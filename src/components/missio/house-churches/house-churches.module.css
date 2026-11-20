@@ -874,3 +874,19 @@
   gap: 8px;
   margin-top: 8px;
 }
+
+.root .addCoach {
+  justify-self: start;
+  margin-top: 6px;
+}
+
+.headLinks {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.feedbackSlot {
+  margin-top: 16px;
+}

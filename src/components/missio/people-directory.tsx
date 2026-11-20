@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
@@ -13,6 +12,9 @@ import {
 import { MissioApiError, missioClient, missioErrorCopy, type MissioClient } from "./api";
 import { AddPersonDialog } from "./add-person";
 import { MissioDialog } from "./missio-dialog";
+import { HouseholdsView } from "./households/households-view";
+import households from "./households/households.module.css";
+import { PersonCardDialog } from "./person-card";
 import type { MissioCampus, MissioPerson, MissioStatus } from "./types-shim";
 import content from "./content.module.css";
 import styles from "./shell.module.css";
@@ -33,6 +35,8 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
   const [list, setList] = useState<ListState>({ phase: "loading" });
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<MissioPerson | null>(null);
+  const [viewing, setViewing] = useState<MissioPerson | null>(null);
+  const [view, setView] = useState<"people" | "households">(() => (params.get("view") === "households" ? "households" : "people"));
   const [focusPersonId, setFocusPersonId] = useState<string | null>(null);
 
   const query = useMemo<PeopleQuery>(
@@ -83,6 +87,34 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
         </button>
       </div>
 
+      <div className={households.seg} role="tablist" aria-label="View">
+        {(["people", "households"] as const).map((option) => (
+          <button
+            key={option}
+            type="button"
+            role="tab"
+            aria-selected={view === option}
+            className={view === option ? households.segOn : undefined}
+            onClick={() => setView(option)}
+          >
+            {option === "people" ? "People" : "Households"}
+          </button>
+        ))}
+      </div>
+
+      {view === "households" ? (
+        <>
+          <input
+            className={styles.textInput}
+            aria-label="Search households"
+            placeholder="Search by name"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+          />
+          <HouseholdsView filter={draft} />
+        </>
+      ) : (
+        <>
       <form
         className={`${styles.toolbar} ${content.toolbar}`}
         data-testid="people-search"
@@ -168,9 +200,13 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
               {list.rows.map((person) => (
                 <li key={person.id} className={styles.personCard}>
                   <div className={styles.personCardTop}>
-                    <Link href={`/missio/people/${encodeURIComponent(person.id)}`} className={`${styles.personName} ${styles.personLink}`}>
+                    <button
+                      type="button"
+                      className={`${styles.personName} ${styles.personLink} ${styles.personOpen}`}
+                      onClick={() => setViewing(person)}
+                    >
                       {person.name}
-                    </Link>
+                    </button>
                     <span className={`${styles.badge} ${badgeClass(person.status)}`} data-status={person.status}>
                       {STATUS_LABEL[person.status]}
                     </span>
@@ -206,9 +242,9 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
               {list.rows.map((person) => (
                 <tr key={person.id}>
                   <td className={styles.personName}>
-                    <Link href={`/missio/people/${encodeURIComponent(person.id)}`} className={styles.personLink}>
+                    <button type="button" className={`${styles.personLink} ${styles.personOpen}`} onClick={() => setViewing(person)}>
                       {person.name}
-                    </Link>
+                    </button>
                   </td>
                   <td>
                     <span className={styles.campus}>{CAMPUS_LABEL[person.campus]}</span>
@@ -253,6 +289,8 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
           </div>
         ) : null}
       </div>
+        </>
+      )}
 
       {adding ? (
         <AddPersonDialog
@@ -270,6 +308,7 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
           }}
         />
       ) : null}
+      {viewing ? <PersonCardDialog personId={viewing.id} name={viewing.name} onClose={() => setViewing(null)} /> : null}
       {editing ? (
         <EditPerson
           person={editing}
