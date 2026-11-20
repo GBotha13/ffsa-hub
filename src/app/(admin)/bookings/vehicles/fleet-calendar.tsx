@@ -198,12 +198,14 @@ export function FleetCalendar({
   ];
 
   return (
-    <div style={{ background: "#FFFFFF", border: `1px solid ${INK}`, overflowX: "auto" }}>
-      <div style={{ minWidth: 1080 }}>
-        <div style={{ borderBottom: `1px solid ${INK}`, padding: "20px 26px", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 24, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+    // Only the day grid scrolls sideways; the header and legend wrap, so on a phone the
+    // dates and the back/forward buttons stay on screen.
+    <div style={{ background: "#FFFFFF", border: `1px solid ${INK}` }}>
+      <div>
+        <div style={{ borderBottom: `1px solid ${INK}`, padding: "16px clamp(14px, 4vw, 26px)", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: "16px 24px", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
             <Link href={windowHref(w.prev)} style={navBtn} aria-label="Previous 30 days">‹</Link>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 7 }}>
                 <span style={{ width: 16, height: 3, background: "#FFB801" }} />
                 <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, letterSpacing: "0.2em", color: "#55524A" }}>
@@ -216,7 +218,7 @@ export function FleetCalendar({
                   )}
                 </span>
               </div>
-              <h2 style={{ margin: 0, fontFamily: COND, fontWeight: 900, fontSize: 44, lineHeight: 0.9, textTransform: "uppercase", color: INK }}>{w.label}</h2>
+              <h2 style={{ margin: 0, fontFamily: COND, fontWeight: 900, fontSize: "clamp(26px, 8vw, 44px)", lineHeight: 0.95, textTransform: "uppercase", color: INK }}>{w.label}</h2>
             </div>
             <Link href={windowHref(w.next)} style={navBtn} aria-label="Next 30 days">›</Link>
           </div>
@@ -232,6 +234,8 @@ export function FleetCalendar({
           )}
         </div>
 
+        <div style={{ overflowX: "auto" }}>
+        <div style={{ minWidth: 1080 }}>
         <div style={{ display: "grid", gridTemplateColumns: cols, background: BONE, borderBottom: `2px solid ${INK}` }}>
           <div style={{ padding: "10px 16px", borderRight: `1px solid ${INK}`, display: "flex", alignItems: "flex-end" }}>
             <span style={{ fontFamily: MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.16em", color: "#7C786C" }}>VEHICLE</span>
@@ -276,7 +280,10 @@ export function FleetCalendar({
           </div>
         )}
 
-        <div style={{ padding: "14px 26px", background: BONE, display: "flex", gap: 26, alignItems: "center", flexWrap: "wrap" }}>
+        </div>
+        </div>
+
+        <div style={{ padding: "14px clamp(14px, 4vw, 26px)", background: BONE, display: "flex", gap: "10px 26px", alignItems: "center", flexWrap: "wrap" }}>
           {legend.map(([l, s]) => (
             <span key={l} style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", color: "#45423B" }}>
               <span style={{ width: 20, height: 12, boxSizing: "border-box", ...s }} />{l}
