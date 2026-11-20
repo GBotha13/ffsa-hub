@@ -175,6 +175,12 @@ Still open below: the Ask API key (9).
 9. **Later (PR 7):** OK to use the Hub's existing `ANTHROPIC_API_KEY` for Ask.
 10. **Repo privacy:** confirm the Hub repo on GitHub is private before this branch is pushed (`vehicles-module/seed` holds VINs, insurer details and workshop reports).
 
+## Jack, 19 Nov: Calendar Move tells the person who booked
+
+#623 is merged; it goes live on the live Hub with `FLEET_MESSAGES_ENABLED` unset and no import (no separate preview project). Jack asked for Move to stop changing a booking's vehicle silently. Gideon's wording: "Please be aware your vehicle has been changed from "[old]" to "[new]"", then the booking details and a link.
+
+Move now sends that through the Hub's own booking notice (`notifyVehicleRequester`, kind "changed": Slack DM and email, logged on the booking page), skips it when you moved your own booking, refreshes a still-open Slack request message, and tells the co-ordinator when the person couldn't be reached. Separate PR off main.
+
 ## Gideon, 20 Nov: the Workshop report follows Motech's 25-point check
 
 The Workshop report starts with Motech's 25-point check, in the sheet's order and wording (new section `m25`, 25 points with help), then the other mechanic points under "If the workshop checked them" (route stages `workshop` and `workshop-more`; the reference app's ROUTE changed to match). Each point is marked OK / Monitor / Fix now / N/A as before; on the Workshop report the note box sits next to the result, like the sheet's NOTES column. The old app's live checklist predates the 25 points, so the import adds them (`withWorkshop25`) and changes nothing else.

@@ -254,6 +254,11 @@ export async function moveBookingAssignment(supabase: Client, bookingId: string,
     .maybeSingle();
 }
 
+/** Who made a Hub booking (so a Move doesn't message someone about their own change). */
+export async function getBookingRequestedBy(supabase: Client, bookingId: string) {
+  return supabase.from("vehicle_bookings").select("requested_by").eq("id", bookingId).maybeSingle();
+}
+
 // ── Daily reminder log ─────────────────────────────────────
 
 export async function getFleetReminderSends(supabase: Client, limit = 7) {

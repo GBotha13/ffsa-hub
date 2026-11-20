@@ -27,6 +27,18 @@ vi.mock("@/services/fleet", () => ({
   updateFleetVisit: record("updateFleetVisit"),
   getFleetVisits: async () => ({ data: [], error: null }),
   moveBookingAssignment: record("moveBookingAssignment", { data: { vehicle_booking_id: "b", vehicle_id: "v" }, error: null }),
+  getBookingRequestedBy: vi.fn(async () => ({ data: { requested_by: bookedBy }, error: null })),
+}));
+// Move tells the person who booked through the Hub's booking notice (never a real send here).
+let bookedBy = "someone-else";
+let noticeResult = { slack: true, email: true };
+const notices: unknown[] = [];
+const refreshed: string[] = [];
+vi.mock("@/lib/vehicles/requester-notify", () => ({
+  notifyVehicleRequester: vi.fn(async (o: unknown) => (notices.push(o), noticeResult)),
+}));
+vi.mock("@/lib/vehicles/slack-alerts", () => ({
+  refreshVehicleRequestAlerts: vi.fn(async (id: string) => void refreshed.push(id)),
 }));
 
 // Seed vehicles have string ids ("h1-2"); the routes want uuids.
@@ -52,6 +64,10 @@ const params = (id: string) => ({ params: Promise.resolve({ id }) });
 
 beforeEach(() => {
   calls.length = 0;
+  notices.length = 0;
+  refreshed.length = 0;
+  bookedBy = "someone-else";
+  noticeResult = { slack: true, email: true };
   data = withUuids(seedFleetData(TODAY));
 });
 
@@ -134,8 +150,42 @@ describe("POST /api/vehicles/fleet/trips/move", () => {
     const { POST } = await import("./trips/move/route");
     const res = await POST(req({ tripId: `${BOOKING}:${UUID.kombi}`, to: UUID["h1-1"] }));
     expect(res.status).toBe(200);
-    expect((await res.json()).message).toBe("Moved to Hyundai H1 #1.");
+    expect((await res.json()).message).toBe("Moved to Hyundai H1 #1. The person who booked it has been told.");
     expect(calls.find((c) => c.fn === "moveBookingAssignment")!.args.slice(1)).toEqual([BOOKING, UUID.kombi, UUID["h1-1"]]);
+  });
+
+  it("tells the person who booked, with the old and new vehicle, and refreshes the Slack request", async () => {
+    kombiTrip();
+    const { POST } = await import("./trips/move/route");
+    await POST(req({ tripId: `${BOOKING}:${UUID.kombi}`, to: UUID["h1-1"] }));
+    const kombi = data.vehicles.find((v) => v.id === UUID.kombi)!.name;
+    expect(notices).toEqual([
+      {
+        bookingId: BOOKING,
+        kind: "changed",
+        changes: [`Please be aware your vehicle has been changed from "${kombi}" to "Hyundai H1 #1".`],
+        sentBy: "u1",
+      },
+    ]);
+    expect(refreshed).toEqual([BOOKING]);
+  });
+
+  it("doesn't message you about your own booking", async () => {
+    kombiTrip();
+    bookedBy = "u1";
+    const { POST } = await import("./trips/move/route");
+    const res = await POST(req({ tripId: `${BOOKING}:${UUID.kombi}`, to: UUID["h1-1"] }));
+    expect((await res.json()).message).toBe("Moved to Hyundai H1 #1.");
+    expect(notices).toHaveLength(0);
+    expect(refreshed).toEqual([BOOKING]);
+  });
+
+  it("says so when the person who booked couldn't be reached", async () => {
+    kombiTrip();
+    noticeResult = { slack: false, email: false };
+    const { POST } = await import("./trips/move/route");
+    const res = await POST(req({ tripId: `${BOOKING}:${UUID.kombi}`, to: UUID["h1-1"] }));
+    expect((await res.json()).message).toBe("Moved to Hyundai H1 #1. Couldn't reach the person who booked it, so let them know yourself.");
   });
 
   it("refuses a vehicle that isn't free for the whole trip (H1 #3 is at Motech on 19 Nov)", async () => {
@@ -144,5 +194,6 @@ describe("POST /api/vehicles/fleet/trips/move", () => {
     const res = await POST(req({ tripId: `${BOOKING}:${UUID.kombi}`, to: UUID["h1-3"] }));
     expect(res.status).toBe(409);
     expect(calls.some((c) => c.fn === "moveBookingAssignment")).toBe(false);
+    expect(notices).toHaveLength(0);
   });
 });
