@@ -680,7 +680,9 @@ export function InspectForm(props: InspectFormProps) {
                   {n} / {items.length}
                 </span>
               </summary>
-              {items.length > 2 && (
+              {/* Not on "If the workshop checked them": those are only filled in when the
+                  workshop checked them, so "the rest" isn't OK by default. */}
+              {items.length > 2 && sec.id !== "workshop-more" && (
                 <div className="flex justify-end border-b border-rule px-4 py-2 md:px-6">
                   <button
                     type="button"
@@ -902,9 +904,10 @@ export function InspectForm(props: InspectFormProps) {
 
       {guided ? guidedCard() : fullList()}
 
-      {/* Lifted above the phone tab bar; the matching bottom margin stops the lift from
-          covering the end of the step (its Back / Next buttons). */}
-      <div className="sticky bottom-[calc(62px+env(safe-area-inset-bottom,0px))] z-30 mb-[calc(62px+env(safe-area-inset-bottom,0px))] border-t border-ink bg-white px-4 py-2 md:bottom-0 md:mb-0 md:px-6">
+      {/* On a phone the page already ends 80px (pb-20) above the bottom and the tab bar is
+          64px plus the safe area, so the bar sits right on top of the tab bar with no gap.
+          It is never lifted over the content, so the step's Back / Next stay clear. */}
+      <div className="sticky bottom-[calc(env(safe-area-inset-bottom,0px)-16px)] z-30 border-t border-ink bg-white px-4 py-2 md:bottom-0 md:px-6">
         <p className="mb-2 text-[11px] leading-tight text-[#55524A]" id="save-note">
           {saveNote(prog.done, prog.total)}
         </p>

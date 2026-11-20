@@ -331,7 +331,7 @@
     ],
     [
       "2026-11-20",
-      "The Workshop report now starts with the workshop’s 25-point check, line for line like Motech’s sheet, with a note box next to each point. The other mechanic points follow under “If the workshop checked them”."
+      "The Workshop report now starts with the workshop’s 25-point check, line for line like Motech’s sheet, with a note box and Add photo next to each point. The other mechanic points follow under “If the workshop checked them”. Fixed: on a phone, the Save bar sits right on top of the bottom tabs, with nothing showing in between."
     ]
   ]
 }

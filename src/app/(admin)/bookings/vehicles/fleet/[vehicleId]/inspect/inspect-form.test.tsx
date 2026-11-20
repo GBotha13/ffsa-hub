@@ -188,5 +188,9 @@ describe("Workshop report: the workshop's 25-point check (Gideon, 20 Nov 2026)",
     expect(points[24]).toBe("Headlights");
     // The note is always there, like the sheet's NOTES column.
     expect(first.querySelectorAll('input[aria-label^="Note: "]').length).toBe(25);
+    // "Mark the rest OK" for the 25 lines, but not for the points the workshop may not have checked.
+    const [sheet, more] = Array.from(host.querySelectorAll("details"));
+    expect(Array.from(sheet.querySelectorAll("button")).some((b) => b.textContent === "Mark the rest OK")).toBe(true);
+    expect(Array.from(more.querySelectorAll("button")).some((b) => b.textContent === "Mark the rest OK")).toBe(false);
   });
 });
