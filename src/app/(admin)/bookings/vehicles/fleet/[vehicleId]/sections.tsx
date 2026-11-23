@@ -328,7 +328,9 @@ export function HistoryTab({ items, ctx, canWrite }: { items: HistoryItem[]; ctx
   return (
     <ol className="divide-y divide-rule border-b border-rule">
       {items.map((x) => (
-        <li key={x.k + x.id}>{x.k === "i" ? <HistInspection x={x} /> : x.k === "o" ? <HistKm x={x} /> : <HistVisit x={x} ctx={ctx} canWrite={canWrite} />}</li>
+        <li key={x.k + x.id}>
+          {x.k === "i" ? <HistInspection x={x} /> : x.k === "o" ? <HistKm x={x} /> : x.k === "f" ? <HistFix x={x} /> : <HistVisit x={x} ctx={ctx} canWrite={canWrite} />}
+        </li>
       ))}
     </ol>
   );
@@ -347,6 +349,25 @@ function HistInspection({ x }: { x: Extract<HistoryItem, { k: "i" }> }) {
       {inspectionMeta(x) && <p className={hMeta}>{inspectionMeta(x)}</p>}
       <CountPills c={x.counts} />
     </Link>
+  );
+}
+
+function HistFix({ x }: { x: Extract<HistoryItem, { k: "f" }> }) {
+  return (
+    <div className={cn("space-y-1 py-3", pad)}>
+      <div className={hHead}>
+        <strong className="text-[15px]">Fixed: {x.point}</strong>
+        <span className="text-[12px] text-[#7C786C]">{fmtDate(x.date)}</span>
+      </div>
+      <p className="text-[14px]">
+        <span className="font-semibold">By {x.by}:</span> {x.work}
+      </p>
+      {x.was.n && (
+        <p className={hMeta}>
+          Was Fix now{x.was.d ? ` (${fmtDate(x.was.d)})` : ""}: {x.was.n}
+        </p>
+      )}
+    </div>
   );
 }
 

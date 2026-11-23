@@ -259,6 +259,23 @@ export async function getBookingRequestedBy(supabase: Client, bookingId: string)
   return supabase.from("vehicle_bookings").select("requested_by").eq("id", bookingId).maybeSingle();
 }
 
+// ── Fixes (358: add-only) ──────────────────────────────────
+
+export async function insertFleetFix(
+  supabase: Client,
+  row: { vehicle_id: string; item_id: string; point: string; fixed_on: string; fixed_by: string; work: string; was: Record<string, unknown>; recorded_by: string | null }
+) {
+  return supabase.from("fleet_fixes").insert(row).select("id").single();
+}
+
+/** A vehicle's fixes, newest first, optionally between two dates (inclusive). */
+export async function getFleetFixes(supabase: Client, vehicleId: string, opts?: { from?: string; to?: string }) {
+  let q = supabase.from("fleet_fixes").select("*").eq("vehicle_id", vehicleId).order("fixed_on", { ascending: false });
+  if (opts?.from) q = q.gte("fixed_on", opts.from);
+  if (opts?.to) q = q.lte("fixed_on", opts.to);
+  return q;
+}
+
 // ── Daily reminder log ─────────────────────────────────────
 
 export async function getFleetReminderSends(supabase: Client, limit = 7) {

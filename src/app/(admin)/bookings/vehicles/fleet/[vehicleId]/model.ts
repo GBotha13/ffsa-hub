@@ -127,6 +127,26 @@ export interface KmReading {
 }
 export const kmFromRow = (r: Row): KmReading => ({ id: r.id, km: Number(r.km), date: r.date, note: r.note || "", createdAt: r.created_at || "" });
 
+/** A point marked as fixed (fleet_fixes, 358): kept for good, whatever later inspections say. */
+export interface Fix {
+  id: string;
+  date: ISODate;
+  point: string;
+  by: string;
+  work: string;
+  was: { s?: string; d?: string; n?: string };
+  createdAt: string;
+}
+export const fixFromRow = (r: Row): Fix => ({
+  id: r.id,
+  date: r.fixed_on,
+  point: r.point || "",
+  by: r.fixed_by || "",
+  work: r.work || "",
+  was: (r.was && typeof r.was === "object" ? r.was : {}) as Fix["was"],
+  createdAt: r.created_at || "",
+});
+
 /** A workshop visit as the page shows it (visitFromRow's output). */
 export interface Visit {
   id: string;
@@ -353,14 +373,15 @@ export function conditionView(cl: Checklist, v: FleetVehicle, f: CondFilter) {
 
 // ── History ────────────────────────────────────────────────
 
-export type HistoryItem = ({ k: "i" } & Inspection) | ({ k: "r" } & Visit) | ({ k: "o" } & KmReading);
+export type HistoryItem = ({ k: "i" } & Inspection) | ({ k: "r" } & Visit) | ({ k: "o" } & KmReading) | ({ k: "f" } & Fix);
 
 /** Inspections, workshop visits and km readings, newest first (historyTab). */
-export function historyItems(insp: Inspection[], visits: Visit[], odo: KmReading[]): HistoryItem[] {
+export function historyItems(insp: Inspection[], visits: Visit[], odo: KmReading[], fixes: Fix[] = []): HistoryItem[] {
   return [
     ...insp.map((x) => ({ k: "i" as const, ...x })),
     ...visits.map((x) => ({ k: "r" as const, ...x })),
     ...odo.map((x) => ({ k: "o" as const, ...x })),
+    ...fixes.map((x) => ({ k: "f" as const, ...x })),
   ].sort(byDateDesc);
 }
 

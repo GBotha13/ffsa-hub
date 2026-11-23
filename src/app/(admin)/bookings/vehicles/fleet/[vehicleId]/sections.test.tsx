@@ -98,6 +98,15 @@ describe("vehicle page tabs render", () => {
     expect(hist).toContain("Body repair");
     expect(hist).toContain("Edit");
     expect(html(HistoryTab, { items: [], ctx, canWrite: false })).toContain("No inspections or workshop visits recorded yet.");
+    // Fixes (358) are kept in the History for good, whatever a later inspection says.
+    const fixHist = html(HistoryTab, {
+      items: historyItems([], [], [], [{ id: "f1", date: "2026-11-22", point: "Ball joints and control arms", by: "Motech", work: "Replaced the bushes.", was: { s: "fix", d: "2026-11-19", n: "Bushes worn" }, createdAt: "" }]),
+      ctx,
+      canWrite: true,
+    });
+    expect(fixHist).toContain("Fixed: Ball joints and control arms");
+    expect(fixHist).toContain("By Motech:");
+    expect(fixHist).toContain("Was Fix now (19 Nov 2026): Bushes worn");
     expect(html(PhotosTab, { groups: photoGroups([], visits) })).toContain("Resale evaluation · 23 Mar 2026");
     expect(html(PhotosTab, { groups: [] })).toContain("No photos yet.");
     const man = html(ManualTab, {
