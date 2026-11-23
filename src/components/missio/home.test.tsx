@@ -70,11 +70,18 @@ function clients(options: { failHouses?: boolean; review?: number } = {}) {
   const counts: Record<string, number> = { new: 3, contacted: 2, visited_house: 1 };
   const followUp = {
     list: async ({ stage }: { stage: string }) => ({
-      people: Array.from({ length: counts[stage] ?? 0 }, (_, n) => ({ key: `${stage}-${n}` })),
+      // Two of the new ones came in on a connect card; one needs a pastor to confirm a match.
+      people: Array.from({ length: counts[stage] ?? 0 }, (_, n) => ({
+        key: `${stage}-${n}`,
+        source: stage === "new" && n < 2 ? "connect_response" : "contact",
+        matchStatus: stage === "new" && n === 0 ? "pending_confirm" : null,
+      })),
       canWrite: true,
     }),
   } as unknown as FollowUpClient;
-  return { houses, followUp };
+  const people = { listPeople: async () => ({ rows: [], total: 251 }) };
+  const loadName = async () => "Gabriël";
+  return { houses, followUp, people, loadName };
 }
 
 async function settle() {
@@ -92,7 +99,6 @@ describe("houseOverview", () => {
     expect(overview.people).toBe(57);
     expect(overview.readyToMultiply).toBe(2);
     expect(overview.noCoLeader).toBe(1);
-    expect(overview.noLeader).toBe(1);
     expect(overview.bars.map((bar) => bar.number)).toEqual([1, 2, 3, 4, 5]);
     expect(overview.bars.filter((bar) => bar.ready).map((bar) => bar.number)).toEqual([1, 3]);
   });
@@ -107,7 +113,7 @@ describe("Missio home", () => {
     while (hosts.length) hosts.pop()?.remove();
   });
 
-  it("shows a pastor the houses, the review queue and who is not in a house yet", async () => {
+  it("shows a pastor the houses and who is not in a house yet", async () => {
     const { host, root } = render(
       <MissioViewerProvider me={pastor}>
         <MissioHome {...clients({ review: 135 })} />
@@ -118,24 +124,33 @@ describe("Missio home", () => {
     await settle();
     const housesCard = host.querySelector("[data-testid=home-houses-card]") as HTMLElement;
     expect(housesCard.textContent).toContain("5houses");
-    expect(housesCard.textContent).toContain("57people in houses");
+    expect(housesCard.textContent).toContain("57members");
     expect(housesCard.textContent).toContain("2 ready to multiply");
-    expect(housesCard.textContent).toContain("1 with no co-leader");
+    expect(housesCard.textContent).toContain("1 no co-leader");
+    // Board M11a: no "no leader" chip, and no stand-in for the "new this month" number.
+    expect(housesCard.textContent).not.toContain("no leader");
+    expect(housesCard.textContent).not.toContain("ready to lead");
+    expect(housesCard.querySelectorAll("dl > div")).toHaveLength(2);
     expect(housesCard.querySelector("[role=img]")?.getAttribute("aria-label")).toContain("24, 9, 18, 0, 6");
     expect((host.querySelector("[data-testid=home-houses]") as HTMLAnchorElement).getAttribute("href")).toBe("/missio/house-churches");
-    const review = host.querySelector("[data-testid=home-review]") as HTMLAnchorElement;
-    expect(review.getAttribute("href")).toBe("/missio/house-churches/review");
-    expect(review.textContent).toContain("135 names to review");
+    // Names to review live on the House churches page, not this card.
+    expect(host.querySelector("[data-testid=home-review]")).toBeNull();
+    expect(housesCard.textContent).not.toContain("to review");
     const followCard = host.querySelector("[data-testid=home-follow-card]") as HTMLElement;
     expect(followCard.textContent).toContain("Not in a house yet");
     expect(followCard.textContent).toContain("6");
     expect(followCard.textContent).toContain("3New");
+    expect(followCard.textContent).toContain("3 new · 2 from Sunday");
+    expect(followCard.textContent).toContain("1 need review");
     expect((host.querySelector("[data-testid=home-follow-up]") as HTMLAnchorElement).getAttribute("href")).toBe("/missio/follow-up");
-    expect((host.querySelector("[data-testid=home-people]") as HTMLAnchorElement).getAttribute("href")).toBe("/missio/people");
+    const find = host.querySelector("[data-testid=home-people]") as HTMLAnchorElement;
+    expect(find.getAttribute("href")).toBe("/missio/people");
+    expect(find.textContent).toContain("251 people");
+    expect(host.querySelector("[data-testid=home-hero] h1")?.textContent).toMatch(/^Good (morning|afternoon|evening), Gabriël$/);
     expect(host.textContent).not.toMatch(/Soon|Coming soon/);
   });
 
-  it("hides the review notice when nothing is waiting", async () => {
+  it("keeps the This Sunday and want-to-serve slots honest while nothing is linked", async () => {
     const { host, root } = render(
       <MissioViewerProvider me={pastor}>
         <MissioHome {...clients()} />
@@ -144,7 +159,16 @@ describe("Missio home", () => {
     roots.push(root);
     hosts.push(host);
     await settle();
-    expect(host.querySelector("[data-testid=home-review]")).toBeNull();
+    const sunday = host.querySelector("[data-testid=home-sunday]") as HTMLAnchorElement;
+    expect(sunday.getAttribute("href")).toBe("/missio/sundays");
+    expect(sunday.textContent).toContain("This Sunday");
+    expect(sunday.textContent).toContain("Sundays aren’t linked yet");
+    // No plan, times or team counts are made up.
+    expect(sunday.textContent).not.toMatch(/\d+ of \d+|\d{2}:\d{2}|preaching/);
+    const serve = host.querySelector("[data-testid=home-serve]") as HTMLAnchorElement;
+    expect(serve.getAttribute("href")).toBe("/missio/volunteers");
+    expect(serve.textContent).toContain("No serving sign-ups in the Hub yet");
+    expect(serve.textContent).not.toMatch(/\d/);
   });
 
   it("keeps the other cards when house churches fail, and retries", async () => {

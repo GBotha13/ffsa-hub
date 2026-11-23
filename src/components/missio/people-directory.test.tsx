@@ -22,6 +22,10 @@ const rows: MissioPerson[] = [
     status: "active",
     joinedAt: "2024-03-12",
     currentStage: "Member",
+    houses: [
+      { houseId: "h1", number: 1, name: null, role: "leader" },
+      { houseId: "h9", number: 9, name: "Oak Table", role: "member" },
+    ],
   },
   {
     id: "p-jhb",
@@ -30,7 +34,8 @@ const rows: MissioPerson[] = [
     campus: "jhb",
     status: "visitor",
     joinedAt: null,
-    currentStage: null,
+    currentStage: "contacted",
+    houses: [],
   },
   {
     id: "p-old",
@@ -103,8 +108,7 @@ describe("people directory", () => {
       await Promise.resolve();
     });
     expect(host.textContent).toContain("Mina Osei");
-    expect(host.textContent).toContain("Missio JHB");
-    expect(host.textContent).toContain("No one is deleted. Mark someone inactive when they leave.");
+    expect(host.textContent).toContain("JHB");
     expect(host.textContent).not.toContain("Potch is the main church");
     expect(host.textContent).toContain("—");
     expect(host.textContent).not.toMatch(/Delete/);
@@ -114,8 +118,9 @@ describe("people directory", () => {
     expect(host.querySelector("#missio-status-label")?.textContent).toBe("Status");
     expect(campusSelect.getAttribute("aria-labelledby")).toBe("missio-campus-label");
     expect(statusSelect.getAttribute("aria-labelledby")).toBe("missio-status-label");
-    expect(campusSelect.selectedOptions[0]?.text).toBe("All campuses");
-    expect(statusSelect.selectedOptions[0]?.text).toBe("All statuses");
+    // Desktop chips read as the filter's name until one is picked (board M2a).
+    expect(campusSelect.selectedOptions[0]?.text).toBe("Campus");
+    expect(statusSelect.selectedOptions[0]?.text).toBe("Status");
 
     await act(async () => {
       setControl(host, "Campus", "jhb");
@@ -141,7 +146,7 @@ describe("people directory", () => {
     expect(host.textContent).not.toContain("Hugo Steyn");
   });
 
-  it("hides an empty stage, drops a line with no stage and no date, and names each Edit button", async () => {
+  it("writes a two-line row on phone, a table on desktop, and names each Edit button", async () => {
     const { client } = directoryClient();
     const { host, root } = render(<PeopleDirectory client={client} />);
     roots.push(root);
@@ -155,26 +160,66 @@ describe("people directory", () => {
     const row = (name: string) =>
       [...host.querySelectorAll("[data-testid=people-table] tr")].find((item) => item.textContent?.includes(name));
 
-    const neither = card("Lerato Dlamini");
-    expect(neither?.querySelector("[class*=joined]")).toBeNull();
-    expect(neither?.textContent).not.toContain("—");
+    // Each phone row links to the profile; the second line is house and role (board M2b).
+    expect(card("Mina Osei")?.querySelector("a")?.getAttribute("href")).toBe("/missio/people/p-potch");
+    expect(card("Mina Osei")?.querySelector("[data-testid=person-meta]")?.textContent).toBe("House 1 · Leader + 1 more");
+    expect(card("Lerato Dlamini")?.querySelector("[data-testid=person-meta]")?.textContent).toBe("Not in a house yet · Contacted");
+    expect(card("Lerato Dlamini")?.textContent).not.toContain("—");
+    // Houses that couldn't be read never turn into "Not in a house yet".
+    expect(card("Hugo Steyn")?.querySelector("[data-testid=person-meta]")?.textContent).toBe("Inactive · Joined 2 Jan 2020");
 
-    const dateOnly = card("Hugo Steyn");
-    const joined = dateOnly?.querySelector("[class*=joined]");
-    expect(joined?.textContent).toBe("Joined 2 Jan 2020");
-    expect(joined?.className).not.toMatch(/campusMain/);
-    expect(dateOnly?.textContent).not.toContain("—");
+    // A to Z with a letter heading per first letter, and a tinted avatar on every row.
+    const names = [...host.querySelectorAll("[data-testid=people-cards] li")].map((item) => item.querySelector("a")?.textContent ?? "");
+    expect(names.map((name) => name.replace(/^[A-Z]{2}/, "").slice(0, 4))).toEqual(["Hugo", "Lera", "Mina"]);
+    expect([...host.querySelectorAll("[data-testid=people-letter]")].map((item) => item.textContent)).toEqual(["H", "L", "M"]);
+    for (const item of host.querySelectorAll("[data-testid=people-cards] li a > span:first-child")) {
+      expect(item.className).toMatch(/a[1-5]/);
+    }
 
-    const neitherCells = row("Lerato Dlamini")?.querySelectorAll("td");
-    expect(neitherCells?.[3]?.textContent).toBe("—");
-    expect(neitherCells?.[4]?.textContent).toBe("—");
-    const dateOnlyCells = row("Hugo Steyn")?.querySelectorAll("td");
-    expect(dateOnlyCells?.[3]?.textContent).toBe("—");
-    expect(dateOnlyCells?.[4]?.textContent).toBe("2 Jan 2020");
+    // Desktop: House church and Role columns.
+    const minaCells = row("Mina Osei")?.querySelectorAll("td");
+    expect(minaCells?.[1]?.textContent).toBe("House 1 + Oak Table");
+    expect(minaCells?.[2]?.textContent).toBe("Leader");
+    const leratoCells = row("Lerato Dlamini")?.querySelectorAll("td");
+    expect(leratoCells?.[1]?.textContent).toBe("—");
+    expect(leratoCells?.[2]?.textContent).toBe("—");
+    expect(leratoCells?.[4]?.textContent).toBe("Contacted");
+    expect(row("Hugo Steyn")?.querySelectorAll("td")?.[4]?.textContent).toBe("—");
 
     for (const name of ["Mina Osei", "Lerato Dlamini", "Hugo Steyn"]) {
-      expect(host.querySelectorAll(`button[aria-label='Edit ${name}']`)).toHaveLength(2);
+      expect(host.querySelectorAll(`button[aria-label='Edit ${name}']`)).toHaveLength(1);
     }
+  });
+
+  it("filters from the phone sheet and shows the campus as a pill under the search", async () => {
+    const { client, calls } = directoryClient();
+    const { host, root } = render(<PeopleDirectory client={client} />);
+    roots.push(root);
+    hosts.push(host);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const filter = [...host.querySelectorAll("button")].find((b) => b.textContent === "Filter");
+    await act(async () => {
+      filter?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    const sheet = document.body.querySelector("[data-testid=people-filter-sheet]") as HTMLElement;
+    const jhb = [...sheet.querySelectorAll("button")].find((b) => b.textContent === "JHB");
+    await act(async () => {
+      jhb?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(calls.at(-1)).toMatchObject({ campus: "jhb", offset: 0 });
+    expect(jhb?.getAttribute("aria-pressed")).toBe("true");
+    const pills = host.querySelector("[data-testid=people-active-filters]") as HTMLElement;
+    const chip = [...pills.querySelectorAll("button")].find((b) => b.textContent === "JHB");
+    expect(chip?.getAttribute("aria-pressed")).toBe("true");
+    expect(host.querySelector("[role=tablist]")).toBeNull();
+    await act(async () => {
+      chip?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(calls.at(-1)).toMatchObject({ campus: "" });
   });
 
   it("marks a person inactive with PATCH and does not offer delete", async () => {
@@ -188,7 +233,7 @@ describe("people directory", () => {
     await act(async () => {
       await Promise.resolve();
     });
-    const edit = [...host.querySelectorAll("button")].find((button) => button.textContent === "Edit");
+    const edit = host.querySelector("button[aria-label='Edit Mina Osei']");
     await act(async () => {
       edit?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
@@ -225,7 +270,7 @@ describe("people directory", () => {
       await Promise.resolve();
     });
     const before = loads;
-    const edit = [...host.querySelectorAll("button")].find((button) => button.textContent === "Edit");
+    const edit = host.querySelector("button[aria-label='Edit Mina Osei']");
     await act(async () => {
       edit?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
@@ -300,7 +345,7 @@ describe("people directory", () => {
     await act(async () => {
       await Promise.resolve();
     });
-    expect(first.host.querySelector("[data-state=empty]")?.textContent).toMatch(/No Missio people yet/);
+    expect(first.host.querySelector("[data-state=empty]")?.textContent).toMatch(/No people yet/);
 
     const failing: MissioClient = { ...empty, listPeople: async () => { throw new Error("down"); } };
     const second = render(<PeopleDirectory client={failing} />);

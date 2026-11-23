@@ -1,10 +1,11 @@
 /* Page content only. The shell, sidebar, top bar, and their breakpoints
-   stay in shell.module.css so the mobile shell can change on its own. */
+   stay in shell.module.css so the mobile shell can change on its own.
+   Home has its own home.module.css (board M11a). */
 
 .page {
   font-size: 15px;
   line-height: 1.6;
-  color: var(--ink, #17372F);
+  color: var(--ink, #1c1b17);
 }
 
 /* Resting state is fully opaque. The animation is the only thing that
@@ -14,7 +15,7 @@
 .reveal {
   opacity: 1;
   transform: none;
-  animation: contentIn 0.25s ease both;
+  animation: contentIn 0.32s ease both;
 }
 
 @keyframes contentIn {
@@ -36,19 +37,20 @@
   }
 }
 
-.page .eyebrow {
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
 .page .title {
-  font-size: 40px;
-  font-weight: 600;
-  line-height: 1.15;
+  font-size: 32px;
+  font-weight: 560;
+  line-height: 38px;
   letter-spacing: -0.01em;
   margin: 8px 0 0;
   max-width: 100%;
+}
+
+@media (max-width: 767px) {
+  .page .title {
+    font-size: 28px;
+    line-height: 34px;
+  }
 }
 
 .page .lede {
@@ -58,334 +60,13 @@
   max-width: 40rem;
 }
 
-.page .grid {
-  margin-top: 24px;
-  gap: 16px;
-  align-items: stretch;
-}
-
-.solo {
-  display: block;
-  width: 100%;
-  max-width: 22rem;
-  margin-top: 24px;
-}
-
-.pair {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  margin-top: 24px;
-}
-
-.pair > * {
-  min-width: 0;
-  margin-top: 0;
-}
-
-.cards {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
-  margin-top: 24px;
-}
-
-.cards > * {
-  min-width: 0;
-  margin-top: 0;
-}
-
-@media (max-width: 767px) {
-  .pair {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-@media (min-width: 1100px) {
-  .cards {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-.page .grid + .grid {
-  margin-top: 16px;
-}
-
-.page .cardTitle {
-  font-size: 16px;
-  font-weight: 600;
-  line-height: 1.25;
-}
-
-.page .cardBody {
-  font-size: 15px;
-  line-height: 1.5;
-  margin-top: 8px;
-}
-
-.page .tag {
-  max-width: 100%;
-  height: auto;
-  white-space: normal;
-}
-
-.card {
-  transition: border-color 0.15s ease;
-}
-
-.page .card:hover {
-  border-color: var(--ink, #17372F);
-}
-
-.page .toolbar {
-  gap: 8px;
-  margin: 16px 0 12px;
-}
-
-.page .table th,
-.page .table td {
-  padding: 12px 16px;
-  text-align: left;
-  vertical-align: middle;
-}
-
-.page .table th {
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0;
-  line-height: 1.5;
-  text-transform: none;
-}
-
-.page .table td {
-  font-size: 15px;
-  line-height: 1.5;
-}
-
-/* ── Home ─────────────────────────────────────────────── */
-
-.homeGrid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
-  margin-top: 24px;
-}
-
-.homeGrid > * {
-  min-width: 0;
-}
-
-@media (min-width: 1000px) {
-  .homeGrid {
-    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-    gap: 24px;
-  }
-
-  .homeGrid .wide {
-    grid-row: span 2;
-  }
-}
-
-.page .card {
-  border-radius: var(--radius-md, 0);
-  box-shadow: var(--shadow-1, none);
-}
-
-.homeGrid .card {
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.homeGrid .rowCard {
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 64px;
-}
-
-.cardHead {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.page .cardHeading {
-  font-size: 22px;
-  line-height: 28px;
-  margin: 0;
-}
-
-.page .cardLink {
-  color: var(--link, #17372F);
-  font-size: 14px;
-  font-weight: 600;
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  margin: -12px 0;
-}
-
-.page .cardLink:hover,
-.page .cardLink:focus-visible {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  color: var(--link, #17372F);
-}
-
-.go {
-  color: var(--quiet, rgb(23 55 47 / 0.72));
-  font-size: 18px;
-  flex: none;
-}
-
-.stats {
-  display: flex;
-  gap: 40px;
-  margin: 0;
-}
-
-.stats dd {
-  margin: 0;
-  font-family: var(--display);
-  font-weight: 500;
-  font-size: 40px;
-  line-height: 44px;
-  letter-spacing: -0.02em;
-  font-variant-numeric: lining-nums tabular-nums;
-}
-
-.stats dt {
-  color: var(--sub, rgb(23 55 47 / 0.78));
-  font-size: 14px;
-  line-height: 20px;
-}
-
-.statsSmall {
-  gap: 24px;
-}
-
-.statsSmall dd {
-  font-size: 22px;
-  line-height: 26px;
-}
-
-.big {
-  font-family: var(--display);
-  font-weight: 500;
-  font-size: 56px;
-  line-height: 56px;
-  letter-spacing: -0.02em;
-  font-variant-numeric: lining-nums tabular-nums;
-}
-
-.bars {
-  display: flex;
-  align-items: flex-end;
-  gap: 4px;
-  height: 72px;
-}
-
-.bars span {
-  flex: 1 1 0;
-  min-width: 0;
-  border-radius: 0;
-  /* Sage, the Guide's quiet third colour; ink-at-40% read as grey. */
-  background: var(--olive-soft, #A8BAA6);
-}
-
-.bars .barReady {
-  background: var(--olive, #17372F);
-}
-
-.caption {
-  color: var(--sub, rgb(23 55 47 / 0.78));
-  font-size: 13px;
-  line-height: 18px;
-  margin: -6px 0 0;
-}
-
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.chips:empty {
-  display: none;
-}
-
-.chip {
-  display: inline-flex;
-  align-items: center;
-  min-height: 26px;
-  padding: 0 10px;
-  border-radius: 0;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.chipOlive {
-  background: var(--olive-soft, #A8BAA6);
-  color: var(--olive-text, #17372F);
-}
-
-.chipGold {
-  background: var(--gold-soft, rgb(241 143 59 / 0.22));
-  color: var(--gold-text, #17372F);
-}
-
-.page .notice {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 44px;
-  padding: 10px 14px;
-  border-radius: var(--radius-sm, 0);
-  background: var(--gold-soft, rgb(241 143 59 / 0.22));
-  color: var(--ink, #17372F);
-  font-size: 14px;
-  line-height: 20px;
-}
-
-.page .action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  align-self: flex-start;
-  min-height: 44px;
-  padding: 0 18px;
-  border-radius: var(--radius-sm, 0);
-  background: var(--accent, #17372F);
-  color: var(--accent-ink, #FFFAF0);
-  font-size: 15px;
-  font-weight: 600;
-  margin-top: auto;
-}
-
-.page .action:hover,
-.page .action:focus-visible {
-  background: var(--accent-soft, #D9F45A);
-  color: var(--ink, #17372F);
-}
-
-.page .action:focus-visible,
-.page .notice:focus-visible,
-.page .cardLink:focus-visible {
-  outline: 2px solid var(--link, #17372F);
-  outline-offset: 2px;
-}
-
 .cardError {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   font-size: 14px;
-  color: var(--bad-text, #17372F);
+  color: var(--bad, #a3261b);
 }
 
 .skeleton {
@@ -396,8 +77,8 @@
 
 .skeleton span {
   height: 14px;
-  border-radius: 0;
-  background: var(--subtle, rgb(23 55 47 / 0.05));
+  border-radius: 6px;
+  background: var(--subtle, #eeeadf);
 }
 
 .skeleton span:nth-child(1) {
@@ -412,28 +93,4 @@
 
 .skeleton span:nth-child(3) {
   width: 60%;
-}
-
-@media (max-width: 767px) {
-  .homeGrid .card {
-    padding: 16px;
-  }
-
-  .stats {
-    gap: 28px;
-  }
-
-  .stats dd {
-    font-size: 32px;
-    line-height: 36px;
-  }
-
-  .statsSmall dd {
-    font-size: 20px;
-    line-height: 24px;
-  }
-
-  .page .action {
-    align-self: stretch;
-  }
 }
