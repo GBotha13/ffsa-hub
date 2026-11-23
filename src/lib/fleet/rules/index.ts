@@ -15,3 +15,4 @@ export * from "./alerts";
 export * from "./today";
 export * from "./reminder";
 export * from "./visits";
+export * from "./notices";

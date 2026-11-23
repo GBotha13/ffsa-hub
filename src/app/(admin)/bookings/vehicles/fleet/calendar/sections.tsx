@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { SectionBar } from "@/components/ffsa";
 import { cn } from "@/lib/utils/cn";
-import { MoveTripButton } from "../_components/task-actions";
+import { MoveTripButton, NotifyBookerButton } from "../_components/task-actions";
 import { SevDot, sevLabel, vehicleHref } from "../_components/ui";
 import { VisitButton } from "../[vehicleId]/visit-dialog";
 import { fmtRange } from "@/lib/fleet/rules/format";
@@ -121,7 +121,7 @@ export function ClashSection({ items, ctxs, canWrite }: { items: ClashItem[]; ct
         <ul className="divide-y divide-rule">
           {items.map((c, i) => {
             const b = ctxs[c.vehicleId];
-            const acts = canWrite && (c.moves.length > 0 || (c.wsMove && b));
+            const acts = canWrite && (c.moves.length > 0 || (c.wsMove && b) || c.notify);
             return (
               <li key={i} className={cn("flex gap-3 py-3 text-[14px] leading-snug", pad)}>
                 <SevDot sev={c.sev} />
@@ -139,6 +139,7 @@ export function ClashSection({ items, ctxs, canWrite }: { items: ClashItem[]; ct
                           Move the workshop visit to {fmtRange(c.wsMove.from, c.wsMove.to)}
                         </VisitButton>
                       )}
+                      {c.notify && <NotifyBookerButton bookingId={c.notify.bookingId} visitId={c.notify.visitId} text={c.notify.text} />}
                     </div>
                   )}
                 </div>

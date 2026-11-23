@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/table";
 import { StatusPill, AssignedVehicles } from "./ui";
 import { FleetCalendar } from "./fleet-calendar";
+import type { BoardOverlay } from "./fleet/calendar/model";
 import { dateRangeLabel } from "@/lib/bookings/dates";
 import {
   purposeLabel,
@@ -48,6 +49,8 @@ export function VehiclesBoard({
   pendingCount,
   calendarBookings,
   from,
+  fleetOverlay,
+  fleetPanel,
 }: {
   bookings: VehicleBookingWithRefs[];
   vehicles: Vehicle[];
@@ -58,6 +61,10 @@ export function VehiclesBoard({
   calendarBookings: VehicleBookingWithRefs[];
   /** First day the calendar shows (YYYY-MM-DD, or an old YYYY-MM link). */
   from?: string;
+  /** Fleet users: workshop visits, inspection days and clashes on the calendar… */
+  fleetOverlay?: BoardOverlay | null;
+  /** …and Fleet's clashes and "Book a workshop visit" under it. */
+  fleetPanel?: React.ReactNode;
 }) {
 
   return (
@@ -157,7 +164,9 @@ export function VehiclesBoard({
         bookings={calendarBookings}
         from={from}
         status={statusFilter}
+        overlay={fleetOverlay}
       />
+      {fleetPanel}
 
       {/* Bookings */}
       {bookings.length === 0 ? (

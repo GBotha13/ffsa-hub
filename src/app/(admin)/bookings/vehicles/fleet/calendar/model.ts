@@ -24,6 +24,7 @@ import {
   suggestGap,
   tripName,
   tripOn,
+  visitNotices,
   weekStartOf,
   weekly,
   worst,
@@ -139,6 +140,64 @@ export function calendarGrid(F: FleetData, start: ISODate): CalGrid {
   return { start, end, label: `${fmtDate(start)} – ${fmtDate(end)}`, days, rows };
 }
 
+// ── The booking board's Fleet lane ─────────────────────────
+
+export interface BoardLane {
+  /** Workshop visits in the window, flagged when a booking overlaps them. */
+  visits: { id: string; from: ISODate; to: ISODate; label: string; tip: string; clash: boolean }[];
+  /** The routine check on its inspection day: planned, done or overdue (as the Fleet grid). */
+  checks: { date: ISODate; st: "plan" | "done" | "late"; tip: string }[];
+}
+export interface BoardOverlay {
+  lanes: Record<string, BoardLane>;
+  /** Hub bookings in a clash (a workshop visit, a double booking, a vehicle not in use). */
+  clashBookingIds: string[];
+}
+
+/** What the booking board draws under each vehicle's bookings (Fleet part 5b): its
+ *  workshop visits and inspection days over [from, from + days), and which bookings clash.
+ *  The same rules as Fleet's own calendar (wsEvents, weekly, clashList). */
+export function boardOverlay(F: FleetData, from: ISODate, days: number): BoardOverlay {
+  const to = addDays(from, days - 1);
+  const ws = wsEvents(F);
+  const clashes = clashList(F);
+  const clashVisit = new Set(clashes.filter((c) => c.kind === "overlap" && c.w).map((c) => c.w!.id));
+  const clashBookingIds = Array.from(
+    new Set(clashes.filter((c) => c.kind !== "near").flatMap((c) => [c.t, c.t0]).filter((t): t is NonNullable<typeof t> => !!t && t.source === "hub").map((t) => t.id.split(":")[0]))
+  );
+  const thisWs = weekStartOf(F.today);
+  const lanes: Record<string, BoardLane> = {};
+  for (const v of F.vehicles.filter(inUse)) {
+    const visits = ws
+      .filter((w) => w.vehicleId === v.id && w.to >= from && w.from <= to)
+      .map((w) => {
+        const what = kindShort(w.kind);
+        return {
+          id: w.id,
+          from: w.from,
+          to: w.to,
+          label: `${what}${w.provider ? " · " + w.provider : ""}`,
+          tip: `${what}${w.provider ? " at " + w.provider : ""}: ${fmtRange(w.from, w.to)}`,
+          clash: clashVisit.has(w.id),
+        };
+      });
+    const checks: BoardLane["checks"] = [];
+    const seenWeeks = new Set<string>();
+    for (let i = 0; i < days; i++) {
+      const d = addDays(from, i);
+      const wsd = weekStartOf(d);
+      if (wsd < thisWs || seenWeeks.has(wsd)) continue;
+      const w = weekly(F, v, wsd);
+      if (w.date !== d || ["skip", "none"].includes(w.st)) continue;
+      seenWeeks.add(wsd);
+      if (tripOn(F, v.id, d) || ws.some((x) => x.vehicleId === v.id && x.from <= d && d <= x.to)) continue;
+      checks.push({ date: d, st: w.st === "done" ? "done" : w.st === "overdue" ? "late" : "plan", tip: `${w.name}: ${w.label}` });
+    }
+    if (visits.length || checks.length) lanes[v.id] = { visits, checks };
+  }
+  return { lanes, clashBookingIds };
+}
+
 // ── Clashes and heads-ups ──────────────────────────────────
 
 export interface ClashItem {
@@ -151,6 +210,9 @@ export interface ClashItem {
   moves: { trip: { id: string; label: string; from: ISODate; to: ISODate }; to: { id: string; name: string } }[];
   /** "Move the workshop visit to <first free 48 hours>", for a booked visit. */
   wsMove: { visit: Visit; from: ISODate; to: ISODate } | null;
+  /** "Let them know": a Hub booking a workshop visit clashes with, or starts soon after
+   *  (SPEC 7.3). Sent only when the co-ordinator taps it, through the booking notice. */
+  notify: { bookingId: string; visitId: string; text: string } | null;
 }
 
 /** Every clash and heads-up, worst first, with what can be done about it. */
@@ -170,7 +232,10 @@ export function clashItems(F: FleetData): ClashItem[] {
         const g = suggestGap(F, c.vehicleId, { ignore: c.w.id });
         if (g) wsMove = { visit: c.w.rec as unknown as Visit, from: g.from, to: g.to };
       }
-      return { sev: c.sev, vehicleId: c.vehicleId, vehicleName: names[c.vehicleId] || "Vehicle", text: c.text, note: clashNote(F, c), moves, wsMove };
+      const bookingId = t ? t.id.split(":")[0] : "";
+      const notice = c.w && t && t.source === "hub" && (c.kind === "overlap" || c.kind === "near") ? visitNotices(F, c.w.id).find((n) => n.bookingId === bookingId) : undefined;
+      const notify = notice && c.w ? { bookingId, visitId: c.w.id, text: notice.text } : null;
+      return { sev: c.sev, vehicleId: c.vehicleId, vehicleName: names[c.vehicleId] || "Vehicle", text: c.text, note: clashNote(F, c), moves, wsMove, notify };
     });
 }
 

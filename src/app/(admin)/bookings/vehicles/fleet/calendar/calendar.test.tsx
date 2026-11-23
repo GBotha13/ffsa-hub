@@ -208,3 +208,63 @@ describe("Calendar renders", () => {
     expect(html(ListSection, { items: [] })).toContain("Nothing booked in these four weeks.");
   });
 });
+
+// ── Fleet part 5b: the booking board's Fleet lane, and "Let them know" ─────────
+
+import { boardOverlay } from "./model";
+
+describe("boardOverlay (Fleet on the booking board)", () => {
+  it("draws each workshop visit in the window, flagged when a booking overlaps it", () => {
+    const F = withTrip(seed(), kombiTrip);
+    const o = boardOverlay(F, TUE, 30);
+    const kombi = o.lanes.kombi.visits;
+    expect(kombi.length).toBeGreaterThan(0);
+    const v19 = kombi.find((v) => v.from <= "2026-11-19" && "2026-11-19" <= v.to)!;
+    expect(v19.clash).toBe(true);
+    expect(v19.label).toMatch(/·/);
+    expect(o.clashBookingIds).toContain("b-1");
+  });
+
+  it("leaves out visits outside the window, and vehicles with nothing to show", () => {
+    const o = boardOverlay(seed(), "2027-06-01", 30);
+    for (const lane of Object.values(o.lanes)) for (const v of lane.visits) expect(v.to >= "2027-06-01").toBe(true);
+  });
+
+  it("marks inspection days from this week on, never on a day the vehicle is out", () => {
+    const F = seed();
+    const o = boardOverlay(F, TUE, 30);
+    const checks = Object.entries(o.lanes).flatMap(([vid, l]) => l.checks.map((c) => ({ vid, ...c })));
+    expect(checks.length).toBeGreaterThan(0);
+    for (const c of checks) {
+      expect(["plan", "done", "late"]).toContain(c.st);
+      expect(F.trips.some((t) => t.vehicleId === c.vid && t.from <= c.date && c.date <= t.to)).toBe(false);
+    }
+  });
+
+  it("a heads-up (booking just after a visit) isn't a clash on the board", () => {
+    const F = withTrip(seed(), { id: "b-2:kombi", vehicleId: "kombi", from: "2026-11-23", to: "2026-11-24", label: "Camp", source: "hub" });
+    expect(boardOverlay(F, TUE, 30).clashBookingIds).not.toContain("b-2");
+  });
+});
+
+describe("Let them know", () => {
+  it("a Hub booking over a workshop visit offers the notice, with the text it would send", () => {
+    const F = withTrip(seed(), kombiTrip);
+    const c = clashItems(F).find((x) => x.notify?.bookingId === "b-1")!;
+    expect(c.notify!.visitId).toBeTruthy();
+    expect(c.notify!.text).toMatch(/is booked in for a .+ during HULC/);
+    const out = html(ClashSection, { items: [c], ctxs: ctxsOf(F), canWrite: true });
+    expect(out).toContain("Let them know");
+  });
+
+  it("isn't offered to someone who can only view Fleet", () => {
+    const F = withTrip(seed(), kombiTrip);
+    const c = clashItems(F).find((x) => x.notify?.bookingId === "b-1")!;
+    expect(html(ClashSection, { items: [c], ctxs: {}, canWrite: false })).not.toContain("Let them know");
+  });
+
+  it("isn't offered for a trip from the old app (not a Hub booking)", () => {
+    const F = withTrip(seed(), { ...kombiTrip, id: "t-old", source: "app" });
+    expect(clashItems(F).some((x) => x.notify?.bookingId === "t-old")).toBe(false);
+  });
+});

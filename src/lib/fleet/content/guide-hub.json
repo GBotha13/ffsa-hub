@@ -30,7 +30,7 @@
           "ul": [
             "Today: what to do today and in the next two days, and the time used this week.",
             "Vehicles: every vehicle with its condition and anything that needs attention. Tap a vehicle for its details, history, photos and manual.",
-            "Calendar: bookings and workshop visits for four weeks, with clashes in red.",
+            "Calendar: opens the booking board’s calendar: bookings, workshop visits and inspection days for 30 days, with clashes in red. Under it: clashes and heads-ups, and Book a workshop visit.",
             "Schedule: which vehicle is checked on which day, services and inspections by km, inspection days and the time budget.",
             "Workshops: the workshops FFSA uses, with phone numbers.",
             "Checklist: every inspection point, and which checks it belongs to.",
@@ -76,12 +76,12 @@
             ],
             [
               "Look at the bookings",
-              "Open the Calendar. Hub bookings show in blue. While a vehicle is booked out its inspection is postponed, and Today reminds you of the pre-trip check before it leaves and the post-trip check when it’s back.",
+              "Open the Calendar (the booking board). Each vehicle’s bookings are bars, with its workshop visits and inspection days in a thin lane underneath. While a vehicle is booked out its inspection is postponed, and Today reminds you of the pre-trip check before it leaves and the post-trip check when it’s back.",
               "calendar"
             ],
             [
               "Book a workshop visit",
-              "On the Calendar, tap Book a workshop visit and choose a vehicle. The form suggests the first free 48 hours on weekdays; tap Use these dates, choose the workshop and save. If anyone has a booking that clashes, the Hub offers them a similar vehicle and copies you in.",
+              "On the Calendar, under Book a workshop visit, choose a vehicle. The form suggests the first free 48 hours on weekdays; tap Use these dates, choose the workshop and save. If a booking clashes with it, it shows under Clashes and heads-ups: Move the booking to a similar free vehicle, move the visit, or tap Let them know.",
               "calendar"
             ],
             [
@@ -220,10 +220,10 @@
         },
         {
           "ul": [
-            "Bookings come from the Hub’s vehicle bookings. Bookings show in blue, workshop visits in orange, clashes in red. A ring marks an inspection day; filled in once it’s done.",
+            "The Calendar is the booking board’s: one row per vehicle, 30 days. Bookings are bars (yellow while out, bone when booked, dashed while waiting for approval). Workshop visits sit in a thin hatched lane under them, with the workshop’s name. A booking and a visit that clash both get a red border. A square marks an inspection day: filled in once it’s done, red when overdue.",
             "A booked workshop visit blocks the vehicle from the day it goes in to the day it’s back: nobody can book it, be given it, or have a request with it approved for those days, and the booking calendar counts it as taken. A visit that has to go in over a booking that’s already approved shows as a clash.",
-            "When a workshop visit is booked or moved, anyone whose booking clashes with it gets a message offering a similar free vehicle (car or van) with a one-tap switch. If none is free, they’re told they can wait until it’s back or make other plans. You get a copy.",
-            "Anyone whose booking starts within 7 days after a workshop visit gets a heads-up about that vehicle.",
+            "A booking that clashes with a workshop visit, or starts within 7 days after one, is listed under Clashes and heads-ups, below the calendar. Nothing is sent by itself: Move puts the booking on a similar free vehicle and tells the person who booked; Let them know sends them a message about the visit (Slack, or email if they’re not on Slack), with the similar vehicles that are free or the day it’s back. It shows on the booking’s page too.",
+            "For a heads-up (a booking starting within 7 days after a visit), Let them know tells them the vehicle should be back in time.",
             "The first free 48 hours is the first two weekdays in a row with no booking or workshop visit.",
             "Move: when a booking clashes with a workshop visit, Move puts it on a similar vehicle that’s free for the whole booking. The person who booked gets a Slack message and an email straight away: “Please be aware your vehicle has been changed from … to …”, with their booking details and a link to it in the Hub. It shows on the booking’s page too. If they can’t be reached, Fleet tells you, so you can let them know yourself."
           ]
@@ -345,6 +345,10 @@
     [
       "2026-11-23",
       "Booked workshop visits now block the vehicle in Hub bookings: it can’t be booked, assigned or approved for those days, and the availability counts include it."
+    ],
+    [
+      "2026-11-23",
+      "One calendar: Fleet’s Calendar now opens the booking board, which shows each vehicle’s workshop visits and inspection days under its bookings, with clashes in red. Clashes and heads-ups and Book a workshop visit are under it. New: Let them know sends the person who booked a message about a workshop visit on, or just before, their booking."
     ]
   ]
 }

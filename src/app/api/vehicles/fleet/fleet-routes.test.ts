@@ -197,3 +197,46 @@ describe("POST /api/vehicles/fleet/trips/move", () => {
     expect(notices).toHaveLength(0);
   });
 });
+
+describe("POST /api/vehicles/fleet/notices (Let them know, Fleet part 5b)", () => {
+  const BOOKING = "00000000-0000-0000-0000-0000000000b8";
+  const kombiOverVisit = () => {
+    const w = data.visits.find((r) => r.vehicleId === UUID.kombi && r.status === "booked" && r.date)!;
+    data = { ...data, trips: [...data.trips, { id: `${BOOKING}:${UUID.kombi}`, vehicleId: UUID.kombi, from: w.date!, to: w.until || w.date!, label: "HULC", source: "hub" }] };
+    return w;
+  };
+
+  it("tells the person who booked, through the booking notice, with the clash text", async () => {
+    const w = kombiOverVisit();
+    const { POST } = await import("./notices/route");
+    const res = await POST(req({ bookingId: BOOKING, visitId: w.id }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ told: true, message: "The person who booked has been told." });
+    expect(notices).toHaveLength(1);
+    expect(notices[0]).toMatchObject({ bookingId: BOOKING, kind: "message", sentBy: "u1" });
+    expect((notices[0] as { note: string }).note).toMatch(/is booked in for a .+ during HULC/);
+  });
+
+  it("refuses when the booking doesn't clash with that visit (any more)", async () => {
+    const w = kombiOverVisit();
+    const { POST } = await import("./notices/route");
+    const res = await POST(req({ bookingId: "00000000-0000-0000-0000-0000000000ff", visitId: w.id }));
+    expect(res.status).toBe(409);
+    expect(notices).toHaveLength(0);
+  });
+
+  it("doesn't message you about your own booking", async () => {
+    const w = kombiOverVisit();
+    bookedBy = "u1";
+    const { POST } = await import("./notices/route");
+    expect(await (await POST(req({ bookingId: BOOKING, visitId: w.id }))).json()).toMatchObject({ told: false });
+    expect(notices).toHaveLength(0);
+  });
+
+  it("says so when the person couldn't be reached", async () => {
+    const w = kombiOverVisit();
+    noticeResult = { slack: false, email: false };
+    const { POST } = await import("./notices/route");
+    expect((await (await POST(req({ bookingId: BOOKING, visitId: w.id }))).json()).message).toBe("Couldn’t reach the person who booked it, so let them know yourself.");
+  });
+});
