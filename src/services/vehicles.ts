@@ -327,6 +327,22 @@ export async function setBookingVehicles(
   return supabase.from("vehicle_booking_assignments").insert(rows);
 }
 
+export type WorkshopBlock = { id: string; vehicle_id: string; date: string; until: string | null; kind: string | null; provider: string | null };
+
+/**
+ * Booked Fleet workshop visits that overlap [from, to] (SPEC 7.3: a booked visit
+ * blocks its vehicle from `date` to `until`). Needs an ADMIN client: the fleet_
+ * tables are only readable to Fleet users.
+ */
+export async function getWorkshopBlocks(supabase: Client, from: string, to: string): Promise<WorkshopBlock[]> {
+  const { data } = await supabase
+    .from("fleet_workshop_visits")
+    .select("id, vehicle_id, date, until, kind, provider")
+    .eq("status", "booked")
+    .lte("date", to);
+  return ((data ?? []) as WorkshopBlock[]).filter((v) => v.date && (v.until && v.until >= v.date ? v.until : v.date) >= from);
+}
+
 /**
  * Vehicle assignments that overlap a [from, to] window on still-live bookings
  * (pending or approved), optionally excluding one booking (when editing it).
@@ -356,14 +372,22 @@ export async function getOverlappingAssignments(
 
   let ids: string[] = (bk ?? []).map((b: { id: string }) => b.id);
   if (excludeBookingId) ids = ids.filter((id) => id !== excludeBookingId);
-  if (ids.length === 0) return [];
+
+  // Fleet (SPEC 7.3): a booked workshop visit blocks its vehicle from `date` to
+  // `until`, so it counts as taken here too. Its id is "fleet-visit:<id>".
+  const blocked = (await getWorkshopBlocks(supabase, from, to)).map((v) => ({
+    vehicle_id: v.vehicle_id,
+    vehicle_booking_id: `fleet-visit:${v.id}`,
+  }));
+
+  if (ids.length === 0) return blocked;
 
   const { data: asg } = await supabase
     .from("vehicle_booking_assignments")
     .select("vehicle_id, vehicle_booking_id")
     .in("vehicle_booking_id", ids);
 
-  return asg ?? [];
+  return [...(asg ?? []), ...blocked];
 }
 
 // ── Drivers ────────────────────────────────────────────────

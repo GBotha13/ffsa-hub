@@ -119,7 +119,7 @@ At this point Fleet matches the Fleet app. **Check against SPEC 10 on the test p
 - **No staging database.** Fleet goes up as a draft PR; Jack's review team checks the migrations and applies them to the live Hub after Jack OKs it. Migrations stay additive.
 - **GitHub:** ffsa-hub is public. Fork it on GBotha13 and open the draft PR from the fork into `main`; no write access needed.
 - **Real data:** scrub VINs, insurer details and workshop reports from the history before pushing; seeds hold no real vehicle data. Done: `vehicles-module/seed` was removed from every Fleet commit and is ignored; it stays on Gideon's Mac only.
-- **Migration numbers:** main ends at 330; 331–333 (Missio drafts) and 316–326 (Departments) are taken. Fleet is **350–353** (350 schema, 351 RLS + Realtime, 352 seed, 353 reminder log); the bookings migration (PR 5) is 354.
+- **Migration numbers:** main ends at 330; 331–333 (Missio drafts) and 316–326 (Departments) are taken. Fleet is **350–353** (350 schema, 351 RLS + Realtime, 352 seed, 353 reminder log); the bookings migration (PR 5) was planned as 354; main has since used 354 (Missio) and 355, so it is **356**.
 - **Realtime** on the fleet tables is fine, as long as 351's RLS covers them (it does: every fleet table has RLS on and policies).
 - **Vehicle Coordinator:** Gideon holds the role for now, so he gets the 07:00 reminder.
 - **Supabase password** shared in Slack: not used; Jack is changing it.
@@ -138,7 +138,7 @@ Fleet's six statuses stay in `fleet_vehicle_details.fleet_status`. The Hub's `ve
 |---|---|---|
 | In service | active | |
 | On a trip | active | A trip is a Hub booking; the vehicle is still in the fleet. |
-| Booked for workshop | active | Bookable until the visit; the visit's own dates block it (PR 5, migration 354). |
+| Booked for workshop | active | Bookable until the visit; the visit's own dates block it (PR 5a, migration 356). |
 | In workshop | maintenance | Not bookable while it's there. |
 | Off the road | maintenance | Not bookable, but still ours. |
 | For sale | retired | Leaving the fleet. |
@@ -195,3 +195,11 @@ All of Fleet's Slack goes through the FFSA Hub Activity bot's 07:00 vehicles mes
 The Workshop report starts with Motech's 25-point check, in the sheet's order and wording (new section `m25`, 25 points with help), then the other mechanic points under "If the workshop checked them" (route stages `workshop` and `workshop-more`; the reference app's ROUTE changed to match). Each point is marked OK / Monitor / Fix now / N/A as before; on the Workshop report the note box sits next to the result, like the sheet's NOTES column. The old app's live checklist predates the 25 points, so the import adds them (`withWorkshop25`) and changes nothing else.
 
 The first real 25-point checks are transcribed in `vehicles-module/seed/` on Gideon's Mac (not committed), to enter as Workshop reports once this is live. Importing inspections isn't built.
+
+## Part 5, in four small PRs (Jack, 22 Nov: go ahead with the one-calendar plan and 354, now 356)
+
+- **5a — workshop visits block bookings (356).** A booked visit blocks its vehicle from `date` to `until`: `getOverlappingAssignments` counts it (via `getWorkshopBlocks`), so new bookings, edits, the public form, the booking page's vehicle picker and Slack's free-vehicles list all refuse it; approving a request re-checks its vehicles against visits booked since; `vehicle_availability` (356, same as 222 plus visits, hardened like 350–353) counts it as confirmed-used.
+- **5b — one calendar.** The board calendar gets workshop visits, clashes with Move, inspection days and the first free 48 hours; Fleet's Calendar tab points to it. "Let them know" sends the booker the clash notice through the Hub's booking notice (`rules/notices.ts`), only when the co-ordinator taps it.
+- **5c — repairs and breakdowns mid-booking.** The vehicle goes to Maintenance until marked back; same-class swap for the rest of the booking; on hold or cancel when nothing is free; the 10-day breakdown look-ahead.
+- **5d — remove Fleet's calendar.**
+

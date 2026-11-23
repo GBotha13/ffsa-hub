@@ -221,7 +221,7 @@
         {
           "ul": [
             "Bookings come from the Hub’s vehicle bookings. Bookings show in blue, workshop visits in orange, clashes in red. A ring marks an inspection day; filled in once it’s done.",
-            "A workshop visit blocks the vehicle from the day it goes in to the day it’s back, so nobody can book it for those days.",
+            "A booked workshop visit blocks the vehicle from the day it goes in to the day it’s back: nobody can book it, be given it, or have a request with it approved for those days, and the booking calendar counts it as taken. A visit that has to go in over a booking that’s already approved shows as a clash.",
             "When a workshop visit is booked or moved, anyone whose booking clashes with it gets a message offering a similar free vehicle (car or van) with a one-tap switch. If none is free, they’re told they can wait until it’s back or make other plans. You get a copy.",
             "Anyone whose booking starts within 7 days after a workshop visit gets a heads-up about that vehicle.",
             "The first free 48 hours is the first two weekdays in a row with no booking or workshop visit.",
@@ -341,6 +341,10 @@
     [
       "2026-11-20",
       "The Workshop report now starts with the workshop’s 25-point check, line for line like Motech’s sheet, with a note box and Add photo next to each point. The other mechanic points follow under “If the workshop checked them”. Fixed: on a phone, the Save bar sits right on top of the bottom tabs, with nothing showing in between."
+    ],
+    [
+      "2026-11-23",
+      "Booked workshop visits now block the vehicle in Hub bookings: it can’t be booked, assigned or approved for those days, and the availability counts include it."
     ]
   ]
 }
