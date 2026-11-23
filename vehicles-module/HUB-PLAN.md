@@ -190,9 +190,16 @@ All of Fleet's Slack goes through the FFSA Hub Activity bot's 07:00 vehicles mes
 
 `src/lib/fleet/digest.ts` sorts the tested rules' output by vehicle; the rules are unchanged. Still behind `FLEET_MESSAGES_ENABLED`: while it's unset the bookings digest is exactly as before. The in-car guide line is left out until the Manual tab is in the Hub.
 
+## Gideon, 20 Nov: the Workshop report follows Motech's 25-point check
+
+The Workshop report starts with Motech's 25-point check, in the sheet's order and wording (new section `m25`, 25 points with help), then the other mechanic points under "If the workshop checked them" (route stages `workshop` and `workshop-more`; the reference app's ROUTE changed to match). Each point is marked OK / Monitor / Fix now / N/A as before; on the Workshop report the note box sits next to the result, like the sheet's NOTES column. The old app's live checklist predates the 25 points, so the import adds them (`withWorkshop25`) and changes nothing else.
+
+The first real 25-point checks are transcribed in `vehicles-module/seed/` on Gideon's Mac (not committed), to enter as Workshop reports once this is live. Importing inspections isn't built.
+
 ## Part 5, in four small PRs (Jack, 22 Nov: go ahead with the one-calendar plan and 354, now 356)
 
 - **5a — workshop visits block bookings (356).** A booked visit blocks its vehicle from `date` to `until`: `getOverlappingAssignments` counts it (via `getWorkshopBlocks`), so new bookings, edits, the public form, the booking page's vehicle picker and Slack's free-vehicles list all refuse it; approving a request re-checks its vehicles against visits booked since; `vehicle_availability` (356, same as 222 plus visits, hardened like 350–353) counts it as confirmed-used.
 - **5b — one calendar (built 23 Nov).** `boardOverlay` (Fleet calendar model) gives the board each vehicle's workshop visits, inspection days and clashing bookings; `board-fleet.tsx` loads it, plus Fleet's Clashes and heads-ups and Book a workshop visit, for Fleet users only. `/fleet/calendar` redirects to the board for anyone with vehicles approve/manage (keeping `?start=` as `?from=`). The board calendar gets workshop visits, clashes with Move, inspection days and the first free 48 hours; Fleet's Calendar tab points to it. "Let them know" sends the booker the clash notice through the Hub's booking notice (`rules/notices.ts`), only when the co-ordinator taps it.
 - **5c — repairs and breakdowns mid-booking.** The vehicle goes to Maintenance until marked back; same-class swap for the rest of the booking; on hold or cancel when nothing is free; the 10-day breakdown look-ahead.
 - **5d — remove Fleet's calendar.**
+
