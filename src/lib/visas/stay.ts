@@ -33,6 +33,12 @@ export const NEAR_LIMIT_DAYS = 7;
 export const PASSPORT_MARGIN_DAYS = 30;
 /** Default buffer between lodging and the embassy's usual decision. */
 export const LODGE_MARGIN_DAYS = 14;
+/**
+ * Two schools further apart than this (days between leaving one and arriving
+ * for the next) get separate visas. Up to it, one visa covers both schools and
+ * the gap, so the student doesn't apply twice. DRAFT rule, legal to confirm.
+ */
+export const MAX_GAP_DAYS = 90;
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_MS = 86_400_000;
@@ -86,6 +92,34 @@ export function computeStay(schools: SchoolDates[]): Stay | null {
   }
   if (from === null || to === null) return null;
   return { from: fromDay(from), to: fromDay(to), days: to - from + 1 };
+}
+
+/**
+ * Groups a student's schools into stays: schools whose gap is MAX_GAP_DAYS
+ * or less share one stay (one visa covering the gap); a longer gap starts a
+ * new stay (a second visa). Schools without both dates are left out. Each
+ * stay comes back with the schools it covers, earliest first.
+ */
+export function splitStays<T extends SchoolDates>(
+  schools: T[],
+  maxGapDays: number = MAX_GAP_DAYS
+): Array<{ stay: Stay; schools: T[] }> {
+  const dated = schools
+    .map((s) => ({ s, arrive: s.arrivalDate ?? s.startDate, leave: s.departureDate ?? s.endDate }))
+    .filter((x): x is { s: T; arrive: IsoDate; leave: IsoDate } => !!x.arrive && !!x.leave)
+    .sort((a, b) => toDay(a.arrive) - toDay(b.arrive));
+  const groups: Array<{ schools: T[]; lastLeave: number }> = [];
+  for (const x of dated) {
+    const g = groups[groups.length - 1];
+    // Days strictly between leaving and arriving; overlapping schools give a negative gap.
+    if (g && toDay(x.arrive) - g.lastLeave - 1 <= maxGapDays) {
+      g.schools.push(x.s);
+      g.lastLeave = Math.max(g.lastLeave, toDay(x.leave));
+    } else {
+      groups.push({ schools: [x.s], lastLeave: toDay(x.leave) });
+    }
+  }
+  return groups.map((g) => ({ stay: computeStay(g.schools)!, schools: g.schools }));
 }
 
 export type VisaType = "exempt" | "visitor" | "volunteer";

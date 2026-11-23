@@ -253,3 +253,97 @@ export async function logVisaCaseEvent(
 ) {
   return adminClient.from("visa_case_events").insert({ ...data, detail: data.detail ?? {} });
 }
+
+// ────────────────────────────────────────────────────────────
+// WORKFLOW (migration 363) — every move goes through a checked function.
+// Call these with the user's client: the database checks who is calling.
+// ────────────────────────────────────────────────────────────
+
+/** Required document codes still not approved or ticked on a case. */
+export async function getVisaMissingDocuments(supabase: Client, caseId: string) {
+  return supabase.rpc("visa_case_missing_documents", { p_case_id: caseId });
+}
+
+/** Records a file the API has already stored at `<case>/<document>.<ext>`. */
+export async function addVisaDocument(
+  supabase: Client,
+  data: {
+    document_id: string;
+    case_id: string;
+    document_type_id: string;
+    storage_path: string;
+    mime_type: string;
+    size_bytes: number;
+    issued_on?: string | null;
+  }
+) {
+  return supabase.rpc("visa_add_document", {
+    p_document_id: data.document_id,
+    p_case_id: data.case_id,
+    p_document_type_id: data.document_type_id,
+    p_storage_path: data.storage_path,
+    p_mime_type: data.mime_type,
+    p_size_bytes: data.size_bytes,
+    p_issued_on: data.issued_on ?? null,
+  });
+}
+
+export async function tickVisaOfflineStep(supabase: Client, caseId: string, documentTypeId: string) {
+  return supabase.rpc("visa_tick_offline", { p_case_id: caseId, p_document_type_id: documentTypeId });
+}
+
+export async function reviewVisaDocument(supabase: Client, documentId: string, approve: boolean, note?: string | null) {
+  return supabase.rpc("visa_review_document", { p_document_id: documentId, p_ok: approve, p_note: note ?? null });
+}
+
+export async function requestVisaApproval(supabase: Client, caseId: string, note?: string | null) {
+  return supabase.rpc("visa_request_approval", { p_case_id: caseId, p_note: note ?? null });
+}
+
+export async function decideVisaRequest(supabase: Client, requestId: string, approve: boolean, note?: string | null) {
+  return supabase.rpc("visa_decide", { p_request_id: requestId, p_approve: approve, p_note: note ?? null });
+}
+
+export async function askVisaLegal(supabase: Client, caseId: string, question: string) {
+  return supabase.rpc("visa_ask_legal", { p_case_id: caseId, p_question: question });
+}
+
+export async function answerVisaQuestion(supabase: Client, questionId: string, answer: string) {
+  return supabase.rpc("visa_answer_question", { p_question_id: questionId, p_answer: answer });
+}
+
+export async function recordVisaProgress(
+  supabase: Client,
+  caseId: string,
+  status: "lodged" | "granted" | "refused" | "arrived",
+  details: Record<string, string | boolean | null>
+) {
+  return supabase.rpc("visa_record_progress", { p_case_id: caseId, p_status: status, p_details: details });
+}
+
+export async function closeVisaCase(supabase: Client, caseId: string, withdrawn: boolean, note?: string | null) {
+  return supabase.rpc("visa_close_case", { p_case_id: caseId, p_withdrawn: withdrawn, p_note: note ?? null });
+}
+
+export async function getVisaDocumentById(supabase: Client, documentId: string) {
+  return supabase.from("visa_case_documents").select(DOCUMENT_COLUMNS).eq("id", documentId).maybeSingle();
+}
+
+// ────────────────────────────────────────────────────────────
+// NAMES — users' RLS is "own row + admins" (002), so school leaders can't
+// read students' names themselves. Pass the admin client and only ids the
+// caller could already see through RLS; returns names, nothing else.
+// ────────────────────────────────────────────────────────────
+
+export async function getVisaPeopleNames(adminClient: Client, userIds: string[]) {
+  if (userIds.length === 0) return { data: [], error: null };
+  return adminClient
+    .from("users")
+    .select("id, first_name, last_name, preferred_name")
+    .in("id", [...new Set(userIds)]);
+}
+
+export async function getProgramNames(supabase: Client, programIds: string[]) {
+  if (programIds.length === 0) return { data: [], error: null };
+  return supabase.from("programs").select("id, name, code").in("id", [...new Set(programIds)]);
+}
