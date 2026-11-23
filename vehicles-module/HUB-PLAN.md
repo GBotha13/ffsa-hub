@@ -181,6 +181,15 @@ Still open below: the Ask API key (9).
 
 Move now sends that through the Hub's own booking notice (`notifyVehicleRequester`, kind "changed": Slack DM and email, logged on the booking page), skips it when you moved your own booking, refreshes a still-open Slack request message, and tells the co-ordinator when the person couldn't be reached. Separate PR off main.
 
+## Gideon, 19 Nov: the 07:00 message in two parts
+
+All of Fleet's Slack goes through the FFSA Hub Activity bot's 07:00 vehicles message, in two parts:
+
+- **BOOKINGS:** everything about bookings (pickups, returns, overdue, unpaid, waiting), plus Fleet's clashes and today's pre- and post-trip checks.
+- **FLEET:** every vehicle, 🟢 IN (not booked, not at the workshop) with what's due on it (inspections, service, bumper-to-bumper, workshop visits, faults or damage, licence disc), or 🔴 OUT (booked or at the workshop) with only who has it (booking and person) or the workshop. ⚪ OFF for For sale / Off the road.
+
+`src/lib/fleet/digest.ts` sorts the tested rules' output by vehicle; the rules are unchanged. Still behind `FLEET_MESSAGES_ENABLED`: while it's unset the bookings digest is exactly as before. The in-car guide line is left out until the Manual tab is in the Hub.
+
 ## Gideon, 20 Nov: the Workshop report follows Motech's 25-point check
 
 The Workshop report starts with Motech's 25-point check, in the sheet's order and wording (new section `m25`, 25 points with help), then the other mechanic points under "If the workshop checked them" (route stages `workshop` and `workshop-more`; the reference app's ROUTE changed to match). Each point is marked OK / Monitor / Fix now / N/A as before; on the Workshop report the note box sits next to the result, like the sheet's NOTES column. The old app's live checklist predates the 25 points, so the import adds them (`withWorkshop25`) and changes nothing else.

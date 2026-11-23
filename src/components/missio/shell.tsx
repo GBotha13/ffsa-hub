@@ -4,7 +4,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { canAccessMissio, isMissioPastor, missioSkinVars } from "./access";
+import { canAccessMissio, canSeeMissioCare, isMissioPastor, missioSkinVars } from "./access";
 import { MissioViewerProvider } from "./viewer";
 import { MissioApiError, missioClient, type MissioClient } from "./api";
 import { loadFfsaRoleNames } from "./ffsa-roles";
@@ -158,7 +158,7 @@ function MissioReady({
           <MissioTabBar me={me} />
         </div>
       </div>
-      <SheetContent side="left" id="missio-nav" className={styles.drawer} style={skinStyle}>
+      <SheetContent side="left" id="missio-nav" className={`theme-light ${styles.drawer}`} style={skinStyle}>
         <SheetTitle className={styles.visuallyHidden}>Missio navigation</SheetTitle>
         <SheetDescription className={styles.visuallyHidden}>Sections in this church</SheetDescription>
         <MissioSidebar me={me} ffsaRoleNames={ffsaRoleNames} inDrawer onNavigate={() => setNavOpen(false)} />
@@ -191,6 +191,7 @@ function MissioSidebar({
   const volunteers = pathname.startsWith("/missio/volunteers");
   const nextLeaders = pathname.startsWith("/missio/next-leaders");
   const care = pathname.startsWith("/missio/care");
+  const showCare = canSeeMissioCare(me);
 
   const orgNode = <OrgHeader state={header} />;
 
@@ -246,7 +247,7 @@ function MissioSidebar({
             <span>Follow-up</span>
           </Link>
         ) : null}
-        {pastor ? (
+        {showCare ? (
           <Link
             href="/missio/care"
             className={`${styles.navLink} ${care ? styles.navOn : ""}`}
@@ -313,6 +314,11 @@ function MissioTabBar({ me }: { me: MissioMe }) {
       on: section === "houses",
       icon: <HouseIcon />,
     });
+    // Leaders see what their house shared with them (migration 354). Same
+    // role list as GET /api/missio/care, so nobody gets a tab the API refuses.
+    if (canSeeMissioCare(me)) {
+      tabs.push({ key: "care", href: "/missio/care", label: "Care", on: pathname.startsWith("/missio/care"), icon: <HeartIcon /> });
+    }
   }
   if (pastor) {
     tabs.push(
