@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { hasModuleAccess } from "@/lib/require-permission";
+import { isOpsTeam } from "@/lib/operations/access";
 import { isAreaKey } from "@/lib/operations/areas";
 import { applyChange, displayName } from "@/lib/operations/change";
 import { addUpdates, createItem, getUserBrief } from "@/services/operations";
@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  if (!(await hasModuleAccess(supabase, user.id, "operations"))) {
+  if (!(await isOpsTeam(supabase, user.id))) {
     return NextResponse.json({ error: "Operations team only" }, { status: 403 });
   }
 

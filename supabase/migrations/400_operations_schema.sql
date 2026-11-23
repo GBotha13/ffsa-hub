@@ -17,19 +17,38 @@
 --   DELETE FROM public.permissions WHERE key = 'operations.team';
 -- ============================================================
 
--- ── 1. Permission key (seeded, not assigned) ────────────────
+-- ── 1. Who is the operations team ───────────────────────────
+-- Operations is a DEPARTMENT (Departments & Services, Jack's 318–321):
+-- the staff ministry with slug 'operations', which already exists (126).
+-- Its active members and leaders are the team. Admins pass. The
+-- operations.team key is for a helper from outside the department
+-- (seeded, not assigned).
 INSERT INTO public.permissions (module, key, display_name, sort_order) VALUES
-  ('operations', 'operations.team', 'Operations team: see and update every area, assign tasks, run the meeting', 10)
+  ('operations', 'operations.team', 'Operations (helper outside the Operations department): see and update every area', 10)
 ON CONFLICT (key) DO NOTHING;
 
 CREATE OR REPLACE FUNCTION public.is_ops_team()
 RETURNS boolean
 LANGUAGE sql
 STABLE
-SET search_path = public
+SECURITY DEFINER
+SET search_path = ''
 AS $$
-  SELECT public.is_admin() OR public.has_permission('operations.team');
+  SELECT public.is_admin()
+      OR public.has_permission('operations.team')
+      OR EXISTS (
+           SELECT 1
+             FROM public.staff_ministry_members mm
+             JOIN public.staff_ministries sm ON sm.id = mm.staff_ministry_id
+             JOIN public.users u ON u.id = mm.user_id
+            WHERE mm.user_id = auth.uid()
+              AND mm.status = 'active'
+              AND sm.slug = 'operations'
+              AND sm.is_active
+              AND u.is_active IS NOT FALSE);
 $$;
+REVOKE ALL ON FUNCTION public.is_ops_team() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.is_ops_team() TO authenticated;
 
 -- ── 2. Settings (one row) ───────────────────────────────────
 -- Slack channel ids. area_channels maps an area to the channel its 07:00

@@ -153,8 +153,10 @@ export function updateSettings(supabase: Client, patch: Partial<OpsSettings>) {
 // ────────────────────────────────────────────────────────────
 
 /**
- * Holders of operations.team (directly or through a role bundle) plus
- * admins. Active accounts only. Read with the admin client.
+ * Who a task can be given to: the Operations department's active members
+ * and leaders, plus operations.team helpers (direct or via a role bundle).
+ * Admins are not added just for being admins. Active accounts only.
+ * Read with the admin client.
  */
 export async function listOpsTeam(admin: Client): Promise<{ id: string; name: string; slackUserId: string | null }[]> {
   const { data: perm } = await admin.from("permissions").select("id").eq("key", "operations.team").maybeSingle();
@@ -171,12 +173,14 @@ export async function listOpsTeam(admin: Client): Promise<{ id: string; name: st
       for (const r of (holders ?? []) as { user_id: string }[]) ids.add(r.user_id);
     }
   }
-  const { data: adminRoles } = await admin.from("roles").select("id").in("name", ["super_admin", "admin"]);
-  const adminRoleIds = ((adminRoles ?? []) as { id: string }[]).map((r) => r.id);
-  if (adminRoleIds.length) {
-    const { data: admins } = await admin.from("user_roles").select("user_id").in("role_id", adminRoleIds);
-    for (const r of (admins ?? []) as { user_id: string }[]) ids.add(r.user_id);
-  }
+  // The Operations department's roster (staff ministry slug 'operations').
+  const { data: members } = await admin
+    .from("staff_ministry_members")
+    .select("user_id, staff_ministries!inner(slug, is_active)")
+    .eq("status", "active")
+    .eq("staff_ministries.slug", "operations")
+    .eq("staff_ministries.is_active", true);
+  for (const r of (members ?? []) as { user_id: string }[]) ids.add(r.user_id);
   if (ids.size === 0) return [];
   const { data: users } = await admin
     .from("users")

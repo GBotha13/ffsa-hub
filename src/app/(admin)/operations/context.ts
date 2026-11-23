@@ -2,7 +2,7 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { hasModuleAccess } from "@/lib/require-permission";
+import { isOpsTeam } from "@/lib/operations/access";
 import { listOpsTeam } from "@/services/operations";
 
 /** Signed-in user, whether they're on the operations team / an admin, and who tasks can go to. */
@@ -11,7 +11,7 @@ export async function opsContext(options: { teamOnly: boolean }) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const isTeam = await hasModuleAccess(supabase, user.id, "operations");
+  const isTeam = await isOpsTeam(supabase, user.id);
   if (options.teamOnly && !isTeam) redirect("/dashboard");
 
   const { data: roles } = await supabase.from("user_roles").select("roles(name)").eq("user_id", user.id);

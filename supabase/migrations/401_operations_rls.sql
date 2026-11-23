@@ -1,7 +1,8 @@
 -- ============================================================
 -- FFSA Hub — Migration 401: Operations RLS
 -- ============================================================
--- The operations team (operations.team, or admin) sees and changes
+-- The operations team (is_ops_team(): the Operations department's
+-- members, operations.team helpers, admins) sees and changes
 -- everything. Anyone a task was given to sees and updates THAT item and
 -- adds to its log, even without the team key. Slack intake, the morning
 -- message and reminders run with the service role.

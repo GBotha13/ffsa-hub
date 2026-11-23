@@ -104,10 +104,23 @@ Only for items with an owner and a deadline (i.e. things actually handed to some
 - A nudge the day before the deadline, and once on the day.
 - If it passes the deadline: one gentle message to *you*, and it shows as "past its date" in the weekly summary for the meeting to talk about. No escalation to anyone else.
 
+## Operations is a department
+
+Jack is building **Departments & Services** (`feat/departments-services`, migrations 318–321). There, a *department* is a staff ministry with its own home (`/departments/<slug>`: overview, people, OKRs, rocks, budget), and a *service* is a tool the departments own and others use (spaces, vehicles, gear hire…).
+
+Operations is a **department**: the existing staff ministry `operations` (backbone). In Jack's seed it already owns the **spaces**, **vehicles** and **gear hire** services, which line up with Buildings & spaces, Transportation and Equipment here.
+
+So:
+
+- **The team is the department.** Anyone on the Operations department's roster (Ministries → Operations) can use Operations and can be given tasks. No separate role to hand out. An `operations.team` permission exists only for a helper from outside the department. Admins can open it but aren't in the "given to" list just for being admins.
+- **When Departments & Services lands**, the Operations department home gets a link (or tab) into `/operations`, and Operations moves under Departments in the menu instead of being its own top-level entry. Until then it sits in the sidebar on its own.
+- What the department *owns as services* (spaces, vehicles, gear hire) stays in those services. The Operations areas only read from them.
+
 ## Who sees what
 
-- New role **Operations team** (like `fleet.*`, granted on the user's profile), plus scoped roles per area if needed (e.g. maintenance team only sees Maintenance).
-- Anyone at the base can submit a maintenance request or an idea; they see their own and its status.
+- The Operations department (members and leaders), operations.team helpers, and admins see everything in Operations.
+- Someone given a task who isn't in the department sees and updates just that task.
+- Anyone at the base can submit a maintenance request (Slack form); they get told when it moves.
 
 ## Order we'd build it
 

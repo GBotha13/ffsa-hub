@@ -117,7 +117,7 @@ export const ADMIN_MODULES: ModuleDefinition[] = [
     href: "/operations",
     icon: Wrench,
     description: "Maintenance and the other operations areas: what needs attention, the week, the meeting",
-    requiredRoles: ["super_admin", "admin"], // others via operations.team
+    requiredRoles: ["super_admin", "admin"], // + Operations department members, + operations.team helpers
   },
   {
     id: "schools",

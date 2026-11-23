@@ -6,7 +6,7 @@
 
 import { after, NextResponse } from "next/server";
 import * as slack from "@/lib/slack/client";
-import { hasModuleAccess } from "@/lib/require-permission";
+import { isOpsTeam } from "@/lib/operations/access";
 import {
   addUpdates,
   createItemFromSlack,
@@ -304,7 +304,7 @@ async function actorFor(admin: Client, slackUserId: string, itemId: string): Pro
   if (!user) return { error: "Your Slack isn't linked to a Hub account yet — link it on your Hub profile." };
   const { data: item } = await getItem(admin, itemId);
   if (!item) return { error: "That item is gone." };
-  if (item.owner_user_id !== user.id && !(await hasModuleAccess(admin, user.id, "operations"))) {
+  if (item.owner_user_id !== user.id && !(await isOpsTeam(admin, user.id))) {
     return { error: "Only the operations team can update this one." };
   }
   return { userId: user.id, name: displayName(user) };
