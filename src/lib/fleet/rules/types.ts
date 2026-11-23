@@ -46,6 +46,20 @@ export interface ConditionEntry {
   p?: string[];
   i?: string;
   t?: string;
+  /** Marked as fixed on the vehicle page, not by an inspection (Gideon, 23 Nov 2026). Not read by the rules. */
+  f?: FixRecord;
+}
+
+export interface FixRecord {
+  /** Who fixed it: a person or a workshop. */
+  by: string;
+  /** Short description of the work done. */
+  work: string;
+  /** Who recorded it in the Hub, and when. */
+  recordedBy?: string | null;
+  recordedAt: string;
+  /** What it was before: the result, its date and the inspection it came from. */
+  was: { s?: PointState; d?: ISODate; n?: string; i?: string };
 }
 
 export interface FleetVehicle {

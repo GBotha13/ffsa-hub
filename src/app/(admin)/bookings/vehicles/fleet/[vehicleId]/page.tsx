@@ -213,7 +213,7 @@ export default async function FleetVehiclePage({
           canWrite={canWrite}
         />
       )}
-      {tab === "condition" && <ConditionTab vehicleId={id} view={conditionView(F.checklist, v, condFilterOf(sp.f))} f={condFilterOf(sp.f)} today={today} />}
+      {tab === "condition" && <ConditionTab vehicleId={id} view={conditionView(F.checklist, v, condFilterOf(sp.f))} f={condFilterOf(sp.f)} today={today} canWrite={canWrite} />}
       {tab === "history" && <HistoryTab items={historyItems(inspections, visits, readings)} ctx={ctx} canWrite={canWrite} />}
       {tab === "photos" && <PhotosTab groups={photoGroups(inspections, visits)} />}
       {tab === "manual" && (

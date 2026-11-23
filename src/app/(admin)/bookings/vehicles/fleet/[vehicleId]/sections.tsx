@@ -11,6 +11,7 @@ import { ClearFollowUpButton } from "./header-client";
 import { EditDetailsButton, type EditableVehicle } from "./vehicle-dialog";
 import { VisitButton, type VisitCtx } from "./visit-dialog";
 import { WatchPanel, type WatchPanelProps } from "./watch-panel";
+import { MarkFixedButton } from "./fix-dialog";
 import {
   ATT_LABEL,
   WORK_CHECK,
@@ -232,7 +233,7 @@ export function OverviewTab({
 
 // ── Condition ──────────────────────────────────────────────
 
-export function ConditionTab({ vehicleId, view, f, today }: { vehicleId: string; view: ReturnType<typeof conditionView>; f: CondFilter; today: ISODate }) {
+export function ConditionTab({ vehicleId, view, f, today, canWrite = false }: { vehicleId: string; view: ReturnType<typeof conditionView>; f: CondFilter; today: ISODate; canWrite?: boolean }) {
   return (
     <div className="pb-6">
       <p className={cn("pt-4 text-[13px] text-[#55524A]", pad)}>The latest recorded result for each point, from any inspection.</p>
@@ -255,7 +256,7 @@ export function ConditionTab({ vehicleId, view, f, today }: { vehicleId: string;
             <h3 className={cn("border-y border-rule bg-bone py-2 font-display text-[14px] font-black uppercase tracking-[0.04em]", pad)}>{sec.name}</h3>
             <ul className="divide-y divide-rule">
               {sec.rows.map((row) => (
-                <ConditionRow key={row.id} row={row} today={today} />
+                <ConditionRow key={row.id} row={row} today={today} vehicleId={vehicleId} canWrite={canWrite} />
               ))}
             </ul>
           </section>
@@ -267,9 +268,10 @@ export function ConditionTab({ vehicleId, view, f, today }: { vehicleId: string;
   );
 }
 
-function ConditionRow({ row, today }: { row: CondRow; today: ISODate }) {
+function ConditionRow({ row, today, vehicleId, canWrite }: { row: CondRow; today: ISODate; vehicleId: string; canWrite: boolean }) {
   const r = row.r;
   const s = r && r.s;
+  const fix = r && r.f;
   return (
     <li className={cn("grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 py-3 sm:grid-cols-[96px_1fr_auto]", pad)}>
       <span>
@@ -282,8 +284,20 @@ function ConditionRow({ row, today }: { row: CondRow; today: ISODate }) {
             {String(r.v)} {row.unit}
           </span>
         )}
-        {r && r.n && <p className="mt-0.5 text-[13px] text-[#55524A]">{r.n}</p>}
+        {fix ? (
+          <p className="mt-0.5 text-[13px] text-[#55524A]">
+            <strong className="text-ink">Fixed {r?.d ? fmtDate(r.d) : ""} by {fix.by}:</strong> {fix.work}
+            {fix.was.n ? <span className="block">Was Fix now{fix.was.d ? ` (${fmtDate(fix.was.d)})` : ""}: {fix.was.n}</span> : null}
+          </p>
+        ) : (
+          r && r.n && <p className="mt-0.5 text-[13px] text-[#55524A]">{r.n}</p>
+        )}
         <Thumbs ids={r?.p} cap={row.t} />
+        {canWrite && s === "fix" && (
+          <div className="mt-2">
+            <MarkFixedButton vehicleId={vehicleId} itemId={row.id} point={row.t} foundOn={r?.d} today={today} />
+          </div>
+        )}
       </div>
       <span className="col-start-2 text-[12px] sm:col-start-auto sm:text-right">
         {r && r.d ? (

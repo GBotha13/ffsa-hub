@@ -85,6 +85,15 @@ describe("vehicle page tabs render", () => {
 
   it("Condition, History, Photos, Manual", () => {
     expect(html(ConditionTab, { vehicleId: v.id, view: conditionView(F.checklist, v, "issues"), f: "issues", today: TUE })).toContain("Cracked");
+    // Mark as fixed (Gideon, 23 Nov 2026): on Fix now points, for people who can manage Fleet.
+    expect(html(ConditionTab, { vehicleId: v.id, view: conditionView(F.checklist, v, "issues"), f: "issues", today: TUE, canWrite: true })).toContain("Mark as fixed");
+    expect(html(ConditionTab, { vehicleId: v.id, view: conditionView(F.checklist, v, "issues"), f: "issues", today: TUE })).not.toContain("Mark as fixed");
+    const fixedV = { ...v, condition: { "ext-front": { s: "ok", d: "2026-11-16", n: "Fixed by Motech: New grille", f: { by: "Motech", work: "New grille", recordedAt: "", was: { s: "fix", d: "2026-11-10", n: "Cracked" } } } } };
+    const fixedOut = html(ConditionTab, { vehicleId: v.id, view: conditionView(F.checklist, fixedV as never, "ok"), f: "ok", today: TUE, canWrite: true });
+    expect(fixedOut).toContain("Fixed 16 Nov 2026 by Motech:");
+    expect(fixedOut).toContain("New grille");
+    expect(fixedOut).toContain("Was Fix now (10 Nov 2026): Cracked");
+    expect(fixedOut).not.toContain("Mark as fixed");
     const hist = html(HistoryTab, { items: historyItems([], visits, []), ctx, canWrite: true });
     expect(hist).toContain("Body repair");
     expect(hist).toContain("Edit");

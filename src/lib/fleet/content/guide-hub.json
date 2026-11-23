@@ -192,6 +192,7 @@
             "Monthly check ({monthly} points): the weekly points plus the slower once-a-month points. It replaces the weekly check on the vehicle’s first inspection day of the month.",
             "Workshop report ({workshop} points): what only a mechanic can check. It starts with the workshop’s 25-point check, in the same order and wording as Motech’s sheet: for each line, tap OK if it’s ticked as Checked, Monitor or Fix now if it’s ticked as Attention needed (N/A if it doesn’t apply, like spark plugs on a diesel), and type the sheet’s note in the box next to it. Mark the rest OK does the lines that are fine in one tap. Then fill in any points under “If the workshop checked them”, put anything else on the report (like “see diagnostic”) in What the workshop recommends, and attach the report.",
             "Mark each point OK, Monitor (keep an eye on it, book it soon) or Fix now (fix before the vehicle is used again). For Monitor and Fix now, write what you saw and add a photo.",
+            "Once a Fix now point has been fixed, open the vehicle’s Condition tab and tap Mark as fixed next to it: enter the date it was fixed, who fixed it (a person or the workshop) and what was done. The point goes back to OK from that date, and the Condition tab shows who fixed it and what it was before. The next inspection that checks that point replaces it as usual.",
             "A half-done inspection is saved as a draft as you go, until you save or discard it. Continue it from the vehicle’s page."
           ]
         },
@@ -349,6 +350,10 @@
     [
       "2026-11-23",
       "One calendar: Fleet’s Calendar now opens the booking board, which shows each vehicle’s workshop visits and inspection days under its bookings, with clashes in red. Clashes and heads-ups and Book a workshop visit are under it. New: Let them know sends the person who booked a message about a workshop visit on, or just before, their booking."
+    ],
+    [
+      "2026-11-23",
+      "Mark as fixed: on a vehicle’s Condition tab, a Fix now point can be marked fixed with the date, who fixed it and what was done, without doing a whole inspection."
     ]
   ]
 }

@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { bad, fleetAuth, isUuid } from "@/lib/fleet/api";
 import { vehiclePatchToColumns } from "@/lib/fleet/mapping";
 import { inspectionFromRow, recomputeVehicle } from "@/lib/fleet/inspection";
-import { deleteFleetInspection, getFleetInspection, getFleetInspections, updateFleetVehicleDetails } from "@/services/fleet";
+import { keepFixes } from "@/lib/fleet/fixes";
+import { deleteFleetInspection, getFleetInspection, getFleetInspections, getFleetVehicle, updateFleetVehicleDetails } from "@/services/fleet";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -26,6 +27,10 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const { data: rest, error: listErr } = await getFleetInspections(auth.supabase, { vehicleId });
   if (listErr) return NextResponse.json({ error: listErr.message }, { status: 500 });
   const patch = recomputeVehicle(((rest ?? []) as any[]).filter((r) => r.id !== id).map(inspectionFromRow));
+  // Points marked as fixed on the vehicle page aren't in any inspection: keep them.
+  const { data: vrow } = await getFleetVehicle(auth.supabase, vehicleId);
+  const details: any = vrow && (Array.isArray(vrow.details) ? vrow.details[0] : vrow.details);
+  patch.condition = keepFixes(patch.condition as any, details?.condition);
   const { error } = await updateFleetVehicleDetails(auth.supabase, vehicleId, { ...vehiclePatchToColumns(patch), updated_by: auth.user.id });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
