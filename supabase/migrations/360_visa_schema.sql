@@ -52,6 +52,14 @@ CREATE TABLE IF NOT EXISTS public.visa_country_rules (
 -- A stay of up to 90 days needs fewer documents than a longer one, so
 -- each type says which of the two it belongs to. is_offline = a step the
 -- student ticks off rather than uploads (signed form, embassy fee).
+-- is_restricted = POPIA special personal information (criminal history,
+-- health: police clearance, medical report). Only global legal (the
+-- appointed information officer) and the student see those rows; school
+-- leaders and legal scoped to one school don't (361).
+-- leader_checks = the objective checks a school leader goes through for
+-- this document (passport valid 30 days past departure, statement
+-- stamped...). Leaders check or flag; whether a document is acceptable
+-- is legal's call.
 CREATE TABLE IF NOT EXISTS public.visa_document_types (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   code             text NOT NULL UNIQUE CHECK (code ~ '^[a-z0-9_]+$'),
@@ -61,6 +69,8 @@ CREATE TABLE IF NOT EXISTS public.visa_document_types (
   needed_over_90   boolean NOT NULL DEFAULT true,
   is_conditional   boolean NOT NULL DEFAULT false,  -- only in some cases (e.g. yellow fever)
   is_offline       boolean NOT NULL DEFAULT false,
+  is_restricted    boolean NOT NULL DEFAULT false,
+  leader_checks    text[] NOT NULL DEFAULT '{}',
   needs_certified  boolean NOT NULL DEFAULT false,
   lead_time_weeks  integer CHECK (lead_time_weeks IS NULL OR lead_time_weeks BETWEEN 0 AND 52),
   max_age_months   integer CHECK (max_age_months IS NULL OR max_age_months BETWEEN 1 AND 36),
@@ -164,6 +174,10 @@ CREATE INDEX IF NOT EXISTS idx_visa_case_schools_program ON public.visa_case_sch
 -- 5. CASE DOCUMENTS — one row per upload (or per ticked offline step)
 -- ────────────────────────────────────────────────────────────
 -- A redo adds a new row; the newest row per (case, type) counts.
+-- status: uploaded → checked or flagged by a school leader (objective
+-- checks only; a flag goes back to the student with a note) → approved or
+-- needs_redo by legal, who decides whether a document is acceptable.
+-- ticked = an offline step the student has done.
 CREATE TABLE IF NOT EXISTS public.visa_case_documents (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   case_id           uuid NOT NULL REFERENCES public.visa_cases(id) ON DELETE RESTRICT,
@@ -173,7 +187,7 @@ CREATE TABLE IF NOT EXISTS public.visa_case_documents (
   size_bytes        integer CHECK (size_bytes IS NULL OR size_bytes > 0),
   issued_on         date,
   status            text NOT NULL DEFAULT 'uploaded'
-                    CHECK (status IN ('uploaded', 'approved', 'needs_redo', 'ticked')),
+                    CHECK (status IN ('uploaded', 'checked', 'flagged', 'approved', 'needs_redo', 'ticked')),
   review_note       text,
   uploaded_by       uuid REFERENCES public.users(id) ON DELETE SET NULL,
   reviewed_by       uuid REFERENCES public.users(id) ON DELETE SET NULL,

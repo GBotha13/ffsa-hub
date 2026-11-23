@@ -134,6 +134,13 @@ SELECT 'd0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-00000000
        'c0000000-0000-0000-0000-000000000002/d0000000-0000-0000-0000-000000000002.pdf',
        'uploaded', '00000000-0000-0000-0000-000000000005'
   FROM public.visa_document_types t WHERE t.code = 'passport';
+-- Police clearance on case 1: restricted (POPIA special personal
+-- information). Only global legal and the student see it.
+INSERT INTO public.visa_case_documents (id, case_id, document_type_id, storage_path, status, uploaded_by)
+SELECT 'd0000000-0000-0000-0000-000000000003', 'c0000000-0000-0000-0000-000000000001', t.id,
+       'c0000000-0000-0000-0000-000000000001/d0000000-0000-0000-0000-000000000003.pdf',
+       'uploaded', '00000000-0000-0000-0000-000000000004'
+  FROM public.visa_document_types t WHERE t.code = 'police_clearance';
 INSERT INTO public.visa_approval_requests (case_id, requested_by, leader_note) VALUES
   ('c0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', 'All in');
 INSERT INTO public.visa_case_questions (case_id, asked_by, question) VALUES
@@ -164,7 +171,11 @@ $$;
 -- ── Table-level checks (owner, before RLS matters) ───────
 SELECT pg_temp.expect('document types seeded once', (SELECT count(*) FROM public.visa_document_types), 14);
 SELECT pg_temp.expect('short-stay types', (SELECT count(*) FROM public.visa_document_types WHERE needed_up_to_90), 10);
-SELECT pg_temp.expect('long-stay types', (SELECT count(*) FROM public.visa_document_types WHERE needed_over_90), 14);
+SELECT pg_temp.expect('long-stay types', (SELECT count(*) FROM public.visa_document_types WHERE needed_over_90), 13);
+SELECT pg_temp.expect('restricted types (police clearance, medical report)',
+  (SELECT count(*) FROM public.visa_document_types WHERE is_restricted), 2);
+SELECT pg_temp.expect('no chest X-ray or birth certificate',
+  (SELECT count(*) FROM public.visa_document_types WHERE code IN ('radiology_report', 'birth_certificate')), 0);
 SELECT pg_temp.expect('permission keys once', (SELECT count(*) FROM public.permissions WHERE key LIKE 'visas.%'), 2);
 SELECT pg_temp.expect('bucket private', (SELECT count(*) FROM storage.buckets WHERE id = 'visa-documents' AND public = false), 1);
 
@@ -230,7 +241,7 @@ BEGIN
     INSERT INTO public.visa_case_documents (case_id, document_type_id, storage_path, status)
     SELECT 'c0000000-0000-0000-0000-000000000001', id,
            'c0000000-0000-0000-0000-000000000001/d0000000-0000-0000-0000-000000000009.pdf', 'ticked'
-      FROM public.visa_document_types WHERE code = 'application_form';
+      FROM public.visa_document_types WHERE code = 'form_dha84';
     RAISE EXCEPTION 'a ticked step with a file was accepted';
   EXCEPTION WHEN check_violation THEN NULL;
   END;
@@ -268,7 +279,7 @@ END $$;
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000001', 'false', 'visas.manage', 'visas.manage:*');
 SET ROLE authenticated;
 SELECT pg_temp.expect('legal: cases', (SELECT count(*) FROM public.visa_cases), 3);
-SELECT pg_temp.expect('legal: documents', (SELECT count(*) FROM public.visa_case_documents), 2);
+SELECT pg_temp.expect('legal: documents, restricted included', (SELECT count(*) FROM public.visa_case_documents), 3);
 SELECT pg_temp.expect('legal: requests', (SELECT count(*) FROM public.visa_approval_requests), 1);
 SELECT pg_temp.expect('legal: questions', (SELECT count(*) FROM public.visa_case_questions), 1);
 SELECT pg_temp.expect('legal: events', (SELECT count(*) FROM public.visa_case_events), 1);
@@ -314,6 +325,8 @@ SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000007', 'false',
 SET ROLE authenticated;
 SELECT pg_temp.expect('scoped legal A: cases (1 and 3)', (SELECT count(*) FROM public.visa_cases), 2);
 SELECT pg_temp.expect('scoped legal A: requests', (SELECT count(*) FROM public.visa_approval_requests), 1);
+SELECT pg_temp.expect('scoped legal A: documents, not the police clearance',
+  (SELECT count(*) FROM public.visa_case_documents), 1);
 WITH u AS (UPDATE public.visa_cases SET lodged_where = 'x'
             WHERE id = 'c0000000-0000-0000-0000-000000000001' RETURNING 1)
 SELECT pg_temp.expect('scoped legal A: updates case 1', (SELECT count(*) FROM u), 1);
@@ -369,7 +382,10 @@ SELECT pg_temp.expect('leader A: cases (1 and 3)', (SELECT count(*) FROM public.
 SELECT pg_temp.expect('leader A: not case 2',
   (SELECT count(*) FROM public.visa_cases WHERE id = 'c0000000-0000-0000-0000-000000000002'), 0);
 SELECT pg_temp.expect('leader A: all schools of its cases', (SELECT count(*) FROM public.visa_case_schools), 3);
-SELECT pg_temp.expect('leader A: documents (case 1 only)', (SELECT count(*) FROM public.visa_case_documents), 1);
+SELECT pg_temp.expect('leader A: documents (case 1 only, not the police clearance)',
+  (SELECT count(*) FROM public.visa_case_documents), 1);
+SELECT pg_temp.expect('leader A: no restricted document',
+  (SELECT count(*) FROM public.visa_case_documents WHERE id = 'd0000000-0000-0000-0000-000000000003'), 0);
 SELECT pg_temp.expect('leader A: requests', (SELECT count(*) FROM public.visa_approval_requests), 1);
 SELECT pg_temp.expect('leader A: questions', (SELECT count(*) FROM public.visa_case_questions), 1);
 SELECT pg_temp.expect('leader A: events', (SELECT count(*) FROM public.visa_case_events), 1);
@@ -393,6 +409,22 @@ EXCEPTION WHEN insufficient_privilege THEN NULL;
 END $$;
 RESET ROLE;
 
+-- Leaders see documents only while the case is open and the stay hasn't
+-- ended. The case itself stays visible.
+UPDATE public.visa_cases SET stay_from = '2025-10-01', stay_to = '2026-01-01'
+ WHERE id = 'c0000000-0000-0000-0000-000000000001';
+SET ROLE authenticated;
+SELECT pg_temp.expect('leader A: stay over, no documents', (SELECT count(*) FROM public.visa_case_documents), 0);
+SELECT pg_temp.expect('leader A: stay over, case still listed',
+  (SELECT count(*) FROM public.visa_cases WHERE id = 'c0000000-0000-0000-0000-000000000001'), 1);
+RESET ROLE;
+UPDATE public.visa_cases SET stay_from = '2027-01-10', stay_to = '2027-04-08', status = 'closed'
+ WHERE id = 'c0000000-0000-0000-0000-000000000001';
+SET ROLE authenticated;
+SELECT pg_temp.expect('leader A: case closed, no documents', (SELECT count(*) FROM public.visa_case_documents), 0);
+RESET ROLE;
+UPDATE public.visa_cases SET status = 'collecting_documents' WHERE id = 'c0000000-0000-0000-0000-000000000001';
+
 -- ── Leader of school B (scoped) ──────────────────────────
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000003', 'false',
                        'visas.follow_up', 'visas.follow_up:b0000000-0000-0000-0000-00000000000b');
@@ -408,7 +440,7 @@ SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000004', 'false', '', '');
 SET ROLE authenticated;
 SELECT pg_temp.expect('student: own case only', (SELECT count(*) FROM public.visa_cases), 1);
 SELECT pg_temp.expect('student: own schools', (SELECT count(*) FROM public.visa_case_schools), 1);
-SELECT pg_temp.expect('student: own documents', (SELECT count(*) FROM public.visa_case_documents), 1);
+SELECT pg_temp.expect('student: own documents, police clearance included', (SELECT count(*) FROM public.visa_case_documents), 2);
 SELECT pg_temp.expect('student: no requests', (SELECT count(*) FROM public.visa_approval_requests), 0);
 SELECT pg_temp.expect('student: no questions', (SELECT count(*) FROM public.visa_case_questions), 0);
 SELECT pg_temp.expect('student: no events', (SELECT count(*) FROM public.visa_case_events), 0);
@@ -429,6 +461,8 @@ RESET ROLE;
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000007', 'false', 'visas.follow_up', 'visas.follow_up:*');
 SET ROLE authenticated;
 SELECT pg_temp.expect('unscoped leader: all cases', (SELECT count(*) FROM public.visa_cases), 3);
+SELECT pg_temp.expect('unscoped leader: still no restricted documents',
+  (SELECT count(*) FROM public.visa_case_documents WHERE id = 'd0000000-0000-0000-0000-000000000003'), 0);
 RESET ROLE;
 
 -- ── Anon: no table privileges at all ─────────────────────

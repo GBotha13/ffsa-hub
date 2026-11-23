@@ -13,6 +13,11 @@
 --     see a case only if it covers one of their programs, through
 --     has_permission_for (040/089, made active-only in 313). An unscoped
 --     visas.follow_up grant sees every school's cases — grant it scoped.
+--   * Documents (legal's POPIA ruling, 23 Nov 2026): leaders see their
+--     students' documents only while the case is open and the stay hasn't
+--     ended. Police clearances and medical reports (is_restricted) are
+--     special personal information: only global legal (the information
+--     officer) and the student see them.
 --   * Students: their own case, its schools and their own documents. Not
 --     approval requests, questions or the event log (internal notes).
 --   * Anyone else, and anon: nothing.
@@ -108,14 +113,48 @@ AS $$
      );
 $$;
 
+-- A school leader sees a case's documents only while the case is open
+-- and the stay hasn't ended (legal, 23 Nov 2026).
+CREATE OR REPLACE FUNCTION public.visa_leader_can_see_documents(p_case_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT public.visa_can_follow_up(p_case_id)
+     AND EXISTS (
+       SELECT 1 FROM public.visa_cases c
+        WHERE c.id = p_case_id
+          AND c.status NOT IN ('closed', 'withdrawn')
+          AND (c.stay_to IS NULL OR current_date <= c.stay_to)
+     );
+$$;
+
+-- Police clearance, medical report: POPIA special personal information.
+CREATE OR REPLACE FUNCTION public.visa_type_is_restricted(p_document_type_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT coalesce((SELECT t.is_restricted FROM public.visa_document_types t
+                    WHERE t.id = p_document_type_id), true);
+$$;
+
 REVOKE ALL ON FUNCTION public.visa_is_legal() FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.visa_can_manage(uuid) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.visa_can_follow_up(uuid) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.visa_is_own_case(uuid) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.visa_leader_can_see_documents(uuid) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.visa_type_is_restricted(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.visa_is_legal() TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.visa_can_manage(uuid) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.visa_can_follow_up(uuid) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.visa_is_own_case(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.visa_leader_can_see_documents(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.visa_type_is_restricted(uuid) TO authenticated, service_role;
 
 -- ────────────────────────────────────────────────────────────
 -- 3. ENABLE RLS
@@ -239,7 +278,7 @@ CREATE POLICY "Visa cases: legal update"
 DROP POLICY IF EXISTS "Visa cases: legal delete" ON public.visa_cases;
 -- No delete (see grants above).
 
--- 5c. Case schools and documents: same readers as the case.
+-- 5c. Case schools: same readers as the case. Documents: see header.
 DROP POLICY IF EXISTS "Visa case schools: read" ON public.visa_case_schools;
 CREATE POLICY "Visa case schools: read"
   ON public.visa_case_schools FOR SELECT TO authenticated
@@ -267,9 +306,12 @@ DROP POLICY IF EXISTS "Visa case documents: read" ON public.visa_case_documents;
 CREATE POLICY "Visa case documents: read"
   ON public.visa_case_documents FOR SELECT TO authenticated
   USING (
-    public.visa_can_manage(case_id)
-    OR public.visa_is_own_case(case_id)
-    OR public.visa_can_follow_up(case_id)
+    public.visa_is_own_case(case_id)
+    OR public.visa_is_legal()
+    OR (
+      NOT public.visa_type_is_restricted(document_type_id)
+      AND (public.visa_can_manage(case_id) OR public.visa_leader_can_see_documents(case_id))
+    )
   );
 DROP POLICY IF EXISTS "Visa case documents: legal insert" ON public.visa_case_documents;
 CREATE POLICY "Visa case documents: legal insert"
