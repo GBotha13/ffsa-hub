@@ -4,6 +4,8 @@ import { accessModeOf, formAccessDecision } from "@/lib/forms/access";
 import { getFormBySlug } from "@/services/forms";
 import { emptyFormSchema, type FormSchema } from "@/lib/forms/schema";
 import { FormRuntime } from "./form-runtime";
+import { MissioPublicWeeklyFeedback } from "./missio-weekly";
+import { isMissioPublicFeedbackForm } from "@/lib/missio/public-feedback-link";
 import {
   PublicFormNotice,
   type PublicShellBrand,
@@ -28,6 +30,15 @@ export async function generateMetadata({
   const { data: form } = await getFormBySlug(supabase, slug);
 
   if (!form) return { title: "Form not found" };
+
+  if (isMissioPublicFeedbackForm(form)) {
+    return {
+      title: { absolute: "Weekly feedback · MissioSA" },
+      description: "This week's house church feedback. Choose your house church, about five minutes.",
+      robots: { index: false, follow: false },
+      openGraph: { title: "Weekly feedback · MissioSA", description: "This week's house church feedback.", type: "website" },
+    };
+  }
 
   const event = (form.events ?? null) as { title?: string } | null;
   const where = event?.title ? ` · ${event.title}` : "";
@@ -54,8 +65,10 @@ function normalizeBrand(raw: unknown): PublicShellBrand {
 
 export default async function PublicFormPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { slug } = await params;
   // The service-role client, like the ticketing storefront and the
@@ -78,6 +91,16 @@ export default async function PublicFormPage({
         body="This form may have closed or the link is incorrect. Please check with the sender for an updated link."
       />
     );
+  }
+
+  // The Missio weekly feedback form: one public link with a house church
+  // picker (Jack, 23 Nov 2026). Open to anyone even though the row's
+  // access_mode is still "token", so no prod row has to change.
+  if (isMissioPublicFeedbackForm(form)) {
+    // ?house=<id> preselects a house; MissioPublicWeeklyFeedback checks it
+    // against the picker's list and drops anything else.
+    const query = (await searchParams) ?? {};
+    return <MissioPublicWeeklyFeedback db={supabase} schema={form.schema} house={query.house ?? null} />;
   }
 
   // Who may fill it (migration 390). Public forms never touch the session.

@@ -11,6 +11,12 @@ import {
   type FormSchema,
 } from "@/lib/forms/schema";
 import { NO_HELP_NEEDED } from "@/lib/forms/templates/missio-weekly-feedback";
+import {
+  PUBLIC_FEEDBACK_HONEYPOT,
+  PUBLIC_HOUSE_QUESTION,
+  publicHouseLabel,
+  type PublicHouse,
+} from "@/lib/missio/public-feedback-link";
 import { GuideSurface, meetingLabel } from "./surface";
 import styles from "./guide.module.css";
 
@@ -21,13 +27,17 @@ import styles from "./guide.module.css";
 // before it is seeded), so a question the builder adds still shows.
 // Layout follows the approved mockup (fill.html): a lone headline
 // stepper, then steppers in pairs, the 0–6 counts as rows, 1–5 scales
-// as five boxes, picks as chips. The house and the Sunday come from
-// the link or the login, never from a dropdown.
+// as five boxes, picks as chips. On the house's link and the
+// signed-in page the house comes from the link or the login, never
+// from a dropdown. Only the one public link (/f/missio-weekly-feedback)
+// passes `picker`: then the first question is the house church, and
+// the server checks the id it gets against the Missio houses.
 // ============================================================
 
 export type WeeklyFillProps = {
   houseNumber: number;
   leaders: string | null;
+  /** This week's meeting (YYYY-MM-DD). Ignored with `picker`: each house carries its own. */
   meetingDate: string;
   lastAttendance: number | null;
   initial: Record<string, unknown>;
@@ -37,9 +47,25 @@ export type WeeklyFillProps = {
   endpoint: string;
   /** Top-bar link back to the house page (signed-in leaders only). */
   houseHref?: string | null;
+  /**
+   * The public link only: "Which house church are you in?" comes first.
+   * Houses carry id, number, name and this week's meeting date, nothing else.
+   */
+  picker?: { houses: PublicHouse[] } | null;
+  /**
+   * With `picker`: the house to start on (`?house=<id>`). The server only
+   * passes an id it found in picker.houses; anything else starts empty.
+   */
+  initialHouseId?: string | null;
   /** Tests and screenshots: stands in for the POST. */
-  submit?: (answers: Record<string, unknown>) => Promise<SubmitOutcome>;
+  submit?: (answers: Record<string, unknown>, meta?: SubmitMeta) => Promise<SubmitOutcome>;
 };
+
+/** Sent beside the answers on the public link only. */
+export type SubmitMeta = { houseId?: string; website?: string };
+
+/** The picker's error key (not a form question; never saved as an answer). */
+export const HOUSE_KEY = "house_church";
 
 export type SubmitOutcome = { ok: true } | { ok: false; error: string; fieldErrors?: Record<string, string> };
 
@@ -164,7 +190,11 @@ function Stepper({
 // ────────────────────────────────────────────────────────────
 
 export function WeeklyFeedbackFill(props: WeeklyFillProps) {
-  const { schema, houseNumber, leaders, meetingDate, lastAttendance, sentBefore, endpoint, houseHref } = props;
+  const { schema, houseNumber, leaders, meetingDate, lastAttendance, sentBefore, endpoint, houseHref, picker } = props;
+  const [houseId, setHouseId] = useState(() =>
+    picker && props.initialHouseId && picker.houses.some((h) => h.id === props.initialHouseId) ? props.initialHouseId : ""
+  );
+  const [trap, setTrap] = useState("");
   const [values, setValues] = useState<Record<string, unknown>>(() => startingAnswers(schema, props.initial, lastAttendance));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pending, setPending] = useState(false);
@@ -172,8 +202,13 @@ export function WeeklyFeedbackFill(props: WeeklyFillProps) {
   const [sent, setSent] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const fieldsById = useMemo(() => buildFieldsById(schema), [schema]);
-  const when = meetingLabel(meetingDate);
-  const nav = { label: `House ${houseNumber}`, href: houseHref ?? undefined };
+  const chosen = picker ? picker.houses.find((h) => h.id === houseId) ?? null : null;
+  // The public form has no house until one is chosen, so no day either: the
+  // heading says "this week" until then, then the chosen house's own meeting.
+  const when = picker ? (chosen ? meetingLabel(chosen.meetingDate) : { day: "", date: "" }) : meetingLabel(meetingDate);
+  const whenText = when.day ? `${when.day} ${when.date}` : when.date || "This week";
+  const houseLabel = picker ? (chosen ? `House ${chosen.number}` : "Weekly feedback") : `House ${houseNumber}`;
+  const nav = { label: houseLabel, href: houseHref ?? undefined };
 
   const set = (key: string, v: unknown) => {
     setValues((prev) => ({ ...prev, [key]: v }));
@@ -203,8 +238,9 @@ export function WeeklyFeedbackFill(props: WeeklyFillProps) {
     if (pending) return;
     const answers = visibleAnswers();
     const checked = validateSubmission(schema, answers, { requireContactField: false });
-    if (!checked.valid) {
-      setErrors(checked.errors);
+    const missingHouse = Boolean(picker && !chosen);
+    if (!checked.valid || missingHouse) {
+      setErrors({ ...(checked.valid ? {} : checked.errors), ...(missingHouse ? { [HOUSE_KEY]: "Choose your house church." } : {}) });
       setAlert("A few answers are missing. They are marked in orange.");
       requestAnimationFrame(() => {
         const first = formRef.current?.querySelector("[data-invalid='true']") as HTMLElement | null;
@@ -215,7 +251,8 @@ export function WeeklyFeedbackFill(props: WeeklyFillProps) {
     setPending(true);
     setAlert(null);
     try {
-      const outcome = await (props.submit ?? defaultSubmit(endpoint))(answers);
+      const meta: SubmitMeta | undefined = picker ? { houseId, website: trap } : undefined;
+      const outcome = await (props.submit ?? defaultSubmit(endpoint))(answers, meta);
       if (outcome.ok) {
         setSent(true);
         if (typeof window !== "undefined") window.scrollTo?.(0, 0);
@@ -445,17 +482,82 @@ export function WeeklyFeedbackFill(props: WeeklyFillProps) {
         <main>
           <div className={styles.intro}>
             <p className={`${styles.eyebrow} ${styles.nums}`}>
-              House {houseNumber} · {when.day} {when.date}
+              {picker ? (chosen ? `House ${chosen.number}` : "House church feedback") : `House ${houseNumber}`} · {whenText}
             </p>
             <h1 className={styles.h1}>
               How was it <em>this {when.day || "week"}?</em>
             </h1>
             <p className={styles.lede}>
-              {leaders ? `${leaders}. ` : ""}Fill this in once for the house, about five minutes. Please do not write names of guests or
-              personal details.
+              {picker
+                ? "Choose your house church, then fill this in once for the house, about five minutes. "
+                : `${leaders ? `${leaders}. ` : ""}Fill this in once for the house, about five minutes. `}
+              Please do not write names of guests or personal details.
             </p>
             {sentBefore ? <p className={styles.meta}>You already sent this week. Change anything and send again.</p> : null}
           </div>
+
+          {picker ? (
+            <section aria-labelledby="wf-step-house">
+              <h2 className={styles.sect} id="wf-step-house">
+                <span className={styles.sectN}>Your house church</span>
+              </h2>
+              <div className={styles.pad}>
+                <div className={styles.field} data-invalid={Boolean(errors[HOUSE_KEY])}>
+                  {/* A span, like every other question here: the Hub's global <label> style is mono caps. */}
+                  <span className={styles.flabel} id="wf-house">
+                    {PUBLIC_HOUSE_QUESTION}{" "}
+                    <span className={styles.req} aria-hidden="true">
+                      *
+                    </span>
+                  </span>
+                  <span className={styles.selectWrap}>
+                    <select
+                      id="wf-house-in"
+                      aria-labelledby="wf-house"
+                      className={styles.select}
+                      required
+                      aria-required="true"
+                      aria-invalid={Boolean(errors[HOUSE_KEY])}
+                      value={houseId}
+                      data-testid="public-house-picker"
+                      onChange={(e) => {
+                        setHouseId(e.target.value);
+                        setErrors((prev) => {
+                          const next = { ...prev };
+                          delete next[HOUSE_KEY];
+                          return next;
+                        });
+                      }}
+                    >
+                      <option value="">Choose your house church</option>
+                      {picker.houses.map((h) => (
+                        <option key={h.id} value={h.id}>
+                          {publicHouseLabel(h)}
+                        </option>
+                      ))}
+                    </select>
+                  </span>
+                  {errors[HOUSE_KEY] ? (
+                    <p className={styles.err} role="alert">
+                      {errors[HOUSE_KEY]}
+                    </p>
+                  ) : null}
+                </div>
+                {/* Left empty by people; a bot that fills it saves nothing. */}
+                <input
+                  type="text"
+                  name={PUBLIC_FEEDBACK_HONEYPOT}
+                  className={styles.honeypot}
+                  tabIndex={-1}
+                  autoComplete="off"
+                  aria-hidden="true"
+                  value={trap}
+                  onChange={(e) => setTrap(e.target.value)}
+                  data-testid="public-honeypot"
+                />
+              </div>
+            </section>
+          ) : null}
 
           {schema.steps.map((step) => (
             <section key={step.id} aria-labelledby={`wf-step-${step.id}`}>
@@ -529,11 +631,13 @@ export function WeeklyFeedbackFill(props: WeeklyFillProps) {
 }
 
 function defaultSubmit(endpoint: string) {
-  return async (answers: Record<string, unknown>): Promise<SubmitOutcome> => {
+  return async (answers: Record<string, unknown>, meta?: SubmitMeta): Promise<SubmitOutcome> => {
+    // The signed-in page and the house link send answers only: the house comes from the URL.
+    const payload = meta ? { houseId: meta.houseId, answers, [PUBLIC_FEEDBACK_HONEYPOT]: meta.website ?? "" } : { answers };
     const res = await fetch(endpoint, {
       method: "POST",
       headers: { "content-type": "application/json", accept: "application/json" },
-      body: JSON.stringify({ answers }),
+      body: JSON.stringify(payload),
     });
     if (res.ok) return { ok: true };
     const body = (await res.json().catch(() => ({}))) as { error?: string; fieldErrors?: Record<string, string> };
