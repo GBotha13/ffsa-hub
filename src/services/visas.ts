@@ -293,7 +293,7 @@ export async function tickVisaOfflineStep(supabase: Client, caseId: string, docu
 }
 
 export async function reviewVisaDocument(supabase: Client, documentId: string, approve: boolean, note?: string | null) {
-  return supabase.rpc("visa_review_document", { p_document_id: documentId, p_approve: approve, p_note: note ?? null });
+  return supabase.rpc("visa_review_document", { p_document_id: documentId, p_ok: approve, p_note: note ?? null });
 }
 
 export async function requestVisaApproval(supabase: Client, caseId: string, note?: string | null) {

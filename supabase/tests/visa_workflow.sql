@@ -102,8 +102,9 @@ INSERT INTO public.users (id) VALUES
   ('00000000-0000-0000-0000-000000000002'),
   ('00000000-0000-0000-0000-000000000003'),
   ('00000000-0000-0000-0000-000000000004'),
+  ('00000000-0000-0000-0000-000000000005'),
   ('00000000-0000-0000-0000-000000000007');
--- 89-day stay: the short list (10 types: 2 conditional, 2 offline, 6 uploads).
+-- 89-day stay: the short list (10 types: 3 conditional, 2 offline, 5 uploads).
 INSERT INTO public.visa_cases (id, user_id, stay_from, stay_to) VALUES
   ('c0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000004', '2027-01-10', '2027-04-08');
 INSERT INTO public.visa_case_schools (case_id, program_id) VALUES
@@ -113,6 +114,11 @@ INSERT INTO public.visa_cases (id, user_id, stay_from, stay_to) VALUES
   ('c0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000002', '2027-01-10', '2027-04-08');
 INSERT INTO public.visa_case_schools (case_id, program_id) VALUES
   ('c0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-00000000000a');
+-- Case 3: student 5, over 90 days on school A (police clearance needed).
+INSERT INTO public.visa_cases (id, user_id, stay_from, stay_to) VALUES
+  ('c0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000005', '2027-01-10', '2027-07-30');
+INSERT INTO public.visa_case_schools (case_id, program_id) VALUES
+  ('c0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-00000000000a');
 
 CREATE OR REPLACE FUNCTION pg_temp.as_user(p_uid text, p_admin text, p_perms text, p_scoped text)
 RETURNS void LANGUAGE sql AS $$
@@ -225,14 +231,14 @@ RESET ROLE;
 -- ── Student uploads ──────────────────────────────────────
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000004', 'false', '', '');
 SET ROLE authenticated;
-SELECT pg_temp.expect('student: 8 things missing at the start (2 conditional types never block)',
-  (SELECT count(*) FROM public.visa_case_missing_documents('c0000000-0000-0000-0000-000000000001')), 8);
+SELECT pg_temp.expect('student: 7 things missing at the start (3 conditional types never block)',
+  (SELECT count(*) FROM public.visa_case_missing_documents('c0000000-0000-0000-0000-000000000001')), 7);
 SELECT pg_temp.refused('student: path for another document',
   $q$SELECT public.visa_add_document('d0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001',
      pg_temp.doc_type('passport'), pg_temp.path('d0000000-0000-0000-0000-000000000002'), 'application/pdf', 10)$q$, 'P0001');
 SELECT pg_temp.refused('student: uploads an offline step',
   $q$SELECT public.visa_add_document('d0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001',
-     pg_temp.doc_type('application_form'), pg_temp.path('d0000000-0000-0000-0000-000000000001'), 'application/pdf', 10)$q$, 'P0001');
+     pg_temp.doc_type('form_dha84'), pg_temp.path('d0000000-0000-0000-0000-000000000001'), 'application/pdf', 10)$q$, 'P0001');
 
 -- Every upload type on the short list, plus the two offline steps.
 DO $$
@@ -253,7 +259,7 @@ BEGIN
   END LOOP;
 END $$;
 SELECT pg_temp.refused('student: ticks the same step twice',
-  $q$SELECT public.visa_tick_offline('c0000000-0000-0000-0000-000000000001', pg_temp.doc_type('application_form'))$q$, 'P0001');
+  $q$SELECT public.visa_tick_offline('c0000000-0000-0000-0000-000000000001', pg_temp.doc_type('form_dha84'))$q$, 'P0001');
 SELECT pg_temp.refused('student: requests approval',
   $q$SELECT public.visa_request_approval('c0000000-0000-0000-0000-000000000001')$q$, '42501');
 SELECT pg_temp.refused('student: reviews own document',
@@ -264,7 +270,7 @@ RESET ROLE;
 SELECT pg_temp.expect_text('waiting on the leader once all is in',
   (SELECT waiting_on FROM public.visa_cases WHERE id = 'c0000000-0000-0000-0000-000000000001'), 'school_leader');
 SELECT pg_temp.expect('events: uploads and ticks logged as the student',
-  (SELECT count(*) FROM public.visa_case_events WHERE actor_id = '00000000-0000-0000-0000-000000000004'), 8);
+  (SELECT count(*) FROM public.visa_case_events WHERE actor_id = '00000000-0000-0000-0000-000000000004'), 7);
 
 -- ── Leader of A reviews ──────────────────────────────────
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000002', 'false',
@@ -272,13 +278,16 @@ SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000002', 'false',
 SET ROLE authenticated;
 SELECT pg_temp.refused('leader: request before reviewing',
   $q$SELECT public.visa_request_approval('c0000000-0000-0000-0000-000000000001')$q$, 'P0001');
-SELECT pg_temp.refused('leader: redo without a note',
+SELECT pg_temp.refused('leader: flag without a note',
   $q$SELECT public.visa_review_document('d0000000-0000-0000-0000-000000000001', false, '  ')$q$, 'P0001');
 SELECT public.visa_review_document('d0000000-0000-0000-0000-000000000001', false, 'Photo page is cut off');
 SELECT pg_temp.refused('leader: reviews twice',
   $q$SELECT public.visa_review_document('d0000000-0000-0000-0000-000000000001', true)$q$, 'P0001');
 RESET ROLE;
-SELECT pg_temp.expect_text('waiting on the student after a redo',
+-- A leader flags; they never reject (legal's call).
+SELECT pg_temp.expect_text('a leader''s "no" is a flag',
+  (SELECT status FROM public.visa_case_documents WHERE id = 'd0000000-0000-0000-0000-000000000001'), 'flagged');
+SELECT pg_temp.expect_text('waiting on the student after a flag',
   (SELECT waiting_on FROM public.visa_cases WHERE id = 'c0000000-0000-0000-0000-000000000001'), 'student');
 
 -- Student re-uploads the passport.
@@ -301,6 +310,8 @@ BEGIN
     PERFORM public.visa_review_document(d.id, true);
   END LOOP;
 END $$;
+SELECT pg_temp.expect_text('a leader''s "yes" is checked, not approved',
+  (SELECT status FROM public.visa_case_documents WHERE id = 'd0000000-0000-0000-0000-000000000101'), 'checked');
 SELECT pg_temp.expect('leader: nothing missing',
   (SELECT count(*) FROM public.visa_case_missing_documents('c0000000-0000-0000-0000-000000000001')), 0);
 SELECT public.visa_ask_legal('c0000000-0000-0000-0000-000000000001', 'Refused by the UK in 2024. Does that matter?');
@@ -322,6 +333,12 @@ SELECT pg_temp.expect_text('status after the request',
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000001', 'false', 'visas.manage', 'visas.manage:*');
 SET ROLE authenticated;
 SELECT public.visa_answer_question((SELECT id FROM public.visa_case_questions LIMIT 1), 'Mention it on the form; it is fine.');
+-- Legal judges documents, also while the case waits for legal.
+SELECT public.visa_review_document('d0000000-0000-0000-0000-000000000101', true);
+SELECT pg_temp.expect_text('legal approves a checked document',
+  (SELECT status FROM public.visa_case_documents WHERE id = 'd0000000-0000-0000-0000-000000000101'), 'approved');
+SELECT pg_temp.refused('legal: reviews an approved document again',
+  $q$SELECT public.visa_review_document('d0000000-0000-0000-0000-000000000101', false, 'x')$q$, 'P0001');
 SELECT pg_temp.refused('legal: send back without a note',
   $q$SELECT public.visa_decide((SELECT id FROM public.visa_approval_requests WHERE decision IS NULL), false)$q$, 'P0001');
 SELECT public.visa_decide((SELECT id FROM public.visa_approval_requests WHERE decision IS NULL), false, 'Add the bank letter');
@@ -390,6 +407,56 @@ SET ROLE authenticated;
 SELECT public.visa_close_case('c0000000-0000-0000-0000-000000000001', false);
 SELECT pg_temp.refused('legal: closes twice',
   $q$SELECT public.visa_close_case('c0000000-0000-0000-0000-000000000001', false)$q$, 'P0001');
+RESET ROLE;
+
+-- ── Restricted documents: police clearance (case 3) ─────
+CREATE OR REPLACE FUNCTION pg_temp.path3(p_doc text) RETURNS text LANGUAGE sql AS $$
+  SELECT 'c0000000-0000-0000-0000-000000000003/' || p_doc || '.pdf';
+$$;
+GRANT EXECUTE ON FUNCTION pg_temp.path3(text) TO authenticated;
+SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000002', 'false',
+                       'visas.follow_up', 'visas.follow_up:a0000000-0000-0000-0000-00000000000a');
+SET ROLE authenticated;
+SELECT pg_temp.refused('leader: uploads a police clearance for the student',
+  $q$SELECT public.visa_add_document('f0000000-0000-0000-0000-000000000099', 'c0000000-0000-0000-0000-000000000003',
+     pg_temp.doc_type('police_clearance'), pg_temp.path3('f0000000-0000-0000-0000-000000000099'), 'application/pdf', 10)$q$, '42501');
+RESET ROLE;
+SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000005', 'false', '', '');
+SET ROLE authenticated;
+SELECT public.visa_add_document('f0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000003',
+  pg_temp.doc_type('police_clearance'), pg_temp.path3('f0000000-0000-0000-0000-000000000001'), 'application/pdf', 10);
+SELECT public.visa_add_document('f0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000003',
+  pg_temp.doc_type('passport'), pg_temp.path3('f0000000-0000-0000-0000-000000000002'), 'application/pdf', 10);
+RESET ROLE;
+SELECT pg_temp.expect('an uploaded police clearance counts as in (legal judges it)',
+  (SELECT count(*) FROM public.visa_missing_documents('c0000000-0000-0000-0000-000000000003') m WHERE m = 'police_clearance'), 0);
+SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000002', 'false',
+                       'visas.follow_up', 'visas.follow_up:a0000000-0000-0000-0000-00000000000a');
+SET ROLE authenticated;
+SELECT pg_temp.refused('leader: reviews a police clearance',
+  $q$SELECT public.visa_review_document('f0000000-0000-0000-0000-000000000001', true)$q$, '42501');
+RESET ROLE;
+SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000007', 'false', 'visas.manage', 'visas.manage:a0000000-0000-0000-0000-00000000000a');
+SET ROLE authenticated;
+SELECT pg_temp.refused('legal scoped to the school: reviews a police clearance',
+  $q$SELECT public.visa_review_document('f0000000-0000-0000-0000-000000000001', true)$q$, '42501');
+RESET ROLE;
+SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000001', 'false', 'visas.manage', 'visas.manage:*');
+SET ROLE authenticated;
+SELECT public.visa_review_document('f0000000-0000-0000-0000-000000000001', false, 'Older than 6 months');
+RESET ROLE;
+SELECT pg_temp.expect_text('global legal asks for a new police clearance',
+  (SELECT status FROM public.visa_case_documents WHERE id = 'f0000000-0000-0000-0000-000000000001'), 'needs_redo');
+SELECT pg_temp.expect('a police clearance needing a redo blocks the request',
+  (SELECT count(*) FROM public.visa_missing_documents('c0000000-0000-0000-0000-000000000003') m WHERE m = 'police_clearance'), 1);
+-- Once the stay has ended, a leader can't review the case's documents.
+UPDATE public.visa_cases SET stay_from = '2025-10-01', stay_to = '2026-01-01'
+ WHERE id = 'c0000000-0000-0000-0000-000000000003';
+SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000002', 'false',
+                       'visas.follow_up', 'visas.follow_up:a0000000-0000-0000-0000-00000000000a');
+SET ROLE authenticated;
+SELECT pg_temp.refused('leader: reviews after the stay ended',
+  $q$SELECT public.visa_review_document('f0000000-0000-0000-0000-000000000002', true)$q$, '42501');
 RESET ROLE;
 
 -- ── Internal helpers aren't callable by users ────────────

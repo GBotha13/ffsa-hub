@@ -30,8 +30,10 @@ import { ApprovalPanel, ProgressPanel, QuestionsPanel, type QuestionRow, type Re
 const EVENT_LABEL: Record<string, string> = {
   document_uploaded: "Document uploaded",
   step_ticked: "Step ticked",
-  document_approved: "Document approved",
-  document_needs_redo: "Redo asked for",
+  document_checked: "Document checked",
+  document_flagged: "Problem flagged",
+  document_approved: "Document approved by legal",
+  document_needs_redo: "Redo asked for by legal",
   document_downloaded: "Document opened",
   approval_requested: "Approval requested",
   approved: "Approved by legal",
@@ -127,14 +129,20 @@ export default async function VisaCasePage({ params }: { params: Promise<{ caseI
   const programName = new Map<string, string>(((programs ?? []) as Array<{ id: string; name: string }>).map((p) => [p.id, p.name]));
 
   const stayDays = c.stay_from && c.stay_to ? daysInclusive(c.stay_from, c.stay_to) : null;
+  const missing = ((missingRes.data ?? []) as string[]).filter(Boolean);
+  // missing lets a leader see whether a legal-only document is in.
   const items = buildChecklist(
     (typesRes.data ?? []) as ChecklistType[],
     (docsRes.data ?? []) as ChecklistDocument[],
-    stayDays
+    stayDays,
+    missing
   );
-  const missing = ((missingRes.data ?? []) as string[]).filter(Boolean);
   const collecting = c.status === "collecting_documents" || c.status === "sent_back";
-  const reviewCount = toReview(items).length;
+  // Leaders check documents while they're being collected; legal judges
+  // them then and while the case waits for legal.
+  const reviewAs: "leader" | "legal" | null =
+    isLegal && (collecting || c.status === "awaiting_legal") ? "legal" : canFollow && collecting ? "leader" : null;
+  const reviewCount = reviewAs ? toReview(items, reviewAs).length : 0;
   const student = name(c.user_id);
   // Two people on every approval: whoever sent the open request can't decide it.
   const openRequest = requests.find((r) => r.decision === null);
@@ -143,8 +151,8 @@ export default async function VisaCasePage({ params }: { params: Promise<{ caseI
   // One band: what this viewer has to do on this case, if anything.
   let band: string | null = null;
   if (c.status === "awaiting_legal" && canDecide) band = "This case is waiting for your approval";
-  else if (collecting && canFollow && reviewCount > 0)
-    band = reviewCount === 1 ? "1 document is waiting for your review" : `${reviewCount} documents are waiting for your review`;
+  else if (reviewAs === "leader" && reviewCount > 0)
+    band = reviewCount === 1 ? "1 document is waiting for your check" : `${reviewCount} documents are waiting for your check`;
   else if (collecting && canFollow && missing.length === 0) band = "Every document is in. Request approval from legal";
   else if (c.status === "arrived" && c.entry_stamp_ok === false && isLegal) band = "The entry stamp doesn't match the visa";
 
@@ -170,7 +178,7 @@ export default async function VisaCasePage({ params }: { params: Promise<{ caseI
 
       <div className="grid gap-6 px-5 py-6 md:px-8 md:py-7 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="flex min-w-0 flex-col gap-6">
-          <ChecklistPanel caseId={caseId} items={items} canChange={collecting && canFollow} canReview={canFollow} audience="staff" />
+          <ChecklistPanel caseId={caseId} items={items} canChange={collecting && canFollow} reviewAs={reviewAs} audience="staff" />
           {(canFollow || isLegal) && (
             <ApprovalPanel
               caseId={caseId}

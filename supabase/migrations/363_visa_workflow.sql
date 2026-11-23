@@ -16,6 +16,13 @@
 --   Student (own case)        visa_add_document, visa_tick_offline
 --   School leader / legal     visa_review_document, visa_request_approval,
 --                             visa_ask_legal, visa_record_progress
+--
+-- Documents (legal's answers, 23 Nov 2026): a school leader checks each
+-- upload against its objective points and marks it checked, or flags it
+-- with a note for the student. Leaders don't reject anything; legal
+-- approves a document or asks for a redo. Police clearances and medical
+-- reports (restricted) are uploaded by the student and seen and judged
+-- by global legal only.
 --   Legal for the case        visa_decide, visa_answer_question,
 --                             visa_close_case
 --
@@ -56,8 +63,10 @@ AS $$
    ORDER BY d.document_type_id, d.created_at DESC, d.id DESC;
 $$;
 
--- Required, non-conditional document types still not approved or ticked.
--- Conditional types (e.g. yellow fever) are the leader's call and never
+-- Required, non-conditional document types not yet ready for legal: an
+-- upload a leader has checked (or legal approved), or a ticked step. A
+-- restricted upload (police clearance) only has to be in: leaders can't
+-- see it, and legal judges it. Conditional types (e.g. yellow fever) never
 -- block a request. Up to 90 days uses the short list, beyond it the long.
 CREATE OR REPLACE FUNCTION public.visa_missing_documents(p_case_id uuid)
 RETURNS SETOF text
@@ -79,13 +88,15 @@ AS $$
      AND NOT EXISTS (
        SELECT 1 FROM public.visa_latest_documents(p_case_id) d
         WHERE d.document_type_id = t.id
-          AND d.status IN ('approved', 'ticked')
+          AND (d.status IN ('checked', 'approved', 'ticked')
+               OR (t.is_restricted AND d.status = 'uploaded'))
      )
    ORDER BY t.sort_order, t.code;
 $$;
 
 -- While documents are being collected, the case waits on the student until
--- nothing is missing or waiting for a redo, then on the school leader.
+-- nothing is missing, flagged or waiting for a redo, then on the school
+-- leader.
 CREATE OR REPLACE FUNCTION public.visa_refresh_waiting_on(p_case_id uuid)
 RETURNS void
 LANGUAGE sql
@@ -103,7 +114,7 @@ AS $$
                 AND NOT EXISTS (
                   SELECT 1 FROM public.visa_latest_documents(c.id) d
                    WHERE d.document_type_id = t.id
-                     AND d.status IN ('uploaded', 'approved', 'ticked')
+                     AND d.status IN ('uploaded', 'checked', 'approved', 'ticked')
                 )
            ) THEN 'student'
            ELSE 'school_leader'
@@ -190,6 +201,11 @@ BEGIN
   IF v_type.is_offline THEN
     RAISE EXCEPTION '% is ticked off, not uploaded', v_type.label USING ERRCODE = 'P0001';
   END IF;
+  -- Restricted documents (police clearance, medical report): only the
+  -- student or global legal handle them.
+  IF v_type.is_restricted AND NOT (public.visa_is_own_case(p_case_id) OR public.visa_is_legal()) THEN
+    RAISE EXCEPTION 'Only the student or legal can add %', v_type.label USING ERRCODE = '42501';
+  END IF;
   IF p_storage_path IS DISTINCT FROM (p_case_id::text || '/' || p_document_id::text || '.' || split_part(p_storage_path, '.', 2)) THEN
     RAISE EXCEPTION 'File path does not belong to this document' USING ERRCODE = 'P0001';
   END IF;
@@ -248,13 +264,19 @@ END;
 $$;
 
 -- ────────────────────────────────────────────────────────────
--- 3. SCHOOL LEADER: review a document
+-- 3. REVIEW A DOCUMENT — leaders check or flag; legal decides
 -- ────────────────────────────────────────────────────────────
--- Approve it, or ask for a redo with a note the student sees. Only the
--- newest upload of a type can be reviewed, once.
+-- p_ok true / false means, for:
+--   a school leader: checked / flagged (objective checks only; a flag
+--     needs a note the student sees, and goes back to the student). Only
+--     a fresh upload, while documents are being collected.
+--   legal for the case: approved / needs_redo (a redo needs a note). A
+--     fresh, checked or flagged upload, also while waiting for legal.
+-- Restricted documents: global legal only. Only the newest upload of a
+-- type can be reviewed.
 CREATE OR REPLACE FUNCTION public.visa_review_document(
   p_document_id uuid,
-  p_approve     boolean,
+  p_ok          boolean,
   p_note        text DEFAULT NULL
 )
 RETURNS void
@@ -264,13 +286,16 @@ SET search_path = ''
 AS $$
 DECLARE
   v_doc    public.visa_case_documents%ROWTYPE;
+  v_type   public.visa_document_types%ROWTYPE;
   v_status text;
-  v_code   text;
+  v_legal  boolean;
+  v_new    text;
 BEGIN
   SELECT * INTO v_doc FROM public.visa_case_documents WHERE id = p_document_id;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Document not found' USING ERRCODE = 'P0002';
   END IF;
+  SELECT * INTO v_type FROM public.visa_document_types WHERE id = v_doc.document_type_id;
   IF auth.uid() IS NULL OR NOT (public.visa_can_follow_up(v_doc.case_id)
                                 OR public.visa_can_manage(v_doc.case_id)) THEN
     RAISE EXCEPTION 'Not allowed' USING ERRCODE = '42501';
@@ -278,41 +303,61 @@ BEGIN
   IF public.visa_is_own_case(v_doc.case_id) THEN
     RAISE EXCEPTION 'You can''t act as staff on your own visa case' USING ERRCODE = '42501';
   END IF;
+  IF v_type.is_restricted AND NOT public.visa_is_legal() THEN
+    RAISE EXCEPTION 'Only legal reviews %', v_type.label USING ERRCODE = '42501';
+  END IF;
+  v_legal := public.visa_can_manage(v_doc.case_id);
+  IF NOT v_legal AND NOT public.visa_leader_can_see_documents(v_doc.case_id) THEN
+    RAISE EXCEPTION 'Not allowed' USING ERRCODE = '42501';
+  END IF;
 
   SELECT status INTO v_status FROM public.visa_cases WHERE id = v_doc.case_id FOR UPDATE;
-  IF v_status NOT IN ('collecting_documents', 'sent_back') THEN
+  IF v_status NOT IN ('collecting_documents', 'sent_back')
+     AND NOT (v_legal AND v_status = 'awaiting_legal') THEN
     RAISE EXCEPTION 'Documents can''t be reviewed while the case is %', v_status USING ERRCODE = 'P0001';
   END IF;
-  IF v_doc.status <> 'uploaded' THEN
+  IF v_doc.status NOT IN ('uploaded', 'checked', 'flagged')
+     OR (NOT v_legal AND v_doc.status <> 'uploaded') THEN
     RAISE EXCEPTION 'This document has already been reviewed' USING ERRCODE = 'P0001';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM public.visa_latest_documents(v_doc.case_id) d WHERE d.id = p_document_id) THEN
     RAISE EXCEPTION 'A newer upload replaced this document' USING ERRCODE = 'P0001';
   END IF;
-  IF NOT p_approve AND coalesce(btrim(p_note), '') = '' THEN
-    RAISE EXCEPTION 'Say what needs redoing' USING ERRCODE = 'P0001';
+  IF NOT p_ok AND coalesce(btrim(p_note), '') = '' THEN
+    RAISE EXCEPTION 'Say what the student needs to fix' USING ERRCODE = 'P0001';
   END IF;
 
+  v_new := CASE
+    WHEN v_legal AND p_ok THEN 'approved'
+    WHEN v_legal THEN 'needs_redo'
+    WHEN p_ok THEN 'checked'
+    ELSE 'flagged'
+  END;
   UPDATE public.visa_case_documents
-     SET status = CASE WHEN p_approve THEN 'approved' ELSE 'needs_redo' END,
+     SET status = v_new,
          review_note = nullif(btrim(p_note), ''),
          reviewed_by = auth.uid(),
          reviewed_at = now()
    WHERE id = p_document_id;
 
-  SELECT code INTO v_code FROM public.visa_document_types WHERE id = v_doc.document_type_id;
   PERFORM public.visa_refresh_waiting_on(v_doc.case_id);
   PERFORM public.visa_log(v_doc.case_id,
-    CASE WHEN p_approve THEN 'document_approved' ELSE 'document_needs_redo' END,
-    jsonb_build_object('document_type', v_code));
+    CASE v_new
+      WHEN 'approved' THEN 'document_approved'
+      WHEN 'needs_redo' THEN 'document_needs_redo'
+      WHEN 'checked' THEN 'document_checked'
+      ELSE 'document_flagged'
+    END,
+    jsonb_build_object('document_type', v_type.code));
 END;
 $$;
 
 -- ────────────────────────────────────────────────────────────
 -- 4. SCHOOL LEADER: request legal's approval
 -- ────────────────────────────────────────────────────────────
--- Only when the stay is known and every required document is approved or
--- ticked. Moves the case to awaiting_legal.
+-- Only when the stay is known and every required document is checked,
+-- approved or ticked (restricted ones only uploaded), with nothing
+-- flagged. Moves the case to awaiting_legal.
 CREATE OR REPLACE FUNCTION public.visa_request_approval(p_case_id uuid, p_note text DEFAULT NULL)
 RETURNS uuid
 LANGUAGE plpgsql
@@ -358,8 +403,9 @@ $$;
 -- ────────────────────────────────────────────────────────────
 -- 5. LEGAL: approve, or send back with a note
 -- ────────────────────────────────────────────────────────────
--- Approving here records the decision. Signing FFSA's letters with legal's
--- digital signature ("Approve and sign") arrives with the letters in step 3.
+-- Approving here records the decision. FFSA's letters arrive in step 3:
+-- legal signs them by hand and stamps them (several embassies refuse
+-- digital signatures), and the scan goes on the case.
 -- The person who sent the request never decides it.
 CREATE OR REPLACE FUNCTION public.visa_decide(
   p_request_id uuid,

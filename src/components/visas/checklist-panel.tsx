@@ -1,8 +1,11 @@
 "use client";
 
-// The document checklist for one case. The student uploads and ticks here;
-// school leaders (and legal) also review. One row per document type, two
-// lines on a phone, 44px+ targets.
+// The document checklist for one case. The student uploads and ticks here.
+// School leaders check each upload against its objective points and mark it
+// checked or flag a problem; they don't reject anything. Legal approves a
+// document or asks for a redo. Police clearances and medical reports are
+// legal-only. One row per document type, two lines on a phone, 44px+
+// targets.
 
 import { useRef, useState } from "react";
 import { SectionBar, StatusPill, type Tone } from "@/components/ffsa";
@@ -12,24 +15,29 @@ import { ErrorLine, NoteBox, VisaButton, openVisaDocument, useVisaPost } from ".
 const TONE: Record<ItemState, Tone> = {
   missing: "quiet",
   uploaded: "warn",
+  checked: "good",
+  flagged: "bad",
   approved: "good",
   needs_redo: "bad",
   ticked: "good",
+  with_legal: "quiet",
 };
+
+type ReviewAs = "leader" | "legal" | null;
 
 export function ChecklistPanel({
   caseId,
   items,
   canChange,
-  canReview,
+  reviewAs = null,
   audience,
 }: {
   caseId: string;
   items: ChecklistItem[];
   /** Documents can be added now (collecting or sent back) by this viewer. */
   canChange: boolean;
-  /** This viewer is a school leader or legal for the case. */
-  canReview: boolean;
+  /** How this viewer reviews right now: a leader checks, legal decides. */
+  reviewAs?: ReviewAs;
   audience: "student" | "staff";
 }) {
   const required = items.filter((i) => !i.type.is_conditional);
@@ -44,7 +52,7 @@ export function ChecklistPanel({
             caseId={caseId}
             item={item}
             canChange={canChange}
-            canReview={canReview}
+            reviewAs={reviewAs}
             audience={audience}
           />
         ))}
@@ -57,13 +65,13 @@ function ChecklistRow({
   caseId,
   item,
   canChange,
-  canReview,
+  reviewAs,
   audience,
 }: {
   caseId: string;
   item: ChecklistItem;
   canChange: boolean;
-  canReview: boolean;
+  reviewAs: ReviewAs;
   audience: "student" | "staff";
 }) {
   const { post, busy, error, setError, refresh } = useVisaPost();
@@ -94,9 +102,18 @@ function ChecklistRow({
     }
   }
 
-  const showUpload = canChange && !type.is_offline && (state === "missing" || state === "needs_redo" || state === "uploaded");
+  // Restricted documents: the student uploads them; staff other than legal
+  // never handle them (363 refuses it too).
+  const mayUpload = audience === "student" || !type.is_restricted || reviewAs === "legal";
+  const showUpload =
+    canChange && mayUpload && !type.is_offline && (state === "missing" || state === "needs_redo" || state === "flagged" || state === "uploaded");
   const showTick = canChange && type.is_offline && (state === "missing" || state === "needs_redo");
-  const showReview = canReview && canChange && state === "uploaded" && latest;
+  const showReview =
+    !!latest &&
+    ((reviewAs === "leader" && state === "uploaded" && !type.is_restricted) ||
+      (reviewAs === "legal" && (state === "uploaded" || state === "checked" || state === "flagged")));
+  const leaderReview = reviewAs === "leader";
+  const noteFrom = state === "flagged" ? "From your school leader" : "From FFSA's legal officer";
 
   return (
     <li className="border-b border-rule px-5 py-4 last:border-b-0 md:px-6">
@@ -106,13 +123,26 @@ function ChecklistRow({
             <span className="text-[14px] font-semibold">{type.label}</span>
             {type.is_conditional && <span className="mono-label">Only if it applies</span>}
             {type.is_offline && <span className="mono-label">Tick when done</span>}
+            {type.is_restricted && <span className="mono-label">Legal only</span>}
           </div>
           {type.guidance && <p className="mt-1 text-[13px] text-[#55524A]">{type.guidance}</p>}
-          {state === "needs_redo" && latest?.review_note && (
+          {(state === "needs_redo" || state === "flagged") && latest?.review_note && (
             <p className="mt-2 border-l-[3px] border-yellow pl-3 text-[13px]">
-              <span className="mono-label mr-2">{audience === "student" ? "From your school leader" : "Redo note"}</span>
+              <span className="mono-label mr-2">
+                {audience === "student" ? noteFrom : state === "flagged" ? "Flagged" : "Legal's redo note"}
+              </span>
               {latest.review_note}
             </p>
+          )}
+          {showReview && leaderReview && type.leader_checks.length > 0 && (
+            <ul className="mt-2 flex flex-col gap-1 text-[13px]">
+              {type.leader_checks.map((c) => (
+                <li key={c} className="flex gap-2">
+                  <span className="mono-label shrink-0">Check</span>
+                  <span>{c}</span>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -163,12 +193,17 @@ function ChecklistRow({
           {showReview && latest && (
             <div className="flex flex-col gap-2">
               {redo && (
-                <NoteBox value={note} onChange={setNote} placeholder="What needs redoing? The student sees this." rows={2} />
+                <NoteBox
+                  value={note}
+                  onChange={setNote}
+                  placeholder={leaderReview ? "What's wrong? The student sees this." : "What needs redoing? The student sees this."}
+                  rows={2}
+                />
               )}
               <div className="flex flex-wrap gap-2">
                 {!redo && (
                   <VisaButton disabled={busy} onClick={() => post(`/api/visas/documents/${latest.id}/review`, { approve: true })}>
-                    Approve
+                    {leaderReview ? "Checked" : "Approve"}
                   </VisaButton>
                 )}
                 <VisaButton
@@ -184,7 +219,7 @@ function ChecklistRow({
                     });
                   }}
                 >
-                  {redo ? "Send for redo" : "Needs a redo"}
+                  {redo ? (leaderReview ? "Send the flag" : "Send for redo") : leaderReview ? "Flag a problem" : "Needs a redo"}
                 </VisaButton>
                 {redo && (
                   <VisaButton tone="outline" onClick={() => setRedo(false)}>

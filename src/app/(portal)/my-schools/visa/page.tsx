@@ -58,7 +58,7 @@ export default async function MyVisaPage() {
   const items = buildChecklist((types ?? []) as ChecklistType[], (docs ?? []) as ChecklistDocument[], stayDays);
   const collecting = c.status === "collecting_documents" || c.status === "sent_back";
   const toDo = collecting ? studentToDo(items) : [];
-  const redo = toDo.filter((i) => i.state === "needs_redo").length;
+  const redo = toDo.filter((i) => i.state === "needs_redo" || i.state === "flagged").length;
 
   return (
     <div className="ffsa-screen">
@@ -98,10 +98,11 @@ export default async function MyVisaPage() {
           </div>
         </div>
 
-        <ChecklistPanel caseId={c.id} items={items} canChange={collecting} canReview={false} audience="student" />
+        <ChecklistPanel caseId={c.id} items={items} canChange={collecting} audience="student" />
 
         <p className="text-[13px] text-[#55524A]">
-          Your documents are kept private. Only you, your school leaders and FFSA&apos;s legal officer can open them.
+          Your documents are kept private. Only you, your school leaders (while your school is on) and FFSA&apos;s legal officer
+          can open them. Your police clearance and medical report only you and the legal officer can open.
         </p>
       </div>
     </div>

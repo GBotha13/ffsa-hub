@@ -10,6 +10,8 @@ const type = (code: string, extra: Partial<ChecklistType> = {}): ChecklistType =
   needed_over_90: true,
   is_conditional: false,
   is_offline: false,
+  is_restricted: false,
+  leader_checks: [],
   is_active: true,
   sort_order: 0,
   ...extra,
@@ -28,7 +30,7 @@ const TYPES = [
   type("passport", { sort_order: 1 }),
   type("form", { sort_order: 2, is_offline: true }),
   type("yellow_fever", { sort_order: 3, is_conditional: true }),
-  type("police", { sort_order: 4, needed_up_to_90: false }),
+  type("police", { sort_order: 4, needed_up_to_90: false, is_restricted: true }),
   type("old", { is_active: false }),
 ];
 
@@ -56,5 +58,27 @@ describe("visa checklist", () => {
     const items = buildChecklist(TYPES, [doc("passport", "uploaded", "2026-01-01"), doc("form", "needs_redo", "2026-01-01")], 60);
     expect(studentToDo(items).map((i) => i.type.code)).toEqual(["form"]);
     expect(toReview(items).map((i) => i.type.code)).toEqual(["passport"]);
+  });
+
+  it("a leader's check counts; a flag goes back to the student", () => {
+    const items = buildChecklist(TYPES, [doc("passport", "checked", "2026-01-01"), doc("form", "ticked", "2026-01-01")], 60);
+    expect(items.filter((i) => i.blocking)).toHaveLength(0);
+    const flagged = buildChecklist(TYPES, [doc("passport", "flagged", "2026-01-01")], 60);
+    expect(studentToDo(flagged).map((i) => i.type.code)).toEqual(["passport", "form"]);
+    expect(toReview(flagged)).toHaveLength(0);
+    expect(toReview(flagged, "legal").map((i) => i.type.code)).toEqual(["passport"]);
+  });
+
+  it("restricted documents: legal judges them, leaders only see whether they're in", () => {
+    // The student (or legal) sees the row: an upload is enough to unblock.
+    const own = buildChecklist(TYPES, [doc("police", "uploaded", "2026-01-01")], 120);
+    expect(own.find((i) => i.type.code === "police")).toMatchObject({ state: "uploaded", blocking: false });
+    expect(toReview(own)).toHaveLength(0);
+    expect(toReview(own, "legal").map((i) => i.type.code)).toEqual(["police"]);
+    // A leader sees no row; the missing list says whether it's in.
+    const leaderIn = buildChecklist(TYPES, [], 120, ["passport", "form"]);
+    expect(leaderIn.find((i) => i.type.code === "police")).toMatchObject({ state: "with_legal", blocking: false });
+    const leaderOut = buildChecklist(TYPES, [], 120, ["passport", "form", "police"]);
+    expect(leaderOut.find((i) => i.type.code === "police")).toMatchObject({ state: "missing", blocking: true });
   });
 });
