@@ -189,3 +189,9 @@ All of Fleet's Slack goes through the FFSA Hub Activity bot's 07:00 vehicles mes
 - **FLEET:** every vehicle, 🟢 IN (not booked, not at the workshop) with what's due on it (inspections, service, bumper-to-bumper, workshop visits, faults or damage, licence disc), or 🔴 OUT (booked or at the workshop) with only who has it (booking and person) or the workshop. ⚪ OFF for For sale / Off the road.
 
 `src/lib/fleet/digest.ts` sorts the tested rules' output by vehicle; the rules are unchanged. Still behind `FLEET_MESSAGES_ENABLED`: while it's unset the bookings digest is exactly as before. The in-car guide line is left out until the Manual tab is in the Hub.
+
+## Gideon, 20 Nov: the Workshop report follows Motech's 25-point check
+
+The Workshop report starts with Motech's 25-point check, in the sheet's order and wording (new section `m25`, 25 points with help), then the other mechanic points under "If the workshop checked them" (route stages `workshop` and `workshop-more`; the reference app's ROUTE changed to match). Each point is marked OK / Monitor / Fix now / N/A as before; on the Workshop report the note box sits next to the result, like the sheet's NOTES column. The old app's live checklist predates the 25 points, so the import adds them (`withWorkshop25`) and changes nothing else.
+
+The first real 25-point checks are transcribed in `vehicles-module/seed/` on Gideon's Mac (not committed), to enter as Workshop reports once this is live. Importing inspections isn't built.
