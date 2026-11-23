@@ -89,3 +89,28 @@ export function MoveTripButton({
     </ActionButton>
   );
 }
+
+/** "Let them know" on a clash or heads-up: sends the person who booked the notice below
+ *  (SPEC 7.3), only when tapped, through the Hub's booking notice. */
+export function NotifyBookerButton({ bookingId, visitId, text }: { bookingId: string; visitId: string; text: string }) {
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  async function go() {
+    if (!window.confirm(`Send this to the person who booked (Slack, or email if they're not on Slack)?\n\n${text}`)) return;
+    setBusy(true);
+    try {
+      const r = await fleetFetch<{ message: string; told: boolean }>("/api/vehicles/fleet/notices", { body: { bookingId, visitId } });
+      (r.told ? toast.success : toast.message)(r.message);
+      setDone(r.told);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <ActionButton onClick={go} disabled={busy || done}>
+      {done ? "Told" : "Let them know"}
+    </ActionButton>
+  );
+}

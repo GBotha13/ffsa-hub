@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getVehicleAccess } from "@/services/vehicles";
 import { createClient } from "@/lib/supabase/server";
 import { loadFleet, requireFleet } from "@/lib/fleet/load";
 import { inUse } from "@/lib/fleet/rules";
@@ -18,7 +20,15 @@ const navBtn = "inline-flex min-h-11 items-center border border-ink bg-white px-
 export default async function FleetCalendarPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = await searchParams;
   const supabase = await createClient();
-  const { access } = await requireFleet(supabase);
+  const { access, user } = await requireFleet(supabase);
+  // One calendar (Fleet part 5b; Jack, 22 Nov 2026): the booking board shows Fleet's
+  // workshop visits, inspection days and clashes, so whoever can open it goes there. This
+  // page stays only for Fleet users without the board, until part 5d removes it.
+  const va = await getVehicleAccess(supabase, user.id);
+  if (va.canApprove || va.canManage) {
+    const s = Array.isArray(sp.start) ? sp.start[0] : sp.start;
+    redirect(`/bookings/vehicles/board${s && /^\d{4}-\d{2}-\d{2}$/.test(s) ? `?from=${s}` : ""}`);
+  }
   const { F, providers } = await loadFleet(supabase);
   const canWrite = access.canManage;
   const start = calStartOf(sp.start, F.today);

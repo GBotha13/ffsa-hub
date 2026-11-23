@@ -38,3 +38,39 @@ describe("calendarWindow", () => {
     expect(calendarWindow("nonsense").from).toBe("2026-11-19");
   });
 });
+
+// Fleet part 5b: with Fleet's overlay the board calendar draws a workshop lane and
+// inspection days under each vehicle, and a red border on clashes. Without it, nothing changes.
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { FleetCalendar } from "./fleet-calendar";
+
+describe("FleetCalendar with Fleet's lane", () => {
+  const vehicles = [{ id: "v1", name: "VW Kombi", registration_plate: "KLK 556 NW", seats: 8, vehicle_type: "van", status: "active" }] as never[];
+  const bookings = [
+    { id: "b1", booking_name: "HULC", status: "approved", checkout_date: "2026-11-25", return_date: "2026-11-27", point_person: null, assignments: [{ vehicle: { id: "v1" } }] },
+  ] as never[];
+  const overlay = {
+    lanes: { v1: { visits: [{ id: "w1", from: "2026-11-26", to: "2026-11-27", label: "Service · Motech", tip: "Service at Motech: 26–27 Nov", clash: true }], checks: [{ date: "2026-11-23", st: "plan" as const, tip: "Weekly check: Mon" }] } },
+    clashBookingIds: ["b1"],
+  };
+  const render = (o: typeof overlay | null) => {
+    at("2026-11-19T10:00:00Z");
+    return renderToStaticMarkup(createElement(FleetCalendar, { vehicles, bookings, overlay: o }));
+  };
+
+  it("draws the visit, the inspection day, the clash and the extra legend", () => {
+    const out = render(overlay);
+    expect(out).toContain("CLASH · SERVICE · MOTECH");
+    expect(out).toContain("Weekly check: Mon");
+    expect(out).toContain("CLASH · </span>");
+    for (const l of ["AT THE WORKSHOP", "CLASH", "INSPECTION DAY", "CHECKED", "CHECK OVERDUE"]) expect(out).toContain(l);
+  });
+
+  it("is the board as before for someone without Fleet", () => {
+    const out = render(null);
+    expect(out).not.toContain("AT THE WORKSHOP");
+    expect(out).not.toContain("CLASH");
+    expect(out).toContain("HULC");
+  });
+});

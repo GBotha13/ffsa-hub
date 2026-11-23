@@ -10,7 +10,8 @@ import {
   type Vehicle,
 } from "@/services/vehicles";
 import { VehiclesBoard } from "../vehicles-view";
-import { calendarWindow } from "../fleet-calendar";
+import { calendarWindow, WINDOW_DAYS } from "../fleet-calendar";
+import { boardFleet } from "../fleet/calendar/board-fleet";
 
 /**
  * The vehicles team's booking board — every request with its status, dates,
@@ -46,11 +47,13 @@ export default async function VehicleBoardPage({
   // status filter only narrows the table underneath. Old ?month= links still work.
   const from = params.from ?? params.month;
   const w = calendarWindow(from);
-  const [bookingsRes, vehiclesRes, pendingCount, calendarRes] = await Promise.all([
+  const [bookingsRes, vehiclesRes, pendingCount, calendarRes, fleet] = await Promise.all([
     getVehicleBookings(supabase, status !== "all" ? { status } : undefined),
     getVehicles(supabase),
     countPendingVehicleBookings(supabase),
     getVehicleBookings(supabase, { from: w.from, to: w.to }),
+    // Fleet's lane and panel (workshop visits, inspection days, clashes): Fleet users only.
+    boardFleet(supabase, user.id, w.from, WINDOW_DAYS),
   ]);
 
   return (
@@ -62,6 +65,8 @@ export default async function VehicleBoardPage({
       pendingCount={pendingCount}
       calendarBookings={(calendarRes.data ?? []) as VehicleBookingWithRefs[]}
       from={from}
+      fleetOverlay={fleet?.overlay ?? null}
+      fleetPanel={fleet?.panel ?? null}
     />
   );
 }

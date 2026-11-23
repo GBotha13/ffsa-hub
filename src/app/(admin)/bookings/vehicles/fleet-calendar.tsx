@@ -11,13 +11,22 @@
 //   completed, or ended before today → DONE (faded)
 //   vehicle.status = maintenance     → OFF THE ROAD (black, all 30 days)
 // Denied / cancelled are not drawn. Bookings with no vehicle assigned get their own row.
+//
+// For Fleet users (Fleet part 5b, one calendar) each vehicle also gets a thin lane under its
+// bookings: workshop visits (hatched amber, with the workshop) and inspection days (a square,
+// filled when done, red when overdue). Bookings and visits that clash get a red border.
 
 import Link from "next/link";
 import type { Vehicle, VehicleBookingWithRefs } from "@/services/vehicles";
 import { todayInSA } from "@/lib/users/profile-fields";
+import type { BoardLane, BoardOverlay } from "./fleet/calendar/model";
 
 const INK = "#0A0A0A";
 const BONE = "#F4F2EA";
+const RED = "hsl(0 62% 42%)";
+const GREEN = "#3E7F2B";
+const AMBER = "#8A6400";
+const HATCH = `repeating-linear-gradient(135deg, #FFF7E0 0 6px, #F3E3B5 6px 8px)`;
 // next/font serves these under generated family names, so go through the
 // variables the root layout sets (as globals.css does); the plain names are
 // only a fallback.
@@ -76,6 +85,7 @@ export function FleetCalendar({
   from,
   basePath = "/bookings/vehicles/board",
   status,
+  overlay,
 }: {
   vehicles: Vehicle[];
   bookings: VehicleBookingWithRefs[];
@@ -85,6 +95,8 @@ export function FleetCalendar({
   basePath?: string;
   /** The page's status filter, kept when moving through the dates. */
   status?: string;
+  /** Fleet's lane (workshop visits, inspection days, clashes): Fleet users only. */
+  overlay?: BoardOverlay | null;
 }) {
   const w = calendarWindow(from);
   const windowHref = (f: string | null) => {
@@ -144,34 +156,76 @@ export function FleetCalendar({
   const rule = (x: (typeof dayInfo)[number]) => (x.dom === 1 && x.n > 1 ? INK : x.monday ? "#B4B0A2" : "#EFEDE4");
   const cellBg = (x: (typeof dayInfo)[number]) => (x.n === todayN ? "#FFFDF6" : x.past ? "#FBFAF6" : x.weekend ? "#FCFBF8" : "#FFFFFF");
 
-  const Row = ({ title, sub, warn, list, offRoad }: { title: string; sub: string; warn?: string; list: VehicleBookingWithRefs[]; offRoad?: boolean }) => (
-    <div style={{ display: "grid", gridTemplateColumns: cols, borderBottom: "1px solid #E7E4D9", minHeight: 62 }}>
+  const clashIds = new Set(overlay?.clashBookingIds ?? []);
+  const spanOf = (from: string, to: string) => {
+    const s = d(from), e = d(to);
+    const start = s < w.first ? 1 : dayIndex(s);
+    const end = e > w.last ? days : dayIndex(e);
+    return { start, span: Math.max(1, end - start + 1), cut: { l: s < w.first, r: e > w.last } };
+  };
+
+  /** The Fleet lane: workshop visits and inspection days, under the bookings. */
+  const LaneMarks = ({ lane }: { lane: BoardLane }) => (
+    <>
+      {lane.visits.map((v) => {
+        const { start, span, cut } = spanOf(v.from, v.to);
+        return (
+          <span
+            key={v.id}
+            title={`${v.clash ? "Clash · " : ""}${v.tip}`}
+            style={{ gridRow: 2, gridColumn: `${start} / span ${span}`, margin: "0 2px 5px", background: HATCH, border: v.clash ? `2px solid ${RED}` : `1px solid ${AMBER}`, minWidth: 0, overflow: "hidden", display: "flex", alignItems: "center", padding: span < 2 ? 0 : "0 6px" }}
+          >
+            {span >= 2 && (
+              <span style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: "0.08em", color: v.clash ? RED : AMBER, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {cut.l ? "← " : ""}{v.clash ? "CLASH · " : ""}{v.label.toUpperCase()}{cut.r ? " →" : ""}
+              </span>
+            )}
+            <span className="sr-only">{v.clash ? "Clash: " : ""}{v.tip}</span>
+          </span>
+        );
+      })}
+      {lane.checks
+        .filter((c) => c.date >= iso(w.first) && c.date <= iso(w.last))
+        .map((c) => (
+          <span key={c.date} title={c.tip} style={{ gridRow: 2, gridColumn: dayIndex(d(c.date)), justifySelf: "center", alignSelf: "center", marginBottom: 5, width: 11, height: 11, boxSizing: "border-box", border: `2px solid ${c.st === "late" ? RED : GREEN}`, background: c.st === "done" ? GREEN : "transparent" }}>
+            <span className="sr-only">{c.tip}</span>
+          </span>
+        ))}
+    </>
+  );
+
+  const Row = ({ title, sub, warn, list, offRoad, lane }: { title: string; sub: string; warn?: string; list: VehicleBookingWithRefs[]; offRoad?: boolean; lane?: BoardLane }) => (
+    <div style={{ display: "grid", gridTemplateColumns: cols, borderBottom: "1px solid #E7E4D9", minHeight: lane ? 82 : 62 }}>
       <div style={{ padding: "11px 16px", borderRight: `1px solid ${INK}`, display: "flex", flexDirection: "column", justifyContent: "center", gap: 3 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: INK }}>{title}</div>
         <div style={{ fontFamily: MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", color: "#7C786C" }}>{sub}</div>
         {warn && <div style={{ fontFamily: MONO, fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", color: "#8A6400" }}>{warn}</div>}
       </div>
-      <div style={{ gridColumn: `2 / span ${days}`, display: "grid", gridTemplateColumns: `repeat(${days}, minmax(0,1fr))` }}>
+      <div style={{ gridColumn: `2 / span ${days}`, display: "grid", gridTemplateColumns: `repeat(${days}, minmax(0,1fr))`, gridTemplateRows: lane ? "minmax(56px, 1fr) 22px" : undefined }}>
         {dayInfo.map((x) => (
-          <span key={x.n} style={{ gridRow: 1, gridColumn: x.n, borderLeft: `1px solid ${rule(x)}`, background: cellBg(x) }} />
+          <span key={x.n} style={{ gridRow: lane ? "1 / span 2" : 1, gridColumn: x.n, borderLeft: `1px solid ${rule(x)}`, background: cellBg(x) }} />
         ))}
+        {lane && !offRoad && <LaneMarks lane={lane} />}
         {offRoad ? (
           <div style={{ gridRow: 1, gridColumn: `1 / span ${days}`, margin: "6px 2px", background: INK, display: "flex", alignItems: "center", padding: "0 10px" }}>
             <span style={{ fontFamily: MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.12em", color: "#FFFFFF" }}>OFF THE ROAD · MAINTENANCE</span>
           </div>
         ) : (
           barsFor(list).map(({ b, start, span, meta, kind }) => {
-            const { metaColor, ...style } = BAR[kind];
+            const { metaColor, ...base } = BAR[kind];
+            const clash = clashIds.has(b.id) && kind !== "done";
+            const style = clash ? { ...base, border: `2px solid ${RED}` } : base;
             return (
               <Link
                 key={b.id}
                 href={`/bookings/vehicles/${b.id}`}
-                title={`${b.booking_name} · ${meta}`}
+                title={`${clash ? "Clash · " : ""}${b.booking_name} · ${meta}`}
                 style={{ ...style, gridRow: 1, gridColumn: `${start} / span ${span}`, margin: "6px 2px", padding: span < 2 ? 0 : "5px 8px", minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "center", gap: 2, textDecoration: "none" }}
               >
                 {span >= 2 && (
                   <>
                     <span style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: "0.08em", color: metaColor, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {clash ? <span style={{ color: RED }}>CLASH · </span> : null}
                       {kind === "pending" ? "WAITING · " : ""}{meta}
                     </span>
                     <span style={{ fontSize: 11.5, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -195,6 +249,15 @@ export function FleetCalendar({
     ["OFF THE ROAD", { background: INK }],
     ["DONE", { background: "#F8F7F2", border: "1px solid #DEDACE" }],
     ["FREE", { background: "#FFFFFF", border: "1px solid #DEDACE" }],
+    ...(overlay
+      ? ([
+          ["AT THE WORKSHOP", { background: HATCH, border: `1px solid ${AMBER}` }],
+          ["CLASH", { background: "#FFFFFF", border: `2px solid ${RED}` }],
+          ["INSPECTION DAY", { width: 12, border: `2px solid ${GREEN}` }],
+          ["CHECKED", { width: 12, background: GREEN, border: `2px solid ${GREEN}` }],
+          ["CHECK OVERDUE", { width: 12, border: `2px solid ${RED}` }],
+        ] as [string, React.CSSProperties][])
+      : []),
   ];
 
   return (
@@ -265,6 +328,7 @@ export function FleetCalendar({
                 sub={[v.registration_plate, v.seats ? `${v.seats} SEATS` : null].filter(Boolean).join(" · ").toUpperCase()}
                 list={byVehicle(v.id)}
                 offRoad={v.status === "maintenance"}
+                lane={overlay?.lanes[v.id]}
               />
             ))}
           </div>
