@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════
--- 354_fleet_visit_blocks.sql  (Fleet PR 5, SPEC 7.3)
+-- 356_fleet_visit_blocks.sql  (Fleet PR 5a, SPEC 7.3)
 --
 -- A booked workshop visit blocks its vehicle from `date` to `until`.
 -- The API's clash check already counts them (getOverlappingAssignments);
@@ -9,7 +9,8 @@
 -- Same function as 222 otherwise, hardened like 350–353 (Jack's review,
 -- 18 Nov): search_path is empty and every name is schema-qualified, EXECUTE
 -- is revoked from PUBLIC and anon, and the file is one transaction, safe to
--- re-run. Fleet migrations are 350–354 (Jack, 18 Nov 2026). Requires 222, 350.
+-- re-run. Planned as 354, but main has since used 354 and 355, so Fleet's
+-- bookings migration is 356. Requires 222, 350.
 -- ════════════════════════════════════════════════════════════
 
 BEGIN;

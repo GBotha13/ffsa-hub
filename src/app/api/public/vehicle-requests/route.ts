@@ -167,7 +167,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          "One or more of the vehicles you picked has just been booked for those dates. Please choose another.",
+          "One or more of the vehicles you picked isn’t available for those dates any more. Please choose another.",
         clashingVehicleIds: clashing,
       },
       { status: 409 }

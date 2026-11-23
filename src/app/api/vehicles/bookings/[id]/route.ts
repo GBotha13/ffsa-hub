@@ -225,7 +225,7 @@ export async function PATCH(
       return NextResponse.json(
         {
           error:
-            "One or more of those vehicles is already booked for an overlapping period.",
+            "One or more of those vehicles is already booked, or in the workshop, for those dates.",
           clashingVehicleIds: clash,
           blocked: true,
         },

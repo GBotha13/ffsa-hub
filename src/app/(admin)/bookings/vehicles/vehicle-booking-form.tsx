@@ -471,7 +471,7 @@ export function VehicleBookingForm({
             <Label>Vehicle(s) requested</Label>
             <p className="text-xs text-muted-foreground">
               Pick the vehicles you&apos;d like — the coordinator confirms the final
-              assignment. Unavailable vehicles are already booked for your dates.
+              assignment. Unavailable vehicles are already booked, or in the workshop, for your dates.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
               {vehicles.map((v) => {

@@ -131,7 +131,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          "One or more of the chosen vehicles is already booked for an overlapping period. Pick different vehicles or adjust the dates.",
+          "One or more of the chosen vehicles is already booked, or in the workshop, for those dates. Pick different vehicles or adjust the dates.",
         clashingVehicleIds: clashing,
         blocked: true,
       },
