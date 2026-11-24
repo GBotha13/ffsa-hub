@@ -879,6 +879,27 @@
   align-items: flex-start;
 }
 
+/* The quiet family line under the house meta: one line, ellipsis. */
+.family {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--sub, #5b574d);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.familyCell {
+  min-width: 160px;
+  max-width: 280px;
+  white-space: normal;
+  font-size: 13px;
+  line-height: 18px;
+}
+
 .servesCell {
   min-width: 160px;
   max-width: 280px;

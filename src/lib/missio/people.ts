@@ -16,6 +16,7 @@ import type {
   MissioStatus,
 } from "@/lib/missio/types";
 import { membershipIsCurrent } from "@/lib/missio/house-church-import";
+import { familiesFor } from "@/lib/missio/family";
 import { loadServingIndex, matchesServing, servingCounts, servingFor, type ServingIndex } from "@/lib/missio/serving";
 
 function fail(status: number, code: MissioErrorCode, error: string) {
@@ -253,11 +254,22 @@ export async function listPeople(auth: OrgAccess, query: PeopleQueryInput): Prom
     }
   }
 
-  const houses = await currentHousesFor(auth, rows.map((row) => row.contactId));
+  const pageContacts = rows.map((row) => row.contactId);
+  const [houses, families] = await Promise.all([
+    currentHousesFor(auth, pageContacts),
+    familiesFor(auth.supabase, auth.orgId, pageContacts),
+  ]);
   const withHouses = houses ? rows.map((row) => ({ ...row, houses: houses.get(row.contactId) ?? [] })) : rows;
+  // No household, or a failed read: no family field, never an empty one.
+  const withFamilies = families
+    ? withHouses.map((row) => {
+        const family = families.get(row.contactId);
+        return family ? { ...row, family } : row;
+      })
+    : withHouses;
   // Chips only ride along with the counts, so a row never shows chips the
   // funnel can't account for.
-  const body: MissioPeopleResponse = { rows: withServing(withHouses, counts ? serving : null), total };
+  const body: MissioPeopleResponse = { rows: withServing(withFamilies, counts ? serving : null), total };
   if (counts) body.serving = counts;
   return { ok: true, body };
 }

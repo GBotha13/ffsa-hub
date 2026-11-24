@@ -180,12 +180,8 @@ export function PersonProfileView({
           filter={filter}
           onFilter={setFilter}
           onMore={() => setEditing(true)}
-          aside={
-            <>
-              <HouseholdCard personId={personId} name={state.data.person.name} client={households} />
-              <HubAccessCard personId={personId} name={state.data.person.name} client={access} />
-            </>
-          }
+          family={<HouseholdCard personId={personId} name={state.data.person.name} client={households} />}
+          aside={<HubAccessCard personId={personId} name={state.data.person.name} client={access} />}
         />
       ) : null}
       {editing && state.phase === "ready" ? (
@@ -217,12 +213,15 @@ function Profile({
   filter,
   onFilter,
   onMore,
+  family,
   aside,
 }: {
   profile: PersonProfile;
   filter: Filter;
   onFilter: (filter: Filter) => void;
   onMore: () => void;
+  /** The household card. First under the header, so family is seen without scrolling on a phone. */
+  family?: React.ReactNode;
   aside: React.ReactNode;
 }) {
   const { person, contact, houses, journey } = profile;
@@ -256,6 +255,7 @@ function Profile({
 
       <div className={styles.cols}>
         <div className={styles.side}>
+          {family}
           <section className={`${styles.card} ${styles.flush}`} data-testid="profile-belongs">
             <h2 className={styles.sect}>Belongs to</h2>
             {current.length === 0 ? (

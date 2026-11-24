@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { Household } from "@/lib/missio/households";
+import type { Household, HouseholdAdult } from "@/lib/missio/households";
+import { ageFromBirthYear, ageWords, childrenPhrase, isNotSpouseLabel } from "@/lib/missio/family-format";
 import { MissioApiError, missioClient, type MissioClient } from "../api";
 import { missioFixedCopy } from "../errors";
 import { houseTitle } from "../house-churches/format";
@@ -30,6 +32,30 @@ function copyFor(caught: unknown): string {
 }
 
 /**
+ * The spouse on this profile's household card: the other adult when there
+ * are exactly two and neither is labelled as a relative or friend (same
+ * rule as the People list). Null otherwise.
+ */
+export function spouseOf(household: Household, personId: string): HouseholdAdult | null {
+  if (household.adults.length !== 2) return null;
+  if (household.adults.some((adult) => isNotSpouseLabel(adult.label))) return null;
+  const self = household.adults.find((adult) => adult.personId === personId);
+  if (!self) return null;
+  return household.adults.find((adult) => adult !== self) ?? null;
+}
+
+/** An adult's name: a link to their profile, unless it's this profile or they have no Missio people row. */
+function AdultName({ adult, personId, children }: { adult: HouseholdAdult; personId: string; children?: React.ReactNode }) {
+  const text = children ?? adult.name;
+  if (!adult.personId || adult.personId === personId) return <>{text}</>;
+  return (
+    <Link href={`/missio/people/${encodeURIComponent(adult.personId)}`} className={styles.personLink} data-testid="household-person-link">
+      {text}
+    </Link>
+  );
+}
+
+/**
  * Board M14a, the household card on a profile. Adults and children, who the
  * main contact is, and how a family message opens. Pastors only.
  */
@@ -38,11 +64,14 @@ export function HouseholdCard({
   name,
   client = householdsClient,
   people = missioClient,
+  now,
 }: {
   personId: string;
   name: string;
   client?: HouseholdsClient;
   people?: Pick<MissioClient, "listPeople">;
+  /** For tests: "today" for children's ages. */
+  now?: Date;
 }) {
   const [household, setHousehold] = useState<Household | null | undefined>(undefined);
   const [failed, setFailed] = useState(false);
@@ -83,6 +112,10 @@ export function HouseholdCard({
 
   const first = name.split(" ")[0] || "They";
   const main = household?.adults.find((adult) => adult.main);
+  const today = now ?? new Date();
+  const kids = household?.children.map((child) => ({ ...child, age: ageFromBirthYear(child.birthYear, today) })) ?? [];
+  const spouse = household ? spouseOf(household, personId) : null;
+  const kidsLine = childrenPhrase(kids);
 
   return (
     <section className={profile.card} data-testid="profile-household">
@@ -102,6 +135,17 @@ export function HouseholdCard({
           message.
         </p>
       ) : null}
+      {household && (spouse || kidsLine) ? (
+        <p className={styles.lead} data-testid="household-lead">
+          {spouse ? (
+            <>
+              Married to <AdultName adult={spouse} personId={personId}>{spouse.firstName}</AdultName>
+            </>
+          ) : null}
+          {spouse && kidsLine ? " · " : null}
+          {kidsLine}
+        </p>
+      ) : null}
       {household ? (
         <ul className={styles.members}>
           {household.adults.map((adult) => (
@@ -110,7 +154,9 @@ export function HouseholdCard({
                 {initialsOf(adult.name)}
               </span>
               <span className={styles.who}>
-                <b>{adult.name}</b>
+                <b>
+                  <AdultName adult={adult} personId={personId} />
+                </b>
                 <span className={profile.rowMeta}>
                   Adult{adult.label ? ` · ${adult.label}` : ""}
                   {adult.main ? " · main contact" : ""}
@@ -145,14 +191,14 @@ export function HouseholdCard({
               ) : null}
             </li>
           ))}
-          {household.children.map((child) => (
-            <li key={child.memberId} className={styles.member}>
+          {kids.map((child) => (
+            <li key={child.memberId} className={styles.member} data-testid="household-child">
               <span className={`${styles.avatar} ${styles.avatarChild} ${tintClass(child.memberId)}`} aria-hidden="true">
-                {initialsOf(`${child.firstName} ${child.lastName ?? ""}`)}
+                {(child.firstName.trim()[0] ?? "?").toUpperCase()}
               </span>
               <span className={styles.who}>
-                <b>{[child.firstName, child.lastName].filter(Boolean).join(" ")}</b>
-                <span className={profile.rowMeta}>Child · born {child.birthYear}</span>
+                <b>{child.firstName}</b>
+                <span className={profile.rowMeta}>{child.age === null ? "Child" : `Child · ${ageWords(child.age).toLowerCase()}`}</span>
               </span>
               {editing ? (
                 <span className={styles.memberActions}>
@@ -171,9 +217,11 @@ export function HouseholdCard({
           ))}
         </ul>
       ) : null}
-      {household && main && household.adults.length > 1 ? (
+      {household && ((main && household.adults.length > 1) || kids.length > 0) ? (
         <p className={styles.familyNote}>
-          Family messages go once, to {main.firstName}: “{household.greeting}”.
+          {main && household.adults.length > 1 ? `Family messages go once, to ${main.firstName}: “${household.greeting}”.` : null}
+          {main && household.adults.length > 1 && kids.length > 0 ? " " : null}
+          {kids.length > 0 ? "Children are listed by first name, with an age from their birth year only." : null}
         </p>
       ) : null}
       {notice ? (

@@ -11,6 +11,7 @@ import {
   formatJoined,
   type PeopleQuery,
 } from "./access";
+import { familyLine } from "@/lib/missio/family-format";
 import { MissioApiError, missioClient, missioErrorCopy, type MissioClient } from "./api";
 import { AddPersonDialog } from "./add-person";
 import { MissioDialog } from "./missio-dialog";
@@ -170,6 +171,9 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
 
   const total = list.phase === "ready" ? list.total : 0;
   const sorted = useMemo(() => (list.phase === "ready" ? byName(list.rows) : []), [list]);
+  // The Family column shows once anyone on the page has a household. Rows
+  // without one read "—" there; on the phone they simply have no line.
+  const anyFamily = sorted.some((person) => Boolean(person.family));
   const from = total === 0 ? 0 : offset + 1;
   const to = Math.min(offset + DEFAULT_PEOPLE_LIMIT, total);
   const activeFilters = (campus ? 1 : 0) + (status ? 1 : 0);
@@ -386,6 +390,7 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
                   const showLetter = index === 0 || firstLetter(sorted[index - 1].name) !== letter;
                   const meta = personMeta(person);
                   const chips = hasServingChips(person);
+                  const family = familyLine(person.family);
                   return (
                     <li key={person.id}>
                       {showLetter ? (
@@ -393,7 +398,7 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
                           {letter}
                         </div>
                       ) : null}
-                      <Link href={`/missio/people/${encodeURIComponent(person.id)}`} className={`${people.lrow} ${chips ? people.lrowTall : ""}`}>
+                      <Link href={`/missio/people/${encodeURIComponent(person.id)}`} className={`${people.lrow} ${chips || family ? people.lrowTall : ""}`}>
                         <Avatar id={person.id} name={person.name} />
                         <span className={people.lrowText}>
                           <span className={people.nm} style={{ display: "block" }}>
@@ -402,6 +407,11 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
                           <span className={`${people.meta} ${meta.follow ? people.metaFollow : ""}`} style={{ display: "block" }} data-testid="person-meta">
                             {meta.text}
                           </span>
+                          {family ? (
+                            <span className={people.family} title={family} data-testid="person-family">
+                              {family}
+                            </span>
+                          ) : null}
                           {chips ? <ServingChips person={person} /> : null}
                         </span>
                         <span className={people.tag}>{CAMPUS_SHORT[person.campus]}</span>
@@ -420,6 +430,7 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
                       <th>Status</th>
                       <th>Follow-up stage</th>
                       {serving ? <th>Serves</th> : null}
+                      {anyFamily ? <th>Family</th> : null}
                       <th>Campus</th>
                       <th>
                         <span className={people.visuallyHidden}>Edit</span>
@@ -446,6 +457,11 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
                         {serving ? (
                           <td className={`${people.servesCell} ${hasServingChips(person) ? "" : people.ink3}`}>
                             {hasServingChips(person) ? <ServingChips person={person} /> : "—"}
+                          </td>
+                        ) : null}
+                        {anyFamily ? (
+                          <td className={`${people.familyCell} ${familyLine(person.family) ? people.ink2 : people.ink3}`} data-testid="person-family-cell">
+                            {familyLine(person.family) || "—"}
                           </td>
                         ) : null}
                         <td>

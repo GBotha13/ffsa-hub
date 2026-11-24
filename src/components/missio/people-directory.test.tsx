@@ -534,4 +534,116 @@ describe("people directory", () => {
       expect(header).not.toContain("Serves");
     });
   });
+
+  describe("family", () => {
+    const base = { campus: "potch" as const, status: "active" as const, joinedAt: null, currentStage: null };
+    const house4 = [{ houseId: "h4", number: 4, name: null, role: "member" as const }];
+    const kids = [
+      { firstName: "Maya", age: 7 },
+      { firstName: "Daniel", age: 4 },
+    ];
+    const familyRows: MissioPerson[] = [
+      {
+        ...base,
+        id: "esther",
+        contactId: "c-esther",
+        name: "Esther Naidoo",
+        houses: house4,
+        teams: [{ id: "00000000-0000-4000-8000-000000000002", name: "Worship", leads: false }],
+        interestTeams: [],
+        family: { householdId: "hh1", spouse: { personId: "johan", firstName: "Johan", label: "Husband" }, children: kids },
+      },
+      {
+        ...base,
+        id: "johan",
+        contactId: "c-johan",
+        name: "Johan Naidoo",
+        houses: house4,
+        teams: [],
+        interestTeams: [],
+        family: { householdId: "hh1", spouse: { personId: "esther", firstName: "Esther", label: null }, children: kids },
+      },
+      { ...base, id: "lila", contactId: "c-lila", name: "Lila Mokoena", houses: [], teams: [], interestTeams: [] },
+    ];
+    const serving: MissioServingCounts = { serves: 1, doesnt: 2, interested: 0, teams: [{ id: "00000000-0000-4000-8000-000000000002", name: "Worship", count: 1 }] };
+
+    async function mount(rowsIn: MissioPerson[]) {
+      const client: MissioClient = {
+        getMe: async () => {
+          throw new Error("unused");
+        },
+        listPeople: async () => ({ rows: rowsIn, total: rowsIn.length, serving }),
+        searchContacts: async () => ({ matches: [] }),
+        createPerson: async () => {
+          throw new Error("unused");
+        },
+        updatePerson: async () => {},
+      };
+      const { host, root } = render(<PeopleDirectory client={client} />);
+      roots.push(root);
+      hosts.push(host);
+      await act(async () => {
+        await Promise.resolve();
+      });
+      return host;
+    }
+    const card = (host: HTMLElement, name: string) =>
+      [...host.querySelectorAll("[data-testid=people-cards] li")].find((item) => item.textContent?.includes(name));
+    function cleanupAll() {
+      while (roots.length) act(() => roots.pop()?.unmount());
+      while (hosts.length) hosts.pop()?.remove();
+    }
+
+    it("puts a quiet family line with names and ages under the house, above the serving chips", async () => {
+      const host = await mount(familyRows);
+      const esther = card(host, "Esther Naidoo")!;
+      const line = esther.querySelector("[data-testid=person-family]") as HTMLElement;
+      expect(line.textContent).toBe("Married to Johan · Maya, 7 and Daniel, 4");
+      expect(line.getAttribute("title")).toBe("Married to Johan · Maya, 7 and Daniel, 4");
+      // Order: name, house meta, family line, serving chips.
+      const order = [...esther.querySelectorAll("[data-testid=person-meta], [data-testid=person-family], [data-testid=person-serving]")].map((el) =>
+        el.getAttribute("data-testid")
+      );
+      expect(order).toEqual(["person-meta", "person-family", "person-serving"]);
+      expect(card(host, "Johan Naidoo")?.querySelector("[data-testid=person-family]")?.textContent).toBe("Married to Esther · Maya, 7 and Daniel, 4");
+      // Names and ages, never a count.
+      expect(host.textContent).not.toMatch(/\d+ (children|kids)/);
+    });
+
+    it("draws no line for someone in no household", async () => {
+      const host = await mount(familyRows);
+      expect(card(host, "Lila Mokoena")?.querySelector("[data-testid=person-family]")).toBeNull();
+      expect(card(host, "Lila Mokoena")?.textContent).not.toMatch(/family|married/i);
+    });
+
+    it("keeps the line to one line with an ellipsis", async () => {
+      const long: MissioPerson = {
+        ...familyRows[0]!,
+        family: {
+          householdId: "hh1",
+          spouse: { personId: "johan", firstName: "Johannes-Christoffel", label: null },
+          children: ["Anastasia", "Bartholomew", "Constantine", "Dominique"].map((firstName, index) => ({ firstName, age: 12 - index * 3 })),
+        },
+      };
+      const host = await mount([long]);
+      const line = host.querySelector("[data-testid=person-family]") as HTMLElement;
+      expect(line.textContent).toBe("Married to Johannes-Christoffel · Anastasia, 12; Bartholomew, 9; Constantine, 6 and Dominique, 3");
+      // The class carries nowrap + ellipsis; the row text can shrink (min-width: 0).
+      expect(line.className).toMatch(/family/);
+      expect(line.closest("a")?.className).toMatch(/lrowTall/);
+    });
+
+    it("adds a Family column on desktop only when someone has a household", async () => {
+      const host = await mount(familyRows);
+      const header = [...host.querySelectorAll("[data-testid=people-table] th")].map((th) => th.textContent);
+      expect(header).toContain("Family");
+      const cells = [...host.querySelectorAll("[data-testid=person-family-cell]")].map((td) => td.textContent);
+      expect(cells).toEqual(["Married to Johan · Maya, 7 and Daniel, 4", "Married to Esther · Maya, 7 and Daniel, 4", "—"]);
+
+      cleanupAll();
+      const none = await mount([familyRows[2]!]);
+      const noneHeader = [...none.querySelectorAll("[data-testid=people-table] th")].map((th) => th.textContent);
+      expect(noneHeader).not.toContain("Family");
+    });
+  });
 });

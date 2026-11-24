@@ -37,6 +37,26 @@ export type MissioPerson = {
   teams?: MissioPersonTeam[];
   /** Teams they asked about on WhatsApp (status new only), not yet on the roster for. */
   interestTeams?: MissioPersonInterest[];
+  /**
+   * Their Missio household (GET /api/missio/people only), when they're an
+   * adult in one. Absent when they're in none, or when the household read
+   * failed, so a row never claims a family it couldn't check.
+   */
+  family?: MissioPersonFamily;
+};
+
+/**
+ * A family summary on a People row. First names only, no surnames, no
+ * contact details. Children's age comes from their birth year.
+ */
+export type MissioPersonFamily = {
+  householdId: string;
+  /** The other adult, when there are exactly two and neither is labelled as a relative or friend. */
+  spouse?: { personId: string | null; firstName: string; label: string | null };
+  /** Every other adult, when it isn't a simple couple (three or more adults, or a "mom"). */
+  otherAdults?: Array<{ personId: string | null; firstName: string; label: string | null }>;
+  /** Oldest first. */
+  children: Array<{ firstName: string; age: number | null }>;
 };
 
 /** A team on a People row. One per team: "Leads" wins over a member row. */
