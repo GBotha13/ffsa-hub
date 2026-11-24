@@ -3,7 +3,8 @@ import { bad, fleetAuth, isUuid, logTime, readJson } from "@/lib/fleet/api";
 import { fixEntry } from "@/lib/fleet/fixes";
 import { todayInSA } from "@/lib/fleet/rules";
 import type { ConditionEntry } from "@/lib/fleet/rules/types";
-import { getFleetVehicle, insertFleetFix, updateFleetVehicleDetails } from "@/services/fleet";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getFleetVehicle, insertFleetFix, removeUnfinishedFleetFix, updateFleetVehicleDetails } from "@/services/fleet";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -31,7 +32,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   // History first: if it can't be kept, nothing changes.
   const f = r.entry.f!;
-  const { error: fixErr } = await insertFleetFix(auth.supabase, {
+  const { data: fix, error: fixErr } = await insertFleetFix(auth.supabase, {
     vehicle_id: id,
     item_id: itemId,
     point: (condition[itemId]?.t || itemId).slice(0, 200),
@@ -44,7 +45,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (fixErr) return NextResponse.json({ error: fixErr.message }, { status: 500 });
 
   const { error } = await updateFleetVehicleDetails(auth.supabase, id, { condition: { ...condition, [itemId]: r.entry }, updated_by: auth.user.id });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    // The point didn't change, so the fix didn't happen: take its row back out.
+    if (fix?.id) {
+      const { error: undoErr } = await removeUnfinishedFleetFix(createAdminClient(), fix.id);
+      if (undoErr) console.error("[fleet] couldn't remove an unfinished fix", fix.id, undoErr.message);
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
   await logTime(auth.supabase, auth.user.id, { kind: "workshop", vehicleId: id, mins: 1 });
   return NextResponse.json({ success: true, message: "Marked as fixed." });
 }

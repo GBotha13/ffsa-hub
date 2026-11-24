@@ -8,16 +8,22 @@ let canManage = true;
 const writes: Record<string, unknown>[] = [];
 const fixes: Record<string, unknown>[] = [];
 let fixFails = false;
+let conditionFails = false;
+const removed: string[] = [];
 
 vi.mock("@/lib/fleet/api", async (orig) => ({
   ...(await orig<object>()),
   fleetAuth: async () => (canManage ? { ok: true, supabase: {}, user: { id: "u1" }, access: {} } : { ok: false, response: new Response(null, { status: 403 }) }),
   logTime: vi.fn(async () => {}),
 }));
+vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({}) }));
 vi.mock("@/lib/fleet/rules", async (orig) => ({ ...(await orig<object>()), todayInSA: () => "2026-11-23" }));
 vi.mock("@/services/fleet", () => ({
   getFleetVehicle: async () => ({ data: { id: V, details: { condition } }, error: null }),
-  updateFleetVehicleDetails: vi.fn(async (_s: unknown, _id: string, patch: Record<string, unknown>) => (writes.push(patch), { data: {}, error: null })),
+  updateFleetVehicleDetails: vi.fn(async (_s: unknown, _id: string, patch: Record<string, unknown>) =>
+    conditionFails ? { data: null, error: { message: "write failed" } } : (writes.push(patch), { data: {}, error: null })
+  ),
+  removeUnfinishedFleetFix: vi.fn(async (_s: unknown, id: string) => (removed.push(id), { error: null })),
   insertFleetFix: vi.fn(async (_s: unknown, row: Record<string, unknown>) => (fixes.push(row), fixFails ? { data: null, error: { message: "nope" } } : { data: { id: "f1" }, error: null })),
 }));
 
@@ -30,6 +36,8 @@ beforeEach(() => {
   writes.length = 0;
   fixes.length = 0;
   fixFails = false;
+  conditionFails = false;
+  removed.length = 0;
   canManage = true;
   condition = {
     "m25-balljoints": { s: "fix", d: "2026-11-19", n: "4x lower control arm bushes worn", i: "ins-1", t: "Ball joints and control arms" },
@@ -64,6 +72,14 @@ describe("Mark as fixed", () => {
     const res = await POST(req({ itemId: "m25-balljoints", date: "2026-11-22", by: "Motech", work: "x" }), params);
     expect(res.status).toBe(500);
     expect(writes).toHaveLength(0);
+  });
+
+  it("takes the fix back out if the point can't be saved (no orphan in History)", async () => {
+    conditionFails = true;
+    const res = await POST(req({ itemId: "m25-balljoints", date: "2026-11-22", by: "Motech", work: "x" }), params);
+    expect(res.status).toBe(500);
+    expect(fixes).toHaveLength(1);
+    expect(removed).toEqual(["f1"]);
   });
 
   it("refuses a point that isn't Fix now, and bad input", async () => {
