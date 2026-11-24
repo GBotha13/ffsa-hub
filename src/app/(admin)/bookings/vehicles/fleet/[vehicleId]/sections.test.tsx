@@ -85,10 +85,28 @@ describe("vehicle page tabs render", () => {
 
   it("Condition, History, Photos, Manual", () => {
     expect(html(ConditionTab, { vehicleId: v.id, view: conditionView(F.checklist, v, "issues"), f: "issues", today: TUE })).toContain("Cracked");
+    // Mark as fixed (Gideon, 23 Nov 2026): on Fix now points, for people who can manage Fleet.
+    expect(html(ConditionTab, { vehicleId: v.id, view: conditionView(F.checklist, v, "issues"), f: "issues", today: TUE, canWrite: true })).toContain("Mark as fixed");
+    expect(html(ConditionTab, { vehicleId: v.id, view: conditionView(F.checklist, v, "issues"), f: "issues", today: TUE })).not.toContain("Mark as fixed");
+    const fixedV = { ...v, condition: { "ext-front": { s: "ok", d: "2026-11-16", n: "Fixed by Motech: New grille", f: { by: "Motech", work: "New grille", recordedAt: "", was: { s: "fix", d: "2026-11-10", n: "Cracked" } } } } };
+    const fixedOut = html(ConditionTab, { vehicleId: v.id, view: conditionView(F.checklist, fixedV as never, "ok"), f: "ok", today: TUE, canWrite: true });
+    expect(fixedOut).toContain("Fixed 16 Nov 2026 by Motech:");
+    expect(fixedOut).toContain("New grille");
+    expect(fixedOut).toContain("Was Fix now (10 Nov 2026): Cracked");
+    expect(fixedOut).not.toContain("Mark as fixed");
     const hist = html(HistoryTab, { items: historyItems([], visits, []), ctx, canWrite: true });
     expect(hist).toContain("Body repair");
     expect(hist).toContain("Edit");
     expect(html(HistoryTab, { items: [], ctx, canWrite: false })).toContain("No inspections or workshop visits recorded yet.");
+    // Fixes (358) are kept in the History for good, whatever a later inspection says.
+    const fixHist = html(HistoryTab, {
+      items: historyItems([], [], [], [{ id: "f1", date: "2026-11-22", point: "Ball joints and control arms", by: "Motech", work: "Replaced the bushes.", was: { s: "fix", d: "2026-11-19", n: "Bushes worn" }, createdAt: "" }]),
+      ctx,
+      canWrite: true,
+    });
+    expect(fixHist).toContain("Fixed: Ball joints and control arms");
+    expect(fixHist).toContain("By Motech:");
+    expect(fixHist).toContain("Was Fix now (19 Nov 2026): Bushes worn");
     expect(html(PhotosTab, { groups: photoGroups([], visits) })).toContain("Resale evaluation · 23 Mar 2026");
     expect(html(PhotosTab, { groups: [] })).toContain("No photos yet.");
     const man = html(ManualTab, {

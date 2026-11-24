@@ -203,3 +203,7 @@ The first real 25-point checks are transcribed in `vehicles-module/seed/` on Gid
 - **5c — repairs and breakdowns mid-booking.** The vehicle goes to Maintenance until marked back; same-class swap for the rest of the booking; on hold or cancel when nothing is free; the 10-day breakdown look-ahead.
 - **5d — remove Fleet's calendar.**
 
+
+## Gideon, 23 Nov: Mark as fixed
+
+A Fix now point can be marked fixed on the vehicle's Condition tab (date, who fixed it, what was done) without a whole inspection. It goes back to OK from that date, with the fix stored on the point (`ConditionEntry.f`, not read by the rules); the next inspection that checks it overrides it as usual. Deleting an inspection rebuilds the condition from the remaining inspections and keeps fixes newer than the rebuilt result (`keepFixes`). Each fix is also kept for good in `fleet_fixes` (358: add-only, no update or delete for anyone but the service role; a vehicle with fixes can't be deleted) and shown in the vehicle's History, because Gideon wants all of a vehicle's history kept (23 Nov). Until 358 is applied, History shows no fixes rather than failing.

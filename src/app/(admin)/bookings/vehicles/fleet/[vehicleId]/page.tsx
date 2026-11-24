@@ -18,7 +18,7 @@ import {
   weekly,
   whereList,
 } from "@/lib/fleet/rules";
-import { getFleetInspections, getFleetOdometerReadings } from "@/services/fleet";
+import { getFleetFixes, getFleetInspections, getFleetOdometerReadings } from "@/services/fleet";
 import { StatusPill } from "@/components/ffsa";
 import { cn } from "@/lib/utils/cn";
 import { FLEET, Plate, vehicleHref } from "../_components/ui";
@@ -33,6 +33,7 @@ import {
   conditionView,
   headerMeta,
   historyItems,
+  fixFromRow,
   inspectionFromRow,
   issuesText,
   keyDates,
@@ -90,13 +91,18 @@ export default async function FleetVehiclePage({
   const visits = F.visits.filter((r) => r.vehicleId === id) as unknown as Visit[];
 
   // History and Photos read the inspections; History also reads the km readings.
-  const [inspRes, odoRes] = await Promise.all([
+  const [inspRes, odoRes, fixRes] = await Promise.all([
     tab === "history" || tab === "photos" ? getFleetInspections(supabase, { vehicleId: id }) : null,
     tab === "history" ? getFleetOdometerReadings(supabase, id) : null,
+    tab === "history" ? getFleetFixes(supabase, id) : null,
   ]);
   for (const r of [inspRes, odoRes]) if (r?.error) throw new Error(r.error.message);
   const inspections = ((inspRes?.data ?? []) as Record<string, unknown>[]).map((r) => inspectionFromRow(r, F.trips));
   const readings = ((odoRes?.data ?? []) as Record<string, unknown>[]).map(kmFromRow);
+  // Fixes (358): until that migration is applied the table isn't there, so show none
+  // rather than break the History tab.
+  if (fixRes?.error) console.error("[fleet] fixes", fixRes.error.message);
+  const fixes = fixRes?.error ? [] : ((fixRes?.data ?? []) as Record<string, unknown>[]).map(fixFromRow);
 
   const w = weekly(F, v);
   const st = statusOf(F, v);
@@ -213,8 +219,8 @@ export default async function FleetVehiclePage({
           canWrite={canWrite}
         />
       )}
-      {tab === "condition" && <ConditionTab vehicleId={id} view={conditionView(F.checklist, v, condFilterOf(sp.f))} f={condFilterOf(sp.f)} today={today} />}
-      {tab === "history" && <HistoryTab items={historyItems(inspections, visits, readings)} ctx={ctx} canWrite={canWrite} />}
+      {tab === "condition" && <ConditionTab vehicleId={id} view={conditionView(F.checklist, v, condFilterOf(sp.f))} f={condFilterOf(sp.f)} today={today} canWrite={canWrite} />}
+      {tab === "history" && <HistoryTab items={historyItems(inspections, visits, readings, fixes)} ctx={ctx} canWrite={canWrite} />}
       {tab === "photos" && <PhotosTab groups={photoGroups(inspections, visits)} />}
       {tab === "manual" && (
         <ManualTab

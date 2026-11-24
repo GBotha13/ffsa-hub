@@ -35,7 +35,10 @@ vi.mock("@/services/fleet", () => ({
   deleteFleetDraft: record("deleteFleetDraft", () => ({ error: null })),
   getFleetInspection: record("getFleetInspection", () => ({ data: stored.find((r) => r.id === INS) ?? null, error: null })),
   getFleetInspections: record("getFleetInspections", () => ({ data: stored, error: null })),
+  getFleetVehicle: record("getFleetVehicle", () => ({ data: { details: { condition: vehicleCondition } }, error: null })),
 }));
+// The vehicle's condition before a delete (Mark as fixed entries are kept through it).
+let vehicleCondition: Record<string, unknown> = {};
 
 const req = (body: unknown) => new Request("http://x", { method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json" } });
 const argOf = (fn: string, i = 1) => calls.find((c) => c.fn === fn)?.args[i] as Record<string, unknown>;
@@ -172,6 +175,19 @@ describe("DELETE /api/vehicles/fleet/inspections/[id]", () => {
       last_monthly: { id: "old", date: "2026-11-03" },
       updated_by: "u1",
     });
+  });
+
+  it("keeps a point marked as fixed on the vehicle page, newer than the inspections left", async () => {
+    stored = [
+      { id: INS, vehicle_id: H12, type: "weekly", date: "2026-11-17", results: { "eng-oil": r("fix") }, counts: { fix: 1 }, created_at: "2026-11-17T09:00:00Z" },
+      { id: "old", vehicle_id: H12, type: "monthly", date: "2026-11-03", results: { "eng-oil": r("fix") }, counts: { fix: 1 }, created_at: "2026-11-03T09:00:00Z" },
+    ];
+    const fixed = { s: "ok", d: "2026-11-10", n: "Fixed by Motech: oil changed", f: { by: "Motech", work: "oil changed", recordedAt: "", was: { s: "fix" } } };
+    vehicleCondition = { "eng-oil": fixed };
+    const { DELETE } = await import("./[id]/route");
+    await DELETE(new Request("http://x", { method: "DELETE" }), params(INS));
+    expect((argOf("updateFleetVehicleDetails", 2).condition as Record<string, unknown>)["eng-oil"]).toEqual(fixed);
+    vehicleCondition = {};
   });
 
   it("404s an inspection that's gone", async () => {
