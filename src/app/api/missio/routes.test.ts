@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { missioMatchToken, queryHmac } from "@/lib/missio/match-token";
 
@@ -945,6 +945,75 @@ describe("GET /api/missio/people serving", () => {
     state.userId = null;
     expect((await get("/api/missio/people?serves=yes")).status).toBe(401);
     expect(state.ops.some((op) => op.table.startsWith("missio_"))).toBe(false);
+  });
+});
+
+describe("GET /api/missio/people family", () => {
+  const OTHER_HH = "ffffffff-ffff-4fff-8fff-fffffffffff9";
+
+  function families() {
+    addContact({ id: "c-esther", first: "Esther", last: "Naidoo", personId: "esther" });
+    addContact({ id: "c-johan", first: "Johan", last: "Naidoo", preferred: "Jo", personId: "johan" });
+    addContact({ id: "c-lila", first: "Lila", last: "Mokoena", personId: "lila" });
+    addContact({ id: "c-sipho", first: "Sipho", last: "Dlamini", personId: "sipho" });
+    state.tables.missio_households = [
+      { id: "hh1", org_id: MISSIO, name: null, main_contact_id: "c-esther" },
+      // Another org's household never shows on Missio People.
+      { id: OTHER_HH, org_id: FFSA, name: null, main_contact_id: "c-sipho" },
+    ];
+    state.tables.missio_household_members = [
+      { id: "m1", household_id: "hh1", kind: "adult", contact_id: "c-esther", first_name: null, last_name: null, birth_year: null, label: null, created_at: "2026-01-01" },
+      { id: "m2", household_id: "hh1", kind: "adult", contact_id: "c-johan", first_name: null, last_name: null, birth_year: null, label: "Husband", created_at: "2026-01-02" },
+      { id: "m3", household_id: "hh1", kind: "child", contact_id: null, first_name: "Daniel", last_name: "Naidoo", birth_year: 2022, label: null, created_at: "2026-01-03" },
+      { id: "m4", household_id: "hh1", kind: "child", contact_id: null, first_name: "Maya", last_name: "Naidoo", birth_year: 2019, label: null, created_at: "2026-01-04" },
+      { id: "m5", household_id: OTHER_HH, kind: "adult", contact_id: "c-sipho", first_name: null, last_name: null, birth_year: null, label: null, created_at: "2026-01-01" },
+    ];
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-06-01T08:00:00+02:00"));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("puts the spouse and the children's first names and ages on both adults, and nothing on anyone else", async () => {
+    families();
+    const body = await (await get("/api/missio/people")).json();
+    const byId = new Map(body.rows.map((row: { id: string }) => [row.id, row]));
+    const children = [
+      { firstName: "Maya", age: 7 },
+      { firstName: "Daniel", age: 4 },
+    ];
+    expect((byId.get("esther") as { family: unknown }).family).toEqual({
+      householdId: "hh1",
+      spouse: { personId: "johan", firstName: "Jo", label: "Husband" },
+      children,
+    });
+    expect((byId.get("johan") as { family: unknown }).family).toEqual({
+      householdId: "hh1",
+      spouse: { personId: "esther", firstName: "Esther", label: null },
+      children,
+    });
+    expect("family" in (byId.get("lila") as object)).toBe(false);
+    expect("family" in (byId.get("sipho") as object)).toBe(false);
+    // Children: first names and ages only. No surnames, years or new people rows.
+    expect(JSON.stringify(body.rows.map((row: { family?: unknown }) => row.family ?? null))).not.toMatch(/Naidoo|2019|2022/);
+    expect(body.rows).toHaveLength(4);
+    expect(state.writes).toEqual([]);
+    const familyReads = state.ops.filter((op) => op.table === "missio_households" || op.table === "missio_household_members");
+    expect(familyReads.length).toBeGreaterThan(0);
+    expect(familyReads.every((op) => op.client === "user" && op.op.action === "select")).toBe(true);
+    expect(state.ops.some((op) => op.table === "contacts")).toBe(false);
+  });
+
+  it("leaves family off every row when the household read fails, and still loads the list", async () => {
+    families();
+    state.tableError = "missio_household_members";
+    const res = await get("/api/missio/people");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.rows).toHaveLength(4);
+    expect(body.rows.every((row: object) => !("family" in row))).toBe(true);
   });
 });
 

@@ -71,6 +71,41 @@ describe("person profile", () => {
     expect(houses?.getAttribute("aria-pressed")).toBe("true");
   });
 
+  it("puts the household first under the header, before where they belong", async () => {
+    const thisYear = new Date().getUTCFullYear();
+    const household = {
+      id: "hh1",
+      title: "The Molefes",
+      name: null,
+      mainContactId: "c1",
+      greeting: "Hi Kea & Sam",
+      adults: [
+        { memberId: "a1", contactId: "c1", personId: "p1", name: "Kea Molefe", firstName: "Kea", label: null, main: true, houses: [] },
+        { memberId: "a2", contactId: "c2", personId: "p2", name: "Sam Molefe", firstName: "Sam", label: "Husband", main: false, houses: [] },
+      ],
+      children: [{ memberId: "k1", firstName: "Lebo", lastName: "Molefe", birthYear: thisYear - 6 }],
+    };
+    const households = {
+      list: async () => [household],
+      forPerson: async () => household,
+      forContact: async () => household,
+      create: async () => household,
+      addAdult: async () => household,
+      addChild: async () => household,
+      update: async () => household,
+      remove: async () => household,
+    };
+    const host = mount(<PersonProfileView personId="p1" load={async () => profile} access={noLogin} households={households} />);
+    await settle();
+    const side = host.querySelector("[data-testid=profile-household]")?.parentElement as HTMLElement;
+    const order = [...side.children].map((el) => el.getAttribute("data-testid"));
+    expect(order.indexOf("profile-household")).toBe(0);
+    expect(order.indexOf("profile-household")).toBeLessThan(order.indexOf("profile-belongs"));
+    const card = host.querySelector("[data-testid=profile-household]") as HTMLElement;
+    expect(card.querySelector("[data-testid=household-lead]")?.textContent).toMatch(/^Married to Sam · Lebo, [56]$/);
+    expect(card.querySelector("a[data-testid=household-person-link]")?.getAttribute("href")).toBe("/missio/people/p2");
+  });
+
   it("says so when the person can't be found", async () => {
     const host = mount(
       <PersonProfileView
