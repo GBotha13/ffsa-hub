@@ -10,6 +10,7 @@
  * tests can swap it wholesale (testing-hub.ts).
  */
 
+import { blocksWindow, holdLookback, HOLD_STATUSES } from "@/lib/vehicles/hold";
 import { canManageHubForms } from "@/lib/auth/hub-forms-access";
 import { hasAnyPermission, hasAnyRole } from "@/lib/api-auth";
 import { userHasPassword } from "@/lib/auth/account-state";
@@ -136,10 +137,10 @@ export async function vehicleDayCounts(admin: Client, from: string, to: string):
     admin.from("vehicles").select("id, vehicle_type").eq("status", "active"),
     admin
       .from("vehicle_bookings")
-      .select("id, status, checkout_date, return_date")
-      .in("status", ["pending", "approved"])
+      .select("*") // "*": the hold columns (365) may not exist yet
+      .in("status", HOLD_STATUSES)
       .lte("checkout_date", to)
-      .gte("return_date", from),
+      .gte("return_date", holdLookback(from)),
   ]);
   const live = (bookings ?? []) as DayCountBooking[];
   const { data: assignments } =
@@ -150,7 +151,7 @@ export async function vehicleDayCounts(admin: Client, from: string, to: string):
 }
 
 type DayCountVehicle = { id: string; vehicle_type: string };
-type DayCountBooking = { id: string; status: string; checkout_date: string; return_date: string };
+type DayCountBooking = { id: string; status: string; checkout_date: string; return_date: string; purpose?: string | null; hold_released_at?: string | null };
 type DayCountAssignment = { vehicle_id: string; vehicle_booking_id: string };
 
 /** vehicle_availability()'s arithmetic, over rows already read. Days are inclusive ISO dates. */
@@ -172,11 +173,11 @@ export function countVehicleDays(
     const day = new Date(t).toISOString().slice(0, 10);
     const used = { approved: { van: new Set<string>(), car: new Set<string>() }, pending: { van: new Set<string>(), car: new Set<string>() } };
     for (const b of bookings) {
-      if (b.checkout_date > day || b.return_date < day) continue;
-      if (b.status !== "approved" && b.status !== "pending") continue;
+      if (!blocksWindow(b, day, day)) continue; // an International Team hold counts as booked
+      const status = b.status === "pending" ? "pending" : "approved"; // a hold after completion is confirmed
       for (const vid of byBooking.get(b.id) ?? []) {
         const type = typeOf.get(vid); // inactive vehicles aren't in the fleet, so don't count
-        if (type === "van" || type === "car") used[b.status][type].add(vid);
+        if (type === "van" || type === "car") used[status][type].add(vid);
       }
     }
     const vanTotal = total("van");

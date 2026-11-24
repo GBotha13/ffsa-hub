@@ -320,7 +320,7 @@ export function PublicVehicleRequestForm({
           />
         </div>
       </div>
-      <DueBackNote lastDay={form.return_date} plain className="sm:max-w-[66%]" />
+      <DueBackNote lastDay={form.return_date} purpose={form.purpose} plain className="sm:max-w-[66%]" />
       {days > 0 && (
         <p className="text-xs opacity-70">
           {days} day{days === 1 ? "" : "s"} (collection to last day, inclusive).

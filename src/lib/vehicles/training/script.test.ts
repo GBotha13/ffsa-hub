@@ -15,7 +15,7 @@ describe("the Training page's script", () => {
   it("runs in time order, from the request to booking B's early return", () => {
     expect(steps.map((s) => s.at)).toEqual([...steps.map((s) => s.at)].sort());
     expect(steps[0].title).toBe("Thandi sends the request");
-    expect(steps.at(-1)!.title).toBe("Booking B due back on the earlier day");
+    expect(steps.at(-1)!.title).toBe("Someone tries to book the Almera during the hold");
     expect(steps.filter((s) => s.title.startsWith("The coordinator")).map((s) => s.title)).toEqual([
       "The coordinator taps Approve",
       "The coordinator approves the early return",

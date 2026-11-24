@@ -13,6 +13,7 @@
 // Everything is best-effort: nothing here may fail the action that triggered
 // it. All reads use the ADMIN client (callers are already authorised).
 
+import { blockEnd } from "@/lib/vehicles/hold";
 import * as slack from "@/lib/slack/client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { dateRangeLabel } from "@/lib/bookings/dates";
@@ -151,7 +152,7 @@ async function loadCtx(admin: Client, bookingId: string): Promise<Ctx | null> {
 
   const [fleetRes, overlapping, inspRes] = await Promise.all([
     admin.from("vehicles").select("id, name, vehicle_type, status").eq("status", "active").order("sort_order"),
-    getOverlappingAssignments(admin, b.checkout_date, b.return_date, b.id),
+    getOverlappingAssignments(admin, b.checkout_date, blockEnd(b), b.id),
     admin
       .from("vehicle_inspections")
       .select("kind, mileage, fuel_full, washed, damage_reported, damage_panels, inventory, condition_notes, driver_names, created_at")

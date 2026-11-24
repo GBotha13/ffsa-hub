@@ -198,7 +198,7 @@ export async function handleVehicleInteraction(admin: Client, p: VehicleInteract
   after(async () => {
     const { data: booking } = await admin
       .from("vehicle_bookings")
-      .select("id, status, checkout_date, return_date")
+      .select("*") // "*": the hold columns (365) may not exist yet
       .eq("id", bookingId)
       .maybeSingle();
     if (!booking) return tell(p.response_url, "That booking no longer exists.");

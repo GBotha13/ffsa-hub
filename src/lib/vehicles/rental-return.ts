@@ -20,6 +20,7 @@ import { notifyVehicleRequester } from "@/lib/vehicles/requester-notify";
 import { postTracked, section, context, openButton, type Message, type Block } from "@/lib/vehicles/slack-alerts";
 import { fmtLong } from "./rental-messages";
 import { rentalMessagesOn } from "./rental-schedule";
+import { HOLD_PURPOSE, holdDays } from "./hold";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Client = any;
@@ -46,6 +47,11 @@ export interface ReturnBooking {
   early_return_date: string | null;
   early_return_status: string | null;
   early_return_requested_by: string | null;
+  /** 'international_team' keeps the vehicles back after the due-back day (hold.ts). */
+  purpose?: string | null;
+  hold_released_at?: string | null;
+  hold_released_by?: string | null;
+  hold_release_note?: string | null;
   vehicles: { id: string; name: string; reg: string | null }[];
   drivers: string[];
 }
@@ -56,16 +62,22 @@ export interface PostRentalState {
 
 const time = (iso: string) =>
   new Intl.DateTimeFormat("en-ZA", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Africa/Johannesburg" }).format(new Date(iso));
+/** After an International Team: the full valet wash, and how long the vehicles are held. */
+export function valetLine(b: ReturnBooking): string | null {
+  if (b.purpose !== HOLD_PURPOSE) return null;
+  const held = holdDays(b);
+  return held
+    ? `🧽 *International team: book a full valet wash as soon as it’s back.* The vehicles are held until ${fmtLong(held.to)} for the valet and the post-rental inspection.`
+    : `🧽 *International team: book a full valet wash as soon as it’s back.* (The hold after this booking was released.)`;
+}
+
 const vehicleList = (b: ReturnBooking) => b.vehicles.map((v) => `*${v.name}*${v.reg ? ` (${v.reg})` : ""}`).join(", ") || "Vehicle";
 
 export async function loadReturnBooking(admin: Client, bookingId: string): Promise<ReturnBooking | null> {
   const { data: b } = await admin
     .from("vehicle_bookings")
-    .select(
-      "id, booking_name, status, checkout_date, return_date, requested_by, requester_name, returned_at, returned_by, " +
-        "early_return_date, early_return_status, early_return_requested_by, " +
-        "vehicle_booking_assignments(vehicle_id, vehicles(id, name, registration_plate)), vehicle_booking_drivers(name)"
-    )
+    // "*": the hold columns (365) may not exist yet.
+    .select("*, vehicle_booking_assignments(vehicle_id, vehicles(id, name, registration_plate)), vehicle_booking_drivers(name)")
     .eq("id", bookingId)
     .maybeSingle();
   if (!b) return null;
@@ -104,7 +116,7 @@ export function dueBackMessage(b: ReturnBooking, returnedBy?: string): Message {
   if (b.returned_at) {
     return {
       text: `Returned: ${b.booking_name}`,
-      blocks: [section(`*✅ Returned: ${b.booking_name}*\n${vehicleList(b)}\nMarked returned at ${time(b.returned_at)}${returnedBy ? ` by ${returnedBy}` : ""}. Next: the post-rental inspection.`)],
+      blocks: [section(`*✅ Returned: ${b.booking_name}*\n${vehicleList(b)}\nMarked returned at ${time(b.returned_at)}${returnedBy ? ` by ${returnedBy}` : ""}. Next: the post-rental inspection${b.purpose === HOLD_PURPOSE ? " and the full valet wash" : ""}.`)],
     };
   }
   if (b.status !== "approved") {
@@ -114,6 +126,7 @@ export function dueBackMessage(b: ReturnBooking, returnedBy?: string): Message {
     text: `Due back today before 12:00: ${b.booking_name}`,
     blocks: [
       section(`*🔑 Due back today before 12:00: ${b.booking_name}*\n${vehicleList(b)}\n${who}`),
+      ...(valetLine(b) ? [section(valetLine(b)!)] : []),
       context("It should come back washed, with a full tank and the return checks done. Tap *Returned* once you have the keys."),
       {
         type: "actions",
@@ -149,6 +162,7 @@ export function postRentalMessage(b: ReturnBooking, st: PostRentalState, complet
     text: `Post-rental inspection: ${b.booking_name}`,
     blocks: [
       section(`*🔍 Post-rental inspection: ${b.booking_name}*\n${lines.join("\n")}`),
+      ...(valetLine(b) ? [section(valetLine(b)!)] : []),
       context("Record it in Fleet. This booking is marked *Completed* as soon as every vehicle’s post-rental inspection is saved."),
       { type: "actions", block_id: `vh:${b.id}`, elements: [...buttons, { type: "button", action_id: "vh_complete", text: { type: "plain_text", text: "Mark completed" }, value: b.id }] },
     ],
@@ -317,5 +331,32 @@ export async function decideEarlyReturn(admin: Client, bookingId: string, userId
     if (send) await notifyVehicleRequester({ bookingId, kind: "message", note: `About returning ${b.booking_name} early: ${by} will call you to arrange it. Until then it's still due back ${fmtLong(b.return_date)}, before 12:00.`, sentBy: userId });
   }
   await refreshRentalAlerts(admin, bookingId, { by });
+  return { ok: true };
+}
+
+/**
+ * The Vehicle Coordinator releases the hold after an International Team booking (hold.ts),
+ * with a note saying why. The calendar and clash checks free the vehicles at once.
+ */
+export async function releaseHold(
+  admin: Client,
+  bookingId: string,
+  userId: string,
+  rawNote: unknown
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const note = typeof rawNote === "string" ? rawNote.trim() : "";
+  if (!note) return { ok: false, error: "Write why the hold is being released." };
+  if (note.length > 500) return { ok: false, error: "Keep the note under 500 characters." };
+  const b = await loadReturnBooking(admin, bookingId);
+  if (!b) return { ok: false, error: "That booking no longer exists." };
+  if (b.purpose !== HOLD_PURPOSE) return { ok: false, error: "Only an International Team booking has a hold." };
+  if (b.hold_released_at) return { ok: false, error: "The hold is already released." };
+  if (!["pending", "approved", "completed"].includes(b.status)) return { ok: false, error: `This booking is ${b.status}: it holds nothing.` };
+  const { error } = await admin
+    .from("vehicle_bookings")
+    .update({ hold_released_at: new Date().toISOString(), hold_released_by: userId, hold_release_note: note })
+    .eq("id", bookingId);
+  if (error) return { ok: false, error: error.message };
+  await refreshRentalAlerts(admin, bookingId);
   return { ok: true };
 }

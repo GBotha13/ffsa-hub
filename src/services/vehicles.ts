@@ -3,6 +3,7 @@
 // generated database.ts yet, so this service uses the project's standard
 // `Client = any` pattern and hand-written row types (mirrors services/bookings.ts).
 
+import { blocksWindow, holdLookback, HOLD_STATUSES, type HoldFields } from "@/lib/vehicles/hold";
 import { getRoleDerivedPermissionRows } from "@/services/permissions";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -71,6 +72,10 @@ export type VehicleBooking = {
   decided_at: string | null;
   created_at: string;
   updated_at: string;
+  /** 365: the International Team hold (lib/vehicles/hold.ts), released by the coordinator. */
+  hold_released_at?: string | null;
+  hold_released_by?: string | null;
+  hold_release_note?: string | null;
 };
 
 export type VehicleDriver = {
@@ -368,14 +373,20 @@ export async function getOverlappingAssignments(
   to: string,
   excludeBookingId?: string
 ): Promise<{ vehicle_id: string; vehicle_booking_id: string }[]> {
+  // An International Team booking keeps its vehicles for 3 working days after the
+  // due-back day (lib/vehicles/hold.ts), so look back far enough to catch its hold.
+  // "*" rather than named columns: before migration 365 the hold columns don't exist,
+  // and naming one would fail the query and wave every booking through.
   const { data: bk } = await supabase
     .from("vehicle_bookings")
-    .select("id")
-    .in("status", ["pending", "approved"])
+    .select("*")
+    .in("status", HOLD_STATUSES)
     .lte("checkout_date", to)
-    .gte("return_date", from);
+    .gte("return_date", holdLookback(from));
 
-  let ids: string[] = (bk ?? []).map((b: { id: string }) => b.id);
+  let ids: string[] = ((bk ?? []) as (HoldFields & { id: string; status: string; checkout_date: string })[])
+    .filter((b) => blocksWindow(b, from, to))
+    .map((b) => b.id);
   if (excludeBookingId) ids = ids.filter((id) => id !== excludeBookingId);
 
   // Fleet (SPEC 7.3): a booked workshop visit blocks its vehicle from `date` to

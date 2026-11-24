@@ -14,6 +14,7 @@
  * matched only against lists the asker may see.
  */
 
+import { blockEnd } from "@/lib/vehicles/hold";
 import type Anthropic from "@anthropic-ai/sdk";
 import { countries } from "@/lib/countries";
 import { CLASH_ERROR, validateVehicleRequestFields, VEHICLE_PURPOSES } from "@/lib/vehicles/booking-request";
@@ -380,7 +381,7 @@ export async function checkVehicleRequest(
   if (!fields.ok) return { ok: false, reason: `${fields.error}.` };
   if (fields.purpose === "other" && !p.purpose_note) return { ok: false, reason: "Please describe the purpose." };
 
-  const held = new Set(await hub.heldVehicleIds(admin, fields.checkout, fields.ret));
+  const held = new Set(await hub.heldVehicleIds(admin, fields.checkout, blockEnd({ purpose: fields.purpose, return_date: fields.ret })));
   const vehicles = await hub.listActiveVehicles(admin);
   const known = new Set(vehicles.map((v) => v.id));
   if (p.vehicle_ids.some((id) => !known.has(id))) return { ok: false, reason: "One of those vehicles isn't in the active fleet any more." };

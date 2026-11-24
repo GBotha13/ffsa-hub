@@ -443,13 +443,14 @@ function Intro({ cast }: { cast: Cast[] }) {
     ["Day before · 07:00", "A reminder, with Return early (a button for Hub users, the coordinator's number for others)."],
     ["Due-back day · 07:00", "Return instructions to everyone. The coordinator gets a Slack message with Returned."],
     ["After Returned", "A post-rental inspection message links to Fleet. Saving every vehicle's inspection completes the booking."],
+    ["International teams", "After an International Team booking, the vehicles are held for 3 working days (not weekends or public holidays) after the due-back day for the inspection and a full valet wash. The coordinator gets a reminder to book the valet, and can release the hold, with a note saying why."],
     ["Who gets what", "On the Hub: Slack and email. Not on the Hub: email. No email on the booking: the person who booked is asked to pass it on."],
   ];
   return (
     <div className="space-y-6">
       <p className="max-w-[70ch] text-[15px] leading-relaxed">
         Two made-up bookings, followed day by day. <b>Booking A</b>: Thandi books a Nissan Almera and a Honda CR-V for a
-        visiting team, from Mon 30 Nov until Thu 3 Dec. <b>Booking B</b>: Jonah books the VW Kombi and asks to bring it back
+        visiting team (an International Team booking), from Mon 30 Nov until Thu 3 Dec. <b>Booking B</b>: Jonah books the VW Kombi and asks to bring it back
         early. Use <b>Show</b> above to follow only the person booking, or only the coordinator.
       </p>
       <div>
