@@ -48,6 +48,7 @@ import {
 } from "./model";
 import { ConditionTab, HistoryTab, ManualTab, OverviewTab, PhotosTab } from "./sections";
 import { EditDetailsButton, type EditableVehicle } from "./vehicle-dialog";
+import { ReportButton } from "./report-button";
 import { vehicleFormOf } from "./vehicle-form";
 import { VisitButton, type VisitCtx } from "./visit-dialog";
 import { buildVisitCtx } from "./visit-ctx";
@@ -184,6 +185,7 @@ export default async function FleetVehiclePage({
               </>
             )}
             <IssueListButton text={issuesText(F.checklist, v, x.vin, today)} />
+            <ReportButton vehicleId={id} vehicleName={v.name} today={today} />
             {canWrite && <EditDetailsButton vehicle={editable} statuses={VSTATUS} today={today} />}
           </div>
         </div>

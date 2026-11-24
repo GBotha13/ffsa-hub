@@ -236,7 +236,9 @@
           "ul": [
             "Book workshop: the vehicle shows as “Booked for workshop”. Dropped off: “In workshop”. Collected: record what was done, and it’s back “In service”.",
             "When you collect a vehicle, check each job on the invoice before you drive away, and attach the invoice and photos.",
-            "Issue list for workshop (on the vehicle’s page) makes a list of everything marked Monitor or Fix now, to send to the workshop."
+            "Issue list for workshop (on the vehicle’s page) makes a list of everything marked Monitor or Fix now, to send to the workshop.",
+            "Download report (on the vehicle’s page) makes a PDF of everything done to the vehicle between two dates: workshop visits (services and repairs, with what was done and what it cost), inspections and what they found, fixes, bookings and km readings, with a summary and the issues still open. It starts from 1 Dec 2026 by default.",
+            "Nothing in a vehicle’s history is erased. Deleting an inspection, a workshop visit or a km reading hides it from the Hub, but it stays in the database for good, with who deleted it and when."
           ]
         },
         {
@@ -354,6 +356,10 @@
     [
       "2026-11-23",
       "Mark as fixed: on a vehicle’s Condition tab, a Fix now point can be marked fixed with the date, who fixed it and what was done, without doing a whole inspection. Fixes are kept for good in the vehicle’s History."
+    ],
+    [
+      "2026-11-23",
+      "Download report: a PDF of a vehicle’s history between two dates (services, repairs and costs, inspections, fixes, bookings and km), from the vehicle’s page. Deleting an inspection, a workshop visit or a km reading now only hides it: nothing in a vehicle’s history is erased."
     ]
   ]
 }
