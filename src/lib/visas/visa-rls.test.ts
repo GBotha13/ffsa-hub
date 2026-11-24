@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { describe, it } from "vitest";
 
-// Migrations 360–363 (RLS and workflow functions), against throwaway databases. Same pattern as
+// Migrations 360–364 (RLS, workflow functions and letters), against throwaway databases. Same pattern as
 // src/lib/schools/program-staff-rls.test.ts: skips when this machine has no
 // local Postgres (CI does not start one).
 
@@ -31,6 +31,16 @@ describe.skipIf(!postgresUp())("visa RLS", () => {
     execFileSync(
       "sudo",
       ["-u", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-d", "visa_workflow", "-f", "supabase/tests/visa_workflow.sql"],
+      { stdio: "pipe", cwd: process.cwd() }
+    );
+  }, 60_000);
+
+  it("letters: versioned templates, issue, the student's check, the signed scan; no passport numbers stored", () => {
+    execFileSync("sudo", ["-u", "postgres", "dropdb", "--if-exists", "visa_letters"], { stdio: "pipe" });
+    execFileSync("sudo", ["-u", "postgres", "createdb", "visa_letters"], { stdio: "pipe" });
+    execFileSync(
+      "sudo",
+      ["-u", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-d", "visa_letters", "-f", "supabase/tests/visa_letters.sql"],
       { stdio: "pipe", cwd: process.cwd() }
     );
   }, 60_000);

@@ -1,4 +1,4 @@
-// Visa applications: pure data access (see migrations 360–362).
+// Visa applications: pure data access (see migrations 360–364).
 // Business rules (working out the stay, which visa, deadlines) live in
 // src/lib/visas/. RLS decides who sees which rows: pass the caller's
 // server client, not the admin client, unless the caller is a system job.
@@ -330,6 +330,116 @@ export async function getVisaDocumentById(supabase: Client, documentId: string) 
 }
 
 // ────────────────────────────────────────────────────────────
+// LETTERS (migration 364) — templates legal writes, letters legal issues.
+// Writes go through checked functions; call them with the user's client.
+// ────────────────────────────────────────────────────────────
+
+const TEMPLATE_COLUMNS =
+  "id, kind, program_id, version, title, body, status, change_note, created_by, created_at, updated_at, " +
+  "published_by, published_at";
+
+const LETTER_COLUMNS =
+  "id, case_id, template_id, kind, program_id, letter_date, title, body, inputs, status, replaces_id, " +
+  "student_note, confirmed_at, scan_path, scan_mime_type, scan_uploaded_by, scan_uploaded_at, status_note, " +
+  "issued_by, created_at, updated_at";
+
+/** Every version of every template (RLS: visas.manage holders only). */
+export async function getVisaLetterTemplates(supabase: Client, options?: { status?: string | string[] }) {
+  let query = supabase
+    .from("visa_letter_templates")
+    .select(TEMPLATE_COLUMNS)
+    .order("kind", { ascending: true })
+    .order("version", { ascending: false });
+  if (Array.isArray(options?.status)) query = query.in("status", options.status);
+  else if (options?.status) query = query.eq("status", options.status);
+  return query;
+}
+
+export async function getVisaLetterTemplateById(supabase: Client, id: string) {
+  return supabase.from("visa_letter_templates").select(TEMPLATE_COLUMNS).eq("id", id).maybeSingle();
+}
+
+/** Saves the draft for a letter (a new version if there's no draft yet). Returns its id. */
+export async function saveVisaLetterTemplate(
+  supabase: Client,
+  data: { kind: string; program_id: string | null; title: string; body: string; change_note?: string | null }
+) {
+  return supabase.rpc("visa_save_letter_template", {
+    p_kind: data.kind,
+    p_program_id: data.program_id,
+    p_title: data.title,
+    p_body: data.body,
+    p_change_note: data.change_note ?? null,
+  });
+}
+
+export async function publishVisaLetterTemplate(supabase: Client, templateId: string) {
+  return supabase.rpc("visa_publish_letter_template", { p_template_id: templateId });
+}
+
+export async function discardVisaLetterTemplateDraft(supabase: Client, templateId: string) {
+  return supabase.rpc("visa_discard_letter_template_draft", { p_template_id: templateId });
+}
+
+/** A case's letters, newest first (legal, its school leaders, the student). */
+export async function getVisaLetters(supabase: Client, caseId: string) {
+  return supabase
+    .from("visa_letters")
+    .select(LETTER_COLUMNS)
+    .eq("case_id", caseId)
+    .order("created_at", { ascending: false });
+}
+
+export async function getVisaLetterById(supabase: Client, letterId: string) {
+  return supabase.from("visa_letters").select(LETTER_COLUMNS).eq("id", letterId).maybeSingle();
+}
+
+/** Name, gender and nationality for filling in a letter (legal only; no passport number). */
+export async function getVisaLetterStudent(supabase: Client, caseId: string) {
+  return supabase.rpc("visa_letter_student", { p_case_id: caseId }).maybeSingle();
+}
+
+/** The passport number for a letter's PDF (legal and the student only). Never log it. */
+export async function getVisaLetterPassport(supabase: Client, letterId: string) {
+  return supabase.rpc("visa_letter_passport", { p_letter_id: letterId });
+}
+
+/** Legal for this case (global, or scoped to a school on it)? */
+export async function canManageVisaCase(supabase: Client, caseId: string) {
+  return supabase.rpc("visa_can_manage", { p_case_id: caseId });
+}
+
+export async function issueVisaLetter(
+  supabase: Client,
+  data: { case_id: string; template_id: string; letter_date: string; body: string; inputs: Record<string, unknown> }
+) {
+  return supabase.rpc("visa_issue_letter", {
+    p_case_id: data.case_id,
+    p_template_id: data.template_id,
+    p_letter_date: data.letter_date,
+    p_body: data.body,
+    p_inputs: data.inputs,
+  });
+}
+
+export async function confirmVisaLetter(supabase: Client, letterId: string, ok: boolean, note?: string | null) {
+  return supabase.rpc("visa_confirm_letter", { p_letter_id: letterId, p_ok: ok, p_note: note ?? null });
+}
+
+/** Records a scan the API has already stored at `<case>/<letter>.<ext>`. */
+export async function attachVisaLetterScan(supabase: Client, letterId: string, scanPath: string, mimeType: string) {
+  return supabase.rpc("visa_attach_letter_scan", {
+    p_letter_id: letterId,
+    p_scan_path: scanPath,
+    p_mime_type: mimeType,
+  });
+}
+
+export async function withdrawVisaLetter(supabase: Client, letterId: string, note: string) {
+  return supabase.rpc("visa_withdraw_letter", { p_letter_id: letterId, p_note: note });
+}
+
+// ────────────────────────────────────────────────────────────
 // NAMES — users' RLS is "own row + admins" (002), so school leaders can't
 // read students' names themselves. Pass the admin client and only ids the
 // caller could already see through RLS; returns names, nothing else.
@@ -341,6 +451,11 @@ export async function getVisaPeopleNames(adminClient: Client, userIds: string[])
     .from("users")
     .select("id, first_name, last_name, preferred_name")
     .in("id", [...new Set(userIds)]);
+}
+
+/** Active schools, for choosing which school a letter template is for. */
+export async function getActivePrograms(supabase: Client) {
+  return supabase.from("programs").select("id, name, code").eq("status", "active").order("name", { ascending: true });
 }
 
 export async function getProgramNames(supabase: Client, programIds: string[]) {

@@ -108,3 +108,17 @@ export async function openVisaDocument(documentId: string) {
     alert(json.error ?? "That file isn't available.");
   }
 }
+
+/** Opens a letter's signed scan through the checked route (signed, logged, 5 minutes). */
+export async function openVisaLetterScan(letterId: string) {
+  const win = window.open("", "_blank");
+  const res = await fetch(`/api/visas/letters/${letterId}/scan`);
+  const json = await res.json().catch(() => ({}));
+  if (res.ok && json.url) {
+    if (win) win.location.href = json.url;
+    else window.location.href = json.url;
+  } else {
+    win?.close();
+    alert(json.error ?? "That file isn't available.");
+  }
+}

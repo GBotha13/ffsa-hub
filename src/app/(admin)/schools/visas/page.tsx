@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { Chip, Kpi, KpiStrip, Masthead, NeedsYou, SectionBar, StatusPill } from "@/components/ffsa";
+import { Chip, Kpi, KpiStrip, Masthead, MastheadAction, NeedsYou, SectionBar, StatusPill } from "@/components/ffsa";
 import { getVisaAccess, isLegalFor, canFollowUp } from "@/lib/visas/access";
 import { VISA_OPEN_STATUSES, VISA_STATUS_LABEL, type VisaStatus, type VisaWaitingOn } from "@/lib/visas/status";
 import { WAITING_LABEL, daysUntil, formatDay, personName, statusTone } from "@/lib/visas/display";
@@ -76,7 +76,11 @@ export default async function VisasPage({ searchParams }: { searchParams: Promis
 
   return (
     <div className="ffsa-screen">
-      <Masthead context={`Training · ${open.length} open ${open.length === 1 ? "case" : "cases"}`} title="Visas" />
+      <Masthead
+        context={`Training · ${open.length} open ${open.length === 1 ? "case" : "cases"}`}
+        title="Visas"
+        actions={access.globalLegal ? <MastheadAction href="/schools/visas/letters">Letter templates</MastheadAction> : undefined}
+      />
 
       {/* The page's one yellow band. */}
       {mine > 0 && (

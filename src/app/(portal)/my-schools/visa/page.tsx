@@ -3,11 +3,18 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Masthead, NeedsYou, SectionBar, StatusPill } from "@/components/ffsa";
 import { ChecklistPanel } from "@/components/visas/checklist-panel";
+import { StudentLettersPanel, type LetterRow } from "@/components/visas/letters-panel";
 import { buildChecklist, studentToDo, type ChecklistDocument, type ChecklistType } from "@/lib/visas/checklist";
 import { formatDay, statusTone } from "@/lib/visas/display";
 import { VISA_STATUS_LABEL, type VisaStatus } from "@/lib/visas/status";
 import { daysInclusive } from "@/lib/visas/stay";
-import { getOpenVisaCaseForUser, getVisaCaseDocuments, getVisaCaseSchools, getVisaDocumentTypes } from "@/services/visas";
+import {
+  getOpenVisaCaseForUser,
+  getVisaCaseDocuments,
+  getVisaCaseSchools,
+  getVisaDocumentTypes,
+  getVisaLetters,
+} from "@/services/visas";
 
 // The student's own visa case: what to send, what came back for a redo,
 // and where the case is. RLS shows only their own case, schools and
@@ -18,7 +25,7 @@ const NEXT_STEP: Record<VisaStatus, string> = {
   collecting_documents: "Upload each document below. Your school leader checks them as they come in.",
   awaiting_legal: "Everything is in. FFSA's legal officer is checking your application.",
   sent_back: "Your school leader is sorting out a few things. You'll hear if anything is needed from you.",
-  approved: "Approved. Your school leader will tell you how and where to lodge your visa application.",
+  approved: "Approved. Check FFSA's letters below; once they're signed, your school leader will tell you how and where to lodge your visa application.",
   lodged: "Your application is with the embassy. We'll update this when they decide.",
   granted: "Your visa has been granted. Bring it with you when you travel.",
   refused: "The embassy refused the application. FFSA's legal officer will be in touch.",
@@ -49,11 +56,20 @@ export default async function MyVisaPage() {
   }
   const c = caseData as { id: string; status: VisaStatus; stay_from: string | null; stay_to: string | null; lodge_by: string | null; visa_valid_to: string | null };
 
-  const [{ data: schools }, { data: types }, { data: docs }] = await Promise.all([
+  const [{ data: schools }, { data: types }, { data: docs }, { data: letterData }] = await Promise.all([
     getVisaCaseSchools(supabase, c.id),
     getVisaDocumentTypes(supabase),
     getVisaCaseDocuments(supabase, c.id),
+    getVisaLetters(supabase, c.id),
   ]);
+  const schoolName = new Map(
+    ((schools ?? []) as Array<{ program_id: string; programs: { name: string } | null }>).map((s) => [s.program_id, s.programs?.name ?? "School"])
+  );
+  const letters: LetterRow[] = ((letterData ?? []) as Array<Omit<LetterRow, "school"> & { program_id: string | null }>).map((l) => ({
+    ...l,
+    school: l.program_id ? (schoolName.get(l.program_id) ?? "School") : null,
+  }));
+  const lettersToCheck = letters.filter((l) => l.status === "with_student").length;
   const stayDays = c.stay_from && c.stay_to ? daysInclusive(c.stay_from, c.stay_to) : null;
   const items = buildChecklist((types ?? []) as ChecklistType[], (docs ?? []) as ChecklistDocument[], stayDays);
   const collecting = c.status === "collecting_documents" || c.status === "sent_back";
@@ -63,6 +79,11 @@ export default async function MyVisaPage() {
   return (
     <div className="ffsa-screen">
       <Masthead context="Training · Visa" title="Your visa" />
+      {toDo.length === 0 && lettersToCheck > 0 && (
+        <NeedsYou>
+          {lettersToCheck === 1 ? "1 letter is waiting for you to check" : `${lettersToCheck} letters are waiting for you to check`}
+        </NeedsYou>
+      )}
       {toDo.length > 0 && (
         <NeedsYou>
           {redo > 0
@@ -97,6 +118,8 @@ export default async function MyVisaPage() {
             )}
           </div>
         </div>
+
+        <StudentLettersPanel letters={letters} />
 
         <ChecklistPanel caseId={c.id} items={items} canChange={collecting} audience="student" />
 
