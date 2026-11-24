@@ -364,6 +364,10 @@
       "Download report: a PDF of a vehicle’s history between two dates (services, repairs and costs, inspections, fixes, bookings and km), from the vehicle’s page. Deleting an inspection, a workshop visit or a km reading now only hides it: nothing in a vehicle’s history is erased."
     ],
     [
+      "2026-11-24",
+      "Fixed: if Mark as fixed can’t save the point, no half-saved fix is left in the vehicle’s History."
+    ],
+    [
       "2026-11-23",
       "Out of action: mark a vehicle In for a repair or Broken down on its page, and it can’t be booked until it’s back. Its bookings for the next 10 days are listed on Today and the booking board, with Move to a free vehicle of the same class, Put on hold, or Cancel: vehicle broke down. Resume booking takes one off hold once the vehicle’s back."
     ],

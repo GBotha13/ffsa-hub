@@ -295,6 +295,15 @@ export async function insertFleetFix(
   return supabase.from("fleet_fixes").insert(row).select("id").single();
 }
 
+/**
+ * Undo a fix row whose Mark as fixed didn't finish (the condition write failed after the
+ * insert; Jack's review of #703), so History never shows a fix the vehicle doesn't have.
+ * Users can't delete fixes (358 grants them SELECT and INSERT only): pass the admin client.
+ */
+export async function removeUnfinishedFleetFix(admin: Client, fixId: string) {
+  return admin.from("fleet_fixes").delete().eq("id", fixId);
+}
+
 /** A vehicle's fixes, newest first, optionally between two dates (inclusive). */
 export async function getFleetFixes(supabase: Client, vehicleId: string, opts?: { from?: string; to?: string }) {
   let q = supabase.from("fleet_fixes").select("*").eq("vehicle_id", vehicleId).order("fixed_on", { ascending: false });
