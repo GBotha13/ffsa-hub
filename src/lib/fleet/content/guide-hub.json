@@ -34,7 +34,8 @@
             "Schedule: which vehicle is checked on which day, services and inspections by km, inspection days and the time budget.",
             "Workshops: the workshops FFSA uses, with phone numbers.",
             "Checklist: every inspection point, and which checks it belongs to.",
-            "Guide: this guide."
+            "Guide: this guide.",
+            "Settings: the Hub’s vehicle list, the same one Rent a Vehicle books from. Add, rename or retire a vehicle here. Fleet is the one place to manage the vehicles: anything changed in Fleet (a vehicle in for a repair, a workshop visit, a vehicle out of action) shows straight away in bookings."
           ]
         },
         {
@@ -399,6 +400,10 @@
     [
       "2026-11-24",
       "International teams: after an International Team booking, its vehicles are held for 3 working days after the due-back day (not counting weekends or South African public holidays), for the post-rental inspection and a full valet wash. Nobody can book them for those days, even once the booking is completed. The Vehicle Coordinator is reminded to book the valet, and can release the hold on the booking with a note."
+    ],
+    [
+      "2026-11-24",
+      "One way into Fleet: Rent a Vehicle no longer has its own Fleet button. Use Fleet in the sidebar. People who manage vehicle bookings now see it there too, and land on Settings if they don’t use the rest of Fleet."
     ],
     [
       "2026-11-25",

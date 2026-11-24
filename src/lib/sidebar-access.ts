@@ -175,6 +175,10 @@ export async function getSidebarAccess(
         // Rent a Vehicle and Equipment hire live under the Bookings hub — their
         // permissions must light up the single "Bookings" sidebar item.
         if (perm?.module === "vehicles" || perm?.module === "equipment") result.permittedModules.add("bookings");
+        // One way into Fleet (Gideon, 24 Nov 2026): Rent a Vehicle no longer has its own
+        // Fleet button, so a vehicle manager without Fleet access gets the sidebar's
+        // Fleet entry, which lands them on Fleet → Settings (the bookable vehicle list).
+        if (perm?.key === "vehicles.manage") result.permittedModules.add("fleet");
       }
 
       // Also count modules reachable through assigned roles' bundles.
@@ -182,6 +186,7 @@ export async function getSidebarAccess(
         if (perm.module !== "schools") result.permittedModules.add(perm.module);
         if (perm.key === "schools.manage") result.permittedModules.add("users");
         if (perm.module === "vehicles" || perm.module === "equipment") result.permittedModules.add("bookings");
+        if (perm.key === "vehicles.manage") result.permittedModules.add("fleet");
       }
 
       // Forms has no permission module of its own: an unscoped comms_admin

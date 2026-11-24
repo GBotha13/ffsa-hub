@@ -5,10 +5,10 @@ import {
   Plus,
   Inbox,
   ClipboardList,
-  Settings2,
   CalendarRange,
   Table2,
   GraduationCap,
+  Settings2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Masthead, NeedsYou } from "@/components/ffsa";
@@ -103,14 +103,6 @@ export default async function VehiclesPage({
               </Link>
             )}
             {isTeam && <RequestLinkButton />}
-            {access.canManage && (
-              <Link href="/bookings/vehicles/fleet/settings">
-                <Button size="sm" variant="outline" className="gap-1.5">
-                  <Settings2 className="h-4 w-4" />
-                  Fleet
-                </Button>
-              </Link>
-            )}
             {canRequest && (
               <Link href="/bookings/vehicles/new">
                 <Button size="sm" className="gap-1.5">
