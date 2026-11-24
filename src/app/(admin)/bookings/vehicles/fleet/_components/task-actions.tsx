@@ -114,3 +114,81 @@ export function NotifyBookerButton({ bookingId, visitId, text }: { bookingId: st
     </ActionButton>
   );
 }
+
+/** Fleet 5c: On hold / Resume / Cancel for a booking whose vehicle is out of action. */
+export function OutOfActionButton({
+  action,
+  bookingId,
+  label,
+  confirm,
+}: {
+  action: "hold" | "resume" | "cancel";
+  bookingId: string;
+  label: string;
+  confirm: string;
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  async function go() {
+    if (!window.confirm(confirm)) return;
+    setBusy(true);
+    try {
+      const r = await fleetFetch<{ message: string; told: boolean }>("/api/vehicles/fleet/out-of-action", { body: { action, bookingId } });
+      toast.success(r.message);
+      router.refresh();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <ActionButton onClick={go} disabled={busy}>
+      {label}
+    </ActionButton>
+  );
+}
+
+/** Fleet 5c: mark a vehicle in for a repair, broken down, or back in service. The Hub
+ *  marks it maintenance while it's out, and active again when it's back (migration 357). */
+export function VehicleOutButtons({ vehicleId, vehicleName, status, today }: { vehicleId: string; vehicleName: string; status: string | null | undefined; today: string }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const out = status === "In workshop" || status === "Off the road";
+  async function set(next: string, ask: string, done: string) {
+    if (!window.confirm(ask)) return;
+    setBusy(true);
+    try {
+      await fleetFetch(`/api/vehicles/fleet/vehicles/${vehicleId}`, { method: "PATCH", body: { patch: { status: next, statusSince: today } } });
+      toast.success(done);
+      router.refresh();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  if (out)
+    return (
+      <ActionButton disabled={busy} onClick={() => set("In service", `Mark ${vehicleName} back in service? It can be booked again from today.`, `${vehicleName} is back in service.`)}>
+        Back in service
+      </ActionButton>
+    );
+  if (status === "For sale") return null;
+  return (
+    <span className="flex flex-wrap gap-2">
+      <ActionButton
+        disabled={busy}
+        onClick={() => set("In workshop", `Mark ${vehicleName} in for a repair? It can't be booked until you mark it back in service, and its bookings for the next 10 days are listed so you can sort them out.`, `${vehicleName} is in for a repair.`)}
+      >
+        In for a repair
+      </ActionButton>
+      <ActionButton
+        disabled={busy}
+        onClick={() => set("Off the road", `Mark ${vehicleName} as broken down? It can't be booked until you mark it back in service, and its bookings for the next 10 days are listed so you can sort them out.`, `${vehicleName} is marked broken down.`)}
+      >
+        Broken down
+      </ActionButton>
+    </span>
+  );
+}

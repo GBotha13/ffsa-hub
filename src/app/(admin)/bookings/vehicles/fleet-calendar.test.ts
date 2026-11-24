@@ -74,3 +74,25 @@ describe("FleetCalendar with Fleet's lane", () => {
     expect(out).toContain("HULC");
   });
 });
+
+describe("FleetCalendar: a vehicle out of action (Fleet 5c)", () => {
+  const vehicles = [{ id: "v1", name: "VW Kombi", registration_plate: "KLK 556 NW", seats: 8, vehicle_type: "van", status: "maintenance" }] as never[];
+  const bookings = [
+    { id: "b1", booking_name: "HULC", status: "approved", checkout_date: "2026-11-18", return_date: "2026-11-21", point_person: null, assignments: [{ vehicle: { id: "v1" } }] },
+  ] as never[];
+  const lane = { visits: [], checks: [], out: { since: "2026-11-19", label: "BROKEN DOWN" } };
+
+  it("Fleet users see its bookings, with the out-of-action bar in the lane", () => {
+    at("2026-11-19T10:00:00Z");
+    const out = renderToStaticMarkup(createElement(FleetCalendar, { vehicles, bookings, overlay: { lanes: { v1: lane }, clashBookingIds: [] } }));
+    expect(out).toContain("HULC");
+    expect(out).toContain("BROKEN DOWN · UNTIL IT’S BACK");
+    expect(out).not.toContain("OFF THE ROAD · MAINTENANCE");
+  });
+
+  it("everyone else still sees the row blacked out", () => {
+    at("2026-11-19T10:00:00Z");
+    const out = renderToStaticMarkup(createElement(FleetCalendar, { vehicles, bookings }));
+    expect(out).toContain("OFF THE ROAD · MAINTENANCE");
+  });
+});

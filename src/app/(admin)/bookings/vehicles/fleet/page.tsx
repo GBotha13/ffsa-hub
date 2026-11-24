@@ -11,6 +11,8 @@ import { LogKmButton } from "./vehicles/fleet-client";
 import { VisitButton } from "./[vehicleId]/visit-dialog";
 import { buildVisitCtx, lastProvider } from "./[vehicleId]/visit-ctx";
 import type { Visit } from "./[vehicleId]/model";
+import { OutOfActionSection } from "./calendar/sections";
+import { outOfAction } from "@/lib/fleet/out-of-action";
 
 const DOW = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MONTH = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -41,6 +43,7 @@ export default async function FleetToday() {
   const { tasks, later } = todayTasks(F);
   const total = tasks.reduce((s, t) => s + (t.mins || 0), 0);
   const time = timeWeek(F);
+  const out = outOfAction(F);
   const sub = `${longDate(F.today)}${tasks.length ? ` · ${plural(tasks.length, "thing")} to do${total ? ", about " + fmtMins(total) : ""}` : ""}`;
 
   const action = (t: Task) => {
@@ -99,6 +102,8 @@ export default async function FleetToday() {
         </section>
       ) : (
         <>
+          {/* Fleet 5c: vehicles in for a repair or broken down, and their bookings. */}
+          <OutOfActionSection vehicles={out.vehicles} resume={out.resume} canWrite={canWrite} today={F.today} />
           <SectionBar title="To do today" meta={tasks.length ? plural(tasks.length, "task") : undefined} />
           {weeklyOnly(F, weekStartOf(F.today)) && (
             <p className="border-b border-rule px-5 py-2.5 text-[13px] text-[#55524A] md:px-8">

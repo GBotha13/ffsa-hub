@@ -105,6 +105,8 @@ export interface Trip {
   source?: string | null;
   /** Who made the booking (the 07:00 message shows who has an OUT vehicle). Not read by the rules. */
   who?: string | null;
+  /** Fleet 5c: the day the booking was put on hold (its vehicle out of action). Not read by the rules. */
+  onHold?: string | null;
 }
 
 /** A workshop visit (the app's `records`). */

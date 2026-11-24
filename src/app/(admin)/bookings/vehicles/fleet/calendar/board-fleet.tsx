@@ -11,7 +11,8 @@ import { getFleetAccess } from "@/services/fleet";
 import { buildVisitCtx, lastProvider } from "../[vehicleId]/visit-ctx";
 import type { BookCtx } from "./calendar-client";
 import { boardOverlay, clashItems, dueItems, gapChoices, missingServiceText, noneDueText, type BoardOverlay } from "./model";
-import { BookSection, ClashSection } from "./sections";
+import { BookSection, ClashSection, OutOfActionSection } from "./sections";
+import { outOfAction } from "@/lib/fleet/out-of-action";
 
 type Client = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -23,8 +24,10 @@ export async function boardFleet(supabase: Client, userId: string, from: string,
   const ctxs: Record<string, BookCtx> = canWrite
     ? Object.fromEntries(F.vehicles.filter(inUse).map((v) => [v.id, { ctx: buildVisitCtx(F, providers, v.id), provider: lastProvider(F, v.id, providers) }]))
     : {};
+  const out = outOfAction(F);
   const panel = (
     <div className="border border-ink bg-white">
+      <OutOfActionSection vehicles={out.vehicles} resume={out.resume} canWrite={canWrite} today={F.today} />
       <ClashSection items={clashItems(F)} ctxs={ctxs} canWrite={canWrite} />
       <BookSection due={dueItems(F)} noneDue={noneDueText()} missing={missingServiceText(F)} choices={gapChoices(F)} ctxs={ctxs} canWrite={canWrite} />
     </div>

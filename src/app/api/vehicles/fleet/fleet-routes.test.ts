@@ -28,6 +28,8 @@ vi.mock("@/services/fleet", () => ({
   getFleetVisits: async () => ({ data: [], error: null }),
   moveBookingAssignment: record("moveBookingAssignment", { data: { vehicle_booking_id: "b", vehicle_id: "v" }, error: null }),
   getBookingRequestedBy: vi.fn(async () => ({ data: { requested_by: bookedBy }, error: null })),
+  setBookingHold: record("setBookingHold", { data: { id: "b" }, error: null }),
+  cancelBookingBrokenDown: record("cancelBookingBrokenDown", { data: { id: "b" }, error: null }),
 }));
 // Move tells the person who booked through the Hub's booking notice (never a real send here).
 let bookedBy = "someone-else";
@@ -238,5 +240,77 @@ describe("POST /api/vehicles/fleet/notices (Let them know, Fleet part 5b)", () =
     noticeResult = { slack: false, email: false };
     const { POST } = await import("./notices/route");
     expect((await (await POST(req({ bookingId: BOOKING, visitId: w.id }))).json()).message).toBe("Couldn’t reach the person who booked it, so let them know yourself.");
+  });
+});
+
+
+describe("POST /api/vehicles/fleet/out-of-action (Fleet part 5c)", () => {
+  const BOOKING = "00000000-0000-0000-0000-0000000000c1";
+  // H1 #2 broken down, a booking on it under way, and every other van busy for its dates.
+  const brokenDown = (vanFree = false) => {
+    const busy = ["h1-1", "h1-3", "kombi"].filter((v) => !vanFree || v !== "h1-1");
+    data = {
+      ...data,
+      visits: [],
+      vehicles: data.vehicles.map((v) => (v.id === UUID["h1-2"] ? { ...v, status: "Off the road", statusSince: TODAY } : { ...v, followUp: null })),
+      trips: [
+        { id: `${BOOKING}:${UUID["h1-2"]}`, vehicleId: UUID["h1-2"], from: "2026-11-16", to: "2026-11-20", label: "Outreach", source: "hub" },
+        ...busy.map((v, i) => ({ id: `0000000${i}-0000-0000-0000-000000000000:${UUID[v]}`, vehicleId: UUID[v], from: "2026-11-15", to: "2026-11-25", label: "Busy", source: "hub" })),
+      ],
+    };
+  };
+
+  it("puts the booking on hold and tells the person who booked", async () => {
+    brokenDown();
+    const { POST } = await import("./out-of-action/route");
+    const res = await POST(req({ action: "hold", bookingId: BOOKING }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).message).toBe("On hold until the vehicle is back. The person who booked it has been told.");
+    expect(calls.find((c) => c.fn === "setBookingHold")!.args[2]).toMatchObject({ since: TODAY });
+    expect(notices[0]).toMatchObject({ bookingId: BOOKING, kind: "changed" });
+    expect((notices[0] as { changes: string[] }).changes[0]).toMatch(/^Your booking is on hold: Hyundai H1 #2 is off the road/);
+    expect(refreshed).toEqual([BOOKING]);
+  });
+
+  it("cancels it ('Vehicle broke down') with the cancelled notice", async () => {
+    brokenDown();
+    const { POST } = await import("./out-of-action/route");
+    expect((await POST(req({ action: "cancel", bookingId: BOOKING }))).status).toBe(200);
+    expect(calls.find((c) => c.fn === "cancelBookingBrokenDown")!.args[2]).toMatch(/^Vehicle broke down/);
+    expect(notices[0]).toMatchObject({ kind: "cancelled", note: expect.stringMatching(/^Vehicle broke down/) });
+  });
+
+  it("refuses hold and cancel while a similar vehicle is free: Move it instead", async () => {
+    brokenDown(true);
+    const { POST } = await import("./out-of-action/route");
+    const res = await POST(req({ action: "hold", bookingId: BOOKING }));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("A similar vehicle is free: Move the booking instead.");
+    expect(notices).toHaveLength(0);
+  });
+
+  it("resumes a booking on hold once its vehicle is back", async () => {
+    brokenDown();
+    data = { ...data, vehicles: data.vehicles.map((v) => (v.id === UUID["h1-2"] ? { ...v, status: "In service" } : v)), trips: data.trips.map((t) => (t.id.startsWith(BOOKING) ? { ...t, onHold: "2026-11-17" } : t)) };
+    const { POST } = await import("./out-of-action/route");
+    expect((await POST(req({ action: "resume", bookingId: BOOKING }))).status).toBe(200);
+    expect(calls.find((c) => c.fn === "setBookingHold")!.args[2]).toBeNull();
+    expect((notices[0] as { changes: string[] }).changes).toEqual(["Hyundai H1 #2 is back, so your booking carries on as planned."]);
+  });
+
+  it("won't resume while the vehicle is still out", async () => {
+    brokenDown();
+    data = { ...data, trips: data.trips.map((t) => (t.id.startsWith(BOOKING) ? { ...t, onHold: "2026-11-17" } : t)) };
+    const { POST } = await import("./out-of-action/route");
+    expect((await POST(req({ action: "resume", bookingId: BOOKING }))).status).toBe(409);
+  });
+
+  it("Move swaps a booking under way to a van free for the rest of it", async () => {
+    brokenDown();
+    // H1 #1 was busy before today, free from today on.
+    data = { ...data, trips: data.trips.map((t) => (t.vehicleId === UUID["h1-1"] ? { ...t, from: "2026-11-10", to: "2026-11-16" } : t)) };
+    const { POST } = await import("./trips/move/route");
+    const res = await POST(req({ tripId: `${BOOKING}:${UUID["h1-2"]}`, to: UUID["h1-1"] }));
+    expect(res.status).toBe(200);
   });
 });

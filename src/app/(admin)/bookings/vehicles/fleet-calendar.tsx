@@ -167,6 +167,20 @@ export function FleetCalendar({
   /** The Fleet lane: workshop visits and inspection days, under the bookings. */
   const LaneMarks = ({ lane }: { lane: BoardLane }) => (
     <>
+      {lane.out && (() => {
+        const start = lane.out.since && d(lane.out.since) > w.first ? (d(lane.out.since) > w.last ? days + 1 : dayIndex(d(lane.out.since))) : 1;
+        if (start > days) return null;
+        return (
+          <span
+            title={`${lane.out.label}${lane.out.since ? " since " + lane.out.since : ""}: can’t be booked until it’s back in service`}
+            style={{ gridRow: 2, gridColumn: `${start} / span ${days - start + 1}`, margin: "0 2px 5px", background: INK, display: "flex", alignItems: "center", padding: "0 8px", minWidth: 0, overflow: "hidden" }}
+          >
+            <span style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: "0.1em", color: "#FFFFFF", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {lane.out.label} · UNTIL IT’S BACK
+            </span>
+          </span>
+        );
+      })()}
       {lane.visits.map((v) => {
         const { start, span, cut } = spanOf(v.from, v.to);
         return (
@@ -327,7 +341,9 @@ export function FleetCalendar({
                 title={v.name}
                 sub={[v.registration_plate, v.seats ? `${v.seats} SEATS` : null].filter(Boolean).join(" · ").toUpperCase()}
                 list={byVehicle(v.id)}
-                offRoad={v.status === "maintenance"}
+                // Fleet users see an out-of-action vehicle's bookings with a bar in the lane
+                // (Fleet 5c); everyone else sees the row blacked out as before.
+                offRoad={v.status === "maintenance" && !overlay?.lanes[v.id]?.out}
                 lane={overlay?.lanes[v.id]}
               />
             ))}
