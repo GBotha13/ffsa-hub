@@ -5,6 +5,7 @@ import type { GridCounts } from "@/lib/missio/availability/grid";
 import content from "@/components/missio/content.module.css";
 import { formatServiceLabel, isIsoDate, sundaysBetween } from "@/lib/missio/availability/dates";
 import type { VolunteersSnapshot } from "@/lib/missio/availability/service";
+import { missingStarterTeams } from "@/lib/missio/availability/starter-teams";
 import { volunteersClient, type NudgeDraft, type PeopleHit, type VolunteersClient } from "./client";
 import styles from "./volunteers.module.css";
 
@@ -124,6 +125,7 @@ export function VolunteersBoard({
   const [activeDate, setActiveDate] = useState<string | null>(null);
   const [showAllDates, setShowAllDates] = useState(false);
   const [openTeam, setOpenTeam] = useState<string | null>(null);
+  const [starterNote, setStarterNote] = useState<string | null>(null);
 
   useEffect(() => {
     if (!live) return;
@@ -187,6 +189,7 @@ export function VolunteersBoard({
   const unanswered = snapshot?.unansweredPeople ?? 0;
   const peopleOnTeams = linkPeople.length;
   const teamsById = new Map((snapshot?.teams ?? []).map((team) => [team.id, team]));
+  const missingStarters = missingStarterTeams((snapshot?.teams ?? []).map((team) => team.name));
 
   function copyButton(person: { contactId: string; name: string }) {
     return (
@@ -578,6 +581,37 @@ export function VolunteersBoard({
               Add team
             </button>
           </form>
+          {missingStarters.length > 0 ? (
+            <div className={styles.starters} data-testid="starter-teams">
+              <p className={styles.meta}>
+                {missingStarters.length === 6 ? "Start with the usual teams: " : "Still to add: "}
+                {missingStarters.join(", ")}. You can rename or remove any of them after.
+              </p>
+              <button
+                type="button"
+                className={styles.ghost}
+                disabled={busy}
+                onClick={() => {
+                  void run(async () => {
+                    const result = await client.addStarterTeams();
+                    setStarterNote(
+                      result.added.length === 0
+                        ? "All the starter teams were already here."
+                        : `Added ${result.added.join(", ")}.${result.alreadyPresent.length ? ` Already here: ${result.alreadyPresent.join(", ")}.` : ""}`
+                    );
+                    setTick((value) => value + 1);
+                  });
+                }}
+              >
+                Add starter teams
+              </button>
+            </div>
+          ) : null}
+          {starterNote ? (
+            <p className={styles.meta} role="status">
+              {starterNote}
+            </p>
+          ) : null}
           {snapshot.teams.length === 0 ? <p className={styles.meta}>No teams yet.</p> : null}
           {snapshot.teams.map((team) => (
             <section key={team.id} className={styles.card}>

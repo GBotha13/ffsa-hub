@@ -1,6 +1,6 @@
 import { peopleSearchParams } from "@/components/missio/access";
 import type { CreateRequestInput } from "@/lib/missio/availability/schema";
-import type { VolunteersSnapshot } from "@/lib/missio/availability/service";
+import type { StarterTeamsResult, VolunteersSnapshot } from "@/lib/missio/availability/service";
 
 export type PeopleHit = { contactId: string; name: string };
 
@@ -10,6 +10,7 @@ export type VolunteersClient = {
   load(requestId?: string): Promise<VolunteersSnapshot>;
   createRequest(input: CreateRequestInput): Promise<{ id: string }>;
   createTeam(name: string): Promise<void>;
+  addStarterTeams(): Promise<StarterTeamsResult>;
   renameTeam(id: string, name: string): Promise<void>;
   deleteTeam(id: string): Promise<void>;
   addMember(teamId: string, contactId: string): Promise<void>;
@@ -49,6 +50,9 @@ export const volunteersClient: VolunteersClient = {
   },
   async createTeam(name) {
     await send("/api/missio/volunteers/teams", { method: "POST", body: JSON.stringify({ name }) });
+  },
+  async addStarterTeams() {
+    return (await send("/api/missio/volunteers/teams/starters", { method: "POST" })) as StarterTeamsResult;
   },
   async renameTeam(id, name) {
     await send(`/api/missio/volunteers/teams/${id}`, { method: "PATCH", body: JSON.stringify({ name }) });

@@ -29,6 +29,28 @@ export type MissioPerson = {
    * never claims "not in a house" it couldn't check.
    */
   houses?: MissioPersonHouse[];
+  /**
+   * Teams they're on, from missio_team_members / missio_team_leaders
+   * (GET /api/missio/people only). Absent when the roster couldn't be read,
+   * so a row never claims "doesn't serve" it couldn't check.
+   */
+  teams?: MissioPersonTeam[];
+  /** Teams they asked about on WhatsApp (status new only), not yet on the roster for. */
+  interestTeams?: MissioPersonInterest[];
+};
+
+/** A team on a People row. One per team: "Leads" wins over a member row. */
+export type MissioPersonTeam = { id: string; name: string; leads: boolean };
+
+/** An open (status new) serving interest. teamId is null when it isn't a roster team. */
+export type MissioPersonInterest = { name: string; teamId: string | null };
+
+/** Funnel counts for the People list. Follow campus/status/search, not the serving filter. */
+export type MissioServingCounts = {
+  serves: number;
+  doesnt: number;
+  interested: number;
+  teams: Array<{ id: string; name: string; count: number }>;
 };
 
 /** One current house membership on a People row (board M2a/M2b). */
@@ -65,6 +87,8 @@ export type ContactMatch = {
 export type MissioPeopleResponse = {
   rows: MissioPerson[];
   total: number;
+  /** Absent when the roster couldn't be read. */
+  serving?: MissioServingCounts;
 };
 
 export type MissioContactSearchResponse = {
