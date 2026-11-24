@@ -19,6 +19,7 @@ import { directoryName, publicFirstName } from "@/lib/missio/availability/names"
 import { bundleNudges, type NudgePerson } from "@/lib/missio/availability/copy";
 import { PUBLIC_NAME_COLUMNS, toPublicAvailability, type PublicAvailabilityView } from "@/lib/missio/availability/public-view";
 import type { CreateRequestInput, PublicSaveInput } from "@/lib/missio/availability/schema";
+import { STARTER_TEAMS, missingStarterTeams } from "@/lib/missio/availability/starter-teams";
 import {
   AVAILABILITY_TOKEN_PATTERN,
   AvailabilityTokenSecretError,
@@ -322,6 +323,38 @@ export async function createTeam(supabase: Client, orgId: string, name: string):
   if (failed) return failed;
   if (!data?.id) return fail(500, "server_error", "Volunteers aren't available right now.");
   return { ok: true, body: { id: data.id as string } };
+}
+
+export type StarterTeamsResult = { added: string[]; alreadyPresent: string[] };
+
+/**
+ * Add whichever of the six starter teams the org doesn't have. Idempotent:
+ * a name that already exists (trimmed, any case) is skipped, and a unique
+ * conflict from a second tap racing this one counts as already present.
+ */
+export async function addStarterTeams(supabase: Client, orgId: string): Promise<Ok<StarterTeamsResult> | Fail> {
+  const existing = await supabase.from("missio_teams").select("name").eq("org_id", orgId);
+  if (existing.error) {
+    log(existing.error.message ?? "teams");
+    return fail(500, "server_error", "Volunteers aren't available right now.");
+  }
+  const names = ((existing.data ?? []) as Array<{ name?: unknown }>)
+    .map((row) => (typeof row.name === "string" ? row.name : ""))
+    .filter(Boolean);
+  const missing = missingStarterTeams(names);
+  const added: string[] = [];
+  const alreadyPresent: string[] = STARTER_TEAMS.filter((name) => !missing.includes(name));
+  for (const name of missing) {
+    const { error } = await supabase.from("missio_teams").insert({ org_id: orgId, name });
+    if (error?.code === "23505") {
+      alreadyPresent.push(name);
+      continue;
+    }
+    const failed = dbError(error);
+    if (failed) return failed;
+    added.push(name);
+  }
+  return { ok: true, body: { added, alreadyPresent: STARTER_TEAMS.filter((name) => alreadyPresent.includes(name)) } };
 }
 
 export async function renameTeam(

@@ -128,6 +128,17 @@ describe("people query and contact search rules", () => {
     expect(params.get("limit")).toBe("50");
   });
 
+  it("sends the serving filter and a team id, and drops anything else", () => {
+    const team = "00000000-0000-4000-8000-000000000001";
+    const params = peopleSearchParams({ serves: "interested", team });
+    expect(params.get("serves")).toBe("interested");
+    expect(params.get("team")).toBe(team);
+    const empty = peopleSearchParams({ serves: "", team: "" });
+    expect(empty.has("serves")).toBe(false);
+    expect(empty.has("team")).toBe(false);
+    expect(peopleSearchParams({ team: "sound" }).has("team")).toBe(false);
+  });
+
   it("rejects a name and accepts an email or a phone", () => {
     expect(classifyContactQuery("  ")).toBe("empty");
     expect(classifyContactQuery("Mina Osei")).toBe("name");

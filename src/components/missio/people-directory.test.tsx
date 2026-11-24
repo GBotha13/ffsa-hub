@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PeopleDirectory } from "./people-directory";
 import { MissioApiError, type MissioClient } from "./api";
-import type { MissioPerson, UpdateMissioPersonInput } from "./types-shim";
+import type { MissioPerson, MissioServingCounts, UpdateMissioPersonInput } from "./types-shim";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -355,5 +355,183 @@ describe("people directory", () => {
       await Promise.resolve();
     });
     expect(second.host.querySelector("[data-state=error]")?.textContent).toMatch(/didn’t load/i);
+  });
+
+  describe("serving", () => {
+    const SOUND = "00000000-0000-4000-8000-000000000001";
+    const WORSHIP = "00000000-0000-4000-8000-000000000002";
+    const KIDS = "00000000-0000-4000-8000-000000000003";
+    const team = (id: string, name: string, leads = false) => ({ id, name, leads });
+    const base = { campus: "potch" as const, status: "active" as const, joinedAt: null, currentStage: null, houses: [] };
+    const servingRows: MissioPerson[] = [
+      { ...base, id: "esther", contactId: "c-esther", name: "Esther Naidoo", teams: [team(KIDS, "Kids", true), team(WORSHIP, "Worship")], interestTeams: [] },
+      { ...base, id: "lila", contactId: "c-lila", name: "Lila Mokoena", teams: [team(SOUND, "Sound")], interestTeams: [] },
+      { ...base, id: "riley", contactId: "c-riley", name: "Riley Example", teams: [], interestTeams: [{ name: "Worship", teamId: WORSHIP }] },
+      { ...base, id: "sipho", contactId: "c-sipho", name: "Sipho Dlamini", teams: [], interestTeams: [] },
+    ];
+    const counts: MissioServingCounts = {
+      serves: 2,
+      doesnt: 2,
+      interested: 1,
+      teams: [
+        { id: KIDS, name: "Kids", count: 1 },
+        { id: SOUND, name: "Sound", count: 1 },
+        { id: WORSHIP, name: "Worship", count: 1 },
+      ],
+    };
+
+    function servingClient(rowsIn: MissioPerson[], serving: MissioServingCounts) {
+      const calls: Array<Record<string, unknown>> = [];
+      const client: MissioClient = {
+        getMe: async () => {
+          throw new Error("unused");
+        },
+        async listPeople(query) {
+          calls.push({ ...query });
+          const kept = rowsIn.filter((person) => {
+            const onTeams = person.teams ?? [];
+            if (query?.serves === "yes" && onTeams.length === 0) return false;
+            if (query?.serves === "no" && onTeams.length > 0) return false;
+            if (query?.serves === "interested" && (person.interestTeams ?? []).length === 0) return false;
+            if (query?.team && !onTeams.some((item) => item.id === query.team)) return false;
+            return true;
+          });
+          return { rows: kept, total: kept.length, serving };
+        },
+        searchContacts: async () => ({ matches: [] }),
+        createPerson: async () => {
+          throw new Error("unused");
+        },
+        updatePerson: async () => {},
+      };
+      return { client, calls };
+    }
+
+    async function mount(client: MissioClient) {
+      const { host, root } = render(<PeopleDirectory client={client} />);
+      roots.push(root);
+      hosts.push(host);
+      await act(async () => {
+        await Promise.resolve();
+      });
+      return host;
+    }
+
+    const card = (host: HTMLElement, name: string) =>
+      [...host.querySelectorAll("[data-testid=people-cards] li")].find((item) => item.textContent?.includes(name));
+    const chips = (host: HTMLElement, name: string) =>
+      [...(card(host, name)?.querySelectorAll("[data-testid=person-serving] > span") ?? [])].map((chip) => ({
+        text: chip.textContent,
+        kind: chip.getAttribute("data-kind"),
+      }));
+    const funnelButton = (host: HTMLElement, label: RegExp) =>
+      [...host.querySelectorAll("[data-testid=serving-funnel] button")].find((button) => label.test(button.getAttribute("aria-label") ?? "")) as
+        | HTMLButtonElement
+        | undefined;
+    const click = async (button: Element | undefined) => {
+      if (!button) throw new Error("missing button");
+      await act(async () => {
+        button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await Promise.resolve();
+      });
+    };
+
+    it("shows roster chips, one Leads chip, and a quiet Interested chip", async () => {
+      const host = await mount(servingClient(servingRows, counts).client);
+      expect(chips(host, "Esther Naidoo")).toEqual([
+        { text: "Leads Kids", kind: "leads" },
+        { text: "Serves Worship", kind: "serves" },
+      ]);
+      expect(chips(host, "Lila Mokoena")).toEqual([{ text: "Serves Sound", kind: "serves" }]);
+      const interested = card(host, "Riley Example")?.querySelector("[data-kind=interested]");
+      expect(interested?.textContent).toBe("Interested · Worship");
+      expect(interested?.className).toMatch(/sInterest/);
+      // No chip, and no "Doesn't serve" stamp, for someone on no team.
+      expect(card(host, "Sipho Dlamini")?.querySelector("[data-testid=person-serving]")).toBeNull();
+      expect(card(host, "Sipho Dlamini")?.textContent).not.toMatch(/serve/i);
+      expect(host.querySelector("[data-testid=serving-count]")?.textContent).toBe("4 people · 2 serve");
+      // Desktop: a Serves column with the same chips.
+      const header = [...host.querySelectorAll("[data-testid=people-table] th")].map((th) => th.textContent);
+      expect(header).toContain("Serves");
+      const estherRow = [...host.querySelectorAll("[data-testid=people-table] tr")].find((tr) => tr.textContent?.includes("Esther"));
+      expect(estherRow?.querySelector("[data-testid=person-serving]")?.textContent).toBe("Leads KidsServes Worship");
+    });
+
+    it("filters with All / Serves / Doesn't and team chips, and a second tap clears", async () => {
+      const { client, calls } = servingClient(servingRows, counts);
+      const host = await mount(client);
+      expect(funnelButton(host, /^All, 4 people$/)?.getAttribute("aria-pressed")).toBe("true");
+      expect(funnelButton(host, /^Serves, 2 people$/)).toBeTruthy();
+      expect(funnelButton(host, /^Doesn’t serve, 2 people$/)).toBeTruthy();
+      expect(funnelButton(host, /^Sound, 1 person$/)?.textContent).toBe("Sound1");
+
+      await click(funnelButton(host, /^Doesn’t serve/));
+      expect(calls.at(-1)).toMatchObject({ serves: "no", team: "", offset: 0 });
+      expect(card(host, "Riley Example")).toBeTruthy();
+      expect(card(host, "Esther Naidoo")).toBeUndefined();
+      expect(host.querySelector("[data-testid=serving-count]")?.textContent).toBe("2 people match · Doesn’t serve");
+      // Counts stay put while a serving pick is on.
+      expect(funnelButton(host, /^Serves, 2 people$/)).toBeTruthy();
+
+      await click(funnelButton(host, /^Doesn’t serve/));
+      expect(calls.at(-1)).toMatchObject({ serves: "", team: "" });
+      expect(card(host, "Esther Naidoo")).toBeTruthy();
+
+      await click(funnelButton(host, /^Sound,/));
+      expect(calls.at(-1)).toMatchObject({ serves: "", team: SOUND });
+      expect(funnelButton(host, /^Sound,/)?.getAttribute("aria-pressed")).toBe("true");
+      expect(funnelButton(host, /^Serves,/)?.getAttribute("aria-pressed")).toBe("true");
+      expect(host.querySelector("[data-testid=serving-count]")?.textContent).toBe("1 person matches · Sound");
+      expect(card(host, "Lila Mokoena")).toBeTruthy();
+      expect(card(host, "Esther Naidoo")).toBeUndefined();
+
+      await click(funnelButton(host, /^Sound,/));
+      expect(calls.at(-1)).toMatchObject({ serves: "", team: "" });
+
+      await click(funnelButton(host, /^Serves,/));
+      expect(calls.at(-1)).toMatchObject({ serves: "yes", team: "" });
+      await click(funnelButton(host, /^All,/));
+      expect(calls.at(-1)).toMatchObject({ serves: "", team: "" });
+    });
+
+    it("filters to Interested, which isn't serving", async () => {
+      const { client, calls } = servingClient(servingRows, counts);
+      const host = await mount(client);
+      const chip = funnelButton(host, /^Interested, 1 person$/);
+      expect(chip?.className).toMatch(/tchipInterest/);
+      await click(chip);
+      expect(calls.at(-1)).toMatchObject({ serves: "interested", team: "" });
+      expect([...host.querySelectorAll("[data-testid=people-cards] li a")].map((a) => a.getAttribute("href"))).toEqual([
+        "/missio/people/riley",
+      ]);
+      expect(funnelButton(host, /^All,/)?.getAttribute("aria-pressed")).toBe("false");
+    });
+
+    it("is honest with an empty roster: zeros, no invented teams, and a pointer to Volunteers", async () => {
+      const plain = servingRows.map((person) => ({ ...person, teams: [], interestTeams: [] }));
+      const host = await mount(servingClient(plain, { serves: 0, doesnt: 4, interested: 0, teams: [] }).client);
+      expect(funnelButton(host, /^All, 4 people$/)).toBeTruthy();
+      expect(funnelButton(host, /^Serves, 0 people$/)).toBeTruthy();
+      expect(funnelButton(host, /^Doesn’t serve, 4 people$/)).toBeTruthy();
+      expect(host.querySelector("[aria-label='Serving teams']")).toBeNull();
+      expect(funnelButton(host, /^Interested/)).toBeUndefined();
+      expect(host.querySelector("[data-testid=person-serving]")).toBeNull();
+      expect(host.querySelector("[data-testid=serving-count]")?.textContent).toBe("4 people · 0 serve");
+      const note = host.querySelector("[data-testid=serving-empty]");
+      expect(note?.textContent).toContain("No serving teams yet.");
+      expect(note?.querySelector("a")?.getAttribute("href")).toBe("/missio/volunteers");
+    });
+
+    it("hides the funnel when the route couldn't read the roster", async () => {
+      const client: MissioClient = {
+        ...servingClient(servingRows, counts).client,
+        listPeople: async () => ({ rows: servingRows.map((person) => ({ ...person, teams: undefined, interestTeams: undefined })), total: 4 }),
+      };
+      const host = await mount(client);
+      expect(host.querySelector("[data-testid=serving-funnel]")).toBeNull();
+      expect(host.querySelector("[data-testid=person-serving]")).toBeNull();
+      const header = [...host.querySelectorAll("[data-testid=people-table] th")].map((th) => th.textContent);
+      expect(header).not.toContain("Serves");
+    });
   });
 });

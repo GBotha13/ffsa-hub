@@ -23,7 +23,13 @@ export interface PeopleQuery {
   q?: string;
   limit?: number;
   offset?: number;
+  /** Serves (on a team), doesn't serve, or has a new serving interest. */
+  serves?: "yes" | "no" | "interested" | "";
+  /** A missio_teams id: on that team as member or leader. */
+  team?: string;
 }
+
+const TEAM_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type OrgSkin = "ffsa" | "missio";
 
@@ -94,6 +100,9 @@ export function peopleSearchParams(query: PeopleQuery = {}): URLSearchParams {
   }
   const q = query.q?.trim();
   if (q) params.set("q", q);
+  if (query.serves === "yes" || query.serves === "no" || query.serves === "interested") params.set("serves", query.serves);
+  const team = query.team?.trim();
+  if (team && TEAM_ID.test(team)) params.set("team", team);
   const offset = query.offset == null || !Number.isFinite(query.offset) ? 0 : Math.max(0, Math.floor(query.offset));
   params.set("limit", String(clampPeopleLimit(query.limit)));
   params.set("offset", String(offset));

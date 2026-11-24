@@ -16,6 +16,7 @@ import type {
   MissioStatus,
 } from "@/lib/missio/types";
 import { membershipIsCurrent } from "@/lib/missio/house-church-import";
+import { loadServingIndex, matchesServing, servingCounts, servingFor, type ServingIndex } from "@/lib/missio/serving";
 
 function fail(status: number, code: MissioErrorCode, error: string) {
   return { ok: false as const, status, code, error };
@@ -53,6 +54,8 @@ export const peopleQuerySchema = z.object({
   q: z.string().trim().max(200).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).max(1_000_000).default(0),
+  serves: z.enum(["yes", "no", "interested"]).optional(),
+  team: z.string().uuid().optional(),
 });
 
 const personFields = {
@@ -154,13 +157,13 @@ function adminClient(): { client: Client } | { error: string } {
   }
 }
 
-export async function listPeople(auth: OrgAccess, query: z.infer<typeof peopleQuerySchema>): Promise<
-  | { ok: true; body: MissioPeopleResponse }
-  | { ok: false; status: number; error: string; code: MissioErrorCode }
-> {
+type PeopleQueryInput = z.infer<typeof peopleQuerySchema>;
+
+/** The directory read with campus, status and name search applied. */
+function directoryQuery(auth: OrgAccess, query: PeopleQueryInput, columns: string, count = false) {
   let request = auth.supabase
     .from(DIRECTORY)
-    .select(DIRECTORY_COLUMNS, { count: "exact" })
+    .select(columns, count ? { count: "exact" } : undefined)
     .eq("org_id", auth.orgId);
 
   if (query.campus) request = request.eq("campus", query.campus);
@@ -177,22 +180,86 @@ export async function listPeople(auth: OrgAccess, query: z.infer<typeof peopleQu
   }
 
   // A to Z (boards M2a/M2b), so the phone list can carry letter headings.
-  const { data, error, count } = await request
+  return request
     .order("first_name", { ascending: true })
     .order("last_name", { ascending: true })
     .order("preferred_name", { ascending: true })
-    .order("id", { ascending: true })
-    .range(query.offset, query.offset + query.limit - 1);
+    .order("id", { ascending: true });
+}
 
-  if (error) {
-    console.error("[missio] people list failed", error.message ?? "query error");
-    return fail(500, "server_error", "Something went wrong.");
+const ALL_ROWS_PAGE = 1000;
+const ALL_ROWS_CAP = 20_000;
+
+/**
+ * Every row the campus/status/search filter keeps, a thousand at a time (the
+ * PostgREST row cap). Missio has a couple of hundred people; the cap is a guard.
+ */
+async function allDirectoryRows<T>(auth: OrgAccess, query: PeopleQueryInput, columns: string): Promise<T[] | null> {
+  const rows: T[] = [];
+  for (let from = 0; from < ALL_ROWS_CAP; from += ALL_ROWS_PAGE) {
+    const { data, error } = await directoryQuery(auth, query, columns).range(from, from + ALL_ROWS_PAGE - 1);
+    if (error) {
+      console.error("[missio] people list failed", error.message ?? "query error");
+      return null;
+    }
+    const page = (data ?? []) as T[];
+    rows.push(...page);
+    if (page.length < ALL_ROWS_PAGE) break;
+  }
+  return rows;
+}
+
+function withServing(rows: MissioPerson[], index: ServingIndex | null): MissioPerson[] {
+  if (!index) return rows;
+  return rows.map((row) => ({ ...row, ...servingFor(index, row.contactId) }));
+}
+
+export async function listPeople(auth: OrgAccess, query: PeopleQueryInput): Promise<
+  | { ok: true; body: MissioPeopleResponse }
+  | { ok: false; status: number; error: string; code: MissioErrorCode }
+> {
+  const servingFilter = Boolean(query.serves || query.team);
+  const serving = await loadServingIndex(auth.supabase, auth.orgId);
+  // A serving filter can't be answered without the roster. Say so rather
+  // than return everyone or no one.
+  if (servingFilter && !serving) return fail(500, "server_error", "Something went wrong.");
+
+  let rows: MissioPerson[];
+  let total: number;
+  let counts: MissioPeopleResponse["serving"];
+
+  if (servingFilter && serving) {
+    // Filter the whole list, then page, so page 2 is page 2 of the matches.
+    const all = await allDirectoryRows<PersonRow>(auth, query, DIRECTORY_COLUMNS);
+    if (!all) return fail(500, "server_error", "Something went wrong.");
+    counts = servingCounts(serving, all.map((row) => row.contact_id));
+    const kept = all.filter((row) => matchesServing(serving, row.contact_id, { serves: query.serves, team: query.team }));
+    total = kept.length;
+    rows = kept.slice(query.offset, query.offset + query.limit).map(toMissioPerson);
+  } else {
+    const { data, error, count } = await directoryQuery(auth, query, DIRECTORY_COLUMNS, true).range(
+      query.offset,
+      query.offset + query.limit - 1
+    );
+    if (error) {
+      console.error("[missio] people list failed", error.message ?? "query error");
+      return fail(500, "server_error", "Something went wrong.");
+    }
+    rows = ((data ?? []) as PersonRow[]).map(toMissioPerson);
+    total = typeof count === "number" ? count : rows.length;
+    if (serving) {
+      const ids = await allDirectoryRows<{ contact_id: string }>(auth, query, "contact_id");
+      counts = ids ? servingCounts(serving, ids.map((row) => row.contact_id)) : undefined;
+    }
   }
 
-  const rows = ((data ?? []) as PersonRow[]).map(toMissioPerson);
   const houses = await currentHousesFor(auth, rows.map((row) => row.contactId));
   const withHouses = houses ? rows.map((row) => ({ ...row, houses: houses.get(row.contactId) ?? [] })) : rows;
-  return { ok: true, body: { rows: withHouses, total: typeof count === "number" ? count : rows.length } };
+  // Chips only ride along with the counts, so a row never shows chips the
+  // funnel can't account for.
+  const body: MissioPeopleResponse = { rows: withServing(withHouses, counts ? serving : null), total };
+  if (counts) body.serving = counts;
+  return { ok: true, body };
 }
 
 const HOUSE_ROLE_ORDER: Record<MissioPersonHouse["role"], number> = { leader: 0, co_leader: 1, member: 2 };
@@ -850,7 +917,7 @@ export async function updatePerson(
 
 export function readPeopleQuery(url: URL) {
   const input: Record<string, string> = {};
-  for (const key of ["campus", "status", "q", "limit", "offset"] as const) {
+  for (const key of ["campus", "status", "q", "limit", "offset", "serves", "team"] as const) {
     const value = url.searchParams.get(key);
     if (value !== null && value !== "") input[key] = value;
   }

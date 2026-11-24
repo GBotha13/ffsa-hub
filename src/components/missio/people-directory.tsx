@@ -17,7 +17,7 @@ import { MissioDialog } from "./missio-dialog";
 import { HouseholdsView } from "./households/households-view";
 import { missioPortalClass } from "./portal";
 import people from "./people.module.css";
-import type { MissioCampus, MissioPerson, MissioPersonHouse, MissioStatus } from "./types-shim";
+import type { MissioCampus, MissioPerson, MissioPersonHouse, MissioServingCounts, MissioStatus } from "./types-shim";
 import content from "./content.module.css";
 import styles from "./shell.module.css";
 
@@ -25,6 +25,8 @@ type ListState =
   | { phase: "loading" }
   | { phase: "error"; message: string }
   | { phase: "ready"; rows: MissioPerson[]; total: number };
+
+type Serves = "" | "yes" | "no" | "interested";
 
 const CAMPUS_SHORT: Record<MissioCampus, string> = { potch: "Potch", jhb: "JHB" };
 
@@ -107,6 +109,10 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
   const [status, setStatus] = useState<"" | MissioStatus>("");
   const [draft, setDraft] = useState(() => params.get("q") ?? "");
   const [q, setQ] = useState(() => params.get("q") ?? "");
+  const [serves, setServes] = useState<Serves>("");
+  const [team, setTeam] = useState("");
+  // Kept across loads so the funnel doesn't flicker while a filter loads.
+  const [serving, setServing] = useState<MissioServingCounts | null>(null);
   const [offset, setOffset] = useState(0);
   const [tick, setTick] = useState(0);
   const [list, setList] = useState<ListState>({ phase: "loading" });
@@ -119,8 +125,8 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
   const [focusPersonId, setFocusPersonId] = useState<string | null>(null);
 
   const query = useMemo<PeopleQuery>(
-    () => ({ campus, status, q, limit: DEFAULT_PEOPLE_LIMIT, offset }),
-    [campus, status, q, offset]
+    () => ({ campus, status, q, serves, team, limit: DEFAULT_PEOPLE_LIMIT, offset }),
+    [campus, status, q, serves, team, offset]
   );
 
   useEffect(() => {
@@ -128,7 +134,9 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
     setList({ phase: "loading" });
     client.listPeople(query).then(
       (page) => {
-        if (active) setList({ phase: "ready", rows: page.rows, total: page.total });
+        if (!active) return;
+        setList({ phase: "ready", rows: page.rows, total: page.total });
+        setServing(page.serving ?? null);
       },
       (error: unknown) => {
         if (!active) return;
@@ -165,7 +173,8 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
   const from = total === 0 ? 0 : offset + 1;
   const to = Math.min(offset + DEFAULT_PEOPLE_LIMIT, total);
   const activeFilters = (campus ? 1 : 0) + (status ? 1 : 0);
-  const filtered = Boolean(q || campus || status);
+  const servingFiltered = Boolean(serves || team);
+  const filtered = Boolean(q || campus || status || servingFiltered);
   const pickCampus = (value: "" | MissioCampus) => {
     setCampus(value);
     setOffset(0);
@@ -174,9 +183,21 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
     setStatus(value);
     setOffset(0);
   };
+  // One serving pick at a time (a segment, a team, or Interested). Tapping
+  // the one that's on again clears it.
+  const pickServing = (next: { serves?: Serves; team?: string }) => {
+    const nextServes = next.serves ?? "";
+    const nextTeam = next.team ?? "";
+    const same = nextServes === serves && nextTeam === team;
+    setServes(same ? "" : nextServes);
+    setTeam(same ? "" : nextTeam);
+    setOffset(0);
+  };
   const clearFilters = () => {
     pickCampus("");
     pickStatus("");
+    setServes("");
+    setTeam("");
   };
 
   return (
@@ -289,12 +310,22 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
                 <XIcon />
               </button>
             ) : null}
-            {list.phase === "ready" ? (
+            {list.phase === "ready" && !serving ? (
               <span className={people.total}>
                 {total} {total === 1 ? "person" : "people"}
               </span>
             ) : null}
           </div>
+        ) : null}
+
+        {view === "people" && serving ? (
+          <ServingFunnel
+            serving={serving}
+            serves={serves}
+            team={team}
+            total={list.phase === "ready" ? total : null}
+            onPick={pickServing}
+          />
         ) : null}
       </form>
 
@@ -336,7 +367,7 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
                 {filtered ? "They might be under another filter, or not on the list yet." : "Add the first person to Missio."}
               </p>
               <div className={people.stateActions}>
-                {filtered && (campus || status) ? (
+                {filtered && (campus || status || servingFiltered) ? (
                   <button type="button" className={`${people.btnS} ${people.sm}`} onClick={clearFilters}>
                     Clear filters
                   </button>
@@ -354,6 +385,7 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
                   const letter = firstLetter(person.name);
                   const showLetter = index === 0 || firstLetter(sorted[index - 1].name) !== letter;
                   const meta = personMeta(person);
+                  const chips = hasServingChips(person);
                   return (
                     <li key={person.id}>
                       {showLetter ? (
@@ -361,7 +393,7 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
                           {letter}
                         </div>
                       ) : null}
-                      <Link href={`/missio/people/${encodeURIComponent(person.id)}`} className={people.lrow}>
+                      <Link href={`/missio/people/${encodeURIComponent(person.id)}`} className={`${people.lrow} ${chips ? people.lrowTall : ""}`}>
                         <Avatar id={person.id} name={person.name} />
                         <span className={people.lrowText}>
                           <span className={people.nm} style={{ display: "block" }}>
@@ -370,6 +402,7 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
                           <span className={`${people.meta} ${meta.follow ? people.metaFollow : ""}`} style={{ display: "block" }} data-testid="person-meta">
                             {meta.text}
                           </span>
+                          {chips ? <ServingChips person={person} /> : null}
                         </span>
                         <span className={people.tag}>{CAMPUS_SHORT[person.campus]}</span>
                       </Link>
@@ -377,7 +410,7 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
                   );
                 })}
               </ul>
-              <div className={`${people.card} ${people.deskBlock}`}>
+              <div className={`${people.card} ${people.deskBlock} ${people.tableScroll}`}>
                 <table className={people.table} data-testid="people-table">
                   <thead>
                     <tr>
@@ -386,6 +419,7 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
                       <th>Role</th>
                       <th>Status</th>
                       <th>Follow-up stage</th>
+                      {serving ? <th>Serves</th> : null}
                       <th>Campus</th>
                       <th>
                         <span className={people.visuallyHidden}>Edit</span>
@@ -409,6 +443,11 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
                           </span>
                         </td>
                         <td className={stageLabel(person) ? people.ink2 : people.ink3}>{stageLabel(person) || "—"}</td>
+                        {serving ? (
+                          <td className={`${people.servesCell} ${hasServingChips(person) ? "" : people.ink3}`}>
+                            {hasServingChips(person) ? <ServingChips person={person} /> : "—"}
+                          </td>
+                        ) : null}
                         <td>
                           <span className={people.tag}>{CAMPUS_SHORT[person.campus]}</span>
                         </td>
@@ -487,6 +526,142 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
           }}
           onNotFound={() => setTick((n) => n + 1)}
         />
+      ) : null}
+    </div>
+  );
+}
+
+function hasServingChips(person: MissioPerson): boolean {
+  return (person.teams?.length ?? 0) + (person.interestTeams?.length ?? 0) > 0;
+}
+
+/**
+ * Serving chips on a row: "Leads Kids" (terra), "Sound" (olive) for each
+ * team they're on, then "Interested · Worship" (gold, dashed) for a new
+ * WhatsApp interest. Text on every chip, so colour is never the only cue.
+ */
+export function ServingChips({ person }: { person: MissioPerson }) {
+  const teams = person.teams ?? [];
+  const interests = person.interestTeams ?? [];
+  return (
+    <span className={people.serveChips} data-testid="person-serving">
+      {teams.map((item) =>
+        item.leads ? (
+          <span key={item.id} className={`${people.sChip} ${people.sLead}`} data-kind="leads">
+            Leads {item.name}
+          </span>
+        ) : (
+          <span key={item.id} className={people.sChip} data-kind="serves">
+            <span className={people.visuallyHidden}>Serves </span>
+            {item.name}
+          </span>
+        )
+      )}
+      {interests.map((item) => (
+        <span key={`${item.teamId ?? "other"}-${item.name}`} className={`${people.sChip} ${people.sInterest}`} data-kind="interested">
+          Interested · {item.name}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+const SERVES_WORD: Record<Exclude<Serves, "">, string> = { yes: "Serves", no: "Doesn’t serve", interested: "Interested" };
+
+function peopleWord(n: number): string {
+  return `${n} ${n === 1 ? "person" : "people"}`;
+}
+
+/**
+ * The visible serving funnel under the search: All · Serves · Doesn't, then a
+ * chip per roster team and Interested, each with its count. Counts follow
+ * campus, status and search, and hold still while a serving pick is on.
+ */
+function ServingFunnel({
+  serving,
+  serves,
+  team,
+  total,
+  onPick,
+}: {
+  serving: MissioServingCounts;
+  serves: Serves;
+  team: string;
+  total: number | null;
+  onPick: (next: { serves?: Serves; team?: string }) => void;
+}) {
+  const all = serving.serves + serving.doesnt;
+  const activeTeam = serving.teams.find((item) => item.id === team);
+  const segments: Array<{ value: Serves; label: string; count: number; on: boolean }> = [
+    { value: "", label: "All", count: all, on: !serves && !team },
+    { value: "yes", label: "Serves", count: serving.serves, on: serves === "yes" || (Boolean(team) && !serves) },
+    { value: "no", label: "Doesn’t", count: serving.doesnt, on: serves === "no" },
+  ];
+  const pickedLabel = activeTeam?.name ?? (serves ? SERVES_WORD[serves] : "");
+  const line =
+    total == null
+      ? " "
+      : pickedLabel
+        ? `${peopleWord(total)} ${total === 1 ? "matches" : "match"} · ${pickedLabel}`
+        : `${peopleWord(total)} · ${serving.serves} ${serving.serves === 1 ? "serves" : "serve"}`;
+
+  return (
+    <div className={people.funnel} data-testid="serving-funnel">
+      <div className={people.seg} role="group" aria-label="Serving">
+        {segments.map((segment) => (
+          <button
+            key={segment.label}
+            type="button"
+            className={`${people.segBtn} ${segment.on ? people.segOn : ""}`}
+            aria-pressed={segment.on}
+            aria-label={`${segment.label === "Doesn’t" ? "Doesn’t serve" : segment.label}, ${peopleWord(segment.count)}`}
+            onClick={() => {
+              if (segment.value === "") onPick({});
+              else if (segment.on) onPick({ serves: serves, team }); // second tap clears
+              else onPick({ serves: segment.value });
+            }}
+          >
+            <span className={people.segLabel}>{segment.label}</span>
+            <span className={people.segCount}>{segment.count}</span>
+          </button>
+        ))}
+      </div>
+      {serving.teams.length > 0 || serving.interested > 0 || serves === "interested" ? (
+        <div className={people.teamChips} role="group" aria-label="Serving teams">
+          {serving.teams.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`${people.fchip} ${people.tchip} ${team === item.id ? people.fchipOn : ""}`}
+              aria-pressed={team === item.id}
+              aria-label={`${item.name}, ${peopleWord(item.count)}`}
+              onClick={() => onPick({ team: item.id })}
+            >
+              {item.name}
+              <span className={people.tcount}>{item.count}</span>
+            </button>
+          ))}
+          {serving.interested > 0 || serves === "interested" ? (
+            <button
+              type="button"
+              className={`${people.fchip} ${people.tchip} ${people.tchipInterest} ${serves === "interested" ? people.fchipOn : ""}`}
+              aria-pressed={serves === "interested"}
+              aria-label={`Interested, ${peopleWord(serving.interested)}`}
+              onClick={() => onPick({ serves: "interested" })}
+            >
+              Interested
+              <span className={people.tcount}>{serving.interested}</span>
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      <p className={people.funnelLine} data-testid="serving-count">
+        {line}
+      </p>
+      {serving.teams.length === 0 ? (
+        <p className={people.funnelNote} data-testid="serving-empty">
+          No serving teams yet. <Link href="/missio/volunteers">Add teams on Volunteers</Link>
+        </p>
       ) : null}
     </div>
   );

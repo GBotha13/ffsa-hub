@@ -57,6 +57,32 @@ export interface MissioPerson {
   currentStage: string | null;
   /** Current house memberships, leaders first. Absent when the list couldn't read them. */
   houses?: MissioPersonHouse[];
+  /**
+   * Teams they're on, from missio_team_members / missio_team_leaders
+   * (GET /api/missio/people only). Absent when the roster couldn't be read,
+   * so a row never claims "doesn't serve" it couldn't check.
+   */
+  teams?: MissioPersonTeam[];
+  /** Teams they asked about on WhatsApp (status new only), not yet on the roster for. */
+  interestTeams?: MissioPersonInterest[];
+}
+
+export interface MissioPersonTeam {
+  id: string;
+  name: string;
+  leads: boolean;
+}
+
+export interface MissioPersonInterest {
+  name: string;
+  teamId: string | null;
+}
+
+export interface MissioServingCounts {
+  serves: number;
+  doesnt: number;
+  interested: number;
+  teams: Array<{ id: string; name: string; count: number }>;
 }
 
 /** One current house membership on a People row (board M2a/M2b). */

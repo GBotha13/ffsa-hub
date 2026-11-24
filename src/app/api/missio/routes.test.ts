@@ -700,8 +700,12 @@ describe("GET /api/missio/people", () => {
         joinedAt: null,
         currentStage: null,
         houses: [],
+        teams: [],
+        interestTeams: [],
       },
     ]);
+    // No teams yet: honest zeros, everyone under "doesn't serve".
+    expect(body.serving).toEqual({ serves: 0, doesnt: 1, interested: 0, teams: [] });
     expect(state.adminBuilds).toBe(0);
     expectUserDirectoryReads();
     expect(state.ops.find((op) => op.table === "org_people_directory")?.client).toBe("user");
@@ -802,6 +806,145 @@ describe("GET /api/missio/people", () => {
     expect(state.ops.some((op) => op.table === "contact_emails" || op.table === "contact_phones")).toBe(false);
     expectUserDirectoryReads();
     expect(state.ops.filter((op) => op.table === "org_people_directory").every((op) => op.op.ors.every((clause) => !clause.table))).toBe(true);
+  });
+});
+
+describe("GET /api/missio/people serving", () => {
+  const SOUND = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1";
+  const WORSHIP = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2";
+  const KIDS = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee3";
+  const OTHER_ORG_TEAM = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee9";
+
+  function roster() {
+    addContact({ id: "c-esther", first: "Esther", last: "Naidoo", personId: "esther" });
+    addContact({ id: "c-johan", first: "Johan", last: "Naidoo", personId: "johan", campus: "jhb" });
+    addContact({ id: "c-lila", first: "Lila", last: "Mokoena", personId: "lila" });
+    addContact({ id: "c-riley", first: "Riley", last: "Example", personId: "riley" });
+    addContact({ id: "c-sipho", first: "Sipho", last: "Dlamini", personId: "sipho" });
+    state.tables.missio_teams = [
+      { id: SOUND, org_id: MISSIO, name: "Sound" },
+      { id: WORSHIP, org_id: MISSIO, name: "Worship" },
+      { id: KIDS, org_id: MISSIO, name: "Kids" },
+      { id: OTHER_ORG_TEAM, org_id: FFSA, name: "Sound" },
+    ];
+    state.tables.missio_team_members = [
+      { team_id: WORSHIP, contact_id: "c-esther" },
+      { team_id: KIDS, contact_id: "c-esther" },
+      { team_id: WORSHIP, contact_id: "c-johan" },
+      { team_id: SOUND, contact_id: "c-lila" },
+      { team_id: OTHER_ORG_TEAM, contact_id: "c-sipho" },
+    ];
+    state.tables.missio_team_leaders = [{ team_id: KIDS, contact_id: "c-esther" }];
+    state.tables.missio_serving_interests = [
+      { id: "i1", org_id: MISSIO, contact_id: "c-riley", status: "new", teams: [{ id: "worship", name: "Worship / band" }] },
+      { id: "i2", org_id: MISSIO, contact_id: "c-sipho", status: "contacted", teams: [{ id: SOUND, name: "Sound" }] },
+      { id: "i3", org_id: MISSIO, contact_id: null, status: "new", teams: [{ id: null, name: "Other" }] },
+      { id: "i4", org_id: FFSA, contact_id: "c-sipho", status: "new", teams: [{ id: null, name: "Sound" }] },
+    ];
+  }
+
+  const ids = (body: { rows: Array<{ id: string }> }) => body.rows.map((row) => row.id);
+
+  it("puts roster chips and new interests on rows, with funnel counts", async () => {
+    roster();
+    const body = await (await get("/api/missio/people")).json();
+    const byId = new Map(body.rows.map((row: { id: string }) => [row.id, row]));
+    expect(byId.get("esther")).toMatchObject({
+      teams: [
+        { id: KIDS, name: "Kids", leads: true },
+        { id: WORSHIP, name: "Worship", leads: false },
+      ],
+      interestTeams: [],
+    });
+    expect(byId.get("riley")).toMatchObject({ teams: [], interestTeams: [{ name: "Worship", teamId: WORSHIP }] });
+    // Another org's team, and a contacted interest, put nothing on Sipho.
+    expect(byId.get("sipho")).toMatchObject({ teams: [], interestTeams: [] });
+    expect(body.serving).toEqual({
+      serves: 3,
+      doesnt: 2,
+      interested: 1,
+      teams: [
+        { id: KIDS, name: "Kids", count: 1 },
+        { id: SOUND, name: "Sound", count: 1 },
+        { id: WORSHIP, name: "Worship", count: 2 },
+      ],
+    });
+    // No contact details ride along.
+    expect(JSON.stringify(body)).not.toMatch(/email|phone/i);
+    for (const table of ["missio_teams", "missio_team_members", "missio_team_leaders", "missio_serving_interests"]) {
+      const reads = state.ops.filter((op) => op.table === table);
+      expect(reads.length).toBe(1);
+      expect(reads.every((op) => op.client === "user" && op.op.action === "select")).toBe(true);
+    }
+    expect(state.writes).toEqual([]);
+  });
+
+  it("filters by serves and team, ANDed with campus, and keeps the counts", async () => {
+    roster();
+    const serves = await (await get("/api/missio/people?serves=yes")).json();
+    expect(ids(serves)).toEqual(["esther", "johan", "lila"]);
+    expect(serves.total).toBe(3);
+    expect(serves.serving.serves).toBe(3);
+    expect(serves.serving.doesnt).toBe(2);
+
+    const doesnt = await (await get("/api/missio/people?serves=no")).json();
+    expect(ids(doesnt)).toEqual(["riley", "sipho"]);
+
+    const interested = await (await get("/api/missio/people?serves=interested")).json();
+    expect(ids(interested)).toEqual(["riley"]);
+
+    const worship = await (await get(`/api/missio/people?team=${WORSHIP}`)).json();
+    expect(ids(worship)).toEqual(["esther", "johan"]);
+
+    const leaderOnly = await (await get(`/api/missio/people?team=${KIDS}`)).json();
+    expect(ids(leaderOnly)).toEqual(["esther"]);
+
+    const potchWorship = await (await get(`/api/missio/people?team=${WORSHIP}&campus=potch`)).json();
+    expect(ids(potchWorship)).toEqual(["esther"]);
+    // Counts follow campus, not the serving filter.
+    expect(potchWorship.serving).toMatchObject({ serves: 2, doesnt: 2 });
+
+    const none = await (await get(`/api/missio/people?team=${SOUND}&serves=no`)).json();
+    expect(none).toMatchObject({ rows: [], total: 0 });
+  });
+
+  it("pages after filtering, not within the first page", async () => {
+    roster();
+    const first = await (await get("/api/missio/people?serves=yes&limit=2&offset=0")).json();
+    expect(ids(first)).toEqual(["esther", "johan"]);
+    expect(first.total).toBe(3);
+    const second = await (await get("/api/missio/people?serves=yes&limit=2&offset=2")).json();
+    expect(ids(second)).toEqual(["lila"]);
+    expect(second.total).toBe(3);
+  });
+
+  it("leaves serving off when the roster can't be read, and refuses a serving filter", async () => {
+    roster();
+    state.tableError = "missio_team_members";
+    const res = await get("/api/missio/people");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.serving).toBeUndefined();
+    expect(body.rows).toHaveLength(5);
+    expect(body.rows.every((row: object) => !("teams" in row) && !("interestTeams" in row))).toBe(true);
+
+    const filtered = await get("/api/missio/people?serves=no");
+    expect(filtered.status).toBe(500);
+    expect((await filtered.json()).rows).toBeUndefined();
+  });
+
+  it("rejects an unknown serves value or a team that isn't a uuid", async () => {
+    expect((await get("/api/missio/people?serves=maybe")).status).toBe(400);
+    expect((await get("/api/missio/people?team=sound")).status).toBe(400);
+  });
+
+  it("keeps the hard wall for non-pastors", async () => {
+    roster();
+    state.userId = TEAM_LEADER;
+    expect((await get("/api/missio/people?serves=yes")).status).toBe(403);
+    state.userId = null;
+    expect((await get("/api/missio/people?serves=yes")).status).toBe(401);
+    expect(state.ops.some((op) => op.table.startsWith("missio_"))).toBe(false);
   });
 });
 

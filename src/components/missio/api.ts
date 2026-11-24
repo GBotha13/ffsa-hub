@@ -5,6 +5,7 @@ import type {
   MissioErrorCode,
   MissioMe,
   MissioPerson,
+  MissioServingCounts,
   UpdateMissioPersonInput,
 } from "./types-shim";
 import type { PersonProfile } from "@/lib/missio/profile";
@@ -64,6 +65,8 @@ const ERROR_CODES = new Set<MissioErrorCode>([
 export interface PeoplePage {
   rows: MissioPerson[];
   total: number;
+  /** Funnel counts. Absent when the roster couldn't be read. */
+  serving?: MissioServingCounts;
 }
 
 export interface CreatedPerson {
@@ -80,6 +83,22 @@ export interface MissioClient {
 }
 
 type FetchLike = typeof fetch;
+
+function count(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
+}
+
+/** The funnel counts, or undefined when the route didn't send them. */
+function readServingCounts(value: unknown): MissioServingCounts | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as Record<string, unknown>;
+  const teams = Array.isArray(raw.teams)
+    ? (raw.teams as Array<Record<string, unknown>>)
+        .filter((team) => team && typeof team.id === "string" && typeof team.name === "string")
+        .map((team) => ({ id: team.id as string, name: team.name as string, count: count(team.count) }))
+    : [];
+  return { serves: count(raw.serves), doesnt: count(raw.doesnt), interested: count(raw.interested), teams };
+}
 
 async function readBody(res: Response): Promise<Record<string, unknown>> {
   const text = await res.text();
@@ -213,7 +232,8 @@ export function createMissioClient(fetchImpl: FetchLike = fetch): MissioClient {
       const body = await request(`${missioApi.people}?${params.toString()}`);
       const rows = Array.isArray(body.rows) ? (body.rows as MissioPerson[]) : [];
       const total = typeof body.total === "number" ? body.total : rows.length;
-      return { rows, total };
+      const serving = readServingCounts(body.serving);
+      return serving ? { rows, total, serving } : { rows, total };
     },
 
     async searchContacts(q: string) {

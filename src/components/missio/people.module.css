@@ -714,6 +714,186 @@
   width: 100%;
 }
 
+/* ── Serving funnel and chips (Missio People, serving PR 1) ── */
+
+.funnel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* All · Serves · Doesn't: three equal 44px+ buttons that never overflow. */
+.seg {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.root .segBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  min-width: 0;
+  padding: 4px 6px;
+  border-radius: 12px;
+  border: 1px solid var(--rule-strong, #cfc8b6);
+  background: var(--panel, #fbf9f4);
+  color: var(--ink, #1c1b17);
+  font-family: var(--body), Archivo, system-ui, sans-serif !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.root .segOn {
+  background: var(--frame, #1d2520);
+  border-color: var(--frame, #1d2520);
+  color: var(--frame-ink, #f3efe4);
+}
+
+.segLabel {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 18px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.segCount {
+  font-size: 12px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  color: var(--sub, #5b574d);
+}
+
+.segOn .segCount {
+  color: var(--frame-ink-2, #a8b0a6);
+}
+
+.teamChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* 40px to the eye, 44px to the thumb. */
+.root .tchip {
+  position: relative;
+  height: 40px;
+  max-width: 100%;
+}
+
+.root .tchip::after {
+  content: "";
+  position: absolute;
+  inset: -2px 0;
+}
+
+.tcount {
+  font-variant-numeric: tabular-nums;
+  color: var(--sub, #5b574d);
+  font-weight: 600;
+}
+
+.fchipOn .tcount {
+  color: var(--frame-ink-2, #a8b0a6);
+}
+
+.root .tchipInterest:not(.fchipOn) {
+  border-style: dashed;
+  border-color: var(--gold, #b98a2e);
+}
+
+.funnelLine {
+  margin: 2px 0 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--sub, #5b574d);
+}
+
+.funnelNote {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--sub, #5b574d);
+}
+
+.funnelNote a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--link, #2f5d50);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Row chips: wrap under the meta line, so the row grows past 64px. */
+.serveChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  min-width: 0;
+}
+
+.sChip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 24px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: var(--olive-soft, #e3eadf);
+  color: var(--olive-ink, #3f5940);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.sLead {
+  background: var(--terra-soft, #f6e4d9);
+  color: var(--terra-ink, #8e3d1f);
+}
+
+.sInterest {
+  background: transparent;
+  border: 1px dashed var(--gold, #b98a2e);
+  color: var(--gold-ink, #7a5a17);
+  font-weight: 500;
+}
+
+.lrowTall {
+  align-items: flex-start;
+}
+
+.servesCell {
+  min-width: 160px;
+  max-width: 280px;
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+}
+
+.servesCell .serveChips {
+  margin-top: 0;
+}
+
+.tableScroll {
+  overflow-x: auto;
+}
+
 /* ── Breakpoints ────────────────────────────────────── */
 
 .deskOnly,
@@ -776,5 +956,13 @@
   .searchRow {
     width: 340px;
     flex: none;
+  }
+
+  .funnel {
+    flex-basis: 100%;
+  }
+
+  .seg {
+    max-width: 420px;
   }
 }
