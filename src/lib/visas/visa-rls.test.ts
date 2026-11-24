@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { describe, it } from "vitest";
 
-// Migrations 360–364 (RLS, workflow functions and letters), against throwaway databases. Same pattern as
+// Migrations 360–366 (RLS, workflow functions and letters), against throwaway databases. Same pattern as
 // src/lib/schools/program-staff-rls.test.ts: skips when this machine has no
 // local Postgres (CI does not start one).
 

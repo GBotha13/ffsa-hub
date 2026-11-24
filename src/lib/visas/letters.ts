@@ -1,6 +1,6 @@
 // FFSA's visa letters: the fields a template may use, and filling them in.
 //
-// Legal writes each letter in the Hub (migration 364). A template is plain
+// Legal writes each letter in the Hub (migration 366). A template is plain
 // text, paragraphs separated by a blank line, with:
 //   {{field}}                  filled in from the student, the case or legal
 //   {{#section}}…{{/section}}  a paragraph legal includes or leaves out per

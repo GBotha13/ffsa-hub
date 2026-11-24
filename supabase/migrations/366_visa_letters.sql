@@ -1,6 +1,6 @@
 -- DO NOT APPLY until Jack says so.
 -- ============================================================
--- FFSA Hub — Migration 364: visa applications (letters)
+-- FFSA Hub — Migration 366: visa applications (letters)
 -- ============================================================
 -- Build step 3a. FFSA's letters for a student's visa application:
 -- the invitation letter per school, the confirmation of accommodation and
@@ -32,6 +32,8 @@
 -- version and the values legal entered, so what was sent can always be
 -- shown. visa_issue_letter checks that every field was filled in and that
 -- the passport number isn't in the text.
+--
+-- Numbered 366: 364 and 365 are taken by open Vehicles PRs (#712, #713).
 --
 -- One transaction. Additive only: two new tables and new functions; no
 -- existing table or function changes. Idempotent.

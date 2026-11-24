@@ -1,4 +1,4 @@
-// Visa applications: pure data access (see migrations 360–364).
+// Visa applications: pure data access (see migrations 360–366).
 // Business rules (working out the stay, which visa, deadlines) live in
 // src/lib/visas/. RLS decides who sees which rows: pass the caller's
 // server client, not the admin client, unless the caller is a system job.
@@ -330,7 +330,7 @@ export async function getVisaDocumentById(supabase: Client, documentId: string) 
 }
 
 // ────────────────────────────────────────────────────────────
-// LETTERS (migration 364) — templates legal writes, letters legal issues.
+// LETTERS (migration 366) — templates legal writes, letters legal issues.
 // Writes go through checked functions; call them with the user's client.
 // ────────────────────────────────────────────────────────────
 

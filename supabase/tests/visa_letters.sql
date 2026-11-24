@@ -1,4 +1,4 @@
--- Disposable check for migration 364 (visa letters). Not a migration. Same
+-- Disposable check for migration 366 (visa letters). Not a migration. Same
 -- stubs as visa_workflow.sql, then: templates are versioned and only global
 -- legal edits them; a letter is issued on an approved case, checked by the
 -- student, signed by legal with a scan; passport numbers never land in the
@@ -93,8 +93,8 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO service_role;
 \ir ../migrations/361_visa_rls.sql
 \ir ../migrations/362_visa_seed.sql
 \ir ../migrations/363_visa_workflow.sql
-\ir ../migrations/364_visa_letters.sql
-\ir ../migrations/364_visa_letters.sql
+\ir ../migrations/366_visa_letters.sql
+\ir ../migrations/366_visa_letters.sql
 
 GRANT USAGE ON SCHEMA public TO authenticated, service_role, anon;
 

@@ -8,7 +8,7 @@ import { LETTER_KINDS, LETTER_KIND_LABEL, type LetterKind } from "@/lib/visas/le
 import { getActivePrograms, getProgramNames, getVisaLetterTemplates } from "@/services/visas";
 
 // Legal's letter templates: one row per letter (kind + school), with the
-// version in use and any draft. Only global legal edits them (364). The
+// version in use and any draft. Only global legal edits them (366). The
 // wording lives only in the database.
 
 type TemplateRow = {
