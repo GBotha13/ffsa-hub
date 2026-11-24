@@ -18,6 +18,8 @@ import { whatsAppThreadHref } from "./whatsapp/client";
 import { useMissioViewer } from "./viewer";
 import { householdsClient, type HouseholdsClient } from "./households/client";
 import { HouseholdCard } from "./households/household-card";
+import { ProfileCoupleSuggestion } from "./households/couple-suggestions";
+import { suggestionsClient, type SuggestionsClient } from "./households/suggestions-client";
 import shell from "./shell.module.css";
 import styles from "./person-profile.module.css";
 
@@ -111,12 +113,15 @@ export function PersonProfileView({
   load = fetchPersonProfile,
   access = defaultAccess,
   households = householdsClient,
+  suggestions = suggestionsClient,
   people = missioClient,
 }: {
   personId: string;
   load?: (id: string) => Promise<PersonProfile>;
   access?: AccessClient;
   households?: HouseholdsClient;
+  /** Couple suggestions from the house church sheet (pastors). */
+  suggestions?: SuggestionsClient;
   /** Edit and mark inactive (the ··· menu). */
   people?: MissioClient;
 }) {
@@ -124,6 +129,8 @@ export function PersonProfileView({
   const [filter, setFilter] = useState<Filter>("all");
   const [editing, setEditing] = useState(false);
   const [reviving, setReviving] = useState(false);
+  // Bumped after a suggestion is linked, so the household card reloads.
+  const [familyKey, setFamilyKey] = useState(0);
   const reload = retry;
 
   async function makeActive(person: MissioPerson) {
@@ -180,7 +187,12 @@ export function PersonProfileView({
           filter={filter}
           onFilter={setFilter}
           onMore={() => setEditing(true)}
-          family={<HouseholdCard personId={personId} name={state.data.person.name} client={households} />}
+          family={
+            <>
+              <ProfileCoupleSuggestion personId={personId} client={suggestions} onLinked={() => setFamilyKey((key) => key + 1)} />
+              <HouseholdCard key={familyKey} personId={personId} name={state.data.person.name} client={households} />
+            </>
+          }
           aside={<HubAccessCard personId={personId} name={state.data.person.name} client={access} />}
         />
       ) : null}

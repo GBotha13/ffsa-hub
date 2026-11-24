@@ -166,7 +166,9 @@ export type MissioErrorCode =
   | "server_error"
   | "method_not_allowed"
   | "no_login"
-  | "in_other_household";
+  | "in_other_household"
+  | "household_exists"
+  | "both_in_households";
 
 export type HouseChurchRole = "leader" | "co_leader" | "member";
 

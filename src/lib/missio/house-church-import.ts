@@ -646,7 +646,7 @@ function nameKey(first: string, last: string): string {
   return `${normalizePersonName(first)}\0${normalizePersonName(last)}`;
 }
 
-function exactContactIds(contacts: ContactName[], first: string, last: string): string[] {
+export function exactContactIds(contacts: ContactName[], first: string, last: string): string[] {
   const target = nameKey(first, last);
   const ids: string[] = [];
   const seen = new Set<string>();
@@ -685,7 +685,7 @@ function parseWholeNumber(value: string): number | null {
   return number;
 }
 
-function parseCsvTable(text: string): string[][] {
+export function parseCsvTable(text: string): string[][] {
   const input = text.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   const rows: string[][] = [];
   let row: string[] = [];
