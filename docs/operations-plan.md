@@ -116,6 +116,24 @@ So:
 - **When Departments & Services lands**, the Operations department home gets a link (or tab) into `/operations`, and Operations moves under Departments in the menu instead of being its own top-level entry. Until then it sits in the sidebar on its own.
 - What the department *owns as services* (spaces, vehicles, gear hire) stays in those services. The Operations areas only read from them.
 
+## Every area has a guide and a handover (rule, Gideon 24 Nov 2026)
+
+People move between roles. The know-how of an area must not live only in someone's head, so **no area is finished until it has both of these**:
+
+**1. A how-to guide.** Anyone can open it and understand the area. It has two parts:
+
+- **How we do it** — written and kept up to date by the team, in the Hub (no code change needed). What the area is for, the roles and what each is responsible for, the steps, what's expected and by when, who to talk to in other departments, and the know-how ("the Potch rooms need keys from…", "kitchen parents need a week's notice"). Every edit is kept, with who and when.
+- **How the Hub does it** — written by whoever builds the feature and updated with every change, like the Fleet Guide: what each screen and button does, what the morning message means, what gets sent and when.
+
+**2. Onboarding and handover.** One process with two uses:
+
+- **Joining** — a new member of the team, or someone helping for a season. A short path per role: read these parts of the guide, get added to the roster and Slack channels, meet these people, shadow one (e.g. co-host a team), do one with support, then the lead signs it off.
+- **Taking over** — someone hands a role to someone else. The person leaving writes a handover note on each open thing (each team, each open item: where it stands, what was promised, who to call), the two overlap for an agreed time, and on the handover date everything open moves to the new person in one step. The person leaving can still read it for a while, and the guide's "who does this" is updated.
+
+Like everything here, it's not for checking up on anyone: only the person and their lead see their onboarding.
+
+**Each area has a lead role.** Who leads an area is a role given on the Hub, not a name written into the code: the lead edits the guide, approves anything the Hub sends on the area's behalf, and runs handovers. When someone steps out and someone else steps in, the role moves and the area follows it. (First: *Visiting teams lead*, Mache and Michelle.)
+
 ## Who sees what
 
 - The Operations department (members and leaders), operations.team helpers, and admins see everything in Operations.
@@ -134,6 +152,8 @@ Each step is a pull request that works on its own.
 6. **Innovations.**
 
 Steps 1–2 alone give you the morning message, the weekly summary and the meeting flow, for maintenance.
+
+Alongside these: **Guide + onboarding/handover**, built once for all areas (see the rule above). Maintenance gets its guide as soon as it lands; every later area ships with its own.
 
 ## Decided (Gideon, 23 Nov 2026)
 

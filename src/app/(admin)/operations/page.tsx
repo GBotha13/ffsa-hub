@@ -6,6 +6,8 @@ import { dayLabel, dueWords, meetingWeek, sastDate, sastMidnight } from "@/lib/o
 import { isPastDate, isQuiet, needsAttention } from "@/lib/operations/messages";
 import { cn } from "@/lib/utils/cn";
 import { listClosedSince, listOpenItems } from "@/services/operations";
+import { redirect } from "next/navigation";
+import { AreaTabs, areaHref } from "./area-tabs";
 import { opsContext } from "./context";
 import { AddItemForm, ImportButton } from "./ops-forms";
 
@@ -25,6 +27,7 @@ const COMING: Record<string, string> = {
 export default async function OperationsPage({ searchParams }: { searchParams: Promise<{ area?: string }> }) {
   const { area: areaParam } = await searchParams;
   const area = isAreaKey(areaParam) ? areaParam : "maintenance";
+  if (areaHref(area) !== `/operations?area=${area}`) redirect(areaHref(area));
   const { supabase, isAdmin, people } = await opsContext({ teamOnly: true });
 
   const now = new Date();
@@ -53,22 +56,8 @@ export default async function OperationsPage({ searchParams }: { searchParams: P
         }
       />
 
-      {/* Area tabs as links, so each area has its own URL. Scrolls sideways
-          on its own at 390px; the page never does. */}
-      <nav className="flex overflow-x-auto border-b border-ink px-5 pt-4 md:px-8" aria-label="Areas">
-        {AREAS.map((a) => (
-          <Link
-            key={a.key}
-            href={`/operations?area=${a.key}`}
-            className={cn(
-              "flex min-h-11 shrink-0 items-center px-4 py-2.5 font-mono text-[10px] font-bold uppercase tracking-[0.14em]",
-              a.key === area ? "bg-ink text-white" : "border border-b-0 border-rule text-[color:var(--text-tertiary)] hover:text-ink"
-            )}
-          >
-            {a.label}
-          </Link>
-        ))}
-      </nav>
+      {/* Area tabs as links, so each area has its own URL. */}
+      <AreaTabs current={area} />
 
       {!live ? (
         <div className="px-5 py-12 md:px-8">

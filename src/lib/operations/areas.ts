@@ -6,7 +6,7 @@ export const AREAS = [
   { key: "transport", label: "Transportation", live: false },
   { key: "buildings", label: "Buildings & spaces", live: false },
   { key: "hospitality", label: "Hospitality", live: false },
-  { key: "teams", label: "Visiting teams", live: false },
+  { key: "teams", label: "Visiting teams", live: true },
   { key: "events", label: "Events", live: false },
   { key: "equipment", label: "Equipment", live: false },
   { key: "innovations", label: "Innovations", live: false },
