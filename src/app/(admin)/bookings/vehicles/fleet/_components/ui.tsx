@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils/cn";
 import type { Alert, Sev } from "@/lib/fleet/rules";
 
 export const FLEET = "/bookings/vehicles/fleet";
+/** One calendar (Fleet 5b/5d): Fleet's calendar is the booking board's. */
+export const FLEET_CALENDAR = "/bookings/vehicles/board";
 export const vehicleHref = (id: string, tab?: string) => `${FLEET}/${id}${tab && tab !== "overview" ? `?tab=${tab}` : ""}`;
 /** Where a Fleet photo or PDF is served (the Fleet app's /_blob/<id>). */
 export const fileUrl = (id: string) => `/api/vehicles/fleet/files/${id}`;

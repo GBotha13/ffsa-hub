@@ -1,11 +1,12 @@
 import Link from "next/link";
+import { getVehicleAccess } from "@/services/vehicles";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Bar, Masthead, SectionBar } from "@/components/ffsa";
 import { loadFleet } from "@/lib/fleet/load";
 import { fmtMins, plural, timeWeek, todayTasks, weekStartOf, weeklyOnly, type Task } from "@/lib/fleet/rules";
 import { getFleetAccess } from "@/services/fleet";
-import { FLEET, Plate, SevDot, sevLabel, vehicleHref } from "./_components/ui";
+import { FLEET, FLEET_CALENDAR, Plate, SevDot, sevLabel, vehicleHref } from "./_components/ui";
 import { DropOffButton, StartButton } from "./_components/task-actions";
 import { LogKmButton } from "./vehicles/fleet-client";
 import { VisitButton } from "./[vehicleId]/visit-dialog";
@@ -35,8 +36,10 @@ export default async function FleetToday() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  const access = await getFleetAccess(supabase, user.id);
+  const [access, vehicleAccess] = await Promise.all([getFleetAccess(supabase, user.id), getVehicleAccess(supabase, user.id)]);
   if (!access.canView) redirect(`${FLEET}/settings`);
+  // "Sort it out" opens the booking board, which is the vehicles team's (Jack, #698).
+  const canBoard = vehicleAccess.canApprove || vehicleAccess.canManage;
 
   const { F, providers } = await loadFleet(supabase);
   const canWrite = access.canManage;
@@ -50,11 +53,11 @@ export default async function FleetToday() {
     const a = t.action;
     if (!a) return null;
     if (a.kind === "calendar")
-      return (
-        <Link href={`${FLEET}/calendar`} className={linkBtn}>
+      return canBoard ? (
+        <Link href={FLEET_CALENDAR} className={linkBtn}>
           Sort it out
         </Link>
-      );
+      ) : null;
     if (!canWrite) return null;
     if (a.kind === "start") return <StartButton vehicleId={t.v.id} type={a.type} />;
     if (a.kind === "dropoff") return <DropOffButton vehicleId={t.v.id} today={F.today} />;

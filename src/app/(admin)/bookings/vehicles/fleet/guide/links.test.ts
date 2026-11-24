@@ -23,9 +23,9 @@ describe("guideHref", () => {
     expect(guideHref("checklist", tk)).toBe(`${F}/checklist`);
   });
 
-  it("sends Today, Calendar and Schedule to their screens", () => {
+  it("sends Today and Schedule to their screens, and Calendar to the booking board (one calendar, Fleet 5d)", () => {
     for (const k of ["today", "#today"]) expect(guideHref(k, tk)).toBe(F);
-    for (const k of ["calendar", "#calendar"]) expect(guideHref(k, tk)).toBe(`${F}/calendar`);
+    for (const k of ["calendar", "#calendar"]) expect(guideHref(k, tk)).toBe("/bookings/vehicles/board");
     for (const k of ["schedule", "#schedule"]) expect(guideHref(k, tk)).toBe(`${F}/schedule`);
     expect(Object.keys(PENDING).sort()).toEqual(["calendar", "schedule", "today"]);
   });

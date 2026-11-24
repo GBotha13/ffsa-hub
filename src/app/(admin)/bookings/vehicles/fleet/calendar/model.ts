@@ -4,7 +4,6 @@
 
 import type { VisitPrefill } from "../[vehicleId]/visit-dialog";
 import {
-  CAL_DAYS,
   KM_RULES,
   SEV_RANK,
   addDays,
@@ -12,11 +11,9 @@ import {
   clashList,
   clashNote,
   dueKind,
-  fmtDate,
   fmtKm,
   fmtRange,
   inUse,
-  isoWeekday,
   kindShort,
   kmAlerts,
   kmPlan,
@@ -32,114 +29,11 @@ import {
   type FleetData,
   type ISODate,
   type Sev,
-  type WsEvent,
 } from "@/lib/fleet/rules";
 import type { Visit } from "../[vehicleId]/model";
 import { outKindOf } from "@/lib/fleet/out-of-action";
 
 export type Gap = { from: ISODate; to: ISODate } | null;
-
-const DAY2 = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]; // the app's DAYS[n].slice(0, 2)
-
-/** The first day shown: the Monday of ?start= (when it's a real date), else this week's. */
-export function calStartOf(param: string | string[] | undefined, today: ISODate): ISODate {
-  const s = Array.isArray(param) ? param[0] : param;
-  if (s && /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(Date.parse(s + "T00:00:00Z")) && addDays(s, 0) === s) return weekStartOf(s);
-  return weekStartOf(today);
-}
-
-/** The ?start= for Week back (-7), This week (0) and Week forward (7), as 'cal-move' does. */
-export function calMoveHref(base: string, start: ISODate, n: number): string {
-  return n === 0 ? base : `${base}?start=${addDays(start, n)}`;
-}
-
-// ── Timeline ───────────────────────────────────────────────
-
-export interface CalDay {
-  date: ISODate;
-  dow: string;
-  num: number;
-  weekend: boolean;
-  today: boolean;
-}
-
-export type MarkKind = "trip" | "ws" | "clash";
-export interface CalCell {
-  date: ISODate;
-  weekend: boolean;
-  today: boolean;
-  /** A trip, workshop visit or clash bar; s/e = it starts/ends in this cell. */
-  mark?: { c: MarkKind; s: boolean; e: boolean };
-  /** The routine check on its inspection day: planned ring, filled when done, red when overdue. */
-  check?: "plan" | "done" | "late";
-  tip: string;
-}
-export interface CalRow {
-  id: string;
-  name: string;
-  cells: CalCell[];
-}
-export interface CalGrid {
-  start: ISODate;
-  end: ISODate;
-  label: string;
-  days: CalDay[];
-  rows: CalRow[];
-}
-
-type Key = { k: string; c: MarkKind; tip: string } | null;
-
-function keyOf(F: FleetData, ws: WsEvent[], vid: string, d: ISODate): Key {
-  const t = tripOn(F, vid, d);
-  const w = ws.find((x) => x.vehicleId === vid && x.from <= d && d <= x.to);
-  if (t && w) return { k: "x" + t.id + w.id, c: "clash", tip: `Clash: ${kindShort(w.kind)} and ${tripName(t)}` };
-  if (t) return { k: "t" + t.id, c: "trip", tip: `${tripName(t)}: ${fmtRange(t.from, t.to)}` };
-  if (w) return { k: "w" + w.id, c: "ws", tip: `${kindShort(w.kind)}${w.provider ? " at " + w.provider : ""}: ${fmtRange(w.from, w.to)}` };
-  return null;
-}
-
-/** Four weeks from `start`, one row per vehicle in use. */
-export function calendarGrid(F: FleetData, start: ISODate): CalGrid {
-  const today = F.today;
-  const dates = Array.from({ length: CAL_DAYS }, (_, i) => addDays(start, i));
-  const end = dates[dates.length - 1];
-  const ws = wsEvents(F);
-  const thisWs = weekStartOf(today);
-  const wk: Record<string, ReturnType<typeof weekly>> = {};
-  const days: CalDay[] = dates.map((d) => ({
-    date: d,
-    dow: DAY2[isoWeekday(d) - 1],
-    num: Number(d.slice(8)),
-    weekend: isoWeekday(d) > 5,
-    today: d === today,
-  }));
-  const rows = F.vehicles.filter(inUse).map((v) => {
-    const weekOf = (d: ISODate) => {
-      const k = v.id + weekStartOf(d);
-      return wk[k] || (wk[k] = weekly(F, v, weekStartOf(d)));
-    };
-    const cells = days.map((day): CalCell => {
-      const d = day.date;
-      const cell: CalCell = { date: d, weekend: day.weekend, today: day.today, tip: "" };
-      const k = keyOf(F, ws, v.id, d);
-      if (k) {
-        const pk = keyOf(F, ws, v.id, addDays(d, -1));
-        const nk = keyOf(F, ws, v.id, addDays(d, 1));
-        cell.mark = { c: k.c, s: !pk || pk.k !== k.k, e: !nk || nk.k !== k.k };
-        cell.tip = k.tip;
-      } else if (weekStartOf(d) >= thisWs) {
-        const w = weekOf(d);
-        if (w.date === d && !["skip", "none"].includes(w.st)) {
-          cell.check = w.st === "done" ? "done" : w.st === "overdue" ? "late" : "plan";
-          cell.tip = `${w.name}: ${w.label}`;
-        }
-      }
-      return cell;
-    });
-    return { id: v.id, name: v.name, cells };
-  });
-  return { start, end, label: `${fmtDate(start)} – ${fmtDate(end)}`, days, rows };
-}
 
 // ── The booking board's Fleet lane ─────────────────────────
 
@@ -297,34 +191,6 @@ export interface GapChoice {
 /** Every vehicle in use with its first free 48 hours: the 'book-pick' list and the gap finder. */
 export function gapChoices(F: FleetData): GapChoice[] {
   return F.vehicles.filter(inUse).map((v) => ({ id: v.id, name: v.name, gap: suggestGap(F, v.id), kind: dueKind(kmPlan(v)) }));
-}
-
-// ── List view ──────────────────────────────────────────────
-
-export interface ListItem {
-  date: ISODate;
-  vehicleId: string;
-  vehicleName: string;
-  dot: "info" | "warn";
-  text: string;
-}
-
-/** Trips and workshop visits in the four weeks that haven't ended, by start date. */
-export function listItems(F: FleetData, start: ISODate): ListItem[] {
-  const today = F.today;
-  const end = addDays(start, CAL_DAYS - 1);
-  const names = Object.fromEntries(F.vehicles.map((v) => [v.id, v.name]));
-  return [
-    ...F.trips
-      .filter((t) => t.to >= today && t.from <= end)
-      .map((t) => ({ date: t.from, vehicleId: t.vehicleId, dot: "info" as const, text: `${tripName(t)} · ${fmtRange(t.from, t.to)}` })),
-    ...wsEvents(F)
-      .filter((w) => w.to >= today && w.from <= end)
-      .map((w) => ({ date: w.from, vehicleId: w.vehicleId, dot: "warn" as const, text: `${kindShort(w.kind)}${w.provider ? " at " + w.provider : ""} · ${fmtRange(w.from, w.to)}` })),
-  ]
-    .filter((x) => names[x.vehicleId])
-    .map((x) => ({ ...x, vehicleName: names[x.vehicleId] }))
-    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 /** The booking form's starting values for a vehicle and a free 48 hours (the app's 'book-gap').

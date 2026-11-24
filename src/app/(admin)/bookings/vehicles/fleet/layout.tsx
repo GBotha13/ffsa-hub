@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getFleetAccess } from "@/services/fleet";
+import { getVehicleAccess } from "@/services/vehicles";
 import { FleetNav } from "./_components/fleet-nav";
 import { LiveRefresh } from "./_components/live-refresh";
 
@@ -12,13 +13,18 @@ export default async function FleetLayout({ children }: { children: React.ReactN
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const access = user ? await getFleetAccess(supabase, user.id) : null;
+  const [access, vehicles] = user
+    ? await Promise.all([getFleetAccess(supabase, user.id), getVehicleAccess(supabase, user.id)])
+    : [null, null];
+  // The Calendar tab opens the booking board, which is the vehicles team's (it shows who
+  // booked and why). Fleet view-only users don't get the tab (Jack's review of #698).
+  const canBoard = !!vehicles && (vehicles.canApprove || vehicles.canManage);
 
   return (
     <div className="ffsa-screen">
       {access?.canView && (
         <>
-          <FleetNav />
+          <FleetNav calendar={canBoard} />
           <LiveRefresh />
         </>
       )}

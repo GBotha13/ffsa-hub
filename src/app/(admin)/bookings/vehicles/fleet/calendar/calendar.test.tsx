@@ -8,11 +8,10 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: 
 
 import { buildVisitCtx, lastProvider } from "../[vehicleId]/visit-ctx";
 import type { BookCtx } from "./calendar-client";
-import { calMoveHref, calStartOf, calendarGrid, clashItems, dueItems, gapChoices, listItems, missingServiceText, noneDueText } from "./model";
-import { BookSection, ClashSection, Legend, ListSection, Timeline } from "./sections";
+import { clashItems, dueItems, gapChoices, missingServiceText, noneDueText } from "./model";
+import { BookSection, ClashSection } from "./sections";
 
 const TUE = "2026-11-17";
-const MON = "2026-11-16";
 const seed = () => seedFleetData(TUE);
 const withVisit = (F: FleetData, r: WorkshopVisit): FleetData => ({ ...F, visits: [...F.visits, r] });
 const withTrip = (F: FleetData, t: Trip): FleetData => ({ ...F, trips: [...F.trips, t] });
@@ -28,67 +27,6 @@ const ctxsOf = (F: FleetData): Record<string, BookCtx> =>
   );
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const html = (el: (p: any) => React.ReactElement, props: Record<string, unknown>) => renderToStaticMarkup(createElement(el, props));
-
-describe("calStartOf / calMoveHref", () => {
-  it("defaults to this week's Monday and snaps ?start= to its Monday", () => {
-    expect(calStartOf(undefined, TUE)).toBe(MON);
-    expect(calStartOf("2026-11-26", TUE)).toBe("2026-11-23");
-    expect(calStartOf(["2026-12-01"], TUE)).toBe("2026-11-30");
-  });
-  it("ignores a ?start= that isn't a date", () => {
-    expect(calStartOf("tomorrow", TUE)).toBe(MON);
-    expect(calStartOf("2026-02-31", TUE)).toBe(MON);
-  });
-  it("Week back / This week / Week forward", () => {
-    expect(calMoveHref("/c", MON, -7)).toBe("/c?start=2026-11-09");
-    expect(calMoveHref("/c", MON, 0)).toBe("/c");
-    expect(calMoveHref("/c", MON, 7)).toBe("/c?start=2026-11-23");
-  });
-});
-
-describe("calendarGrid", () => {
-  const g = calendarGrid(seed(), MON);
-  const row = (id: string) => g.rows.find((r) => r.id === id)!;
-  const cell = (id: string, d: string) => row(id).cells.find((c) => c.date === d)!;
-
-  it("four weeks from Monday, weekends shaded, today highlighted", () => {
-    expect(g.days).toHaveLength(28);
-    expect(g.end).toBe("2026-12-13");
-    expect(g.label).toBe("16 Nov 2026 – 13 Dec 2026");
-    expect(g.days[0]).toMatchObject({ dow: "Mo", num: 16, weekend: false, today: false });
-    expect(g.days[1].today).toBe(true);
-    expect(g.days.filter((d) => d.weekend)).toHaveLength(8);
-  });
-
-  it("one row per vehicle in use", () => {
-    expect(g.rows.map((r) => r.id)).toEqual(seed().vehicles.map((v) => v.id));
-    const F = withVehicle(seed(), "kombi", { status: "For sale" });
-    expect(calendarGrid(F, MON).rows.map((r) => r.id)).not.toContain("kombi");
-  });
-
-  it("CR-V: workshop visit on Wed 18 Nov, then the rental to the end", () => {
-    expect(cell("crv", "2026-11-18")).toMatchObject({ mark: { c: "ws", s: true, e: true }, tip: "Bumper-to-bumper inspection at Motech: Wed, 18 Nov" });
-    expect(cell("crv", "2026-11-19")).toMatchObject({ mark: { c: "trip", s: true, e: false }, tip: "Rental: Thu, 19 Nov – Sun, 13 Dec" });
-    expect(cell("crv", "2026-11-25").mark).toEqual({ c: "trip", s: false, e: false });
-    expect(cell("crv", "2026-12-13").mark).toEqual({ c: "trip", s: false, e: true });
-  });
-
-  it("inspection days show as a ring with the check's state", () => {
-    const c = cell("h1-1", TUE);
-    expect(c.check).toBe("plan");
-    expect(c.tip).toContain("Due today");
-    // Nothing for past weeks.
-    const past = calendarGrid(seed(), "2026-11-02");
-    expect(past.rows.flatMap((r) => r.cells).filter((x) => x.date < MON && x.check)).toHaveLength(0);
-  });
-
-  it("SPEC 10 test 6 on the timeline: the Almera's Service visit is a clash", () => {
-    const F = withVisit(seed(), almeraService);
-    const c = calendarGrid(F, MON).rows.find((r) => r.id === "almera")!.cells.find((x) => x.date === "2026-11-25")!;
-    expect(c.mark).toEqual({ c: "clash", s: true, e: false });
-    expect(c.tip).toBe("Clash: Service and Rental");
-  });
-});
 
 describe("clashes and heads-ups", () => {
   it("SPEC 10 test 2: the CR-V heads-up", () => {
@@ -158,27 +96,7 @@ describe("book a workshop visit", () => {
   });
 });
 
-describe("list view", () => {
-  it("trips and workshop visits in the four weeks, by start date", () => {
-    const items = listItems(seed(), MON);
-    expect(items.map((x) => x.date)).toEqual([...items.map((x) => x.date)].sort());
-    expect(items[0]).toMatchObject({ vehicleId: "crv", dot: "warn", text: "Bumper-to-bumper inspection at Motech · Wed, 18 Nov" });
-    expect(items.filter((x) => x.dot === "info").map((x) => x.text)).toEqual(["Rental · Thu, 19 Nov – Sun, 13 Dec", "Rental · Thu, 19 Nov – Sun, 13 Dec"]);
-    // As the app: anything not over by today that starts by the last day shown.
-    expect(listItems(seed(), "2026-10-05")).toEqual([]);
-  });
-});
-
-describe("Calendar renders", () => {
-  it("the timeline scrolls inside its own box with the names held on the left", () => {
-    const out = html(Timeline, { grid: calendarGrid(seed(), MON) });
-    expect(out).toContain("overflow-x-auto");
-    expect(out).toContain("sticky left-0");
-    expect(out).toContain('title="Rental: Thu, 19 Nov – Sun, 13 Dec"');
-    expect(out).toContain("Honda CR-V");
-    expect(html(Legend, {})).toContain("Inspection day");
-  });
-
+describe("Fleet's sections on the board render", () => {
   it("clashes with Move buttons for a manager", () => {
     const F = withTrip(withVisit(seed(), almeraService), kombiTrip);
     const out = html(ClashSection, { items: clashItems(F), ctxs: ctxsOf(F), canWrite: true });
@@ -205,7 +123,6 @@ describe("Calendar renders", () => {
     expect(out).toMatch(/>Book<\/button>/);
     expect(out).toContain("No service km on record yet for");
     expect(html(ClashSection, { items: [], ctxs: {}, canWrite: true })).toContain("No clashes. Every workshop visit fits around the trips and rentals.");
-    expect(html(ListSection, { items: [] })).toContain("Nothing booked in these four weeks.");
   });
 });
 
