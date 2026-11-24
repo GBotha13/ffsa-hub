@@ -337,10 +337,13 @@ export type WorkshopBlock = { id: string; vehicle_id: string; date: string; unti
 export async function getWorkshopBlocks(supabase: Client, from: string, to: string): Promise<WorkshopBlock[]> {
   const { data } = await supabase
     .from("fleet_workshop_visits")
-    .select("id, vehicle_id, date, until, kind, provider")
+    .select("*") // includes deleted_at once 359 is applied: a hidden visit blocks nothing
     .eq("status", "booked")
     .lte("date", to);
-  return ((data ?? []) as WorkshopBlock[]).filter((v) => v.date && (v.until && v.until >= v.date ? v.until : v.date) >= from);
+  return ((data ?? []) as (WorkshopBlock & { deleted_at?: string | null })[])
+    .filter((v) => !v.deleted_at)
+    .map(({ id, vehicle_id, date, until, kind, provider }): WorkshopBlock => ({ id, vehicle_id, date, until, kind, provider }))
+    .filter((v) => v.date && (v.until && v.until >= v.date ? v.until : v.date) >= from);
 }
 
 /**

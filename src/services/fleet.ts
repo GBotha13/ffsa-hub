@@ -88,6 +88,19 @@ export async function getFleetTrips(supabase: Client, since: string) {
     .order("checkout_date", { ascending: true });
 }
 
+// ── Hidden ("deleted") records (359) ───────────────────────
+// RLS already hides them from Hub users; this also leaves them out when an admin
+// client reads (the 07:00 message, bookings' clash check). It filters on the row,
+// not in SQL, so it works the same before 359 adds the column.
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+type Rows = { data: any[] | null; error: any };
+const notHidden = async <T extends Rows>(q: PromiseLike<T>): Promise<T> => {
+  const res = await q;
+  return res.data ? { ...res, data: res.data.filter((r: any) => !r?.deleted_at) } : res;
+};
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 // ── Workshop visits ────────────────────────────────────────
 
 export async function getFleetVisits(
@@ -98,15 +111,25 @@ export async function getFleetVisits(
   if (opts?.vehicleId) query = query.eq("vehicle_id", opts.vehicleId);
   if (opts?.status) query = query.eq("status", opts.status);
   if (opts?.since) query = query.gte("date", opts.since);
-  return query;
+  return notHidden(query);
 }
 
 export async function insertFleetVisit(supabase: Client, row: Record<string, unknown>) {
   return supabase.from("fleet_workshop_visits").insert(row).select().single();
 }
 
+/** "Delete" a workshop visit: hidden, never erased (359; Gideon: all history kept). Read
+ *  first, because once hidden the row can't be read back. `data` is null when not found. */
 export async function deleteFleetVisit(supabase: Client, id: string) {
-  return supabase.from("fleet_workshop_visits").delete().eq("id", id).select("id, vehicle_id").maybeSingle();
+  const { data: row, error } = await supabase.from("fleet_workshop_visits").select("*").eq("id", id).maybeSingle();
+  if (error || !row || row.deleted_at) return { data: null, error };
+  const { error: upErr } = await hideFleetRow(supabase, "fleet_workshop_visits", id);
+  return { data: upErr ? null : row, error: upErr };
+}
+
+/** Hide (never erase) a Fleet record; 359's fleet_hide_row records when and who. */
+export async function hideFleetRow(supabase: Client, table: "fleet_inspections" | "fleet_workshop_visits" | "fleet_odometer_readings", id: string) {
+  return supabase.rpc("fleet_hide_row", { p_table: table, p_id: id });
 }
 
 export async function updateFleetVisit(supabase: Client, id: string, patch: Record<string, unknown>) {
@@ -123,19 +146,21 @@ export async function getFleetInspections(supabase: Client, opts?: { vehicleId?:
     .order("created_at", { ascending: false });
   if (opts?.vehicleId) query = query.eq("vehicle_id", opts.vehicleId);
   if (opts?.limit) query = query.limit(opts.limit);
-  return query;
+  return notHidden(query);
 }
 
 export async function getFleetInspection(supabase: Client, id: string) {
-  return supabase.from("fleet_inspections").select("*").eq("id", id).maybeSingle();
+  const res = await supabase.from("fleet_inspections").select("*").eq("id", id).maybeSingle();
+  return res.data?.deleted_at ? { ...res, data: null } : res;
 }
 
 export async function insertFleetInspection(supabase: Client, row: Record<string, unknown>) {
   return supabase.from("fleet_inspections").insert(row).select().single();
 }
 
+/** "Delete" an inspection: hidden, never erased (359; Gideon: all history kept). */
 export async function deleteFleetInspection(supabase: Client, id: string) {
-  return supabase.from("fleet_inspections").delete().eq("id", id);
+  return hideFleetRow(supabase, "fleet_inspections", id);
 }
 
 // ── Drafts ─────────────────────────────────────────────────
@@ -162,12 +187,14 @@ export async function deleteFleetDraft(supabase: Client, userId: string, vehicle
 // ── Odometer readings ──────────────────────────────────────
 
 export async function getFleetOdometerReadings(supabase: Client, vehicleId: string) {
-  return supabase
-    .from("fleet_odometer_readings")
-    .select("*")
-    .eq("vehicle_id", vehicleId)
-    .order("date", { ascending: false })
-    .order("created_at", { ascending: false });
+  return notHidden(
+    supabase
+      .from("fleet_odometer_readings")
+      .select("*")
+      .eq("vehicle_id", vehicleId)
+      .order("date", { ascending: false })
+      .order("created_at", { ascending: false })
+  );
 }
 
 export async function insertFleetOdometerReading(supabase: Client, row: Record<string, unknown>) {
