@@ -203,7 +203,8 @@ export interface FleetDigestPart {
 export function fleetDigestBlocks(run: Pick<ReminderRun, "F" | "date" | "url">) {
   const d = buildFleetDigest(run.F, run.date);
   return {
-    bookingParts: fleetBookingParts(d, `${run.url}/calendar`),
+    // One calendar (Fleet 5d): clashes are sorted out on the booking board.
+    bookingParts: fleetBookingParts(d, run.url.replace(/\/fleet$/, "/board")),
     fleetParts: [`*🔧 FLEET – <${run.url}|open Fleet>*`, ...fleetVehicleParts(d)],
     items: fleetDigestCount(d),
   };

@@ -37,7 +37,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 import { sendVehicleDigest } from "./slack-alerts";
 
 const fleet = {
-  bookingParts: ["*⚠️ Clashes (1) – <https://x/bookings/vehicles/fleet/calendar|sort them out on the Calendar>*\n• Kombi: Service clashes with HULC"],
+  bookingParts: ["*⚠️ Clashes (1) – <https://x/bookings/vehicles/board|sort them out on the Calendar>*\n• Kombi: Service clashes with HULC"],
   fleetParts: ["*🔧 FLEET – <https://x/bookings/vehicles/fleet|open Fleet>*", "🟢 *IN*  *Hyundai H1 (KVS 119 NW)*\n• Weekly check due today", "🔴 *OUT*  *Kombi*\nHULC · Jane Doe, back 21 Nov"],
   items: 2,
   slackUserIds: ["UC", "UA1"],

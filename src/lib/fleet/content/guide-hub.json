@@ -30,7 +30,7 @@
           "ul": [
             "Today: what to do today and in the next two days, and the time used this week.",
             "Vehicles: every vehicle with its condition and anything that needs attention. Tap a vehicle for its details, history, photos and manual.",
-            "Calendar: opens the booking board’s calendar: bookings, workshop visits and inspection days for 30 days, with clashes in red. Under it: clashes and heads-ups, and Book a workshop visit.",
+            "Calendar: opens the booking board’s calendar: bookings, workshop visits and inspection days for 30 days, with clashes in red. Under it: clashes and heads-ups, and Book a workshop visit. Only the vehicles team (people who approve or manage vehicle bookings) sees this tab, because the board shows who booked each vehicle.",
             "Schedule: which vehicle is checked on which day, services and inspections by km, inspection days and the time budget.",
             "Workshops: the workshops FFSA uses, with phone numbers.",
             "Checklist: every inspection point, and which checks it belongs to.",
@@ -366,6 +366,14 @@
     [
       "2026-11-23",
       "Out of action: mark a vehicle In for a repair or Broken down on its page, and it can’t be booked until it’s back. Its bookings for the next 10 days are listed on Today and the booking board, with Move to a free vehicle of the same class, Put on hold, or Cancel: vehicle broke down. Resume booking takes one off hold once the vehicle’s back."
+    ],
+    [
+      "2026-11-23",
+      "Fleet’s own calendar is gone: Calendar always opens the booking board, which shows the workshop visits, inspection days and clashes. Old links go there too."
+    ],
+    [
+      "2026-11-24",
+      "The Calendar tab (and Today’s “Sort it out” link to it) now shows only for the vehicles team, who can open the booking board. People who only view Fleet no longer get sent back to Rent a Vehicle."
     ]
   ]
 }

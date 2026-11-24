@@ -3,10 +3,10 @@
 // screen keys of guide-hub.json ("today", "vehicle", "calendar", …). Both map to Hub
 // routes here.
 //
-// Today, Calendar and Schedule are their own screens (added in vehicles-module/
-// HUB-PLAN.md, PR 3); they're in PENDING below.
+// Today and Schedule are their own screens (added in vehicles-module/HUB-PLAN.md, PR 3);
+// Calendar is the booking board's since part 5 (one calendar). They're in PENDING below.
 
-import { FLEET, vehicleHref } from "../_components/ui";
+import { FLEET, FLEET_CALENDAR, vehicleHref } from "../_components/ui";
 import { guideText, type GuideTokens } from "@/lib/fleet/guide";
 
 const VEHICLES = `${FLEET}/vehicles`;
@@ -14,7 +14,7 @@ const VEHICLES = `${FLEET}/vehicles`;
 /** Today, Calendar and Schedule (added in PR 3). Kept as a named map for links.test.ts. */
 export const PENDING: Record<string, string> = {
   today: FLEET,
-  calendar: `${FLEET}/calendar`,
+  calendar: FLEET_CALENDAR,
   schedule: `${FLEET}/schedule`,
 };
 

@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
-import { FLEET } from "./ui";
+import { FLEET, FLEET_CALENDAR } from "./ui";
 
 // The Fleet tab strip, in the Fleet app's order. Today is Fleet's landing page.
 const TABS = [
   { href: FLEET, label: "Today", match: (p: string) => p === FLEET },
   { href: `${FLEET}/vehicles`, label: "Vehicles", match: (p: string) => p === `${FLEET}/vehicles` || /^\/bookings\/vehicles\/fleet\/[0-9a-f-]{36}/.test(p) || p.startsWith(`${FLEET}/inspections`) },
-  { href: `${FLEET}/calendar`, label: "Calendar" },
+  { href: FLEET_CALENDAR, label: "Calendar" },
   { href: `${FLEET}/schedule`, label: "Schedule" },
   { href: `${FLEET}/workshops`, label: "Workshops" },
   { href: `${FLEET}/checklist`, label: "Checklist" },
@@ -17,14 +17,16 @@ const TABS = [
   { href: `${FLEET}/settings`, label: "Settings" },
 ];
 
-export function FleetNav() {
+/** `calendar`: show the Calendar tab, which opens the booking board (vehicles team only). */
+export function FleetNav({ calendar = true }: { calendar?: boolean }) {
   const path = usePathname() || "";
+  const tabs = calendar ? TABS : TABS.filter((t) => t.href !== FLEET_CALENDAR);
   return (
     // Phones: two rows of four, so every tab — and the one you're on — is
     // visible. A single scrolling row clipped "Workshops" to "WOR" and hid
     // Checklist, Guide and Settings off the edge. One row from md up.
     <nav aria-label="Fleet" className="grid grid-cols-4 border-b border-ink px-3 pt-3 md:flex md:flex-wrap md:items-end md:px-8">
-      {TABS.map((t) => {
+      {tabs.map((t) => {
         const on = t.match ? t.match(path) : path.startsWith(t.href);
         return (
           <Link
