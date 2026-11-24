@@ -360,6 +360,10 @@
     [
       "2026-11-23",
       "Download report: a PDF of a vehicle’s history between two dates (services, repairs and costs, inspections, fixes, bookings and km), from the vehicle’s page. Deleting an inspection, a workshop visit or a km reading now only hides it: nothing in a vehicle’s history is erased."
+    ],
+    [
+      "2026-11-24",
+      "Fixed: if Mark as fixed can’t save the point, no half-saved fix is left in the vehicle’s History."
     ]
   ]
 }
