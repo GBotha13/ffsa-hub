@@ -52,11 +52,11 @@ export function todayTasks(F: FleetData): { tasks: Task[]; later: LaterItem[] } 
   for (const v of vs) {
     for (const t of tripsOf(F, v.id)) {
       if (t.from === today)
-        tasks.push({ o: 0, sev: "warn", v, title: "Pre-trip check", sub: `Leaves today: ${tripName(t)}, back ${fmtDay(t.to)}`, mins: avgMins(F, "pre"), action: { kind: "start", type: "pre" } });
+        tasks.push({ o: 0, sev: "warn", v, title: "Pre-rental inspection", sub: `Leaves today: ${tripName(t)}, back ${fmtDay(t.to)}`, mins: avgMins(F, "pre"), action: { kind: "start", type: "pre" } });
       else if (t.from === t1 || t.from === t2)
-        later.push({ v, d: t.from, text: `Leaves ${t.from === t1 ? "tomorrow" : fmtDay(t.from)} (${tripName(t)}, back ${fmtDay(t.to)}): pre-trip check before it goes` });
+        later.push({ v, d: t.from, text: `Leaves ${t.from === t1 ? "tomorrow" : fmtDay(t.from)} (${tripName(t)}, back ${fmtDay(t.to)}): pre-rental inspection before it goes` });
       if (t.to <= today && t.to >= weekAgo && !(v.lastPost && (v.lastPost.date || "") >= t.to))
-        tasks.push({ o: 1, sev: "warn", v, title: "Post-trip check", sub: `Back from ${tripName(t)} on ${fmtDay(t.to)}: check for damage, km and fuel`, mins: avgMins(F, "post"), action: { kind: "start", type: "post" } });
+        tasks.push({ o: 1, sev: "warn", v, title: "Post-rental inspection", sub: `Back from ${tripName(t)} on ${fmtDay(t.to)}: check for damage, km and fuel`, mins: avgMins(F, "post"), action: { kind: "start", type: "post" } });
     }
     for (const w of ws.filter((x) => x.vehicleId === v.id)) {
       if (w.from === today && v.status !== "In workshop")

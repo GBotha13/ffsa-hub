@@ -89,7 +89,7 @@ describe("Condition tab", () => {
   it("pointTag names the check a point belongs to", () => {
     expect(pointTag({ in: ["pre", "weekly"] })).toBe("Weekly");
     expect(pointTag({ in: ["workshop"] })).toBe("Workshop");
-    expect(pointTag({ in: ["post"] })).toBe("Post-trip");
+    expect(pointTag({ in: ["post"] })).toBe("Post-rental");
     expect(pointTag({})).toBe("Not in any check");
   });
 });
@@ -185,7 +185,7 @@ describe("Manual", () => {
     expect(ids).not.toContain("ext-slide");
     expect(ids).toContain("ext-front");
     const p = st.flatMap((s) => s.points).find((x) => x.id === "pst-driver")!;
-    expect(p.tags).toEqual(["Post-trip"]);
+    expect(p.tags).toEqual(["Post-rental"]);
     expect(p.help.why).toBeTruthy();
   });
 });

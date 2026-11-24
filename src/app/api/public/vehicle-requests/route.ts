@@ -1,4 +1,5 @@
 import { after, NextResponse } from "next/server";
+import { driverEmail } from "@/lib/vehicles/return-day";
 import { notifyVehicleRequester } from "@/lib/vehicles/requester-notify";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -185,6 +186,7 @@ export async function POST(request: Request) {
         user_id: null,
         name: nn(row.name),
         phone: nn(row.phone),
+        email: driverEmail(row.email),
         has_sa_license: !!row.has_sa_license,
         is_first_time: true, // unknown to us: a manager confirms before approval
         driving_test_status: "pending",

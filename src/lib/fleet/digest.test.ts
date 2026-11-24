@@ -60,13 +60,13 @@ describe("buildFleetDigest", () => {
     expect(byName(F, "VW Kombi")).toMatchObject({ state: "off", where: "Off the road", due: [] });
   });
 
-  it("a trip leaving today: OUT under Fleet, its pre-trip check under Bookings", () => {
+  it("a trip leaving today: OUT under Fleet, its pre-rental inspection under Bookings", () => {
     const F = seedFleetData(DAY);
     const G = { ...F, trips: [...F.trips, { id: "b1:h1-2", vehicleId: "h1-2", from: DAY, to: "2026-11-25", label: "Outreach", source: "hub" }] };
     const d = buildFleetDigest(G, DAY);
     expect(d.vehicles.find((v) => v.id === "h1-2")).toMatchObject({ state: "out", due: [] });
-    expect(d.tripChecks.some((l) => l.includes("leaves today (Outreach") && l.includes("pre-trip check"))).toBe(true);
-    expect(fleetBookingParts(d, "CAL").join("\n")).toContain("🔍 Pre- and post-trip checks (");
+    expect(d.tripChecks.some((l) => l.includes("leaves today (Outreach") && l.includes("pre-rental inspection"))).toBe(true);
+    expect(fleetBookingParts(d, "CAL").join("\n")).toContain("🔍 Pre- and post-rental inspections (");
   });
 
   it("clashes go under Bookings with a link to the Calendar", () => {

@@ -82,6 +82,8 @@ export type VehicleDriver = {
   licence_number_snapshot: string | null;
   name: string;
   phone: string | null;
+  /** Optional (364): for the pick-up and return instructions. */
+  email?: string | null;
   has_sa_license: boolean;
   is_first_time: boolean;
   driving_test_status: "not_required" | "pending" | "passed" | "failed";
@@ -596,6 +598,15 @@ export const PURPOSE_OPTIONS: { value: VehiclePurpose; label: string }[] = [
 
 export function purposeLabel(value: string): string {
   return PURPOSE_OPTIONS.find((p) => p.value === value)?.label ?? value;
+}
+
+/**
+ * Days quoted and shown for a booking (Gideon, 24 Nov 2026: "The due back day should not
+ * be quoted"): collection to the last day it's needed, i.e. return_date (the due-back
+ * morning) not counted. Never less than 1.
+ */
+export function billableDays(checkout: string, ret: string): number {
+  return Math.max(1, dayCount(checkout, ret) - 1);
 }
 
 /** Inclusive day count between two ISO dates (collection → return). */

@@ -3,15 +3,15 @@
   "checkTypes": [
     {
       "id": "pre",
-      "label": "Pre-trip check",
-      "short": "Pre-trip",
+      "label": "Pre-rental inspection",
+      "short": "Pre-rental",
       "desc": "Quick go/no-go before the vehicle leaves",
       "help": "A few go/no-go points before the vehicle leaves. Any driver can do it in two minutes."
     },
     {
       "id": "post",
-      "label": "Post-trip check",
-      "short": "Post-trip",
+      "label": "Post-rental inspection",
+      "short": "Post-rental",
       "desc": "When the vehicle comes back: damage, km, fuel and anything the driver reports",
       "help": "When the vehicle comes back: new damage, km, fuel, cleanliness and anything the driver reports."
     },

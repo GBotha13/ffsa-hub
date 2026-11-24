@@ -31,24 +31,37 @@ const actionKey = (a: ReturnType<typeof todayTasks>["tasks"][number]["action"]) 
 const appActionKey = (btn: string) =>
   !btn ? "" : btn.startsWith("start:") || btn.startsWith("book:") ? btn : /ws-dropoff/.test(btn) ? "dropoff" : /ws-collect/.test(btn) ? "collect" : /#calendar/.test(btn) ? "calendar" : btn;
 
+// The one wording difference from the reference app, on purpose: Gideon renamed the
+// pre- and post-trip checks to pre- and post-rental inspections (24 Nov 2026). The app's
+// text is mapped to the new names before comparing; nothing else is.
+const RENAMED: [RegExp, string][] = [
+  [/Pre- and post-trip checks/g, "Pre- and post-rental inspections"],
+  [/pre- and post-trip checks/g, "pre- and post-rental inspections"],
+  [/Pre-trip check/g, "Pre-rental inspection"],
+  [/Post-trip check/g, "Post-rental inspection"],
+  [/pre-trip check/g, "pre-rental inspection"],
+  [/post-trip check/g, "post-rental inspection"],
+];
+const renamed = <T,>(x: T): T => JSON.parse(RENAMED.reduce((s, [a, b]) => s.replace(a, b), JSON.stringify(x)));
+
 function compare(F: FleetData) {
   toApp(F);
   for (const v of F.vehicles) {
     const av = app.S.vmap[v.id];
-    expect(vehicleAlerts(F, v), `${F.today} ${v.id} alerts`).toEqual(JSON.parse(JSON.stringify(app.vehicleAlerts(av))));
+    expect(vehicleAlerts(F, v), `${F.today} ${v.id} alerts`).toEqual(renamed(app.vehicleAlerts(av)));
     const w = weekly(F, v);
     const aw = app.weekly(av);
     expect([w.st, w.label, w.type, w.name], `${F.today} ${v.id} weekly`).toEqual([aw.st, aw.label, aw.type, aw.name]);
   }
   const mine = todayTasks(F);
-  const theirs = app.todayTasks();
+  const theirs = renamed(app.todayTasks());
   expect(
     mine.tasks.map((t) => [t.o, t.sev, t.v.id, t.title, t.sub, t.mins, actionKey(t.action)]),
     `${F.today} today`
   ).toEqual(theirs.tasks.map((t: any) => [t.o, t.sev, t.v.id, t.title, t.sub, t.mins, appActionKey(t.btn)])); // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(mine.later.map((l) => [l.v.id, l.d, l.text])).toEqual(theirs.later.map((l: any) => [l.v.id, l.d, l.text])); // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(clashList(F).map((c) => [c.sev, c.kind, c.vehicleId, c.text])).toEqual(
-    app.clashList().map((c: any) => [c.sev, c.kind, c.vehicleId, c.text]) // eslint-disable-line @typescript-eslint/no-explicit-any
+    renamed(app.clashList()).map((c: any) => [c.sev, c.kind, c.vehicleId, c.text]) // eslint-disable-line @typescript-eslint/no-explicit-any
   );
 }
 

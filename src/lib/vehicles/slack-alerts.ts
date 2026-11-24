@@ -20,8 +20,7 @@ import { checkDriverEligibility } from "@/lib/vehicles/licence";
 import {
   DAMAGE_PANELS,
   INVENTORY_ITEMS,
-  dayCount,
-  purposeLabel,
+  billableDays, purposeLabel,
   randsLabel,
   getLicenceFactsFor,
   eligibilityInput,
@@ -43,16 +42,16 @@ export const VH_OPEN = "vh_open";
 export const VH_DENY_VIEW = "vh_deny_view";
 export const isVehicleAction = (actionId: string) => actionId.startsWith("vh_");
 
-type Block = Record<string, unknown>;
-type Message = { text: string; blocks: Block[] };
+export type Block = Record<string, unknown>;
+export type Message = { text: string; blocks: Block[] };
 
 const panelLabel = new Map(DAMAGE_PANELS.map((p) => [p.key, p.label]));
 const itemLabel = new Map(INVENTORY_ITEMS.map((i) => [i.key, i.label]));
 
-const section = (text: string): Block => ({ type: "section", text: { type: "mrkdwn", text } });
-const context = (text: string): Block => ({ type: "context", elements: [{ type: "mrkdwn", text }] });
+export const section = (text: string): Block => ({ type: "section", text: { type: "mrkdwn", text } });
+export const context = (text: string): Block => ({ type: "context", elements: [{ type: "mrkdwn", text }] });
 const divider = (): Block => ({ type: "divider" });
-const openButton = (id: string): Block => ({
+export const openButton = (id: string): Block => ({
   type: "button",
   action_id: VH_OPEN,
   text: { type: "plain_text", text: "Open in Hub" },
@@ -61,7 +60,7 @@ const openButton = (id: string): Block => ({
 
 // ── recipients + posting ────────────────────────────────────
 
-async function recipients(admin: Client): Promise<{ userId: string; slackUserId: string }[]> {
+export async function recipients(admin: Client): Promise<{ userId: string; slackUserId: string }[]> {
   const { data: settings } = await admin.from("vehicle_alert_settings").select("slack_alert_user_ids").maybeSingle();
   const ids = ((settings?.slack_alert_user_ids as string[] | null) ?? []).filter(Boolean);
   if (ids.length === 0) return [];
@@ -86,7 +85,12 @@ async function dm(slackUserId: string, message: Message): Promise<{ channel: str
 }
 
 /** DM everyone, recording the message so it can be rewritten later. */
-async function postTracked(admin: Client, bookingId: string, kind: "request" | "returned", message: Message) {
+export async function postTracked(
+  admin: Client,
+  bookingId: string,
+  kind: "request" | "returned" | "due-back" | "post-rental" | "early-return",
+  message: Message
+) {
   for (const r of await recipients(admin)) {
     // Claim first: two triggers racing must not double-DM.
     const { data: claimed } = await admin
@@ -188,7 +192,7 @@ async function loadCtx(admin: Client, bookingId: string): Promise<Ctx | null> {
 }
 
 function headline(b: VehicleBookingWithRefs): string {
-  const days = dayCount(b.checkout_date, b.return_date);
+  const days = billableDays(b.checkout_date, b.return_date) // the due-back day isn't counted;
   return `${dateRangeLabel(b.checkout_date, b.return_date)} (${days} day${days === 1 ? "" : "s"})`;
 }
 
@@ -340,9 +344,11 @@ export async function refreshVehicleRequestAlerts(bookingId: string): Promise<vo
       if (row.kind === "request") {
         close = c.b.status !== "pending";
         message = close ? await requestClosedMessage(admin, c) : requestOpenMessage(c);
-      } else {
+      } else if (row.kind === "returned") {
         close = c.b.status !== "approved";
         message = close ? await requestClosedMessage(admin, c) : returnedMessage(c);
+      } else {
+        continue; // due-back, post-rental, early-return: lib/vehicles/rental-return refreshes those
       }
       await slack.updateMessage({ channel: row.slack_channel, ts: row.slack_ts, ...message }).catch(() => null);
       if (close) {

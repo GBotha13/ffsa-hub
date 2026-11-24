@@ -22,13 +22,13 @@ const READY_KEYS = ["Fuel", "Starting", "Bonnet", "Battery", "Spare wheel", "Spa
 
 // /bookings/vehicles/fleet/[vehicleId]/inspect — a new or continued inspection.
 // ?type=pre|post|weekly|monthly|workshop picks the check for a new draft (default: this
-// week's routine check); ?new=1 discards any draft first. An existing draft is continued.
+// week's routine check); ?booking= links a post-rental inspection to that booking; ?new=1 discards any draft first. An existing draft is continued.
 export default async function InspectPage({
   params,
   searchParams,
 }: {
   params: Promise<{ vehicleId: string }>;
-  searchParams: Promise<{ type?: string; new?: string }>;
+  searchParams: Promise<{ type?: string; new?: string; booking?: string }>;
 }) {
   const supabase = await createClient();
   const { user } = await requireFleet(supabase, { manage: true });
@@ -58,7 +58,7 @@ export default async function InspectPage({
   const pr = profileOf(v);
   const ready = pr ? whereList(v).filter(([k]) => READY_KEYS.includes(k)) : [];
 
-  // Post-trip checks link to the Hub booking they follow (the app's free-text "trip").
+  // Post-rental inspections link to the Hub booking they follow (the app's free-text "trip").
   const seen = new Set<string>();
   const recent = F.trips
     .filter((tr) => tr.vehicleId === v.id && tr.from <= today)
@@ -72,7 +72,9 @@ export default async function InspectPage({
     .slice(0, 8);
   const trips: TripOption[] = recent.map((tr) => ({ id: tr.id.split(":")[0], label: `${tr.label || "Trip"}, ${fmtRange(tr.from, tr.to)}` }));
   const back = recent.find((tr) => tr.to <= today && tr.to >= addDays(today, -7));
-  const defaultBookingId = back ? back.id.split(":")[0] : "";
+  // ?booking= comes from the coordinator's post-rental message (Gideon, 24 Nov): that booking.
+  const asked = sp.booking && trips.some((t) => t.id === sp.booking) ? sp.booking : "";
+  const defaultBookingId = asked || (back ? back.id.split(":")[0] : "");
 
   return (
     <InspectForm

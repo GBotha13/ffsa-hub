@@ -1,4 +1,5 @@
 import { after, NextResponse } from "next/server";
+import { driverEmail } from "@/lib/vehicles/return-day";
 import { refreshVehicleRequestAlerts } from "@/lib/vehicles/slack-alerts";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -26,6 +27,7 @@ type DriverInput = {
   id?: string | null;
   name?: string;
   phone?: string;
+  email?: string;
   has_sa_license?: boolean;
   is_first_time?: boolean;
 };
@@ -276,6 +278,7 @@ export async function PATCH(
         user_id: typeof d.user_id === "string" && d.user_id ? d.user_id : null,
         name: nn(d.name),
         phone: nn(d.phone),
+        email: driverEmail(d.email),
         has_sa_license: !!d.has_sa_license,
         is_first_time: !!d.is_first_time,
         driving_test_status: d.is_first_time ? "pending" : "not_required",

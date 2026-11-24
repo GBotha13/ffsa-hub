@@ -68,9 +68,9 @@ export function vehicleAlerts(F: FleetData, v: FleetVehicle): Alert[] {
     weekAgo = addDays(today, -7);
   for (const t of tripsOf(F, v.id)) {
     if (t.from === today || t.from === tomorrow)
-      out.push({ sev: "warn", text: `Leaves ${t.from === today ? "today" : "tomorrow"} (${tripName(t)}, back ${fmtDay(t.to)}): do a pre-trip check` });
+      out.push({ sev: "warn", text: `Leaves ${t.from === today ? "today" : "tomorrow"} (${tripName(t)}, back ${fmtDay(t.to)}): do a pre-rental inspection` });
     if (t.to <= today && t.to >= weekAgo && !(v.lastPost && (v.lastPost.date || "") >= t.to))
-      out.push({ sev: "warn", text: `Back from ${tripName(t)} on ${fmtDay(t.to)}: do a post-trip check` });
+      out.push({ sev: "warn", text: `Back from ${tripName(t)} on ${fmtDay(t.to)}: do a post-rental inspection` });
   }
   if (!["For sale", "Off the road"].includes(v.status || "")) {
     const cs = cardStatus(v, F.notify, today);

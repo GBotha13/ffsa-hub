@@ -68,7 +68,7 @@ export const HUB_TOOLS: Anthropic.Tool[] = [
         purpose: { type: "string", enum: VEHICLE_PURPOSES },
         purpose_note: { type: "string", description: "Required when purpose is other." },
         checkout_date: dateProp("Collection date"),
-        return_date: dateProp("Return date"),
+        return_date: dateProp("The day it is due back: the day AFTER the last day they need the vehicle (it comes back before 12:00, washed and refuelled). Ask for the last day they need it and add one day"),
         num_people: { type: "integer" },
         vehicles: { type: "array", items: { type: "string" }, description: "Optional vehicle names, from check_vehicle_availability." },
         drivers: {

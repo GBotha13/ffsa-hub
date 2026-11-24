@@ -190,7 +190,7 @@ export async function runFleetReminder(
 
 export interface FleetDigestPart {
   outcome: ReminderRun["outcome"];
-  /** Blocks for the Bookings part: clashes and today's pre- and post-trip checks. */
+  /** Blocks for the Bookings part: clashes and today's pre- and post-rental inspections. */
   bookingParts: string[];
   /** Blocks for the Fleet part: every vehicle, IN or OUT. Empty when Fleet's messages are off. */
   fleetParts: string[];

@@ -18,7 +18,7 @@
           "ul": [
             "Every morning: open Today. It lists everything to do that day, in order, with a button to start each one. (The 7am reminder by email and Slack is switched off for now.)",
             "On inspection days ({days}): do the weekly check on the vehicles planned for that day, at most {max} a day. Once a month the weekly check is replaced by the longer monthly check. The Hub picks which one is due.",
-            "When a vehicle goes out on a booking: a 2-minute pre-trip check. When it comes back: a post-trip check. The km entered at handover keeps the service warnings right.",
+            "When a vehicle goes out on a booking: a 2-minute pre-rental inspection. When it comes back: a post-rental inspection. The km entered at handover keeps the service warnings right.",
             "When a service or bumper-to-bumper inspection is coming up: book it in the first free 48 hours the Hub suggests. Anyone with a clashing booking is told automatically.",
             "The whole job should take no more than {budget} a week. Today shows the time used so far."
           ]
@@ -76,7 +76,7 @@
             ],
             [
               "Look at the bookings",
-              "Open the Calendar (the booking board). Each vehicle’s bookings are bars, with its workshop visits and inspection days in a thin lane underneath. While a vehicle is booked out its inspection is postponed, and Today reminds you of the pre-trip check before it leaves and the post-trip check when it’s back.",
+              "Open the Calendar (the booking board). Each vehicle’s bookings are bars, with its workshop visits and inspection days in a thin lane underneath. While a vehicle is booked out its inspection is postponed, and Today reminds you of the pre-rental inspection before it leaves and the post-rental inspection when it’s back.",
               "calendar"
             ],
             [
@@ -186,8 +186,9 @@
         },
         {
           "ul": [
-            "Pre-trip check ({pre} points): a quick go/no-go before a vehicle leaves. Any driver can do it.",
-            "Post-trip check ({post} points): when it comes back. New damage, km, fuel, cleanliness and anything the driver reports.",
+            "Pre-rental inspection ({pre} points): a quick go/no-go before a vehicle leaves. Any driver can do it.",
+            "Post-rental inspection ({post} points): when it comes back. New damage, km, fuel, cleanliness and anything the driver reports.",
+            "A vehicle booked in the Hub comes back the day after the last day it’s needed, before 12:00, washed and refuelled. That morning the Vehicle Coordinator gets a Slack message with a Returned button. After tapping it, a second message links to the post-rental inspection for each vehicle, already linked to the booking. Once every vehicle’s post-rental inspection is saved, the booking is marked Completed. To see the whole flow on made-up people, open Rent a Vehicle → Training.",
             "Weekly check ({weekly} points): everything you can check by looking, listening and driving, on the vehicle’s inspection day.",
             "Monthly check ({monthly} points): the weekly points plus the slower once-a-month points. It replaces the weekly check on the vehicle’s first inspection day of the month.",
             "Workshop report ({workshop} points): what only a mechanic can check. It starts with the workshop’s 25-point check, in the same order and wording as Motech’s sheet: for each line, tap OK if it’s ticked as Checked, Monitor or Fix now if it’s ticked as Attention needed (N/A if it doesn’t apply, like spark plugs on a diesel), and type the sheet’s note in the box next to it. Mark the rest OK does the lines that are fine in one tap. Then fill in any points under “If the workshop checked them”, put anything else on the report (like “see diagnostic”) in What the workshop recommends, and attach the report.",
@@ -259,7 +260,7 @@
           "h": "Daily reminders"
         },
         {
-          "p": "Switched off for now: Fleet sends no email or Slack messages until an admin turns them on. When it’s on, at 7am the person with the Vehicle Co-ordinator role gets an email listing the checks due today, tomorrow and the day after, overdue checks, booking clashes, vehicles leaving or coming back, postponed checks, workshop visits and services due by km. On Slack it’s part of the 7am vehicles message from the FFSA Hub Activity bot, which has two parts. BOOKINGS: pickups, returns, overdue and waiting bookings, clashes with workshop visits, and the pre- and post-trip checks for vehicles going out or coming back today. FLEET: every vehicle, marked IN (not booked, not at the workshop) or OUT (booked or at the workshop). An IN vehicle lists what’s due on it: inspections, service, bumper-to-bumper inspection, workshop visits, faults or damage reported, and its licence disc. An OUT vehicle only shows who has it, or which workshop it’s at. The vehicles are listed every day. Admins can see the message for any date on the reminder preview page."
+          "p": "Switched off for now: Fleet sends no email or Slack messages until an admin turns them on. When it’s on, at 7am the person with the Vehicle Co-ordinator role gets an email listing the checks due today, tomorrow and the day after, overdue checks, booking clashes, vehicles leaving or coming back, postponed checks, workshop visits and services due by km. On Slack it’s part of the 7am vehicles message from the FFSA Hub Activity bot, which has two parts. BOOKINGS: pickups, returns, overdue and waiting bookings, clashes with workshop visits, and the pre- and post-rental inspections for vehicles going out or coming back today. FLEET: every vehicle, marked IN (not booked, not at the workshop) or OUT (booked or at the workshop). An IN vehicle lists what’s due on it: inspections, service, bumper-to-bumper inspection, workshop visits, faults or damage reported, and its licence disc. An OUT vehicle only shows who has it, or which workshop it’s at. The vehicles are listed every day. Admins can see the message for any date on the reminder preview page."
         },
         {
           "h": "The checklist"
@@ -309,7 +310,7 @@
     ],
     [
       "2026-11-17",
-      "In the Hub: add or remove vehicles under Fleet → Settings; trips and rentals are the Hub’s vehicle bookings; an inspection draft is also saved to the Hub, so you can finish it on another device; a post-trip check is linked to its booking. The in-car guide and manual PDFs come in a later update."
+      "In the Hub: add or remove vehicles under Fleet → Settings; trips and rentals are the Hub’s vehicle bookings; an inspection draft is also saved to the Hub, so you can finish it on another device; a post-rental inspection is linked to its booking. The in-car guide and manual PDFs come in a later update."
     ],
     [
       "2026-11-17",
@@ -341,7 +342,7 @@
     ],
     [
       "2026-11-19",
-      "The 7am vehicles message on Slack now has two parts: BOOKINGS (everything about bookings, with clashes and today’s pre- and post-trip checks) and FLEET (every vehicle, IN with what’s due on it, or OUT with only who has it). Still switched off until it’s turned on."
+      "The 7am vehicles message on Slack now has two parts: BOOKINGS (everything about bookings, with clashes and today’s pre- and post-rental inspections) and FLEET (every vehicle, IN with what’s due on it, or OUT with only who has it). Still switched off until it’s turned on."
     ],
     [
       "2026-11-20",
@@ -378,6 +379,22 @@
     [
       "2026-11-24",
       "The Calendar tab (and Today’s “Sort it out” link to it) now shows only for the vehicles team, who can open the booking board. People who only view Fleet no longer get sent back to Rent a Vehicle."
+    ],
+    [
+      "2026-11-24",
+      "Renamed: the pre-trip and post-trip checks are now the pre-rental and post-rental inspections. Nothing else about them changed."
+    ],
+    [
+      "2026-11-24",
+      "Returns: a booking is due back the day after the last day it’s needed, before 12:00. The Vehicle Coordinator taps Returned on the morning’s Slack message (or Mark returned on the booking), then records the post-rental inspection from the link it gives; saving it completes the booking."
+    ],
+    [
+      "2026-11-24",
+      "Training: Rent a Vehicle → Training walks through a booking from the form to completed, on made-up people, with the person booking on one side and the Vehicle Coordinator's part on the other. Nothing is saved or sent. The booking forms now explain the due-back day beside “Last day you need it”."
+    ],
+    [
+      "2026-11-24",
+      "Quotes: a booking is charged from collection to the last day it’s needed. The due-back morning isn’t charged."
     ]
   ]
 }

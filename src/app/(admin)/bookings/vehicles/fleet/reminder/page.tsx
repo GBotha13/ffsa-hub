@@ -71,7 +71,7 @@ export default async function ReminderPreview({ searchParams }: { searchParams: 
       <SectionBar title="Slack at 07:00" meta="FFSA Hub Activity" />
       <div className="space-y-3 px-5 py-4 text-[14px] md:px-8">
         <p className="text-[#55524A]">
-          Fleet’s part of the 07:00 vehicles message. Under BOOKINGS it adds clashes and today’s pre- and post-trip checks; FLEET lists every vehicle, IN with what’s due on it, or OUT with only who has it.
+          Fleet’s part of the 07:00 vehicles message. Under BOOKINGS it adds clashes and today’s pre- and post-rental inspections; FLEET lists every vehicle, IN with what’s due on it, or OUT with only who has it.
         </p>
         <h3 className="font-display text-[16px] font-black uppercase">Bookings</h3>
         <pre className="whitespace-pre-wrap break-words bg-bone p-3 text-[12px]">{slack.bookingParts.join("\n\n") || "Nothing from Fleet. The bookings lines (pickups, returns, overdue…) are added when it’s sent."}</pre>

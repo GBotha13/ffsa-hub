@@ -217,7 +217,7 @@ export function OverviewTab({
           </ul>
         ) : (
           <p className={cn("py-3 text-[14px] text-[#55524A]", pad)}>
-            No trips or rentals booked. While a vehicle is away its weekly check is postponed, and you’re reminded to do a pre-trip check before it leaves and a post-trip check when it’s back.
+            No trips or rentals booked. While a vehicle is away its weekly check is postponed, and you’re reminded to do a pre-rental inspection before it leaves and a post-rental inspection when it’s back.
           </p>
         )}
       </section>

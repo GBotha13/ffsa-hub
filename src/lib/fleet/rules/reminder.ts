@@ -131,9 +131,9 @@ export function buildReminder(
     const v = vmap[t.vehicleId];
     if (!v) continue;
     if (t.from === today || t.from === tomorrow)
-      S.trips.push(`${label(v)} leaves ${t.from === today ? "today" : "tomorrow"} (${t.label || "trip"}, back ${fmtShort(t.to)}): do a pre-trip check`);
+      S.trips.push(`${label(v)} leaves ${t.from === today ? "today" : "tomorrow"} (${t.label || "trip"}, back ${fmtShort(t.to)}): do a pre-rental inspection`);
     if ((t.to === yesterday || t.to === today) && !(v.lastPost && v.lastPost.date && v.lastPost.date >= t.to))
-      S.trips.push(`${label(v)} is back from ${t.label || "a trip"} (${fmtShort(t.to)}): do a post-trip check`);
+      S.trips.push(`${label(v)} is back from ${t.label || "a trip"} (${fmtShort(t.to)}): do a post-rental inspection`);
   }
 
   // Workshop visits today or tomorrow

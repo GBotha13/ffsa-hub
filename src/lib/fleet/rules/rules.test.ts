@@ -42,8 +42,8 @@ describe("SPEC 10.1 Today on Tue 17 Nov 2026", () => {
         "Honda CR-V: Bumper-to-bumper inspection at Motech tomorrow",
         "Hyundai H1 #3: Bumper-to-bumper inspection at Motech Thu, 19 Nov",
         "VW Kombi: Bumper-to-bumper inspection at Motech Thu, 19 Nov",
-        "Honda CR-V: Leaves Thu, 19 Nov (Rental, back Sun, 13 Dec): pre-trip check before it goes",
-        "Nissan Almera: Leaves Thu, 19 Nov (Rental, back Sun, 13 Dec): pre-trip check before it goes",
+        "Honda CR-V: Leaves Thu, 19 Nov (Rental, back Sun, 13 Dec): pre-rental inspection before it goes",
+        "Nissan Almera: Leaves Thu, 19 Nov (Rental, back Sun, 13 Dec): pre-rental inspection before it goes",
       ])
     );
   });

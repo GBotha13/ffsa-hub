@@ -4,6 +4,8 @@ import { loadFleet } from "@/lib/fleet/load";
 import { vehiclePatchToColumns } from "@/lib/fleet/mapping";
 import { buildInspection, inspectionToRow, vehiclePatchAfterSave, type LastRef } from "@/lib/fleet/inspection";
 import { todayInSA } from "@/lib/fleet/rules";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { completeIfInspected, refreshRentalAlerts } from "@/lib/vehicles/rental-return";
 import {
   deleteFleetDraft,
   deleteFleetInspection,
@@ -17,7 +19,7 @@ import {
 // POST /api/vehicles/fleet/inspections — save an inspection (the Fleet app's
 // saveInspection). Body: {vehicleId, draft}. What is stored and how the vehicle changes
 // are the tested functions in src/lib/fleet/inspection.ts; this inserts the inspection,
-// updates the vehicle (condition, last*, odometer, status after a post-trip check), keeps
+// updates the vehicle (condition, last*, odometer, status after a post-rental inspection), keeps
 // the odometer reading, logs the time and removes the server copy of the draft.
 export async function POST(request: Request) {
   const auth = await fleetAuth("manage");
@@ -67,5 +69,19 @@ export async function POST(request: Request) {
   await logTime(auth.supabase, auth.user.id, { kind: "inspection", type: doc.type, vehicleId, mins: doc.mins });
   await deleteFleetDraft(auth.supabase, auth.user.id, vehicleId);
 
-  return NextResponse.json({ success: true, id, mins: doc.mins });
+  // A post-rental inspection for a booking completes it once every vehicle on it has one
+  // (Gideon, 24 Nov 2026), and updates the coordinator's post-rental message either way.
+  let bookingCompleted = false;
+  if (doc.type === "post" && doc.bookingId) {
+    try {
+      const admin = createAdminClient();
+      const r = await completeIfInspected(admin, doc.bookingId, auth.user.id);
+      bookingCompleted = r.ok;
+      if (!r.ok) await refreshRentalAlerts(admin, doc.bookingId);
+    } catch (err) {
+      console.error("[fleet/inspections] booking completion", err);
+    }
+  }
+
+  return NextResponse.json({ success: true, id, mins: doc.mins, bookingCompleted });
 }
