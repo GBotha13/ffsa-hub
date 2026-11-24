@@ -98,7 +98,7 @@ export interface Inspection {
 }
 
 /** An inspection as the vehicle page shows it, from the shared row mapping plus the
- *  booking's name for a post-trip check. */
+ *  booking's name for a post-rental inspection. */
 export function inspectionFromRow(r: Row, trips: Trip[] = []): Inspection {
   const i = mapInspectionRow(r);
   const trip = i.bookingId ? trips.find((t) => t.id.startsWith(i.bookingId + ":")) : null;

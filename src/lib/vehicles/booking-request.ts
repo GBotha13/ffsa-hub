@@ -6,6 +6,7 @@
 // stops there on a dry run) → prepareDrivers → createVehicleRequest. The
 // caller checks getVehicleAccess first; nothing here decides who may book.
 
+import { driverEmail } from "@/lib/vehicles/return-day";
 import { notifyVehicleManagers } from "@/lib/email/send-vehicle-request";
 import { checkDriverEligibility } from "@/lib/vehicles/licence";
 import {
@@ -25,6 +26,8 @@ export type VehicleDriverInput = {
   user_id?: string | null;
   name?: string;
   phone?: string;
+  /** Optional: drivers who aren't on the Hub get their pick-up and return instructions by email. */
+  email?: string;
   has_sa_license?: boolean;
   is_first_time?: boolean;
 };
@@ -139,6 +142,7 @@ export type PreparedDriver = {
   user_id: string | null;
   name: string | null;
   phone: string | null;
+  email: string | null;
   has_sa_license: boolean;
   is_first_time: boolean;
   driving_test_status: string;
@@ -160,6 +164,7 @@ export async function prepareDrivers(
       user_id: typeof d.user_id === "string" && d.user_id ? d.user_id : null,
       name: nn(d.name),
       phone: nn(d.phone),
+      email: driverEmail(d.email),
       has_sa_license: !!d.has_sa_license,
       is_first_time: !!d.is_first_time,
       driving_test_status: d.is_first_time ? "pending" : "not_required",

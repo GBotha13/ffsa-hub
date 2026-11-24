@@ -58,6 +58,10 @@ export async function decideVehicleBooking(
   // only at request time would let both through.
   if (decision === "approved") {
     const { data: booking } = await getVehicleBookingById(supabase, id);
+    // Nobody approves their own booking, not even a coordinator (Jack's review of #712).
+    if (booking && booking.requested_by && booking.requested_by === userId) {
+      return { ok: false, error: "You booked this, so another Vehicle Coordinator or an admin has to approve it.", status: 403 };
+    }
     const { data: drivers } = await getBookingDrivers(supabase, id);
     // Every booking goes out with at least one driver, and every outsider
     // driver's licence + passport photo must actually be on the booking (a

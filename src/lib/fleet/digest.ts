@@ -2,7 +2,7 @@
 // 19 Nov 2026). The message has two parts:
 //
 //   • Bookings — everything about bookings. Fleet adds its clashes (a booking over a
-//     workshop visit, or a double booking) and the pre- and post-trip checks for
+//     workshop visit, or a double booking) and the pre- and post-rental inspections for
 //     vehicles going out or coming back today.
 //   • Fleet — every vehicle, marked IN (not booked, not at the workshop) or OUT (booked
 //     or at the workshop). An IN vehicle lists what's due on it: inspections, service,
@@ -155,7 +155,7 @@ export function fleetBookingParts(d: FleetDigest, calendarUrl: string): string[]
   const parts: string[] = [];
   if (d.clashes.length)
     parts.push(`*⚠️ Clashes (${d.clashes.length}) – <${calendarUrl}|sort them out on the Calendar>*\n${d.clashes.map((l) => "• " + esc(l)).join("\n")}`);
-  if (d.tripChecks.length) parts.push(`*🔍 Pre- and post-trip checks (${d.tripChecks.length})*\n${d.tripChecks.map((l) => "• " + esc(l)).join("\n")}`);
+  if (d.tripChecks.length) parts.push(`*🔍 Pre- and post-rental inspections (${d.tripChecks.length})*\n${d.tripChecks.map((l) => "• " + esc(l)).join("\n")}`);
   return parts;
 }
 

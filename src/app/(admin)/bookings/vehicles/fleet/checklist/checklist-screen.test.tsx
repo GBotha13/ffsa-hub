@@ -60,9 +60,9 @@ describe("Checklist view", () => {
 
   it("filters by check", () => {
     render();
-    click(button("Pre-trip check"));
+    click(button("Pre-rental inspection"));
     expect(host.querySelectorAll("li[data-item]").length).toBe(itemsFor(STD, "pre").length);
-    expect(button("Pre-trip check").getAttribute("aria-pressed")).toBe("true");
+    expect(button("Pre-rental inspection").getAttribute("aria-pressed")).toBe("true");
     click(button("All points"));
     expect(host.querySelectorAll("li[data-item]").length).toBe(149);
   });
@@ -147,7 +147,7 @@ describe("Edit checklist", () => {
         el.dispatchEvent(new Event("input", { bubbles: true }));
       });
     setValue(host.querySelector<HTMLInputElement>('input[aria-label="Point"]')!, "Front bumper");
-    const pre = [...host.querySelectorAll("label")].find((l) => l.textContent?.trim() === "Pre-trip")!.querySelector("input")!;
+    const pre = [...host.querySelectorAll("label")].find((l) => l.textContent?.trim() === "Pre-rental")!.querySelector("input")!;
     act(() => pre.click());
     click(button("Add point"));
     expect(host.querySelectorAll('input[aria-label="Point"]').length).toBe(2);

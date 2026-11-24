@@ -211,3 +211,17 @@ A Fix now point can be marked fixed on the vehicle's Condition tab (date, who fi
 ## Gideon, 23 Nov: keep all history, and a vehicle report
 
 "All history of the vehicles is kept", and a report per vehicle from 1 Dec 2026 to now. **359** makes deletes soft on `fleet_inspections`, `fleet_workshop_visits` and `fleet_odometer_readings`: `deleted_at`/`deleted_by`, the read and update policies leave hidden rows out, DELETE is revoked from authenticated, and `fleet_hide_row(table, id)` (SECURITY DEFINER, Fleet managers, these three tables only) does the hiding; the services call it instead of deleting. Needs 358 first (fixes). **Download report** on the vehicle page: `GET /api/vehicles/fleet/vehicles/[id]/report?from&to` (Fleet view), built by `lib/fleet/report.ts` and drawn by `report-pdf.tsx` (A4): summary (km, workshop spend, counts), issues open now, and every workshop visit, inspection, fix, booking and km reading in the period by date.
+
+## Gideon, 24 Nov: pick-up and return messages, Returned, post-rental inspection (364)
+
+- **Renamed:** the pre-trip and post-trip checks are now the pre-rental and post-rental inspections. Only the wording changed; `parity.test.ts` maps the reference app's old names to the new ones (no rule changed).
+- **Due back the next day:** the booking forms ask for the last day the vehicle is needed and set `return_date` to the day after (`lib/vehicles/return-day.ts`). Every clash and availability check therefore blocks the due-back day, with no SQL change. Fleet's `trip.to` is the due-back day, so the post-rental inspection falls due then.
+- **Messages** (`lib/vehicles/rental-messages.ts`, `rental-schedule.ts`; crons at 06:30 and 07:00 SAST; off until `VEHICLE_RENTAL_MESSAGES_ENABLED`):
+  - On the pick-up day, the person who booked and every driver.
+  - The day before it's due back, with Return early.
+  - On the due-back day.
+  - Drivers on the Hub get Slack and email; others get email (drivers now have an optional email).
+- **Coordinator** (`rental-return.ts`): a due-back Slack message with Returned, then a post-rental message with a link per vehicle (`inspect?type=post&booking=`). Saving the inspection in Fleet completes the booking once every vehicle has one. Mark completed is refused until then.
+- **Return early:** someone on the booking asks (Slack button or the booking page), and the coordinator approves (the due-back day moves) or calls them.
+- **Testing:** `rental-flow.simulation.test.ts` runs the whole flow on made-up people.
+

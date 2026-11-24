@@ -113,7 +113,7 @@ describe("POST /api/vehicles/fleet/inspections", () => {
     expect(calls.find((c) => c.fn === "deleteFleetDraft")!.args.slice(1)).toEqual(["u1", H12]);
   });
 
-  it("a post-trip check brings a vehicle On a trip back In service and records a post-trip reading", async () => {
+  it("a post-rental inspection brings a vehicle On a trip back In service and records a post-trip reading", async () => {
     data = withVehicle(data, H12, { status: "On a trip" });
     const { POST } = await import("./route");
     const v = data.vehicles.find((x) => x.id === H12)!;

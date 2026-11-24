@@ -8,6 +8,7 @@ import {
   Settings2,
   CalendarRange,
   Table2,
+  GraduationCap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Masthead, NeedsYou } from "@/components/ffsa";
@@ -68,6 +69,12 @@ export default async function VehiclesPage({
         title="Rent a Vehicle"
         actions={
           <>
+            <Link href="/bookings/vehicles/training">
+              <Button size="sm" variant="outline" className="gap-1.5">
+                <GraduationCap className="h-4 w-4" />
+                Training
+              </Button>
+            </Link>
             <Link href="/bookings/vehicles/my-requests">
               <Button size="sm" variant="outline" className="gap-1.5">
                 <CalendarRange className="h-4 w-4" />
