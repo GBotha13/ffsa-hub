@@ -35,6 +35,7 @@ import {
   type WsEvent,
 } from "@/lib/fleet/rules";
 import type { Visit } from "../[vehicleId]/model";
+import { outKindOf } from "@/lib/fleet/out-of-action";
 
 export type Gap = { from: ISODate; to: ISODate } | null;
 
@@ -147,6 +148,8 @@ export interface BoardLane {
   visits: { id: string; from: ISODate; to: ISODate; label: string; tip: string; clash: boolean }[];
   /** The routine check on its inspection day: planned, done or overdue (as the Fleet grid). */
   checks: { date: ISODate; st: "plan" | "done" | "late"; tip: string }[];
+  /** Fleet 5c: in for a repair or broken down, since when (until marked back). */
+  out?: { since: ISODate | null; label: string } | null;
 }
 export interface BoardOverlay {
   lanes: Record<string, BoardLane>;
@@ -167,7 +170,8 @@ export function boardOverlay(F: FleetData, from: ISODate, days: number): BoardOv
   );
   const thisWs = weekStartOf(F.today);
   const lanes: Record<string, BoardLane> = {};
-  for (const v of F.vehicles.filter(inUse)) {
+  // Every vehicle except For sale: a broken-down one ("Off the road") still has bookings to show.
+  for (const v of F.vehicles.filter((x) => x.status !== "For sale")) {
     const visits = ws
       .filter((w) => w.vehicleId === v.id && w.to >= from && w.from <= to)
       .map((w) => {
@@ -193,7 +197,9 @@ export function boardOverlay(F: FleetData, from: ISODate, days: number): BoardOv
       if (tripOn(F, v.id, d) || ws.some((x) => x.vehicleId === v.id && x.from <= d && d <= x.to)) continue;
       checks.push({ date: d, st: w.st === "done" ? "done" : w.st === "overdue" ? "late" : "plan", tip: `${w.name}: ${w.label}` });
     }
-    if (visits.length || checks.length) lanes[v.id] = { visits, checks };
+    const kind = outKindOf(v);
+    const out = kind ? { since: v.statusSince ?? null, label: kind === "repair" ? "IN FOR A REPAIR" : "BROKEN DOWN" } : null;
+    if (visits.length || checks.length || out) lanes[v.id] = { visits, checks, out };
   }
   return { lanes, clashBookingIds };
 }

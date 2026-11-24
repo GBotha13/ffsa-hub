@@ -25,6 +25,7 @@ import { FLEET, Plate, vehicleHref } from "../_components/ui";
 import { DAYS_LONG, extraOf, statusOf } from "../vehicles/model";
 import { VehicleThumb } from "../vehicles/parts";
 import { InspectButton, IssueListButton, LogKmButton, PhotoChange, StatusSelect } from "./header-client";
+import { VehicleOutButtons } from "../_components/task-actions";
 import {
   TABS,
   attentionRows,
@@ -159,6 +160,11 @@ export default async function FleetVehiclePage({
             <Fact k="Status" wide>
               {canWrite ? <StatusSelect vehicleId={id} status={v.status || "In service"} statuses={VSTATUS} today={today} /> : <StatusPill tone={st.tone}>{st.text}</StatusPill>}
               {tripLine && <span className="mt-1 block text-[12px] text-[#55524A]">{tripLine}</span>}
+              {canWrite && (
+                <span className="mt-2 block">
+                  <VehicleOutButtons vehicleId={id} vehicleName={v.name} status={v.status} today={today} />
+                </span>
+              )}
             </Fact>
             <Fact k="Odometer">
               <span className="font-display text-[22px] font-black tabular-nums">{fmtKm(v.odometer)}</span>

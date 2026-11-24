@@ -6,6 +6,7 @@ import { getBookingRequestedBy, moveBookingAssignment } from "@/services/fleet";
 import { notifyVehicleRequester } from "@/lib/vehicles/requester-notify";
 import { refreshVehicleRequestAlerts } from "@/lib/vehicles/slack-alerts";
 import { vehicleChangedLine } from "@/lib/fleet/move-notice";
+import { restOf } from "@/lib/fleet/out-of-action";
 
 // POST /api/vehicles/fleet/trips/move — the Calendar's "Move <trip> to <vehicle>" on a
 // clash. A trip is a Hub booking's vehicle assignment (id "<booking id>:<vehicle id>").
@@ -27,7 +28,8 @@ export async function POST(request: Request) {
   const { F } = await loadFleet(auth.supabase);
   const trip = F.trips.find((t) => t.id === `${bookingId}:${fromId}`);
   if (!trip) return bad("Unknown trip", 404);
-  const target = alternatives(F, trip).find((v) => v.id === to);
+  // A booking already under way only needs the new vehicle for the rest of it (Fleet 5c).
+  const target = alternatives(F, restOf(trip, F.today)).find((v) => v.id === to);
   if (!target) return bad("That vehicle isn't free for the whole trip, or isn't a similar vehicle.", 409);
   const fromName = F.vehicles.find((v) => v.id === fromId)?.name ?? "your vehicle";
 

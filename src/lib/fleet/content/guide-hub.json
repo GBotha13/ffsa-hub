@@ -235,6 +235,8 @@
         {
           "ul": [
             "Book workshop: the vehicle shows as “Booked for workshop”. Dropped off: “In workshop”. Collected: record what was done, and it’s back “In service”.",
+            "While a vehicle is In workshop or Off the road it can’t be booked: the Hub marks it as maintenance until it’s back In service, On a trip or Booked for workshop.",
+            "In for a repair, or broken down, while it’s booked: on the vehicle’s page tap In for a repair or Broken down. Today and the booking board then list every booking on it that’s under way or starts in the next 10 days. Where a vehicle of the same class (van for a van, car for a car) is free for the rest of the booking, Move it there: the team keeps that one. Where none is free, Put on hold (the booking waits until the vehicle’s back; usual for a repair) or Cancel: vehicle broke down (usual for a breakdown). When the vehicle’s back, tap Back in service, then Resume booking for anything on hold. Each button tells the person who booked.",
             "When you collect a vehicle, check each job on the invoice before you drive away, and attach the invoice and photos.",
             "Issue list for workshop (on the vehicle’s page) makes a list of everything marked Monitor or Fix now, to send to the workshop.",
             "Download report (on the vehicle’s page) makes a PDF of everything done to the vehicle between two dates: workshop visits (services and repairs, with what was done and what it cost), inspections and what they found, fixes, bookings and km readings, with a summary and the issues still open. It starts from 1 Dec 2026 by default.",
@@ -364,6 +366,10 @@
     [
       "2026-11-24",
       "Fixed: if Mark as fixed can’t save the point, no half-saved fix is left in the vehicle’s History."
+    ],
+    [
+      "2026-11-23",
+      "Out of action: mark a vehicle In for a repair or Broken down on its page, and it can’t be booked until it’s back. Its bookings for the next 10 days are listed on Today and the booking board, with Move to a free vehicle of the same class, Put on hold, or Cancel: vehicle broke down. Resume booking takes one off hold once the vehicle’s back."
     ]
   ]
 }

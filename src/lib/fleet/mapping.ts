@@ -119,7 +119,7 @@ export function tripsFromBookings(rows: Row[]): Trip[] {
   for (const b of rows) {
     if (!b.checkout_date || !b.return_date) continue;
     for (const a of b.assignments || []) {
-      out.push({ id: `${b.id}:${a.vehicle_id}`, vehicleId: a.vehicle_id, from: b.checkout_date, to: b.return_date, label: b.booking_name || null, source: "hub", who: b.requester_name || null });
+      out.push({ id: `${b.id}:${a.vehicle_id}`, vehicleId: a.vehicle_id, from: b.checkout_date, to: b.return_date, label: b.booking_name || null, source: "hub", who: b.requester_name || null, onHold: b.on_hold_since || null });
     }
   }
   return out;

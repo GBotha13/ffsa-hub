@@ -82,7 +82,7 @@ export async function upsertFleetVehicleDetails(supabase: Client, row: Record<st
 export async function getFleetTrips(supabase: Client, since: string) {
   return supabase
     .from("vehicle_bookings")
-    .select("id, booking_name, requester_name, purpose, checkout_date, return_date, status, assignments:vehicle_booking_assignments(vehicle_id)")
+    .select("*, assignments:vehicle_booking_assignments(vehicle_id)")
     .in("status", ["approved", "completed"])
     .gte("return_date", since)
     .order("checkout_date", { ascending: true });
@@ -310,6 +310,28 @@ export async function getFleetFixes(supabase: Client, vehicleId: string, opts?: 
   if (opts?.from) q = q.gte("fixed_on", opts.from);
   if (opts?.to) q = q.lte("fixed_on", opts.to);
   return q;
+}
+
+/** Fleet 5c: put a booking on hold (its vehicle is out of action and nothing similar is
+ *  free), or take it off hold. Needs 357. */
+export async function setBookingHold(supabase: Client, bookingId: string, hold: { since: string; reason: string } | null) {
+  return supabase
+    .from("vehicle_bookings")
+    .update(hold ? { on_hold_since: hold.since, on_hold_reason: hold.reason } : { on_hold_since: null, on_hold_reason: null })
+    .eq("id", bookingId)
+    .select("id")
+    .maybeSingle();
+}
+
+/** Fleet 5c: cancel a booking because its vehicle broke down. */
+export async function cancelBookingBrokenDown(supabase: Client, bookingId: string, note: string) {
+  return supabase
+    .from("vehicle_bookings")
+    .update({ status: "cancelled", decision_note: note, on_hold_since: null, on_hold_reason: null })
+    .eq("id", bookingId)
+    .in("status", ["pending", "approved"])
+    .select("id")
+    .maybeSingle();
 }
 
 // ── Daily reminder log ─────────────────────────────────────
