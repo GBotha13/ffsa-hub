@@ -16,6 +16,10 @@ export function missioFixedCopy(code: string | null | undefined, retryAfterSecon
       return "Already in this house.";
     case "in_other_household":
       return "They’re already in another household. Take them out of that one first.";
+    case "household_exists":
+      return "One of them is already in a household.";
+    case "both_in_households":
+      return "They’re each in a different household. Open their profiles to sort that out.";
     case "already_resolved":
       return "Someone else already updated this.";
     case "membership_not_current":

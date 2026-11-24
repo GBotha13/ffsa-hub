@@ -16,6 +16,8 @@ import { MissioApiError, missioClient, missioErrorCopy, type MissioClient } from
 import { AddPersonDialog } from "./add-person";
 import { MissioDialog } from "./missio-dialog";
 import { HouseholdsView } from "./households/households-view";
+import { FamilySuggestionsEntry } from "./households/couple-suggestions";
+import type { SuggestionsClient } from "./households/suggestions-client";
 import { missioPortalClass } from "./portal";
 import people from "./people.module.css";
 import type { MissioCampus, MissioPerson, MissioPersonHouse, MissioServingCounts, MissioStatus } from "./types-shim";
@@ -104,7 +106,14 @@ function statusChip(status: MissioStatus): string {
   return people.cSub;
 }
 
-export function PeopleDirectory({ client = missioClient }: { client?: MissioClient }) {
+export function PeopleDirectory({
+  client = missioClient,
+  suggestions,
+}: {
+  client?: MissioClient;
+  /** Couple suggestions (the Family suggestions link). */
+  suggestions?: SuggestionsClient;
+}) {
   const params = useSearchParams();
   const [campus, setCampus] = useState<"" | MissioCampus>("");
   const [status, setStatus] = useState<"" | MissioStatus>("");
@@ -332,6 +341,8 @@ export function PeopleDirectory({ client = missioClient }: { client?: MissioClie
           />
         ) : null}
       </form>
+
+      {view === "people" ? <FamilySuggestionsEntry client={suggestions} /> : null}
 
       {view === "households" ? (
         <HouseholdsView filter={draft} />
