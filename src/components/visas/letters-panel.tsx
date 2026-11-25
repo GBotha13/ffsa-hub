@@ -465,6 +465,9 @@ function StudentLetter({ letter: l }: { letter: LetterRow }) {
           {wrong && (
             <>
               <NoteBox value={note} onChange={setNote} placeholder="What's wrong? For example: my surname is spelt Smit, not Smith." rows={2} />
+              <p className="text-[13px] text-[#55524A]">
+                If the passport number is wrong, say so, but don&apos;t type the number here. Legal will sort it out with you.
+              </p>
               <div className="flex flex-wrap gap-2">
                 <VisaButton
                   disabled={busy || !note.trim()}

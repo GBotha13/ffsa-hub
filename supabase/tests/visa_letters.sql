@@ -286,6 +286,14 @@ SELECT pg_temp.refused('the passport number typed into the text',
   $q$SELECT public.visa_issue_letter('c0000000-0000-0000-0000-000000000001',
      (SELECT id FROM public.visa_letter_templates WHERE status = 'current' AND program_id = 'a0000000-0000-0000-0000-00000000000a'),
      '2026-11-24', 'v2 Test Student XT1234567, repatriation.')$q$, 'P0001');
+SELECT pg_temp.refused('the passport number in lower case',
+  $q$SELECT public.visa_issue_letter('c0000000-0000-0000-0000-000000000001',
+     (SELECT id FROM public.visa_letter_templates WHERE status = 'current' AND program_id = 'a0000000-0000-0000-0000-00000000000a'),
+     '2026-11-24', 'v2 Test Student xt1234567, repatriation.')$q$, 'P0001');
+SELECT pg_temp.refused('the passport number with spaces',
+  $q$SELECT public.visa_issue_letter('c0000000-0000-0000-0000-000000000001',
+     (SELECT id FROM public.visa_letter_templates WHERE status = 'current' AND program_id = 'a0000000-0000-0000-0000-00000000000a'),
+     '2026-11-24', 'v2 Test Student {{passport_number}}, repatriation.', '{"addressee":"xt 123 4567"}')$q$, 'P0001');
 SELECT pg_temp.refused('the passport number in the inputs',
   $q$SELECT public.visa_issue_letter('c0000000-0000-0000-0000-000000000001',
      (SELECT id FROM public.visa_letter_templates WHERE status = 'current' AND program_id = 'a0000000-0000-0000-0000-00000000000a'),
@@ -346,6 +354,8 @@ SELECT pg_temp.refused('student signs their own letter',
      'c0000000-0000-0000-0000-000000000001/' || pg_temp.live_letter() || '.pdf', 'application/pdf')$q$, '42501');
 SELECT pg_temp.refused('something wrong, but not saying what',
   $q$SELECT public.visa_confirm_letter(pg_temp.live_letter(), false, '  ')$q$, 'P0001');
+SELECT pg_temp.refused('passport number in the student''s note (leaders read it)',
+  $q$SELECT public.visa_confirm_letter(pg_temp.live_letter(), false, 'Passport should be xt1234567')$q$, 'P0001');
 SELECT public.visa_confirm_letter(pg_temp.live_letter(), false, 'My surname is spelt wrong');
 SELECT pg_temp.expect_text('letter needs a fix', (SELECT status FROM public.visa_letters WHERE id = pg_temp.live_letter()), 'needs_fix');
 SELECT pg_temp.expect_text('case waits on legal', pg_temp.case1_waiting(), 'legal');
@@ -401,6 +411,8 @@ SELECT pg_temp.as_legal();
 SET ROLE authenticated;
 SELECT pg_temp.refused('withdraw without a reason',
   $q$SELECT public.visa_withdraw_letter(pg_temp.live_letter(), '')$q$, 'P0001');
+SELECT pg_temp.refused('passport number in the withdraw note',
+  $q$SELECT public.visa_withdraw_letter(pg_temp.live_letter(), 'Wrong number XT1234567')$q$, 'P0001');
 SELECT public.visa_withdraw_letter(pg_temp.live_letter(), 'Issued by mistake');
 SELECT pg_temp.expect('nothing live after withdrawing',
   (SELECT count(*) FROM public.visa_letters WHERE status NOT IN ('replaced', 'withdrawn')), 0);

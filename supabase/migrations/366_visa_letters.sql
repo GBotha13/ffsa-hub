@@ -418,6 +418,30 @@ AS $$
      AND c.status = 'approved';
 $$;
 
+-- Does this text hold the case's passport number? Case-insensitive, and
+-- spaces inside the number don't hide it ("ab 123 456" matches AB123456).
+-- Internal: the issue, check and withdraw functions call it so no
+-- passport number lands in a letter, its inputs or a note leaders read.
+CREATE OR REPLACE FUNCTION public.visa_text_has_passport(p_case_id uuid, p_text text)
+RETURNS boolean
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_passport text;
+BEGIN
+  SELECT upper(regexp_replace(u.passport_number, '\s', '', 'g')) INTO v_passport
+    FROM public.visa_cases c JOIN public.users u ON u.id = c.user_id
+   WHERE c.id = p_case_id;
+  IF v_passport IS NULL OR length(v_passport) < 5 OR p_text IS NULL THEN
+    RETURN false;
+  END IF;
+  RETURN strpos(upper(regexp_replace(p_text, '\s', '', 'g')), v_passport) > 0;
+END;
+$$;
+
 -- 4c. Legal issues a letter from the current template. The API renders
 --     p_body from that template; a letter that replaces a live one of the
 --     same kind and school marks the old one replaced.
@@ -436,7 +460,6 @@ AS $$
 DECLARE
   v_status   text;
   v_t        public.visa_letter_templates%ROWTYPE;
-  v_passport text;
   v_old      uuid;
   v_id       uuid;
 BEGIN
@@ -472,11 +495,8 @@ BEGIN
     RAISE EXCEPTION 'Some fields in the letter weren''t filled in' USING ERRCODE = 'P0001';
   END IF;
   -- The passport number never goes into the visa tables.
-  SELECT nullif(btrim(u.passport_number), '') INTO v_passport
-    FROM public.visa_cases c JOIN public.users u ON u.id = c.user_id
-   WHERE c.id = p_case_id;
-  IF v_passport IS NOT NULL AND length(v_passport) >= 5
-     AND (strpos(p_body, v_passport) > 0 OR strpos(coalesce(p_inputs, '{}'::jsonb)::text, v_passport) > 0) THEN
+  IF public.visa_text_has_passport(p_case_id, p_body)
+     OR public.visa_text_has_passport(p_case_id, coalesce(p_inputs, '{}'::jsonb)::text) THEN
     RAISE EXCEPTION 'The passport number is filled in when the letter is opened; leave it out of the text'
       USING ERRCODE = 'P0001';
   END IF;
@@ -530,6 +550,10 @@ BEGIN
   END IF;
   IF NOT p_ok AND coalesce(btrim(p_note), '') = '' THEN
     RAISE EXCEPTION 'Say what''s wrong' USING ERRCODE = 'P0001';
+  END IF;
+  -- Leaders can read the note, so no passport number in it.
+  IF NOT p_ok AND public.visa_text_has_passport(v_l.case_id, p_note) THEN
+    RAISE EXCEPTION 'Leave your passport number out of the note; legal already has it' USING ERRCODE = 'P0001';
   END IF;
 
   UPDATE public.visa_letters
@@ -609,6 +633,9 @@ BEGIN
   IF coalesce(btrim(p_note), '') = '' THEN
     RAISE EXCEPTION 'Say why it''s withdrawn' USING ERRCODE = 'P0001';
   END IF;
+  IF public.visa_text_has_passport(v_l.case_id, p_note) THEN
+    RAISE EXCEPTION 'Leave the passport number out of the note' USING ERRCODE = 'P0001';
+  END IF;
 
   UPDATE public.visa_letters
      SET status = 'withdrawn', status_note = left(btrim(p_note), 2000)
@@ -624,6 +651,7 @@ $$;
 --    caller. The waiting-on helper is internal.
 -- ────────────────────────────────────────────────────────────
 REVOKE ALL ON FUNCTION public.visa_refresh_letters_waiting_on(uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.visa_text_has_passport(uuid, text) FROM PUBLIC, anon, authenticated;
 
 REVOKE ALL ON FUNCTION public.visa_save_letter_template(text, uuid, text, text, text) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.visa_publish_letter_template(uuid) FROM PUBLIC, anon;
