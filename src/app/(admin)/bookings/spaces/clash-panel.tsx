@@ -25,6 +25,7 @@ export function ClashPanel({
   onOverridingChange,
   reason,
   onReasonChange,
+  cannotOverrideHint,
 }: {
   conflicts: ClashConflict[];
   venueName?: string | null;
@@ -33,6 +34,8 @@ export function ClashPanel({
   onOverridingChange: (next: boolean) => void;
   reason: string;
   onReasonChange: (next: string) => void;
+  /** Said plainly to someone who can't book over it (e.g. an approver). */
+  cannotOverrideHint?: string;
 }) {
   const reasonId = useId();
   const counterId = useId();
@@ -70,6 +73,12 @@ export function ClashPanel({
               </li>
             )}
           </ul>
+        )}
+
+        {!canOverride && cannotOverrideHint && (
+          <p className="break-words border-t border-rule pt-3 text-xs text-[color:var(--text-secondary)]">
+            {cannotOverrideHint}
+          </p>
         )}
 
         {canOverride && !overriding && (
