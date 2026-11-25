@@ -28,6 +28,8 @@ import {
 import { notifyVehicleRequester } from "@/lib/vehicles/requester-notify";
 import { refreshVehicleRequestAlerts } from "@/lib/vehicles/slack-alerts";
 import { getBookingAccess, getBookingById, getBookings, getPendingRequests, updateBooking } from "@/services/bookings";
+import { findVenueClashes, isClashError } from "@/lib/bookings/clash-guard";
+import { blockLead } from "@/lib/bookings/conflict-messages";
 import { getContactById, getContacts, updateContact } from "@/services/contacts";
 import { listAllForms } from "@/services/forms";
 import { getListOptions } from "@/services/list-options";
@@ -369,6 +371,25 @@ export async function decideSpace(
     decided_by: userId,
     decided_at: new Date().toISOString(),
   });
+  // The space is taken at that time (the database refuses a double-booking,
+  // migration 403): say who holds it. Booking over a clash stays in the Hub.
+  if (isClashError(error)) {
+    const { data: full } = await getBookingById(admin, booking.id);
+    const conflicts = full
+      ? await findVenueClashes(admin, full.venue_id, [
+          {
+            id: full.id,
+            booking_date: full.booking_date,
+            end_date: full.end_date,
+            setup_time: full.setup_time,
+            start_time: full.start_time,
+            end_time: full.end_time,
+            setdown_time: full.setdown_time,
+          },
+        ])
+      : [];
+    return { ok: false, error: blockLead(conflicts, booking.venue) };
+  }
   if (error) return { ok: false, error: error.message };
   await syncBookingAlerts();
   await notifyBookingDecision({ booking, status: decision, deciderId: userId });
