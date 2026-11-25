@@ -296,6 +296,31 @@ export async function insertFleetFix(
 }
 
 /**
+ * Mark as fixed in one transaction (410; Jack's review of #717): the fix row and the point's
+ * new condition are written together by fleet_mark_fixed(), so neither can be left half-done.
+ * Runs as the caller, so RLS applies to both writes. Returns the fix id.
+ */
+export async function markFleetFixed(
+  supabase: Client,
+  a: { vehicleId: string; itemId: string; point: string; fixedOn: string; by: string; work: string; was: Record<string, unknown>; entry: Record<string, unknown> }
+) {
+  return supabase.rpc("fleet_mark_fixed", {
+    p_vehicle_id: a.vehicleId,
+    p_item_id: a.itemId,
+    p_point: a.point,
+    p_fixed_on: a.fixedOn,
+    p_fixed_by: a.by,
+    p_work: a.work,
+    p_was: a.was,
+    p_entry: a.entry,
+  });
+}
+
+/** Before 410 is applied the function doesn't exist yet. */
+export const isMissingFunction = (e: { code?: string; message?: string } | null) =>
+  !!e && (e.code === "PGRST202" || e.code === "42883" || /fleet_mark_fixed/.test(e.message || "") && /not find|does not exist/.test(e.message || ""));
+
+/**
  * Undo a fix row whose Mark as fixed didn't finish (the condition write failed after the
  * insert; Jack's review of #703), so History never shows a fix the vehicle doesn't have.
  * Users can't delete fixes (358 grants them SELECT and INSERT only): pass the admin client.

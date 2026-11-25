@@ -313,10 +313,10 @@ export async function decideEarlyReturn(admin: Client, bookingId: string, userId
     await refreshRentalAlerts(admin, bookingId);
     return { ok: false, error: "There’s no early return waiting on this booking." };
   }
-  // Nobody approves their own early return (Jack's review of #712): not the person who
-  // booked it, nor the person who asked. Migration 364's trigger refuses it too.
-  if (approve && (userId === b.requested_by || userId === b.early_return_requested_by)) {
-    return { ok: false, error: "You’re on this booking, so another Vehicle Coordinator or an admin has to approve its early return." };
+  // Nobody decides their own early return (Jack's review of #712): not the person who
+  // booked it, nor the person who asked, either way. The database refuses it too (364, 410).
+  if (userId === b.requested_by || userId === b.early_return_requested_by) {
+    return { ok: false, error: "You’re on this booking, so another Vehicle Coordinator or an admin has to decide its early return." };
   }
   const by = await nameOf(admin, userId);
   const send = rentalMessagesOn();

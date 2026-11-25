@@ -57,6 +57,14 @@ describe("nobody approves their own", () => {
     expect(db.tables.vehicle_bookings[0].return_date).toBe("2026-12-03");
   });
 
+  it("early return: nor decline it (Jack's review, 25 Nov)", async () => {
+    expect((await requestEarlyReturn(db, B, COORD, "2026-12-03", "2026-12-02")).ok).toBe(true);
+    expect((await decideEarlyReturn(db, B, COORD, false)).ok).toBe(false);
+    expect(db.tables.vehicle_bookings[0].early_return_status).toBe("requested");
+    expect((await decideEarlyReturn(db, B, OTHER, false)).ok).toBe(true);
+    expect(db.tables.vehicle_bookings[0].early_return_status).toBe("declined");
+  });
+
   it("booking: the coordinator who booked can't approve it", async () => {
     db.tables.vehicle_bookings[0].status = "pending";
     const r = await decideVehicleBooking(db, COORD, B, "approved", null);

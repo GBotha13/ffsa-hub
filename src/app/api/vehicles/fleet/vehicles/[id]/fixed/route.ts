@@ -4,7 +4,7 @@ import { fixEntry, isFixable } from "@/lib/fleet/fixes";
 import { todayInSA } from "@/lib/fleet/rules";
 import type { ConditionEntry } from "@/lib/fleet/rules/types";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getFleetVehicle, insertFleetFix, removeUnfinishedFleetFix, updateFleetVehicleDetails } from "@/services/fleet";
+import { getFleetVehicle, insertFleetFix, isMissingFunction, markFleetFixed, removeUnfinishedFleetFix, updateFleetVehicleDetails } from "@/services/fleet";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -30,28 +30,42 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const r = fixEntry(condition[itemId], { itemId, date: String(b?.date || ""), by: String(b?.by || ""), work: String(b?.work || "") }, todayInSA(), auth.user.id);
   if ("error" in r) return bad(r.error, isFixable(condition[itemId]?.s) ? 400 : 409);
 
-  // History first: if it can't be kept, nothing changes.
   const f = r.entry.f!;
-  const { data: fix, error: fixErr } = await insertFleetFix(auth.supabase, {
-    vehicle_id: id,
-    item_id: itemId,
-    point: (condition[itemId]?.t || itemId).slice(0, 200),
-    fixed_on: r.entry.d!,
-    fixed_by: f.by,
+  const point = (condition[itemId]?.t || itemId).slice(0, 200);
+  // One transaction (410): the fix and the point are saved together, or neither is.
+  const { error: rpcErr } = await markFleetFixed(auth.supabase, {
+    vehicleId: id,
+    itemId,
+    point,
+    fixedOn: r.entry.d!,
+    by: f.by,
     work: f.work,
     was: f.was,
-    recorded_by: auth.user.id,
+    entry: r.entry as unknown as Record<string, unknown>,
   });
-  if (fixErr) return NextResponse.json({ error: fixErr.message }, { status: 500 });
+  if (rpcErr && !isMissingFunction(rpcErr)) return NextResponse.json({ error: rpcErr.message }, { status: 500 });
 
-  const { error } = await updateFleetVehicleDetails(auth.supabase, id, { condition: { ...condition, [itemId]: r.entry }, updated_by: auth.user.id });
-  if (error) {
-    // The point didn't change, so the fix didn't happen: take its row back out.
-    if (fix?.id) {
-      const { error: undoErr } = await removeUnfinishedFleetFix(createAdminClient(), fix.id);
-      if (undoErr) console.error("[fleet] couldn't remove an unfinished fix", fix.id, undoErr.message);
+  if (rpcErr) {
+    // Until 410 is applied: history first, then the point, undoing the fix if the point fails.
+    const { data: fix, error: fixErr } = await insertFleetFix(auth.supabase, {
+      vehicle_id: id,
+      item_id: itemId,
+      point,
+      fixed_on: r.entry.d!,
+      fixed_by: f.by,
+      work: f.work,
+      was: f.was,
+      recorded_by: auth.user.id,
+    });
+    if (fixErr) return NextResponse.json({ error: fixErr.message }, { status: 500 });
+    const { error } = await updateFleetVehicleDetails(auth.supabase, id, { condition: { ...condition, [itemId]: r.entry }, updated_by: auth.user.id });
+    if (error) {
+      if (fix?.id) {
+        const { error: undoErr } = await removeUnfinishedFleetFix(createAdminClient(), fix.id);
+        if (undoErr) console.error("[fleet] couldn't remove an unfinished fix", fix.id, undoErr.message);
+      }
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
-    return NextResponse.json({ error: error.message }, { status: 500 });
   }
   await logTime(auth.supabase, auth.user.id, { kind: "workshop", vehicleId: id, mins: 1 });
   return NextResponse.json({ success: true, message: "Marked as fixed." });

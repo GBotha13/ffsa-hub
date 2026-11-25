@@ -10,6 +10,9 @@ const fixes: Record<string, unknown>[] = [];
 let fixFails = false;
 let conditionFails = false;
 const removed: string[] = [];
+// 410's one-transaction function: "missing" (not applied yet → the old path), "ok" or "fail".
+let rpc: "missing" | "ok" | "fail" = "missing";
+const rpcCalls: Record<string, unknown>[] = [];
 
 vi.mock("@/lib/fleet/api", async (orig) => ({
   ...(await orig<object>()),
@@ -18,7 +21,13 @@ vi.mock("@/lib/fleet/api", async (orig) => ({
 }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({}) }));
 vi.mock("@/lib/fleet/rules", async (orig) => ({ ...(await orig<object>()), todayInSA: () => "2026-11-23" }));
-vi.mock("@/services/fleet", () => ({
+vi.mock("@/services/fleet", async (orig) => ({
+  isMissingFunction: (await orig<typeof import("@/services/fleet")>()).isMissingFunction,
+  markFleetFixed: vi.fn(async (_s: unknown, a: Record<string, unknown>) => {
+    rpcCalls.push(a);
+    if (rpc === "missing") return { data: null, error: { code: "PGRST202", message: "Could not find the function public.fleet_mark_fixed" } };
+    return rpc === "ok" ? { data: "fix-1", error: null } : { data: null, error: { message: "That vehicle's condition couldn't be saved" } };
+  }),
   getFleetVehicle: async () => ({ data: { id: V, details: { condition } }, error: null }),
   updateFleetVehicleDetails: vi.fn(async (_s: unknown, _id: string, patch: Record<string, unknown>) =>
     conditionFails ? { data: null, error: { message: "write failed" } } : (writes.push(patch), { data: {}, error: null })
@@ -38,6 +47,8 @@ beforeEach(() => {
   fixFails = false;
   conditionFails = false;
   removed.length = 0;
+  rpc = "missing";
+  rpcCalls.length = 0;
   canManage = true;
   condition = {
     "m25-balljoints": { s: "fix", d: "2026-11-19", n: "4x lower control arm bushes worn", i: "ins-1", t: "Ball joints and control arms" },
@@ -88,6 +99,24 @@ describe("Mark as fixed", () => {
     expect(res.status).toBe(200);
     expect((writes[0].condition as Record<string, Record<string, unknown>>)["m25-oil"]).toMatchObject({ s: "ok", f: { was: { s: "mon" } } });
     expect(fixes[0]).toMatchObject({ item_id: "m25-oil", was: { s: "mon", n: "Slight seep" } });
+  });
+
+  it("with 410 applied, saves the fix and the point in one call (Jack's review of #717)", async () => {
+    rpc = "ok";
+    const res = await POST(req({ itemId: "m25-balljoints", date: "2026-11-22", by: "Motech", work: "Replaced the bushes." }), params);
+    expect(res.status).toBe(200);
+    expect(rpcCalls[0]).toMatchObject({ vehicleId: V, itemId: "m25-balljoints", point: "Ball joints and control arms", fixedOn: "2026-11-22", by: "Motech", entry: { s: "ok", d: "2026-11-22" } });
+    expect(fixes).toHaveLength(0); // no separate insert
+    expect(writes).toHaveLength(0); // no separate update
+  });
+
+  it("with 410 applied, a failure changes nothing and needs no undo", async () => {
+    rpc = "fail";
+    const res = await POST(req({ itemId: "m25-balljoints", date: "2026-11-22", by: "Motech", work: "x" }), params);
+    expect(res.status).toBe(500);
+    expect(fixes).toHaveLength(0);
+    expect(writes).toHaveLength(0);
+    expect(removed).toHaveLength(0);
   });
 
   it("refuses a point that isn't Fix now or Monitor, and bad input", async () => {

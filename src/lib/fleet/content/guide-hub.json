@@ -408,6 +408,10 @@
     [
       "2026-11-25",
       "Mark as fixed now works on Monitor points too, not only Fix now. The vehicle’s History and report say what the point was before it was fixed."
+    ],
+    [
+      "2026-11-25",
+      "Bookings: changing only the dates of a pending booking now checks its vehicle is free on the new dates. Nobody can approve or decline their own early return. Mark as fixed saves the fix and the point together, so a half-saved fix can’t be left behind."
     ]
   ]
 }
