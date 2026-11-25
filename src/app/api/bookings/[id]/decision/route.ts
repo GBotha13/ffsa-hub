@@ -17,6 +17,7 @@ import {
   clashResponse,
   findVenueClashes,
   parseOverride,
+  serverError,
   type ClashCandidate,
 } from "@/lib/bookings/clash-guard";
 import type { Conflict } from "@/lib/bookings/conflict-messages";
@@ -125,7 +126,10 @@ export async function POST(
       true /* only still-pending occurrences */
     );
     if (occErr) {
-      return (await refused(occErr)) ?? NextResponse.json({ error: occErr.message }, { status: 500 });
+      return (
+        (await refused(occErr)) ??
+        serverError("decide series", occErr, "Could not update the booking.")
+      );
     }
     await updateSeries(supabase, booking.series_id, { status: decision });
     after(syncBookingAlerts); // prayer-room DM alerts (Auditorium over devo sets)
@@ -135,7 +139,10 @@ export async function POST(
 
   const { error: updErr } = await updateBooking(supabase, id, stamp);
   if (updErr) {
-    return (await refused(updErr)) ?? NextResponse.json({ error: updErr.message }, { status: 500 });
+    return (
+      (await refused(updErr)) ??
+      serverError("decide booking", updErr, "Could not update the booking.")
+    );
   }
 
   after(syncBookingAlerts); // prayer-room DM alerts (Auditorium over devo sets)

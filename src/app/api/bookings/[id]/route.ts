@@ -18,6 +18,7 @@ import {
   clashResponse,
   findVenueClashes,
   parseOverride,
+  serverError,
   todaySAST,
   type ClashCandidate,
 } from "@/lib/bookings/clash-guard";
@@ -100,7 +101,7 @@ export async function PATCH(
     const { error: occErr } = await updateSeriesOccurrences(supabase, booking.series_id, {
       status: "cancelled",
     });
-    if (occErr) return NextResponse.json({ error: occErr.message }, { status: 500 });
+    if (occErr) return serverError("cancel series", occErr, "Could not cancel the booking.");
     await updateSeries(supabase, booking.series_id, { status: "cancelled" });
     after(syncBookingAlerts); // prayer-room DM alerts (Auditorium over devo sets)
     return NextResponse.json({ ok: true, appliedToSeries: true });
@@ -221,7 +222,14 @@ export async function PATCH(
 
   const { error: updErr } = await updateBooking(supabase, id, { ...patch, ...overrideFields });
   if (updErr) {
-    return (await refused(updErr)) ?? NextResponse.json({ error: updErr.message }, { status: 500 });
+    return (
+      (await refused(updErr)) ??
+      serverError(
+        body.cancel === true ? "cancel booking" : "update booking",
+        updErr,
+        body.cancel === true ? "Could not cancel the booking." : "Could not update the booking."
+      )
+    );
   }
 
   // "Apply to all dates" — push the shared details onto the other occurrences
@@ -247,7 +255,10 @@ export async function PATCH(
         { excludeId: id, skipClosed: true, fromDate: today }
       );
       if (occErr) {
-        return (await refused(occErr)) ?? NextResponse.json({ error: occErr.message }, { status: 500 });
+        return (
+          (await refused(occErr)) ??
+          serverError("update series dates", occErr, "Could not update the booking.")
+        );
       }
       // Keep the series definition itself in step, so future views/edits of
       // the series show the same details.

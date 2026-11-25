@@ -22,6 +22,7 @@ import {
   clashResponse,
   findVenueClashes,
   parseOverride,
+  serverError,
   todaySAST,
   type ClashCandidate,
 } from "@/lib/bookings/clash-guard";
@@ -167,7 +168,7 @@ export async function PATCH(
   const today = todaySAST();
   const { data: occRaw, error: occLoadErr } = await getSeriesOccurrences(supabase, id);
   if (occLoadErr) {
-    return NextResponse.json({ error: occLoadErr.message }, { status: 500 });
+    return serverError("load series dates", occLoadErr, "Could not load the series.");
   }
   const occurrences = (occRaw ?? []) as Array<
     Record<string, unknown> & { id: string; booking_date: string; status: string }
@@ -290,7 +291,7 @@ export async function PATCH(
     seriesPatch
   );
   if (updErr) {
-    return NextResponse.json({ error: updErr.message }, { status: 500 });
+    return serverError("update series", updErr, "Could not update the series.");
   }
   // RLS filters a forbidden update away silently rather than erroring.
   if (!updatedSeries) {
@@ -343,7 +344,10 @@ export async function PATCH(
         series_end: series.series_end,
         interval_weeks: series.interval_weeks ?? 1,
       });
-      return (await refused(insErr)) ?? NextResponse.json({ error: insErr.message }, { status: 500 });
+      return (
+        (await refused(insErr)) ??
+        serverError("add series dates", insErr, "Could not update the series.")
+      );
     }
   }
 
@@ -352,7 +356,10 @@ export async function PATCH(
   for (const { patch, ids } of changeGroups.values()) {
     const { error } = await updateBookingsByIds(supabase, ids, { ...patch, ...overrideFields });
     if (error) {
-      return (await refused(error)) ?? NextResponse.json({ error: error.message }, { status: 500 });
+      return (
+        (await refused(error)) ??
+        serverError("move series dates", error, "Could not update the series.")
+      );
     }
   }
 
@@ -386,7 +393,7 @@ export async function PATCH(
     const ids = plan.remove.map((o) => o.id);
     const { data: deleted, error: delErr } = await deleteBookings(supabase, ids);
     if (delErr) {
-      return NextResponse.json({ error: delErr.message }, { status: 500 });
+      return serverError("remove series dates", delErr, "Could not update the series.");
     }
     const removedIds = new Set(((deleted ?? []) as { id: string }[]).map((r) => r.id));
     const survivors = ids.filter((rowId) => !removedIds.has(rowId));

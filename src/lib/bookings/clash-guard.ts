@@ -168,3 +168,12 @@ export async function clashErrorResponse(
   }
   return null;
 }
+
+/**
+ * A 500 the client can safely see: the real error goes to the server log,
+ * the response carries only `message`.
+ */
+export function serverError(where: string, error: unknown, message: string): NextResponse {
+  console.error(`[bookings] ${where}`, error);
+  return NextResponse.json({ error: message }, { status: 500 });
+}

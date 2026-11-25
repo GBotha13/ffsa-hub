@@ -18,6 +18,8 @@ const h = vi.hoisted(() => ({
   rows: [] as Row[],
   series: null as Record<string, unknown> | null,
   dbError: null as { code: string; message: string; details?: string } | null,
+  /** Only this service call returns `dbError` (any write, when unset). */
+  dbErrorOn: null as string | null,
   /** Rows the database "sees" only at write time — another request racing us. */
   raceRows: [] as Row[],
   writes: [] as { fn: string; args: unknown[] }[],
@@ -41,8 +43,15 @@ vi.mock("@/lib/auth/check-ministry-access", () => ({ callerLeadsBookingMinistry:
 
 vi.mock("@/services/bookings", () => {
   const live = (r: Row) => r.status === "pending" || r.status === "approved";
+  const failing = (fn: string) => {
+    if (!h.dbError || h.dbErrorOn !== fn) return null;
+    const error = h.dbError;
+    h.dbError = null;
+    return error;
+  };
   const write = (fn: string, ...args: unknown[]) => {
     h.writes.push({ fn, args });
+    if (h.dbErrorOn && h.dbErrorOn !== fn) return null;
     const error = h.dbError;
     if (error) {
       h.rows.push(...h.raceRows);
@@ -70,22 +79,35 @@ vi.mock("@/services/bookings", () => {
         : { data: null, error: { message: "nope" } };
     },
     getSeriesById: async () => ({ data: h.series, error: h.series ? null : { message: "nope" } }),
-    getSeriesOccurrences: async (_s: unknown, seriesId: string) => ({
-      data: h.rows.filter((r) => r.series_id === seriesId).sort((a, b) => a.booking_date.localeCompare(b.booking_date)),
-      error: null,
-    }),
+    getSeriesOccurrences: async (_s: unknown, seriesId: string) => {
+      const error = failing("getSeriesOccurrences");
+      if (error) return { data: null, error };
+      return {
+        data: h.rows.filter((r) => r.series_id === seriesId).sort((a, b) => a.booking_date.localeCompare(b.booking_date)),
+        error: null,
+      };
+    },
     insertBooking: async (_s: unknown, row: Record<string, unknown>) => {
       const error = write("insertBooking", row);
       return error ? { data: null, error } : { data: { id: "b-new", ...row }, error: null };
     },
     insertBookings: async (_s: unknown, rows: unknown[]) => ({ error: write("insertBookings", rows) }),
-    insertSeries: async () => ({ data: { id: "s-new" }, error: null }),
+    insertSeries: async () => {
+      const error = failing("insertSeries");
+      return error ? { data: null, error } : { data: { id: "s-new" }, error: null };
+    },
     deleteSeries: async () => ({}),
     updateBooking: async (_s: unknown, id: string, data: unknown) => ({ data: {}, error: write("updateBooking", id, data) }),
     updateBookingsByIds: async (_s: unknown, ids: string[], data: unknown) => ({ error: write("updateBookingsByIds", ids, data) }),
-    updateSeries: async (_s: unknown, id: string, data: unknown) => ({ data: { id, ...(data as object) }, error: null }),
+    updateSeries: async (_s: unknown, id: string, data: unknown) => {
+      const error = failing("updateSeries");
+      return error ? { data: null, error } : { data: { id, ...(data as object) }, error: null };
+    },
     updateSeriesOccurrences: async (...args: unknown[]) => ({ error: write("updateSeriesOccurrences", ...args.slice(1)) }),
-    deleteBookings: async (_s: unknown, ids: string[]) => ({ data: ids.map((id) => ({ id })), error: null }),
+    deleteBookings: async (_s: unknown, ids: string[]) => {
+      const error = failing("deleteBookings");
+      return error ? { data: null, error } : { data: ids.map((id) => ({ id })), error: null };
+    },
     cancelBookings: async () => ({ error: null }),
   };
 });
@@ -147,6 +169,7 @@ beforeEach(() => {
   h.rows = [riley()];
   h.series = null;
   h.dbError = null;
+  h.dbErrorOn = null;
   h.raceRows = [];
   h.writes = [];
 });
@@ -444,5 +467,82 @@ describe("PATCH /api/bookings/series/[id]", () => {
   it("renames a series even when a date already overlaps something", async () => {
     h.rows.find((r) => r.id === "o2")!.start_time = "12:00:00";
     expect((await patchSeries("s1", { title: "Evening prayer" })).status).toBe(200);
+  });
+});
+
+describe("an unmapped database error is a generic 500, never the raw text", () => {
+  const SECRET = 'relation "venue_bookings" SECRET-internal detail';
+  const rawError = () => ({ code: "XX000", message: SECRET, details: "SECRET-row" });
+  const occ = (id: string, seriesId: string, date: string, extra: Partial<Row> = {}) =>
+    row({ id, series_id: seriesId, booking_date: date, title: "Prayer", requested_by: "me", start_time: "14:00:00", end_time: "15:00:00", ...extra });
+  const withSeries = () => {
+    h.series = {
+      id: "s1", venue_id: "v1", ministry_id: null, ministry: null, title: "Prayer", description: null,
+      point_person: null, weekday: 2, start_time: "14:00:00", end_time: "15:00:00", setup_time: null,
+      setdown_time: null, series_start: "2026-11-24", series_end: "2026-12-08", interval_weeks: 1,
+      status: "approved", created_by: "me",
+    };
+    h.rows.push(occ("o1", "s1", "2026-11-24"), occ("o2", "s1", "2026-12-01"), occ("o3", "s1", "2026-12-08"));
+  };
+  const weekly = {
+    venue_id: "v1", title: "Prayer", recurrence: "weekly", weekday: 2,
+    series_start: "2026-11-24", series_end: "2026-12-15", start_time: "15:00", end_time: "16:00",
+  };
+  const mine = () => h.rows.push(row({ id: "mine", requested_by: "me", start_time: "14:00", end_time: "15:00" }));
+
+  const cases: Array<[string, string, () => void, () => Promise<Response>, string]> = [
+    ["create one-off", "insertBooking", () => {}, () => post({ ...oneOff, start_time: "14:00", end_time: "15:00" }), "Could not create the booking."],
+    ["create series row", "insertSeries", () => {}, () => post(weekly), "Could not create the booking."],
+    ["create series dates", "insertBookings", () => {}, () => post(weekly), "Could not create the booking."],
+    ["edit a booking", "updateBooking", mine, () => patch("mine", { start_time: "15:00", end_time: "16:00" }), "Could not update the booking."],
+    ["cancel a booking", "updateBooking", mine, () => patch("mine", { cancel: true }), "Could not cancel the booking."],
+    ["cancel a whole series", "updateSeriesOccurrences", withSeries, () => patch("o3", { cancel: true, applyToSeries: true }), "Could not cancel the booking."],
+    ["apply to all dates", "updateSeriesOccurrences", withSeries, () => patch("o3", { title: "Renamed", applyToSeries: true }), "Could not update the booking."],
+    [
+      "approve a booking",
+      "updateBooking",
+      () => {
+        manager();
+        h.rows.push(row({ id: "req", status: "pending", start_time: "14:00", end_time: "15:00" }));
+      },
+      () => decision("req", { decision: "approved" }),
+      "Could not update the booking.",
+    ],
+    [
+      "approve a series",
+      "updateSeriesOccurrences",
+      () => {
+        manager();
+        h.rows.push(occ("p1", "s2", "2026-12-01", { status: "pending" }), occ("p2", "s2", "2026-12-08", { status: "pending" }));
+      },
+      () => decision("p1", { decision: "approved", applyToSeries: true }),
+      "Could not update the booking.",
+    ],
+    ["series: load its dates", "getSeriesOccurrences", withSeries, () => patchSeries("s1", { title: "Evening prayer" }), "Could not load the series."],
+    ["series: save the schedule", "updateSeries", withSeries, () => patchSeries("s1", { title: "Evening prayer" }), "Could not update the series."],
+    ["series: add dates", "insertBookings", withSeries, () => patchSeries("s1", { series_end: "2026-12-15" }), "Could not update the series."],
+    ["series: change kept dates", "updateBookingsByIds", withSeries, () => patchSeries("s1", { title: "Evening prayer" }), "Could not update the series."],
+    ["series: remove dates", "deleteBookings", withSeries, () => patchSeries("s1", { series_end: "2026-12-01" }), "Could not update the series."],
+  ];
+
+  it.each(cases)("%s (%s fails)", async (_name, failOn, setup, call, message) => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      setup();
+      h.dbErrorOn = failOn;
+      h.dbError = rawError();
+      const res = await call();
+      expect(res.status).toBe(500);
+      const json = await res.json();
+      expect(json).toEqual({ error: message });
+      const text = JSON.stringify(json);
+      expect(text).not.toContain("SECRET");
+      expect(text).not.toContain("XX000");
+      // The real error goes to the server log, once.
+      expect(log).toHaveBeenCalledTimes(1);
+      expect(log.mock.calls[0]).toContainEqual(expect.objectContaining({ message: SECRET }));
+    } finally {
+      log.mockRestore();
+    }
   });
 });

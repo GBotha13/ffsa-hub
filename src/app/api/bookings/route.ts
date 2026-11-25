@@ -18,6 +18,7 @@ import {
   clashResponse,
   findVenueClashes,
   parseOverride,
+  serverError,
 } from "@/lib/bookings/clash-guard";
 
 type CreateBody = {
@@ -198,10 +199,7 @@ export async function POST(request: Request) {
     });
 
     if (seriesErr || !series) {
-      return NextResponse.json(
-        { error: seriesErr?.message ?? "Failed to create series" },
-        { status: 500 }
-      );
+      return serverError("create series", seriesErr, "Could not create the booking.");
     }
 
     const rows = occurrences.map((o) => ({
@@ -220,7 +218,10 @@ export async function POST(request: Request) {
     if (occErr) {
       // Best-effort cleanup so we don't leave an empty series behind.
       await deleteSeries(supabase, series.id);
-      return (await refused(occErr)) ?? NextResponse.json({ error: occErr.message }, { status: 500 });
+      return (
+        (await refused(occErr)) ??
+        serverError("create series dates", occErr, "Could not create the booking.")
+      );
     }
 
     after(syncBookingAlerts); // prayer-room DM alerts (Auditorium over devo sets)
@@ -251,10 +252,7 @@ export async function POST(request: Request) {
   if (bookingErr || !booking) {
     const mapped = await refused(bookingErr);
     if (mapped) return mapped;
-    return NextResponse.json(
-      { error: bookingErr?.message ?? "Failed to create booking" },
-      { status: 500 }
-    );
+    return serverError("create booking", bookingErr, "Could not create the booking.");
   }
 
   after(syncBookingAlerts); // prayer-room DM alerts (Auditorium over devo sets)
