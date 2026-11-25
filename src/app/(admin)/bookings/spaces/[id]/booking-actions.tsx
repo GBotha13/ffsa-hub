@@ -117,13 +117,16 @@ export function BookingActions({
               />
             </div>
             {hasSeries && (
-              <label className="flex items-center gap-2 !text-sm !normal-case !tracking-normal">
+              <label className="flex min-h-11 items-center gap-2">
                 <input
                   type="checkbox"
                   checked={applyToSeries}
                   onChange={(e) => setApplyToSeries(e.target.checked)}
                 />
-                Apply to all pending dates in this weekly series
+                {/* Body text, not the global mono label style. */}
+                <span className="!font-sans text-sm !font-normal normal-case !tracking-normal !text-[color:var(--text-primary)]">
+                  Apply to all pending dates in this weekly series
+                </span>
               </label>
             )}
             {/* Approve is the black primary; deny is the outlined escape. Yellow
