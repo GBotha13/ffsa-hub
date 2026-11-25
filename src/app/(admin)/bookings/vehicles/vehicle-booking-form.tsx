@@ -467,7 +467,7 @@ export function VehicleBookingForm({
               />
             </div>
           </div>
-          <DueBackNote lastDay={form.return_date} className="sm:max-w-[66%]" />
+          <DueBackNote lastDay={form.return_date} purpose={form.purpose} className="sm:max-w-[66%]" />
           {days > 0 && (
             <p className="text-xs text-muted-foreground">
               {days} day{days === 1 ? "" : "s"} (collection to last day, inclusive).
@@ -479,7 +479,7 @@ export function VehicleBookingForm({
             <Label>Vehicle(s) requested</Label>
             <p className="text-xs text-muted-foreground">
               Pick the vehicles you&apos;d like — the coordinator confirms the final
-              assignment. Unavailable vehicles are already booked, or in the workshop, for your dates.
+              assignment. Unavailable vehicles are already booked, in the workshop, or held after an international team for your dates.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
               {vehicles.map((v) => {

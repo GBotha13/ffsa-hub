@@ -87,14 +87,15 @@ export const NOTES: Record<string, Note> = {
     booking: "A",
     booker:
       "At 07:00 everyone gets the return instructions: back before 12:00, washed, full tank, photos, nothing left behind, keys handed in.",
-    coordinator: "You get a Slack message saying it's due back today, with a Returned button. Tap it when the vehicle is back.",
+    coordinator:
+      "You get a Slack message saying it's due back today, with a Returned button. Tap it when the vehicle is back. Booking A is an international team, so the message also says: book a full valet wash as soon as it's back.",
   },
   "The coordinator taps Returned": {
     short: "Returned",
     booking: "A",
     booker: "Nothing new. The booking stays open until the inspections are done.",
     coordinator:
-      "Your message changes to Returned, and a new one arrives: the post-rental inspection, with a link to Fleet for each vehicle.",
+      "Your message changes to Returned, and a new one arrives: the post-rental inspection, with a link to Fleet for each vehicle, and the valet reminder again.",
   },
   "Post-rental inspection saved: Nissan Almera": {
     short: "Inspection 1 of 2",
@@ -109,6 +110,14 @@ export const NOTES: Record<string, Note> = {
     booker: "Thandi is told on Slack and by email that the booking is complete.",
     coordinator:
       "Save the second inspection and the booking completes by itself. Mark completed won't work before every vehicle's inspection is saved.",
+  },
+  "Someone tries to book the Almera during the hold": {
+    short: "The hold",
+    booking: "A",
+    booker:
+      "Booking A was an international team, so its cars stay with us for 3 working days after they're due back: Sat 5 to Wed 9 Dec, the weekend included. Anyone booking them for those days is told they aren't available. From Thu 10 Dec they're free.",
+    coordinator:
+      "Use the hold for the post-rental inspection and the full valet wash. If you need the cars sooner, open booking A and tap Release the hold. You have to write why, and the cars are free at once.",
   },
   "Booking B due back on the earlier day": {
     short: "B: due back early",

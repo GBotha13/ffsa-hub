@@ -1,4 +1,5 @@
 import { after, NextResponse } from "next/server";
+import { blockEnd } from "@/lib/vehicles/hold";
 import { driverEmail } from "@/lib/vehicles/return-day";
 import { notifyVehicleRequester } from "@/lib/vehicles/requester-notify";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -161,7 +162,8 @@ export async function POST(request: Request) {
 
   // Same clash rule as the internal form — a public requester must not be
   // able to double-book a vehicle.
-  const overlapping = await getOverlappingAssignments(admin, checkout, ret);
+  // An International Team request needs its vehicles through its hold too.
+  const overlapping = await getOverlappingAssignments(admin, checkout, blockEnd({ purpose, return_date: ret }));
   const unavailable = new Set(overlapping.map((a) => a.vehicle_id));
   const clashing = requestedIds.filter((id) => unavailable.has(id));
   if (clashing.length > 0) {

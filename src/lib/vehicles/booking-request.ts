@@ -6,6 +6,7 @@
 // stops there on a dry run) → prepareDrivers → createVehicleRequest. The
 // caller checks getVehicleAccess first; nothing here decides who may book.
 
+import { blockEnd } from "@/lib/vehicles/hold";
 import { driverEmail } from "@/lib/vehicles/return-day";
 import { notifyVehicleManagers } from "@/lib/email/send-vehicle-request";
 import { checkDriverEligibility } from "@/lib/vehicles/licence";
@@ -121,9 +122,11 @@ export async function findVehicleClashes(
   admin: Client,
   checkout: string,
   ret: string,
-  vehicleIds: unknown
+  vehicleIds: unknown,
+  purpose?: string | null
 ): Promise<Clashes> {
-  const overlapping = await getOverlappingAssignments(admin, checkout, ret);
+  // An International Team booking needs its vehicles through its hold too.
+  const overlapping = await getOverlappingAssignments(admin, checkout, blockEnd({ purpose, return_date: ret }));
   const unavailableIds = Array.from(new Set(overlapping.map((a) => a.vehicle_id)));
   const requestedIds = Array.isArray(vehicleIds)
     ? vehicleIds.filter((v): v is string => typeof v === "string")
@@ -134,7 +137,7 @@ export async function findVehicleClashes(
 }
 
 export const CLASH_ERROR =
-  "One or more of the chosen vehicles is already booked, or in the workshop, for those dates. Pick different vehicles or adjust the dates.";
+  "One or more of the chosen vehicles is already booked, in the workshop, or held after an international team for those dates. Pick different vehicles or adjust the dates.";
 
 // ── Drivers ────────────────────────────────────────────────
 

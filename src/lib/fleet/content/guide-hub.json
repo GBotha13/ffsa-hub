@@ -188,7 +188,7 @@
           "ul": [
             "Pre-rental inspection ({pre} points): a quick go/no-go before a vehicle leaves. Any driver can do it.",
             "Post-rental inspection ({post} points): when it comes back. New damage, km, fuel, cleanliness and anything the driver reports.",
-            "A vehicle booked in the Hub comes back the day after the last day it’s needed, before 12:00, washed and refuelled. That morning the Vehicle Coordinator gets a Slack message with a Returned button. After tapping it, a second message links to the post-rental inspection for each vehicle, already linked to the booking. Once every vehicle’s post-rental inspection is saved, the booking is marked Completed. To see the whole flow on made-up people, open Rent a Vehicle → Training.",
+            "A vehicle booked in the Hub comes back the day after the last day it’s needed, before 12:00, washed and refuelled. That morning the Vehicle Coordinator gets a Slack message with a Returned button. After tapping it, a second message links to the post-rental inspection for each vehicle, already linked to the booking. Once every vehicle’s post-rental inspection is saved, the booking is marked Completed. After an International Team booking the vehicles are held for 3 working days after the due-back day (weekends and South African public holidays don’t count as working days, and are held too), for the post-rental inspection and a full valet wash: the coordinator’s messages say to book the valet as soon as they’re back, and the coordinator can release the hold on the booking, with a note saying why. To see the whole flow on made-up people, open Rent a Vehicle → Training.",
             "Weekly check ({weekly} points): everything you can check by looking, listening and driving, on the vehicle’s inspection day.",
             "Monthly check ({monthly} points): the weekly points plus the slower once-a-month points. It replaces the weekly check on the vehicle’s first inspection day of the month.",
             "Workshop report ({workshop} points): what only a mechanic can check. It starts with the workshop’s 25-point check, in the same order and wording as Motech’s sheet: for each line, tap OK if it’s ticked as Checked, Monitor or Fix now if it’s ticked as Attention needed (N/A if it doesn’t apply, like spark plugs on a diesel), and type the sheet’s note in the box next to it. Mark the rest OK does the lines that are fine in one tap. Then fill in any points under “If the workshop checked them”, put anything else on the report (like “see diagnostic”) in What the workshop recommends, and attach the report.",
@@ -395,6 +395,10 @@
     [
       "2026-11-24",
       "Quotes: a booking is charged from collection to the last day it’s needed. The due-back morning isn’t charged."
+    ],
+    [
+      "2026-11-24",
+      "International teams: after an International Team booking, its vehicles are held for 3 working days after the due-back day (not counting weekends or South African public holidays), for the post-rental inspection and a full valet wash. Nobody can book them for those days, even once the booking is completed. The Vehicle Coordinator is reminded to book the valet, and can release the hold on the booking with a note."
     ]
   ]
 }

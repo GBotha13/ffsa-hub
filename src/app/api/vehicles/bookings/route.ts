@@ -51,7 +51,8 @@ export async function POST(request: Request) {
     createAdminClient(),
     fields.checkout,
     fields.ret,
-    body.vehicle_ids
+    body.vehicle_ids,
+    fields.purpose
   );
 
   if (body.dryRun) {

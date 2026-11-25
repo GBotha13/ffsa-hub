@@ -1,4 +1,5 @@
 import { after, NextResponse } from "next/server";
+import { blockEnd } from "@/lib/vehicles/hold";
 import { driverEmail } from "@/lib/vehicles/return-day";
 import { refreshVehicleRequestAlerts } from "@/lib/vehicles/slack-alerts";
 import { createClient } from "@/lib/supabase/server";
@@ -218,7 +219,12 @@ export async function PATCH(
     const overlapping = await getOverlappingAssignments(
       createAdminClient(),
       effCheckout,
-      effReturn,
+      // An International Team booking needs its vehicles through its hold too.
+      blockEnd({
+        purpose: ((update.purpose as string | undefined) ?? booking.purpose) as string,
+        return_date: effReturn,
+        hold_released_at: (booking as { hold_released_at?: string | null }).hold_released_at,
+      }),
       id
     );
     const unavailable = new Set(overlapping.map((a) => a.vehicle_id));
@@ -227,7 +233,7 @@ export async function PATCH(
       return NextResponse.json(
         {
           error:
-            "One or more of those vehicles is already booked, or in the workshop, for those dates.",
+            "One or more of those vehicles is already booked, in the workshop, or held after an international team for those dates.",
           clashingVehicleIds: clash,
           blocked: true,
         },

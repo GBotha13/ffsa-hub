@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { HOLD_PURPOSE, holdDays } from "@/lib/vehicles/hold";
+import { blockEnd } from "@/lib/vehicles/hold";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect, notFound } from "next/navigation";
@@ -164,7 +166,7 @@ export default async function VehicleBookingDetail({
       getOverlappingAssignments(
         createAdminClient(),
         b.checkout_date,
-        b.return_date,
+        blockEnd(b),
         b.id
       ),
       getInspectionsForBooking(supabase, b.id),
@@ -382,6 +384,19 @@ export default async function VehicleBookingDetail({
         isMember={isOwner || isDriverUser}
         inspections={(post?.vehicles ?? []).map((v) => ({ vehicleId: v.id, name: v.name, inspectionId: v.inspectionId }))}
         openEarly={sp["return-early"] === "1"}
+        hold={
+          rb?.purpose === HOLD_PURPOSE
+            ? {
+                days: (() => {
+                  const h = holdDays({ purpose: rb.purpose, return_date: rb.return_date });
+                  return h ? { from: fmtLong(h.from), to: fmtLong(h.to) } : null;
+                })(),
+                released: rb.hold_released_at
+                  ? { by: (await nameOfUser(rb.hold_released_by ?? null)) || "The Vehicle Coordinator", note: rb.hold_release_note ?? "" }
+                  : null,
+              }
+            : null
+        }
       />
 
       <DriversPanel

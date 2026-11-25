@@ -26,6 +26,8 @@ export interface ReturnPanelProps {
   /** After Returned: each vehicle, and its post-rental inspection if recorded. */
   inspections: { vehicleId: string; name: string; inspectionId: string | null }[];
   openEarly?: boolean;
+  /** An International Team booking: the days its vehicles are held, and any release. */
+  hold?: { days: { from: string; to: string } | null; released: { by: string; note: string } | null } | null;
 }
 
 const addDay = (iso: string, n: number) => {
@@ -41,6 +43,8 @@ export function ReturnPanel(p: ReturnPanelProps) {
   const canAskEarly = p.status === "approved" && !p.returnedLabel && (p.isMember || p.isManager) && p.today <= latest && p.early?.status !== "requested";
   const [asking, setAsking] = useState(!!p.openEarly && canAskEarly);
   const [day, setDay] = useState(p.today <= latest ? p.today : latest);
+  const [releasing, setReleasing] = useState(false);
+  const [note, setNote] = useState("");
 
   if (p.status !== "approved" && p.status !== "completed") return null;
 
@@ -59,6 +63,7 @@ export function ReturnPanel(p: ReturnPanelProps) {
       }
       toast.success(json.message || done || "Done");
       setAsking(false);
+      setReleasing(false);
       router.refresh();
     } finally {
       setBusy(false);
@@ -73,6 +78,54 @@ export function ReturnPanel(p: ReturnPanelProps) {
           <span className="font-semibold">Due back {p.dueBackLabel}, before 12:00</span>: washed inside and out, with a full tank and the
           return checks done.
         </p>
+
+        {p.hold && (
+          <div className="space-y-2 border-l-2 border-ink bg-bone px-4 py-3">
+            <p className="font-semibold">International team: full valet wash and a hold</p>
+            {p.hold.released ? (
+              <>
+                <p>
+                  Released by {p.hold.released.by}: &ldquo;{p.hold.released.note}&rdquo;
+                </p>
+                <p>The vehicles are free after the due-back day.</p>
+              </>
+            ) : (
+              p.hold.days && (
+                <p>
+                  The vehicles are held from {p.hold.days.from} to {p.hold.days.to} (3 working days) for the post-rental inspection
+                  and a full valet wash. The Vehicle Coordinator books the valet as soon as they&apos;re back.
+                </p>
+              )
+            )}
+            {p.isManager && !p.hold.released && !releasing && (
+              <Button variant="outline" onClick={() => setReleasing(true)}>
+                Release the hold
+              </Button>
+            )}
+            {releasing && (
+              <div className="space-y-2">
+                <Label htmlFor="hold-note">Why release it? *</Label>
+                <textarea
+                  id="hold-note"
+                  rows={3}
+                  maxLength={500}
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="e.g. The same team is taking the vehicles again on Monday"
+                  className="w-full border border-rule p-2"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button disabled={busy || !note.trim()} onClick={() => post("hold", { note })}>
+                    Release the hold
+                  </Button>
+                  <Button variant="outline" disabled={busy} onClick={() => setReleasing(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {p.returnedLabel && <p className="text-[color:var(--text-secondary)]">✅ {p.returnedLabel}</p>}
 

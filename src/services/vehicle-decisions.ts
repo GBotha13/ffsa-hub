@@ -2,6 +2,7 @@
 // shared by the Hub route and the Slack DM buttons, so both enforce the same
 // licence re-check and tell the requester the same way (Slack DM + email).
 
+import { blockEnd } from "@/lib/vehicles/hold";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { dateRangeLabel } from "@/lib/bookings/dates";
 import {
@@ -161,13 +162,13 @@ export async function decideVehicleBooking(
  */
 export async function assignVehiclesChecked(
   admin: Client,
-  booking: { id: string; checkout_date: string; return_date: string },
+  booking: { id: string; checkout_date: string; return_date: string; purpose?: string | null; hold_released_at?: string | null },
   vehicleIds: string[]
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const overlapping = await getOverlappingAssignments(admin, booking.checkout_date, booking.return_date, booking.id);
+  const overlapping = await getOverlappingAssignments(admin, booking.checkout_date, blockEnd(booking), booking.id);
   const unavailable = new Set(overlapping.map((a) => a.vehicle_id));
   if (vehicleIds.some((v) => unavailable.has(v))) {
-    return { ok: false, error: "One or more of those vehicles is already booked, or in the workshop, for those dates." };
+    return { ok: false, error: "One or more of those vehicles is already booked, in the workshop, or held after an international team for those dates." };
   }
   const { error } = await setBookingVehicles(admin, booking.id, vehicleIds);
   return error ? { ok: false, error: error.message } : { ok: true };

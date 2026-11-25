@@ -76,6 +76,7 @@ import { runRentalMessages } from "./rental-schedule";
 import { notifyDueBack, completeIfInspected, requestEarlyReturn, refreshRentalAlerts } from "./rental-return";
 import { handleVehicleInteraction } from "./slack-interactions";
 import { dueBackFrom } from "./return-day";
+import { findVehicleClashes } from "./booking-request";
 import { notifyVehicleManagers } from "@/lib/email/send-vehicle-request";
 import { notifyVehicleRequester } from "./requester-notify";
 
@@ -217,6 +218,9 @@ describe("a vehicle booking, from booking to completed", () => {
       "slack → Vehicle Coordinator (Pieter): Due back today before 12:00: Visiting team: Kruger outreach",
     ]);
     expect(JSON.stringify(e[5].blocks)).toContain("vh_returned");
+    // Booking A is an international team: book a full valet wash, vehicles held until Wed 9 Dec.
+    expect(JSON.stringify(e[5].blocks)).toContain("full valet wash");
+    expect(JSON.stringify(e[5].blocks)).toContain("Wednesday, 9 December");
   });
 
   it("10:45: the coordinator taps Returned; the post-rental inspection message follows", async () => {
@@ -260,6 +264,21 @@ describe("a vehicle booking, from booking to completed", () => {
       "slack-update → Vehicle Coordinator (Pieter): Completed: Visiting team: Kruger outreach",
     ]);
     expect(db.tables.vehicle_bookings[0].status).toBe("completed");
+  });
+
+  it("Mon 7 Dec: booking A was an international team, so its cars are held until Wed 9 Dec, even though it's completed", async () => {
+    const e = await step(
+      "2026-12-07 09:00",
+      "Someone tries to book the Almera during the hold",
+      async () => {
+        const c = await findVehicleClashes(db, "2026-12-07", "2026-12-08", [ID.almera], "ministry");
+        expect(c.clashing).toEqual([ID.almera]);
+        const later = await findVehicleClashes(db, "2026-12-10", "2026-12-11", [ID.almera], "ministry");
+        expect(later.clashing).toEqual([]);
+      },
+      "Booking A was an International Team booking: after it's due back (Fri 4 Dec), its vehicles are held for 3 working days (Sat 5 to Wed 9 Dec, the weekend included) for the post-rental inspection and a full valet wash. That holds even though the booking is already completed."
+    );
+    expect(e).toEqual([]);
   });
 
   it("Sat 5 Dec 07:00: booking B is due back on its new, earlier day", async () => {

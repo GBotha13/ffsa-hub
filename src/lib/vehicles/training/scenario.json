@@ -598,6 +598,13 @@
        }
       },
       {
+       "type": "section",
+       "text": {
+        "type": "mrkdwn",
+        "text": "🧽 *International team: book a full valet wash as soon as it’s back.* The vehicles are held until Wednesday, 9 December for the valet and the post-rental inspection."
+       }
+      },
+      {
        "type": "context",
        "elements": [
         {
@@ -648,7 +655,7 @@
        "type": "section",
        "text": {
         "type": "mrkdwn",
-        "text": "*✅ Returned: Visiting team: Kruger outreach*\n*Nissan Almera* (DEMO 1 GP), *Honda CR-V* (DEMO 2 GP)\nMarked returned at 10:45 by Pieter Coordinator. Next: the post-rental inspection."
+        "text": "*✅ Returned: Visiting team: Kruger outreach*\n*Nissan Almera* (DEMO 1 GP), *Honda CR-V* (DEMO 2 GP)\nMarked returned at 10:45 by Pieter Coordinator. Next: the post-rental inspection and the full valet wash."
        }
       }
      ]
@@ -663,6 +670,13 @@
        "text": {
         "type": "mrkdwn",
         "text": "*🔍 Post-rental inspection: Visiting team: Kruger outreach*\n⬜ Nissan Almera (DEMO 1 GP): to do\n⬜ Honda CR-V (DEMO 2 GP): to do"
+       }
+      },
+      {
+       "type": "section",
+       "text": {
+        "type": "mrkdwn",
+        "text": "🧽 *International team: book a full valet wash as soon as it’s back.* The vehicles are held until Wednesday, 9 December for the valet and the post-rental inspection."
        }
       },
       {
@@ -728,6 +742,13 @@
        "text": {
         "type": "mrkdwn",
         "text": "*🔍 Post-rental inspection: Visiting team: Kruger outreach*\n✅ Nissan Almera (DEMO 1 GP): inspection recorded\n⬜ Honda CR-V (DEMO 2 GP): to do"
+       }
+      },
+      {
+       "type": "section",
+       "text": {
+        "type": "mrkdwn",
+        "text": "🧽 *International team: book a full valet wash as soon as it’s back.* The vehicles are held until Wednesday, 9 December for the valet and the post-rental inspection."
        }
       },
       {
@@ -918,6 +939,12 @@
      ]
     }
    ]
+  },
+  {
+   "at": "2026-12-07 09:00",
+   "title": "Someone tries to book the Almera during the hold",
+   "detail": "Booking A was an International Team booking: after it's due back (Fri 4 Dec), its vehicles are held for 3 working days (Sat 5 to Wed 9 Dec, the weekend included) for the post-rental inspection and a full valet wash. That holds even though the booking is already completed.",
+   "events": []
   }
  ]
 }
