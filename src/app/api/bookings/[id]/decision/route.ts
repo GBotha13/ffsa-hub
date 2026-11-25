@@ -96,7 +96,9 @@ export async function POST(
     const add = (venueId: string, c: ClashCandidate) =>
       byVenue.set(venueId, [...(byVenue.get(venueId) ?? []), toCandidate(c)]);
     if (seriesWide) {
-      const { data: occRaw } = await getSeriesOccurrences(supabase, booking.series_id);
+      const { data: occRaw, error: occLoadErr } = await getSeriesOccurrences(supabase, booking.series_id);
+      // Never approve dates we couldn't check.
+      if (occLoadErr) return serverError("load series dates", occLoadErr, "Could not load the series.");
       for (const o of (occRaw ?? []) as Array<ClashCandidate & { status: string; venue_id: string }>) {
         if (o.status === "pending") add(o.venue_id, o);
       }

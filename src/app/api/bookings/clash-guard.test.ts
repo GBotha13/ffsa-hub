@@ -420,6 +420,99 @@ describe("POST /api/bookings/[id]/decision", () => {
       clash_override_reason: "Riley agreed to share",
     });
   });
+
+  describe("whole series", () => {
+    beforeEach(() => {
+      h.rows.find((r) => r.id === "req")!.series_id = "s2";
+      // A second pending date that clashes with Sam on 8 Dec, and one already denied.
+      h.rows.push(
+        row({ id: "req2", series_id: "s2", status: "pending", booking_date: "2026-12-08", start_time: "12:00", end_time: "12:30" }),
+        row({ id: "req3", series_id: "s2", status: "denied", booking_date: "2026-12-15", start_time: "12:00", end_time: "12:30" }),
+        row({ id: "sam", booking_date: "2026-12-08", title: "Choir", start_time: "12:00", end_time: "13:00", requester_name: "Sam" })
+      );
+    });
+
+    it("names every clashing pending date, and offers the override only to a manager", async () => {
+      const res = await decision("req", { decision: "approved", applyToSeries: true });
+      expect(res.status).toBe(409);
+      const json = await res.json();
+      expect(json).toMatchObject({ blocked: true, canOverride: false });
+      expect(json.conflicts).toEqual([
+        expect.objectContaining({ date: "2026-12-01", who: "Riley Botha" }),
+        expect.objectContaining({ date: "2026-12-08", who: "Sam" }),
+      ]);
+
+      manager();
+      expect((await (await decision("req", { decision: "approved", applyToSeries: true })).json()).canOverride).toBe(true);
+    });
+
+    it("a manager approves the whole series over the clashes, the reason on every pending date", async () => {
+      manager();
+      const res = await decision("req", {
+        decision: "approved",
+        applyToSeries: true,
+        override: { reason: "  Riley and Sam agreed to move  " },
+      });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ ok: true, appliedToSeries: true });
+      const [seriesId, stamp, onlyPending] = writesOf("updateSeriesOccurrences")[0].args as [string, Record<string, unknown>, boolean];
+      expect(seriesId).toBe("s2");
+      expect(stamp).toMatchObject({ status: "approved", clash_override_reason: "Riley and Sam agreed to move" });
+      expect(onlyPending).toBe(true);
+    });
+
+    it("an approver alone can't override the series → 403, nothing written", async () => {
+      const res = await decision("req", { decision: "approved", applyToSeries: true, override: { reason: "ok" } });
+      expect(res.status).toBe(403);
+      expect(writesOf("updateSeriesOccurrences")).toHaveLength(0);
+      expect(writesOf("updateBooking")).toHaveLength(0);
+    });
+
+    it("a blank or too-long reason → 400, nothing written", async () => {
+      manager();
+      for (const reason of ["   ", "x".repeat(501)]) {
+        const res = await decision("req", { decision: "approved", applyToSeries: true, override: { reason } });
+        expect(res.status).toBe(400);
+      }
+      expect(writesOf("updateSeriesOccurrences")).toHaveLength(0);
+    });
+
+    it("a reason of exactly 500 characters is fine", async () => {
+      manager();
+      const res = await decision("req", { decision: "approved", applyToSeries: true, override: { reason: "x".repeat(500) } });
+      expect(res.status).toBe(200);
+    });
+
+    it("a racing booking caught by the database → 409 with the clash re-read, nothing half-written", async () => {
+      h.rows = h.rows.filter((r) => r.id !== "held" && r.id !== "sam");
+      h.raceRows = [riley()];
+      h.dbErrorOn = "updateSeriesOccurrences";
+      h.dbError = { code: "23P01", message: "venue_booking_clash", details: "clashing_booking_ids=x" };
+      const res = await decision("req", { decision: "approved", applyToSeries: true });
+      expect(res.status).toBe(409);
+      const json = await res.json();
+      expect(json.conflicts).toEqual([expect.objectContaining({ who: "Riley Botha" })]);
+      expect(JSON.stringify(json)).not.toContain("venue_booking_clash");
+      // One statement for every pending date, refused whole by the database.
+      expect(writesOf("updateSeriesOccurrences")).toHaveLength(1);
+      expect(writesOf("updateBooking")).toHaveLength(0);
+    });
+
+    it("can't load the series' dates → generic 500, nothing approved", async () => {
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        h.dbErrorOn = "getSeriesOccurrences";
+        h.dbError = { code: "XX000", message: "SECRET-internal detail" };
+        const res = await decision("req", { decision: "approved", applyToSeries: true });
+        expect(res.status).toBe(500);
+        expect(await res.json()).toEqual({ error: "Could not load the series." });
+        expect(log).toHaveBeenCalledTimes(1);
+        expect(writesOf("updateSeriesOccurrences")).toHaveLength(0);
+      } finally {
+        log.mockRestore();
+      }
+    });
+  });
 });
 
 describe("PATCH /api/bookings/series/[id]", () => {
