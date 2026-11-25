@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { bookingsConflict, type BookingWindow } from "./conflicts";
-import { blockLead, describeConflict } from "./conflict-messages";
+import { approveLead, blockLead, describeConflict } from "./conflict-messages";
 
 // The clash rule the API and the database (migration 403) both enforce.
 
@@ -103,5 +103,21 @@ describe("clash message", () => {
     );
     expect(blockLead([c, c], "Office 2")).toMatch(/^Office 2 is already booked at 2 of those times\./);
     expect(blockLead([c], "Office 2")).not.toContain("!");
+  });
+
+  it("uses approval wording, not pick-another-time, for an approver", () => {
+    const c = describeConflict("2026-12-01", {
+      ...b(),
+      title: "SBS Staff Mtg",
+      requester_name: "Riley Botha",
+    });
+    expect(approveLead([c], "Office 2")).toBe(
+      'Office 2 is already booked by Riley Botha ("SBS Staff Mtg") on Tue 1 Dec 2026, 11:30 – 13:00, so it can\'t be approved as it stands.'
+    );
+    expect(approveLead([c], "Office 2")).not.toContain("pick another time");
+    expect(approveLead([c, c], "Office 2")).toBe(
+      "Office 2 is already booked at 2 of those times, so they can't be approved as they stand. Each one is listed below."
+    );
+    expect(approveLead([c, c], "Office 2")).not.toContain("!");
   });
 });

@@ -10,7 +10,7 @@ import { Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { humanDate } from "@/lib/bookings/dates";
-import { blockLead, type Conflict } from "@/lib/bookings/conflict-messages";
+import { approveLead, blockLead, type Conflict } from "@/lib/bookings/conflict-messages";
 import { OVERRIDE_REASON_MAX } from "@/lib/bookings/override";
 
 export type ClashConflict = Conflict;
@@ -26,6 +26,7 @@ export function ClashPanel({
   reason,
   onReasonChange,
   cannotOverrideHint,
+  variant = "book",
 }: {
   conflicts: ClashConflict[];
   venueName?: string | null;
@@ -36,12 +37,15 @@ export function ClashPanel({
   onReasonChange: (next: string) => void;
   /** Said plainly to someone who can't book over it (e.g. an approver). */
   cannotOverrideHint?: string;
+  /** "approve" uses wording for a decision, not "pick another time". */
+  variant?: "book" | "approve";
 }) {
   const reasonId = useId();
   const counterId = useId();
   if (conflicts.length === 0) return null;
 
-  const lead = blockLead(conflicts, venueName);
+  const lead =
+    variant === "approve" ? approveLead(conflicts, venueName) : blockLead(conflicts, venueName);
 
   return (
     <div role="alert" className="min-w-0 border border-ink bg-bone text-sm">

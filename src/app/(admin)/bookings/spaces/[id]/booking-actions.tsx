@@ -20,8 +20,7 @@ import { ClashPanel, overrideBody, type ClashConflict } from "../clash-panel";
 // An approval the server refused because the space is taken (409).
 type Clash = { conflicts: ClashConflict[]; canOverride: boolean; error: string };
 
-const CANNOT_OVERRIDE_HINT =
-  "You can approve or deny requests, but only a space manager or admin can approve over a clash. Deny this one, or ask one of them to take a look.";
+const CANNOT_OVERRIDE_HINT = "Deny it, or ask the requester to move it.";
 
 export function BookingActions({
   bookingId,
@@ -183,6 +182,7 @@ export function BookingActions({
                 reason={reason}
                 onReasonChange={setReason}
                 cannotOverrideHint={CANNOT_OVERRIDE_HINT}
+                variant="approve"
               />
             )}
             {clash && clash.conflicts.length === 0 && (

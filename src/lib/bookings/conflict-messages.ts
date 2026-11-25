@@ -77,3 +77,21 @@ export function blockLead(conflicts: Conflict[], venueName?: string | null): str
   }
   return `${space} is already booked at ${conflicts.length} of those times. Each one is listed below. Talk to the people who hold them, or pick other times.`;
 }
+
+/**
+ * The one-line lead when an approval is refused because the space is taken, e.g.
+ * Office 2 is already booked by Riley Botha ("SBS Staff Mtg") on Tue 1 Dec 2026, 11:30 – 13:00, so it can't be approved as it stands.
+ * The "pick another time" wording is for the person booking, not for an approver.
+ */
+export function approveLead(conflicts: Conflict[], venueName?: string | null): string {
+  const space = venueName?.trim() || "This space";
+  if (conflicts.length === 0) {
+    return `${space} has just been booked at that time. Refresh to see the latest, then try again.`;
+  }
+  if (conflicts.length === 1) {
+    const c = conflicts[0];
+    const by = c.who ? ` by ${c.who}` : "";
+    return `${space} is already booked${by} ("${c.existingTitle}") on ${humanDate(c.date)}, ${c.existingWindow}, so it can't be approved as it stands.`;
+  }
+  return `${space} is already booked at ${conflicts.length} of those times, so they can't be approved as they stand. Each one is listed below.`;
+}
