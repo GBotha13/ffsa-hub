@@ -20,8 +20,14 @@ import { ClashPanel, overrideBody, type ClashConflict } from "../clash-panel";
 // An approval the server refused because the space is taken (409).
 type Clash = { conflicts: ClashConflict[]; canOverride: boolean; error: string };
 
-const CANNOT_OVERRIDE_HINT =
-  "You can approve or deny requests, but only a space manager or admin can approve over a clash. Deny this one, or ask one of them to take a look.";
+const CANNOT_OVERRIDE_HINT = "Deny it, or ask the requester to move it.";
+
+// A 409 with nobody named (the re-read missed the holder). Never show the
+// API's booker-facing blockLead, which says "pick another time".
+const APPROVE_RACE_FALLBACK =
+  "This time has just been booked by someone else, so it can't be approved as it stands. Deny it, or ask the requester to move it.";
+const APPROVE_RACE_FALLBACK_MANAGER =
+  "This time has just been booked by someone else, so it can't be approved as it stands.";
 
 export function BookingActions({
   bookingId,
@@ -183,6 +189,7 @@ export function BookingActions({
                 reason={reason}
                 onReasonChange={setReason}
                 cannotOverrideHint={CANNOT_OVERRIDE_HINT}
+                variant="approve"
               />
             )}
             {clash && clash.conflicts.length === 0 && (
@@ -190,7 +197,7 @@ export function BookingActions({
                 role="alert"
                 className="break-words border border-ink bg-bone p-3 text-sm text-[color:var(--text-primary)]"
               >
-                {clash.error}
+                {clash.canOverride ? APPROVE_RACE_FALLBACK_MANAGER : APPROVE_RACE_FALLBACK}
               </p>
             )}
             {/* Approve is the black primary; deny is the outlined escape. Yellow

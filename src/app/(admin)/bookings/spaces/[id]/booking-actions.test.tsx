@@ -94,7 +94,10 @@ describe("BookingActions: approving over a clash", () => {
     expect(p.textContent).toContain("Office 2 is already booked by Jordan Example");
     expect(p.textContent).toContain("Example Study Group");
     expect(p.textContent).toContain("11:30 – 13:00");
-    expect(p.textContent).toContain("only a space manager or admin can approve over a clash");
+    expect(p.textContent).toContain("can't be approved as it stands");
+    expect(p.textContent).toContain("Deny it, or ask the requester to move it");
+    expect(p.textContent).not.toContain("pick another time");
+    expect(p.textContent).not.toContain("Talk to them");
     expect(button("Book anyway")).toBeUndefined();
 
     expect(button("Approve")).toBeUndefined();
@@ -122,7 +125,9 @@ describe("BookingActions: approving over a clash", () => {
     for (const t of ["Jordan Example", "Example Study Group", "Alex Placeholder", "Example Prayer Hour", "12:30 – 13:30"]) {
       expect(p.textContent).toContain(t);
     }
-    expect(p.textContent).not.toContain("only a space manager or admin");
+    expect(p.textContent).toContain("can't be approved as they stand");
+    expect(p.textContent).not.toContain("pick other times");
+    expect(p.textContent).not.toContain("Deny it, or ask the requester");
     expect(button("Time taken")!.disabled).toBe(true);
 
     await click(button("Book anyway")); // the panel's: opens the reason
@@ -162,13 +167,36 @@ describe("BookingActions: approving over a clash", () => {
     expect(button("Approve")!.disabled).toBe(false);
   });
 
-  it("a clash nobody could be named for still says so inline", async () => {
+  it("a clash nobody could be named for still says so inline, without booker wording", async () => {
     render();
-    const msg = "Office 2 has just been booked at that time. Refresh to see the latest, then pick another time.";
-    respond(409, { error: msg, conflicts: [], blocked: true, canOverride: false });
+    const apiMsg = "Office 2 has just been booked at that time. Refresh to see the latest, then pick another time.";
+    respond(409, { error: apiMsg, conflicts: [], blocked: true, canOverride: false });
     await click(button("Approve"));
     expect(toast.error).not.toHaveBeenCalled();
-    expect(panel()!.textContent).toBe(msg);
+    const text = panel()!.textContent!;
+    expect(text).toBe(
+      "This time has just been booked by someone else, so it can't be approved as it stands. Deny it, or ask the requester to move it."
+    );
+    expect(text).not.toContain("pick another time");
+    expect(text).not.toContain(apiMsg);
     expect(button("Approve")!.disabled).toBe(false); // trying again re-checks
+  });
+
+  it("a manager's unnamed clash stays simple, with no booker wording or Book anyway", async () => {
+    render();
+    respond(409, {
+      error: "Office 2 has just been booked at that time. Refresh to see the latest, then pick another time.",
+      blocked: true,
+      canOverride: true,
+    });
+    await click(button("Approve"));
+    const text = panel()!.textContent!;
+    expect(text).toBe(
+      "This time has just been booked by someone else, so it can't be approved as it stands."
+    );
+    expect(text).not.toContain("pick another time");
+    expect(text).not.toContain("Deny it, or ask the requester");
+    expect(button("Book anyway")).toBeUndefined();
+    expect(button("Approve")!.disabled).toBe(false);
   });
 });
