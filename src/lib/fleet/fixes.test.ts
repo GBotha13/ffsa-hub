@@ -1,7 +1,7 @@
 // "Mark as fixed" (Gideon, 23 Nov 2026).
 
 import { describe, expect, it } from "vitest";
-import { fixEntry, keepFixes } from "./fixes";
+import { wasLine, fixEntry, keepFixes } from "./fixes";
 import type { ConditionEntry } from "./rules/types";
 
 const TODAY = "2026-11-23";
@@ -29,9 +29,20 @@ describe("fixEntry", () => {
     });
   });
 
-  it("only for a point marked Fix now", () => {
-    expect(fixEntry({ ...bushes, s: "mon" }, input, TODAY, null)).toEqual({ error: "That point isn’t marked Fix now." });
-    expect(fixEntry(undefined, input, TODAY, null)).toEqual({ error: "That point isn’t marked Fix now." });
+  it("for a point marked Fix now or Monitor (Gideon, 25 Nov 2026), not OK or N/A", () => {
+    const mon = fixEntry({ ...bushes, s: "mon" }, input, TODAY, null);
+    expect("entry" in mon && mon.entry).toMatchObject({ s: "ok", f: { was: { s: "mon" } } });
+    const err = { error: "That point isn’t marked Fix now or Monitor." };
+    expect(fixEntry({ ...bushes, s: "ok" }, input, TODAY, null)).toEqual(err);
+    expect(fixEntry({ ...bushes, s: "na" }, input, TODAY, null)).toEqual(err);
+    expect(fixEntry(undefined, input, TODAY, null)).toEqual(err);
+  });
+
+  it("says what the point was", () => {
+    const f = (d: string) => d;
+    expect(wasLine({ s: "fix", d: "2026-11-19", n: "Bushes worn" }, f)).toBe("Was Fix now (2026-11-19): Bushes worn");
+    expect(wasLine({ s: "mon", d: "2026-11-19", n: "Rattle" }, f)).toBe("Was Monitor (2026-11-19): Rattle");
+    expect(wasLine({ n: "Old fix" }, f)).toBe("Was Fix now: Old fix");
   });
 
   it("not in the future, and not before it was found", () => {

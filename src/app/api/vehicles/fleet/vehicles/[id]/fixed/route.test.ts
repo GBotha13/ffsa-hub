@@ -82,7 +82,15 @@ describe("Mark as fixed", () => {
     expect(removed).toEqual(["f1"]);
   });
 
-  it("refuses a point that isn't Fix now, and bad input", async () => {
+  it("marks a Monitor point fixed too (Gideon, 25 Nov 2026)", async () => {
+    condition["m25-oil"] = { s: "mon", d: "2026-11-19", n: "Slight seep", i: "ins-1", t: "Oil" };
+    const res = await POST(req({ itemId: "m25-oil", date: "2026-11-22", by: "Motech", work: "New gasket." }), params);
+    expect(res.status).toBe(200);
+    expect((writes[0].condition as Record<string, Record<string, unknown>>)["m25-oil"]).toMatchObject({ s: "ok", f: { was: { s: "mon" } } });
+    expect(fixes[0]).toMatchObject({ item_id: "m25-oil", was: { s: "mon", n: "Slight seep" } });
+  });
+
+  it("refuses a point that isn't Fix now or Monitor, and bad input", async () => {
     expect((await POST(req({ itemId: "m25-oil", date: "2026-11-22", by: "Motech", work: "x" }), params)).status).toBe(409);
     expect((await POST(req({ itemId: "m25-balljoints", date: "2026-11-22", by: "", work: "x" }), params)).status).toBe(400);
     expect((await POST(req({ itemId: "", date: "2026-11-22", by: "M", work: "x" }), params)).status).toBe(400);

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { bad, fleetAuth, isUuid, logTime, readJson } from "@/lib/fleet/api";
-import { fixEntry } from "@/lib/fleet/fixes";
+import { fixEntry, isFixable } from "@/lib/fleet/fixes";
 import { todayInSA } from "@/lib/fleet/rules";
 import type { ConditionEntry } from "@/lib/fleet/rules/types";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -8,7 +8,7 @@ import { getFleetVehicle, insertFleetFix, removeUnfinishedFleetFix, updateFleetV
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-// POST /api/vehicles/fleet/vehicles/[id]/fixed — "Mark as fixed" on a Fix now point.
+// POST /api/vehicles/fleet/vehicles/[id]/fixed — "Mark as fixed" on a Fix now or Monitor point.
 // Body: { itemId, date, by, work }. The point goes back to OK as of `date`, with who fixed
 // it and what was done; the next inspection that checks it overrides it as usual. The fix
 // itself is kept for good in fleet_fixes (358), for the vehicle's History and its report.
@@ -28,7 +28,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const condition: Record<string, ConditionEntry> = details.condition || {};
 
   const r = fixEntry(condition[itemId], { itemId, date: String(b?.date || ""), by: String(b?.by || ""), work: String(b?.work || "") }, todayInSA(), auth.user.id);
-  if ("error" in r) return bad(r.error, condition[itemId]?.s === "fix" ? 400 : 409);
+  if ("error" in r) return bad(r.error, isFixable(condition[itemId]?.s) ? 400 : 409);
 
   // History first: if it can't be kept, nothing changes.
   const f = r.entry.f!;

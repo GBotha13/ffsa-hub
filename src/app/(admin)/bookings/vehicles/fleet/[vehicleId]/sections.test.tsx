@@ -94,6 +94,9 @@ describe("vehicle page tabs render", () => {
     expect(fixedOut).toContain("New grille");
     expect(fixedOut).toContain("Was Fix now (10 Nov 2026): Cracked");
     expect(fixedOut).not.toContain("Mark as fixed");
+    // …and on Monitor points (Gideon, 25 Nov 2026), with the History saying it was Monitor.
+    const monV = { ...v, condition: { "ext-front": { s: "mon", d: "2026-11-10", n: "Small chip" } } };
+    expect(html(ConditionTab, { vehicleId: v.id, view: conditionView(F.checklist, monV as never, "issues"), f: "issues", today: TUE, canWrite: true })).toContain("Mark as fixed");
     const hist = html(HistoryTab, { items: historyItems([], visits, []), ctx, canWrite: true });
     expect(hist).toContain("Body repair");
     expect(hist).toContain("Edit");
@@ -107,6 +110,12 @@ describe("vehicle page tabs render", () => {
     expect(fixHist).toContain("Fixed: Ball joints and control arms");
     expect(fixHist).toContain("By Motech:");
     expect(fixHist).toContain("Was Fix now (19 Nov 2026): Bushes worn");
+    const monHist = html(HistoryTab, {
+      items: historyItems([], [], [], [{ id: "f2", date: "2026-11-22", point: "Front", by: "Motech", work: "Polished out.", was: { s: "mon", d: "2026-11-10", n: "Small chip" }, createdAt: "" }]),
+      ctx,
+      canWrite: true,
+    });
+    expect(monHist).toContain("Was Monitor (10 Nov 2026): Small chip");
     expect(html(PhotosTab, { groups: photoGroups([], visits) })).toContain("Resale evaluation · 23 Mar 2026");
     expect(html(PhotosTab, { groups: [] })).toContain("No photos yet.");
     const man = html(ManualTab, {

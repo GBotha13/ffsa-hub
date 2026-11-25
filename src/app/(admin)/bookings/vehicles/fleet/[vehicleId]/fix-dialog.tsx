@@ -1,6 +1,6 @@
 "use client";
 
-// "Mark as fixed" on a Fix now point (Gideon, 23 Nov 2026): the date it was fixed, who fixed
+// "Mark as fixed" on a Fix now or Monitor point (Gideon, 23 and 25 Nov 2026): the date it was fixed, who fixed
 // it (a person or a workshop) and a short description of the work. The point goes back to
 // OK as of that date; the next inspection that checks it overrides it as usual.
 
