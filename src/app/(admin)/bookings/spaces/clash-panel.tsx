@@ -99,7 +99,7 @@ export function ClashPanel({
               required
               rows={3}
               aria-describedby={counterId}
-              placeholder="e.g. Agreed with Riley; their meeting moves to Office 1."
+              placeholder="e.g. Agreed with the other booker; their meeting moves to Office 1."
               className="flex w-full bg-white"
             />
             <div className="flex flex-wrap items-start justify-between gap-2">
