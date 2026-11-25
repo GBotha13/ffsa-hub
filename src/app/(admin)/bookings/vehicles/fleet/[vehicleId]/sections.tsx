@@ -12,6 +12,7 @@ import { EditDetailsButton, type EditableVehicle } from "./vehicle-dialog";
 import { VisitButton, type VisitCtx } from "./visit-dialog";
 import { WatchPanel, type WatchPanelProps } from "./watch-panel";
 import { MarkFixedButton } from "./fix-dialog";
+import { isFixable, wasLine } from "@/lib/fleet/fixes";
 import {
   ATT_LABEL,
   WORK_CHECK,
@@ -287,13 +288,13 @@ function ConditionRow({ row, today, vehicleId, canWrite }: { row: CondRow; today
         {fix ? (
           <p className="mt-0.5 text-[13px] text-[#55524A]">
             <strong className="text-ink">Fixed {r?.d ? fmtDate(r.d) : ""} by {fix.by}:</strong> {fix.work}
-            {fix.was.n ? <span className="block">Was Fix now{fix.was.d ? ` (${fmtDate(fix.was.d)})` : ""}: {fix.was.n}</span> : null}
+            {fix.was.n ? <span className="block">{wasLine(fix.was, fmtDate)}</span> : null}
           </p>
         ) : (
           r && r.n && <p className="mt-0.5 text-[13px] text-[#55524A]">{r.n}</p>
         )}
         <Thumbs ids={r?.p} cap={row.t} />
-        {canWrite && s === "fix" && (
+        {canWrite && isFixable(s) && (
           <div className="mt-2">
             <MarkFixedButton vehicleId={vehicleId} itemId={row.id} point={row.t} foundOn={r?.d} today={today} />
           </div>
@@ -364,7 +365,7 @@ function HistFix({ x }: { x: Extract<HistoryItem, { k: "f" }> }) {
       </p>
       {x.was.n && (
         <p className={hMeta}>
-          Was Fix now{x.was.d ? ` (${fmtDate(x.was.d)})` : ""}: {x.was.n}
+          {wasLine(x.was, fmtDate)}
         </p>
       )}
     </div>

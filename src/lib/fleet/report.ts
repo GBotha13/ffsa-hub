@@ -3,6 +3,7 @@
 // fixed or worked on, services, repairs, inspections"). Pure: the route loads the data,
 // this sorts it into a summary and a dated list, and report-pdf.tsx draws it.
 
+import { wasLine } from "./fixes";
 import { STATUS, checklistIndex, fmtDate, fmtKm, kindShort, typeOf, type Checklist, type ConditionEntry, type ISODate, type Trip, type WorkshopVisit } from "./rules";
 import type { Inspection } from "./inspection";
 
@@ -100,7 +101,7 @@ export function buildVehicleReport(x: ReportInput): VehicleReport {
   for (const f of x.fixes) {
     if (!inRange(f.date, from, to)) continue;
     const lines = [`By ${f.by}: ${f.work}`];
-    if (f.was.n) lines.push(`Was Fix now${f.was.d ? ` (${fmtDate(f.was.d)})` : ""}: ${f.was.n}`);
+    if (f.was.n) lines.push(wasLine(f.was, fmtDate));
     entries.push({ date: f.date, kind: "fixed", title: `Fixed: ${f.point}`, lines, cost: null });
   }
 

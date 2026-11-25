@@ -1,4 +1,5 @@
-// "Mark as fixed" (Gideon, 23 Nov 2026): a Fix now point on a vehicle can be marked fixed
+// "Mark as fixed" (Gideon, 23 Nov 2026; Monitor points too, 25 Nov): a Fix now or Monitor
+// point on a vehicle can be marked fixed
 // on the vehicle's page, with the date, who fixed it and what was done, without doing a
 // whole inspection. The point goes back to OK as of that date; the next inspection that
 // checks it overrides it as usual. Deleting an inspection rebuilds the vehicle's condition
@@ -7,6 +8,17 @@
 import type { ConditionEntry, ISODate } from "./rules/types";
 
 export const FIX_LIMITS = { by: 80, work: 300 };
+
+/** The point states that can be marked fixed: Fix now, and Monitor (Gideon, 25 Nov 2026). */
+export const FIXABLE = ["fix", "mon"];
+export const isFixable = (s: string | null | undefined) => !!s && FIXABLE.includes(s);
+
+/** "Was Fix now (19 Nov 2026): Bushes worn" / "Was Monitor (…): …", for the Condition tab,
+ *  History and the report. Older fixes without a state read as Fix now (they all were). */
+export function wasLine(was: { s?: string; d?: string; n?: string }, fmt: (d: string) => string): string {
+  const label = was.s === "mon" ? "Monitor" : "Fix now";
+  return `Was ${label}${was.d ? ` (${fmt(was.d)})` : ""}: ${was.n ?? ""}`;
+}
 
 export type FixInput = { itemId: string; date: ISODate; by: string; work: string };
 
@@ -18,7 +30,7 @@ export function fixEntry(
   recordedBy: string | null,
   now = new Date().toISOString()
 ): { entry: ConditionEntry } | { error: string } {
-  if (!prev || prev.s !== "fix") return { error: "That point isn’t marked Fix now." };
+  if (!prev || !FIXABLE.includes(prev.s as string)) return { error: "That point isn’t marked Fix now or Monitor." };
   const by = input.by.trim(), work = input.work.trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) return { error: "Enter the date it was fixed." };
   if (input.date > today) return { error: "The date it was fixed can’t be in the future." };

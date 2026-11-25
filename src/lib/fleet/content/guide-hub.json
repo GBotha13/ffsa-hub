@@ -193,7 +193,7 @@
             "Monthly check ({monthly} points): the weekly points plus the slower once-a-month points. It replaces the weekly check on the vehicle’s first inspection day of the month.",
             "Workshop report ({workshop} points): what only a mechanic can check. It starts with the workshop’s 25-point check, in the same order and wording as Motech’s sheet: for each line, tap OK if it’s ticked as Checked, Monitor or Fix now if it’s ticked as Attention needed (N/A if it doesn’t apply, like spark plugs on a diesel), and type the sheet’s note in the box next to it. Mark the rest OK does the lines that are fine in one tap. Then fill in any points under “If the workshop checked them”, put anything else on the report (like “see diagnostic”) in What the workshop recommends, and attach the report.",
             "Mark each point OK, Monitor (keep an eye on it, book it soon) or Fix now (fix before the vehicle is used again). For Monitor and Fix now, write what you saw and add a photo.",
-            "Once a Fix now point has been fixed, open the vehicle’s Condition tab and tap Mark as fixed next to it: enter the date it was fixed, who fixed it (a person or the workshop) and what was done. The point goes back to OK from that date, and the Condition tab shows who fixed it and what it was before. The fix is also kept for good in the vehicle’s History, even after the next inspection checks that point again.",
+            "Once a Fix now or Monitor point has been fixed, open the vehicle’s Condition tab and tap Mark as fixed next to it: enter the date it was fixed, who fixed it (a person or the workshop) and what was done. The point goes back to OK from that date, and the Condition tab shows who fixed it and what it was before. The fix is also kept for good in the vehicle’s History, even after the next inspection checks that point again.",
             "A half-done inspection is saved as a draft as you go, until you save or discard it. Continue it from the vehicle’s page."
           ]
         },
@@ -399,6 +399,10 @@
     [
       "2026-11-24",
       "International teams: after an International Team booking, its vehicles are held for 3 working days after the due-back day (not counting weekends or South African public holidays), for the post-rental inspection and a full valet wash. Nobody can book them for those days, even once the booking is completed. The Vehicle Coordinator is reminded to book the valet, and can release the hold on the booking with a note."
+    ],
+    [
+      "2026-11-25",
+      "Mark as fixed now works on Monitor points too, not only Fix now. The vehicle’s History and report say what the point was before it was fixed."
     ]
   ]
 }
