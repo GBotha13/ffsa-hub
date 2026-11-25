@@ -13,11 +13,12 @@ import {
   type Conflict,
   type ExistingRow,
 } from "@/lib/bookings/conflict-messages";
+import { OVERRIDE_REASON_MAX } from "@/lib/bookings/override";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Client = any;
 
-export const OVERRIDE_REASON_MAX = 500;
+export { OVERRIDE_REASON_MAX };
 
 /** Book over a clash: admins and bookings.manage only. bookings.approve alone
  *  decides requests, it doesn't override the calendar (see migration 403). */
