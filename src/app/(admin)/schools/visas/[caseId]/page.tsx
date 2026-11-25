@@ -4,11 +4,13 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Kpi, KpiStrip, Masthead, NeedsYou, SectionBar } from "@/components/ffsa";
 import { ChecklistPanel } from "@/components/visas/checklist-panel";
+import { StaffLettersPanel, type IssuableTemplate, type LetterRow } from "@/components/visas/letters-panel";
 import { canFollowUp, getVisaAccess, isLegalFor } from "@/lib/visas/access";
 import { buildChecklist, toReview, type ChecklistDocument, type ChecklistType } from "@/lib/visas/checklist";
 import { WAITING_LABEL, formatDay, personName } from "@/lib/visas/display";
 import { VISA_STATUS_LABEL, type VisaStatus, type VisaWaitingOn } from "@/lib/visas/status";
 import { daysInclusive } from "@/lib/visas/stay";
+import { issueFields, type LetterKind } from "@/lib/visas/letters";
 import {
   getProgramNames,
   getVisaApprovalRequests,
@@ -18,6 +20,8 @@ import {
   getVisaCaseQuestions,
   getVisaCaseSchools,
   getVisaDocumentTypes,
+  getVisaLetterTemplates,
+  getVisaLetters,
   getVisaMissingDocuments,
   getVisaPeopleNames,
 } from "@/services/visas";
@@ -46,7 +50,18 @@ const EVENT_LABEL: Record<string, string> = {
   arrived: "Arrived",
   closed: "Closed",
   withdrawn: "Withdrawn",
+  letter_issued: "Letter issued",
+  letter_opened: "Letter opened",
+  letter_confirmed: "Letter details confirmed by the student",
+  letter_problem: "Student found a problem in a letter",
+  letter_signed: "Signed letter uploaded",
+  letter_scan_downloaded: "Signed letter opened",
+  letter_withdrawn: "Letter withdrawn",
 };
+
+// Letters can be issued once legal has approved the case; an exempt
+// student may ask for one for the airport.
+const LETTER_STATUSES: VisaStatus[] = ["approved", "lodged", "granted", "refused", "arrived", "exempt"];
 
 type CaseRow = {
   id: string;
@@ -82,7 +97,7 @@ export default async function VisaCasePage({ params }: { params: Promise<{ caseI
   if (!caseData) notFound();
   const c = caseData as CaseRow;
 
-  const [schoolsRes, typesRes, docsRes, missingRes, requestsRes, questionsRes, eventsRes] = await Promise.all([
+  const [schoolsRes, typesRes, docsRes, missingRes, requestsRes, questionsRes, eventsRes, lettersRes] = await Promise.all([
     getVisaCaseSchools(supabase, caseId),
     getVisaDocumentTypes(supabase),
     getVisaCaseDocuments(supabase, caseId),
@@ -90,6 +105,7 @@ export default async function VisaCasePage({ params }: { params: Promise<{ caseI
     getVisaApprovalRequests(supabase, caseId),
     getVisaCaseQuestions(supabase, caseId),
     getVisaCaseEvents(supabase, caseId),
+    getVisaLetters(supabase, caseId),
   ]);
   const schools = (schoolsRes.data ?? []) as Array<{
     id: string;
@@ -148,9 +164,38 @@ export default async function VisaCasePage({ params }: { params: Promise<{ caseI
   const openRequest = requests.find((r) => r.decision === null);
   const canDecide = isLegal && !!openRequest && openRequest.requested_by !== user.id;
 
+  // Letters: everyone on the case sees where they are; legal issues them
+  // from the current templates for the case's schools (or any school).
+  const letterRows = (lettersRes.data ?? []) as Array<Omit<LetterRow, "school"> & { program_id: string | null }>;
+  const letters: LetterRow[] = letterRows.map((l) => ({
+    ...l,
+    school: l.program_id ? (programName.get(l.program_id) ?? "School") : null,
+  }));
+  const canIssue = LETTER_STATUSES.includes(c.status);
+  let templates: IssuableTemplate[] = [];
+  if (isLegal && canIssue) {
+    const { data: current } = await getVisaLetterTemplates(supabase, { status: "current" });
+    templates = ((current ?? []) as Array<{ id: string; kind: LetterKind; title: string; version: number; body: string; program_id: string | null }>)
+      .filter((t) => !t.program_id || programIds.includes(t.program_id))
+      .map((t) => ({
+        id: t.id,
+        kind: t.kind,
+        title: t.title,
+        version: t.version,
+        school: t.program_id ? (programName.get(t.program_id) ?? "School") : null,
+        ...issueFields(t.body),
+      }));
+  }
+  const toSign = letters.filter((l) => l.status === "confirmed").length;
+  const toFix = letters.filter((l) => l.status === "needs_fix").length;
+
   // One band: what this viewer has to do on this case, if anything.
   let band: string | null = null;
   if (c.status === "awaiting_legal" && canDecide) band = "This case is waiting for your approval";
+  else if (isLegal && toFix > 0)
+    band = toFix === 1 ? "The student found a problem in a letter" : `The student found problems in ${toFix} letters`;
+  else if (isLegal && toSign > 0)
+    band = toSign === 1 ? "1 letter is ready for you to sign and stamp" : `${toSign} letters are ready for you to sign and stamp`;
   else if (reviewAs === "leader" && reviewCount > 0)
     band = reviewCount === 1 ? "1 document is waiting for your check" : `${reviewCount} documents are waiting for your check`;
   else if (collecting && canFollow && missing.length === 0) band = "Every document is in. Request approval from legal";
@@ -178,6 +223,18 @@ export default async function VisaCasePage({ params }: { params: Promise<{ caseI
 
       <div className="grid gap-6 px-5 py-6 md:px-8 md:py-7 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="flex min-w-0 flex-col gap-6">
+          {/* Once the case is approved the letters are the work, so they come first. */}
+          {(canFollow || isLegal) && (canIssue || letters.length > 0) && (
+            <StaffLettersPanel
+              caseId={caseId}
+              letters={letters}
+              templates={templates}
+              isLegal={isLegal}
+              canIssue={canIssue}
+              stayFrom={c.stay_from}
+              stayTo={c.stay_to}
+            />
+          )}
           <ChecklistPanel caseId={caseId} items={items} canChange={collecting && canFollow} reviewAs={reviewAs} audience="staff" />
           {(canFollow || isLegal) && (
             <ApprovalPanel

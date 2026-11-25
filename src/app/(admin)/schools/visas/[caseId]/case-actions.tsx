@@ -120,7 +120,7 @@ export function ApprovalPanel({
                 </VisaButton>
               )}
             </div>
-            <p className="mono-label">Signing FFSA&apos;s letters arrives with the letters themselves.</p>
+            <p className="mono-label">Once you approve, FFSA&apos;s letters are issued from the Letters panel.</p>
           </div>
         )}
         {open && isLegal && sentByMe && (
