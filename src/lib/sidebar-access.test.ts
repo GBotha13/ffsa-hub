@@ -60,6 +60,17 @@ describe("getSidebarAccess", () => {
     expect(access.menuLoadFailed).toBe(false);
   });
 
+  it("vehicles.manage lights Fleet (its Settings is the bookable vehicle list), direct or by role; vehicles.view doesn't", async () => {
+    const direct = await getSidebarAccess(client({ roles: [{ id: "r1", name: "staff" }], direct: [{ module: "vehicles", key: "vehicles.manage" }] }).client);
+    expect(sorted(direct.permittedModules)).toEqual(["bookings", "fleet", "vehicles"]);
+    const byRole = await getSidebarAccess(
+      client({ roles: [{ id: "r1", name: "staff" }], direct: [], bundles: { r1: [{ module: "vehicles", key: "vehicles.manage" }] } }).client
+    );
+    expect(byRole.permittedModules.has("fleet")).toBe(true);
+    const viewer = await getSidebarAccess(client({ roles: [{ id: "r1", name: "staff" }], direct: [{ module: "vehicles", key: "vehicles.view" }] }).client);
+    expect(viewer.permittedModules.has("fleet")).toBe(false);
+  });
+
   it("a role bundle's schools.manage also lights up Users", async () => {
     const f = client({
       roles: [{ id: "r1", name: "program_leader" }],
