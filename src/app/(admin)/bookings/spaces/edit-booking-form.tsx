@@ -19,6 +19,10 @@ import type { Booking, Venue, Ministry } from "@/services/bookings";
 import { SectionBar } from "@/components/ffsa";
 import { ClashPanel, overrideBody, type ClashConflict } from "./clash-panel";
 
+// The scope choices are sentences, not field labels: body text, not the
+// global mono label style (which would set them in wrapped all-caps).
+const SCOPE_TEXT = "!font-sans text-xs !font-normal normal-case !tracking-normal";
+
 function timeVal(t: string | null): string {
   if (!t) return "";
   const m = t.match(/^(\d{2}):(\d{2})/);
@@ -169,7 +173,7 @@ export function EditBookingForm({
                       clearClash();
                     }}
                   />
-                  <span>
+                  <span className={SCOPE_TEXT}>
                     <span className="text-[color:var(--text-primary)]">
                       All dates in this series
                     </span>{" "}
@@ -188,7 +192,7 @@ export function EditBookingForm({
                       clearClash();
                     }}
                   />
-                  <span>
+                  <span className={SCOPE_TEXT}>
                     <span className="text-[color:var(--text-primary)]">This date only</span> —
                     leave the rest of the series as it is.
                   </span>
