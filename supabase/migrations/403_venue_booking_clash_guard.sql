@@ -32,7 +32,9 @@
 -- Backend writers (service role: the prayer-room alt-venue booking, the Slack
 -- assistant) have no auth.uid(). They are held to the same rule: a clash
 -- raises unless they pass a reason, in which case clash_override_by is NULL
--- and the audit row records overridden_by NULL.
+-- and the audit row records overridden_by NULL. "Backend" is decided by the
+-- database role (service_role, or the SQL editor's own session), never by JWT
+-- claims, so a signed-in or anonymous caller can't blank its claims into it.
 --
 -- Errors (the API maps these to 409 / 403 / 400 and re-queries the clashes
 -- itself; the raw text is never shown):
@@ -110,6 +112,10 @@ $$;
 
 COMMENT ON FUNCTION public.venue_booking_window(date, date, time, time, time, time) IS
   'Occupied window of a space booking; SQL twin of occupiedWindow() in src/lib/bookings/conflicts.ts. Compare with lower(a) < upper(b) AND lower(b) < upper(a).';
+
+-- Internal to the guard (which runs as its owner). Not callable from the API.
+REVOKE EXECUTE ON FUNCTION public.venue_booking_window(date, date, time, time, time, time) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.venue_booking_window(date, date, time, time, time, time) TO service_role;
 
 -- ────────────────────────────────────────────────────────────
 -- 2. Override columns (written only by the trigger; a client's
@@ -195,6 +201,10 @@ AS $$
 DECLARE
   v_uid     uuid := auth.uid();
   v_role    text := auth.role();
+  -- The database role the request runs as (SET ROLE by PostgREST), which a
+  -- caller can't change through its JWT claims. 'none' outside SET ROLE.
+  v_pg_role text := NULLIF(pg_catalog.current_setting('role', true), '');
+  v_backend boolean;
   v_reason  text;
   v_window  tsrange;
   v_last    date;
@@ -235,11 +245,24 @@ BEGIN
   END IF;
 
   IF v_reason IS NOT NULL THEN
+    -- Backend: no signed-in user, and the database role itself is the service
+    -- role, or a superuser session that never SET ROLE (the SQL editor). JWT
+    -- claims alone never qualify: an anon or authenticated session that blanks
+    -- or spoofs them still runs as anon / authenticated.
+    v_backend := v_uid IS NULL
+      AND v_role IS DISTINCT FROM 'anon'
+      AND v_role IS DISTINCT FROM 'authenticated'
+      AND (
+        v_pg_role = 'service_role'
+        OR (
+          session_user IN ('postgres', 'supabase_admin')
+          AND COALESCE(v_pg_role, 'none') IN ('none', 'postgres', 'supabase_admin')
+        )
+      );
     IF NOT (
       public.is_admin()
       OR public.has_permission('bookings.manage')
-      -- backend (service role / SQL editor): no signed-in user
-      OR (v_uid IS NULL AND COALESCE(v_role, 'service_role') = 'service_role')
+      OR v_backend
     ) THEN
       RAISE EXCEPTION 'venue_booking_override_forbidden'
         USING ERRCODE = '42501';
