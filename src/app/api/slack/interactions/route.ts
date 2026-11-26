@@ -41,6 +41,8 @@ import {
 import { isVehicleAction } from "@/lib/vehicles/slack-alerts";
 import { isOpsAction } from "@/lib/operations/messages";
 import { handleOpsInteraction, isOpsView, type OpsInteraction } from "@/lib/operations/slack";
+import { isMaintAction } from "@/lib/operations/maintenance";
+import { handleMaintenanceInteraction, isMaintView, type MaintInteraction } from "@/lib/operations/maintenance-slack";
 import { handleVehicleInteraction, isVehicleView, type VehicleInteraction } from "@/lib/vehicles/slack-interactions";
 
 export const maxDuration = 60;
@@ -137,6 +139,14 @@ export async function POST(request: Request) {
     (payload.type === "block_actions" && payload.actions?.[0] && isVehicleAction(payload.actions[0].action_id))
   ) {
     return handleVehicleInteraction(admin, payload as unknown as VehicleInteraction);
+  }
+
+  // ── Operations → Maintenance: the request button, form and statuses ──
+  if (
+    isMaintView(payload.view?.callback_id) ||
+    (payload.type === "block_actions" && payload.actions?.[0] && isMaintAction(payload.actions[0].action_id))
+  ) {
+    return handleMaintenanceInteraction(admin, payload as unknown as MaintInteraction);
   }
 
   // ── Operations: the ⋯ menu on items and its modal (lib/operations/slack) ──

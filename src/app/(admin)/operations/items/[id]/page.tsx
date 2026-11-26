@@ -6,7 +6,8 @@ import { toItem } from "@/lib/operations/change";
 import { dayLabel, dueWords, sastDate } from "@/lib/operations/dates";
 import { getItem, getItemUpdates } from "@/services/operations";
 import { opsContext } from "../../context";
-import { ItemUpdateForm } from "../../ops-forms";
+import { MAINT_LABEL, maintStatus, urgencyLabel, whatsappText } from "@/lib/operations/maintenance";
+import { CopyButton, ItemUpdateForm } from "../../ops-forms";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,9 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
   if (!row) notFound();
   const item = toItem(row);
   const today = sastDate();
+  const isMaint = item.area === "maintenance";
+  const ms = isMaint ? maintStatus(item.status) : null;
+  const urgency = urgencyLabel(item.urgency);
 
   return (
     <div className="ffsa-screen">
@@ -58,17 +62,24 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
         <div className="border-b border-rule md:border-b-0 md:border-r">
           <dl className="grid grid-cols-[110px_1fr] gap-x-4 gap-y-3 px-5 py-5 text-[14px] md:px-8">
             <dt className="mono-label pt-0.5">Status</dt>
-            <dd><StatusPill tone={STATUS_TONE[item.status]}>{STATUS_LABEL[item.status]}</StatusPill></dd>
+            <dd><StatusPill tone={STATUS_TONE[item.status]}>{ms ? MAINT_LABEL[ms] : STATUS_LABEL[item.status]}</StatusPill></dd>
+            {urgency && (<><dt className="mono-label pt-0.5">Urgency</dt><dd className={item.urgency === "urgent" ? "font-semibold text-ink" : "text-ink"}>{urgency}</dd></>)}
             {item.location && (<><dt className="mono-label pt-0.5">Where</dt><dd className="text-ink">{item.location}</dd></>)}
             <dt className="mono-label pt-0.5">Given to</dt>
             <dd className="text-ink">{item.owner_name ?? "Nobody yet"}</dd>
             {item.due_on && (<><dt className="mono-label pt-0.5">By</dt><dd className="text-ink">{dayLabel(item.due_on)}{!item.closed_at && ` · ${dueWords(item.due_on, today)}`}</dd></>)}
             {item.requested_by_name && (<><dt className="mono-label pt-0.5">Asked by</dt><dd className="text-ink">{item.requested_by_name}</dd></>)}
             <dt className="mono-label pt-0.5">Came in</dt>
-            <dd className="text-ink">{dayLabel(sastDate(item.created_at))} {time(item.created_at)}</dd>
+            <dd className="text-ink">{dayLabel(sastDate(item.created_at))} {time(item.created_at)}{item.out_of_hours && " · out of hours"}</dd>
+            {!!item.photo_count && (<><dt className="mono-label pt-0.5">Photos</dt><dd className="text-ink">{item.photo_count} in the Slack thread</dd></>)}
           </dl>
           {item.details && item.details !== item.title && (
             <p className="whitespace-pre-wrap border-t border-rule px-5 py-5 text-[15px] leading-relaxed text-ink md:px-8">{item.details}</p>
+          )}
+          {isMaint && (
+            <div className="border-t border-rule px-5 py-4 md:px-8">
+              <CopyButton text={whatsappText(item)} label="Copy for WhatsApp" />
+            </div>
           )}
 
           <SectionBar title="What's happened" meta={`${(updates ?? []).length}`} />
@@ -97,10 +108,11 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
             dueOn={item.due_on}
             people={people}
             canAssign={isTeam}
+            area={item.area}
           />
           {item.requested_by_slack_id && (
             <p className="mt-4 text-[13px] text-[color:var(--text-tertiary)]">
-              {item.requested_by_name ?? "The person who asked"} gets a Slack message when this is seen, needs more time, or is done.
+              {item.requested_by_name ?? "The person who asked"} gets a Slack message when this {isMaint ? "is being worked on or is finished" : "is seen, needs more time, or is done"}.
             </p>
           )}
           {isTeam && (

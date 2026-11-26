@@ -56,6 +56,21 @@ Plan:
 - **The person who asked hears back** when it's marked done or needs more time. (In `#maintenance-requests` people are already asking "any update on my water pressure?" — this answers them without anyone having to.)
 - Repeat locations show up: "A6 — 3 requests this month" (hot water, toilet, power) so it can become a Buildings project instead of three patch-ups.
 
+### Changed 26 Nov 2026 (Gideon): the Hub owns the form (migration 405)
+
+The Slack Workflow is replaced. Slack stays the front door; the Hub owns the button, the form and every reply.
+
+- A pinned **New maintenance request** button (posted by the Hub bot) opens, **every time**, the guidelines and rules on their own screen (Mache's text), with "I agree" under the last rule. Only after that does the form open: what's wrong, where, how urgent (Urgent / This week / When you can) and up to 3 photos.
+- **Outside the crew's hours** (Mon–Thu 08:00–16:00, Fri 08:00–15:00, from Mache's base orientation; evenings and weekends included) the form and the confirmation show the working-hours message, saying it will be handled later today, tomorrow or on Monday.
+- The person gets a confirmation straight away, then a message at In progress and Finished.
+- The post in `#maintenance-request-submissions` is simpler: what's wrong → where and urgency → who asked and when, with status buttons. Its thread holds the photos and a **plain-text copy for WhatsApp** — the crew aren't on Slack.
+- Maintenance uses **three statuses**: Not started (new/seen), In progress (in_progress/more_time), Finished (done). Won't do stays on the Hub.
+- **07:00 Mon–Fri follow-up** in `#maintenance-followup` (private channel; Gideon, HE Steyn, Dylan RDJ, Michelle Strydom): active requests with their age, a status dropdown on each, what finished since yesterday, and the crew's WhatsApp list in the thread. It replaces Maintenance's area morning message. The people listed in settings (plus the operations team) can change statuses.
+- **Monthly report** in the Hub only (Operations → Maintenance → Monthly report), for the operations meeting.
+- Rules, the crew's hours, the message and who can set statuses are all in Operations → Slack settings. The rules start from Mache's base orientation document.
+
+Go-live: apply 405; give the Hub bot `files:read` and `files:write`; add it to `#maintenance-followup`; set the channels and people in settings; post and pin the button; then unpublish the old Slack workflow.
+
 ## Transportation and equipment
 
 - Fleet inspections done today → tomorrow's morning message carries a short report per vehicle: what was found, any damage, what's now out of action.
@@ -131,6 +146,8 @@ People move between roles. The know-how of an area must not live only in someone
 - **Taking over** — someone hands a role to someone else. The person leaving writes a handover note on each open thing (each team, each open item: where it stands, what was promised, who to call), the two overlap for an agreed time, and on the handover date everything open moves to the new person in one step. The person leaving can still read it for a while, and the guide's "who does this" is updated.
 
 Like everything here, it's not for checking up on anyone: only the person and their lead see their onboarding.
+
+**Where it lives (built 25 Nov 2026, migration 404).** Operations → any area → **Guide** (`/operations/guide?area=…`). *How we do it* is pages the area's lead writes in the Hub (plain text: `##` heading, `-` list, `1.` numbered, links pasted as they are), each save kept as an earlier version, plus *Resources* (a link per form, template or doc, with when and why it's used). *How the Hub does it* is `src/lib/operations/content/guide-hub.json`: **every change to an Operations area updates it and adds a dated line to its What's new**, the same rule as the Fleet Guide. Lead roles so far: `operations.maintenance.lead`, `operations.hospitality.lead`, `operations.visiting_teams.lead`; others are added with their area. Onboarding and handover come next, on top of the guide.
 
 **Each area has a lead role.** Who leads an area is a role given on the Hub, not a name written into the code: the lead edits the guide, approves anything the Hub sends on the area's behalf, and runs handovers. When someone steps out and someone else steps in, the role moves and the area follows it. (First: *Visiting teams lead*, Mache and Michelle.)
 

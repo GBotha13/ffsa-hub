@@ -10,7 +10,7 @@ type Client = any;
 // ────────────────────────────────────────────────────────────
 
 export const ITEM_SELECT =
-  "id, area, title, details, location, status, owner_user_id, due_on, source, requested_by_name, requested_by_slack_id, requested_by_user_id, slack_channel, slack_ts, created_by, created_at, updated_at, last_activity_at, closed_at, owner:users!ops_items_owner_user_id_fkey(display_name, slack_user_id)";
+  "id, area, title, details, location, status, owner_user_id, due_on, source, requested_by_name, requested_by_slack_id, requested_by_user_id, slack_channel, slack_ts, created_by, created_at, updated_at, last_activity_at, closed_at, urgency, photo_count, out_of_hours, owner:users!ops_items_owner_user_id_fkey(display_name, slack_user_id)";
 
 export function listOpenItems(supabase: Client, options?: { area?: string; ownerUserId?: string }) {
   let query = supabase.from("ops_items").select(ITEM_SELECT).is("closed_at", null).order("created_at", { ascending: false });
@@ -40,6 +40,18 @@ export function listDueBetween(supabase: Client, from: string, to: string) {
     .lte("due_on", to);
 }
 
+/** Maintenance requests for a month's report: came in before `end`, still open at `start` or later. */
+export function listMaintenanceForReport(supabase: Client, start: string, end: string) {
+  return supabase
+    .from("ops_items")
+    .select(ITEM_SELECT)
+    .eq("area", "maintenance")
+    .lt("created_at", end)
+    .or(`closed_at.is.null,closed_at.gte.${start}`)
+    .order("created_at", { ascending: true })
+    .limit(2000);
+}
+
 export function getItem(supabase: Client, id: string) {
   return supabase.from("ops_items").select(ITEM_SELECT).eq("id", id).maybeSingle();
 }
@@ -61,6 +73,9 @@ export function createItem(
     slack_ts?: string | null;
     created_by?: string | null;
     created_at?: string;
+    urgency?: string | null;
+    photo_count?: number;
+    out_of_hours?: boolean;
   }
 ) {
   return supabase.from("ops_items").insert(row).select("id").single();
@@ -85,6 +100,9 @@ export function updateItem(
     details: string | null;
     location: string | null;
     area: string;
+    slack_channel: string | null;
+    slack_ts: string | null;
+    photo_count: number;
   }>
 ) {
   return supabase.from("ops_items").update(patch).eq("id", id).select("id").single();
@@ -129,12 +147,24 @@ export type OpsSettings = {
   ops_channel: string | null;
   area_channels: Record<string, string>;
   last_intake_ts: string | null;
+  // Maintenance requests (migration 405)
+  maintenance_button_channel: string | null;
+  maintenance_button_ts: string | null;
+  maintenance_followup_channel: string | null;
+  maintenance_status_user_ids: string[];
+  maintenance_rules: string | null;
+  maintenance_hours_notice: string;
+  /** Crew hours by weekday, SAST: {"1": {"open": "08:00", "close": "16:00"}, …} */
+  maintenance_hours: Record<string, { open: string; close: string }>;
 };
+
+const SETTINGS_SELECT =
+  "maintenance_intake_channel, ops_channel, area_channels, last_intake_ts, maintenance_button_channel, maintenance_button_ts, maintenance_followup_channel, maintenance_status_user_ids, maintenance_rules, maintenance_hours_notice, maintenance_hours";
 
 export function getSettings(supabase: Client) {
   return supabase
     .from("ops_settings")
-    .select("maintenance_intake_channel, ops_channel, area_channels, last_intake_ts")
+    .select(SETTINGS_SELECT)
     .eq("id", true)
     .maybeSingle();
 }
@@ -213,7 +243,9 @@ export function getUserBrief(admin: Client, userId: string) {
 // Sent-message logs (admin client)
 // ────────────────────────────────────────────────────────────
 
-export function lastDigest(admin: Client, kind: "morning" | "weekly" | "recap", area?: string) {
+export type DigestKind = "morning" | "weekly" | "recap" | "followup";
+
+export function lastDigest(admin: Client, kind: DigestKind, area?: string) {
   let query = admin.from("ops_digest_log").select("sent_at").eq("kind", kind).order("sent_at", { ascending: false }).limit(1);
   query = area ? query.eq("area", area) : query.is("area", null);
   return query.maybeSingle();
@@ -221,7 +253,7 @@ export function lastDigest(admin: Client, kind: "morning" | "weekly" | "recap", 
 
 export function logDigest(
   admin: Client,
-  row: { kind: "morning" | "weekly" | "recap"; area?: string | null; channel?: string | null; slack_ts?: string | null }
+  row: { kind: DigestKind; area?: string | null; channel?: string | null; slack_ts?: string | null }
 ) {
   return admin.from("ops_digest_log").insert(row);
 }

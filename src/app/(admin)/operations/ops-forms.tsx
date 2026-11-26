@@ -51,6 +51,28 @@ const Msg = ({ error, done }: { error: string | null; done: string | null }) =>
     <p className="mt-2 text-[13px] text-grass-text">{done}</p>
   ) : null;
 
+// ── Copy text (the WhatsApp version of a request) ──────────
+export function CopyButton({ text, label: words = "Copy" }: { text: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(text);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        } catch {
+          window.prompt("Copy this:", text);
+        }
+      }}
+    >
+      {copied ? "Copied" : words}
+    </Button>
+  );
+}
+
 // ── "Check Slack now" ───────────────────────────────────────
 export function ImportButton() {
   const { busy, error, done, send } = useSend();
@@ -140,6 +162,13 @@ export function AddItemForm({ people, defaultArea = "maintenance", via = "hub" }
 
 // ── Update one item (status, note, owner, date) ─────────────
 const QUICK: ItemStatus[] = ["seen", "in_progress", "more_time", "done", "wont_do"];
+// Maintenance uses three words (migration 405); Won't do stays for the Hub.
+const MAINT_QUICK: [ItemStatus, string][] = [
+  ["new", "Not started"],
+  ["in_progress", "In progress"],
+  ["done", "Finished"],
+  ["wont_do", "Won't do"],
+];
 
 export function ItemUpdateForm({
   itemId,
@@ -148,8 +177,10 @@ export function ItemUpdateForm({
   dueOn,
   people,
   canAssign,
+  area,
 }: {
   itemId: string;
+  area?: string;
   status: ItemStatus;
   ownerUserId: string | null;
   dueOn: string | null;
@@ -184,18 +215,18 @@ export function ItemUpdateForm({
       <div>
         <span className={label}>Where it&apos;s at</span>
         <div className="flex flex-wrap gap-1.5">
-          {QUICK.map((s) => (
+          {(area === "maintenance" ? MAINT_QUICK : QUICK.map((q): [ItemStatus, string] => [q, STATUS_LABEL[q]])).map(([s, words]) => (
             <button
               key={s}
               type="button"
               onClick={() => setNext(next === s ? null : s)}
-              disabled={s === status}
+              disabled={s === status || (area === "maintenance" && s === "new" && status === "seen")}
               className={cn(
                 "min-h-11 border px-3 font-mono text-[10px] font-bold uppercase tracking-[0.12em] disabled:opacity-40",
                 next === s ? "border-ink bg-ink text-white" : "border-rule-strong bg-white text-ink hover:border-ink"
               )}
             >
-              {STATUS_LABEL[s]}
+              {words}
             </button>
           ))}
         </div>
@@ -274,25 +305,48 @@ export function RecapButton() {
 }
 
 // ── Settings (admins) ───────────────────────────────────────
+export type MaintenanceSettings = {
+  button_channel: string;
+  followup_channel: string;
+  status_user_ids: string[];
+  rules: string;
+  hours_notice: string;
+  /** Crew hours by weekday ("0" = Sunday); a day left out is closed. */
+  hours: Record<string, { open: string; close: string }>;
+};
+
+const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
+
 export function SettingsForm({
   initial,
+  maintenance: maintInitial,
+  slackPeople,
 }: {
   initial: { maintenance_intake_channel: string | null; ops_channel: string | null; area_channels: Record<string, string> };
+  maintenance: MaintenanceSettings;
+  /** Hub users with Slack linked: who can be allowed to set statuses. */
+  slackPeople: Person[];
 }) {
   const { busy, error, done, send } = useSend();
   const [intake, setIntake] = useState(initial.maintenance_intake_channel ?? "");
   const [ops, setOps] = useState(initial.ops_channel ?? "");
   const [areas, setAreas] = useState<Record<string, string>>(initial.area_channels ?? {});
+  const [m, setM] = useState<MaintenanceSettings>(maintInitial);
+  const [adding, setAdding] = useState("");
+  const set = <K extends keyof MaintenanceSettings>(k: K, v: MaintenanceSettings[K]) => setM((x) => ({ ...x, [k]: v }));
+  const nameOf = (id: string) => slackPeople.find((p) => p.id === id)?.name ?? "Someone without Slack linked";
+
   return (
     <form
       className="grid max-w-2xl gap-4"
       onSubmit={(e) => {
         e.preventDefault();
-        send("/api/operations/settings", "PATCH", { maintenance_intake_channel: intake, ops_channel: ops, area_channels: areas }, "Saved.");
+        send("/api/operations/settings", "PATCH", { maintenance_intake_channel: intake, ops_channel: ops, area_channels: areas, maintenance: m }, "Saved.");
       }}
     >
       <label>
-        <span className={label}>Maintenance form posts in (channel id)</span>
+        <span className={label}>Maintenance requests are posted in (channel id)</span>
         <input className={field} value={intake} onChange={(e) => setIntake(e.target.value)} placeholder="C089YJB8XD1" />
       </label>
       <label>
@@ -303,22 +357,139 @@ export function SettingsForm({
         <span className={label}>Each area&apos;s 07:00 message goes to (leave empty for none)</span>
         <div className="grid gap-2">
           {AREAS.map((a) => (
-            <label key={a.key} className="grid grid-cols-[140px_1fr] items-center gap-3">
+            <label key={a.key} className="grid grid-cols-[120px_1fr] items-center gap-3 md:grid-cols-[140px_1fr]">
               <span className="text-[13px] text-ink">{a.label}</span>
               <input
                 className={field}
                 value={areas[a.key] ?? ""}
-                onChange={(e) => setAreas((m) => ({ ...m, [a.key]: e.target.value }))}
+                onChange={(e) => setAreas((x) => ({ ...x, [a.key]: e.target.value }))}
                 placeholder="C0…"
               />
             </label>
           ))}
         </div>
+        <p className="mt-1.5 text-[12px] text-[color:var(--text-tertiary)]">
+          Once the maintenance follow-up channel is set, it replaces Maintenance&apos;s 07:00 message.
+        </p>
       </div>
+
+      <div className="mt-4 border-t-2 border-ink pt-4">
+        <div className="mono-label mb-3">Maintenance requests</div>
+        <div className="grid gap-4">
+          <label>
+            <span className={label}>The request button is posted in (channel id)</span>
+            <input className={field} value={m.button_channel} onChange={(e) => set("button_channel", e.target.value)} placeholder="The channel people ask in" />
+          </label>
+          <label>
+            <span className={label}>07:00 follow-up goes to (channel id)</span>
+            <input className={field} value={m.followup_channel} onChange={(e) => set("followup_channel", e.target.value)} placeholder="#maintenance-followup" />
+          </label>
+          <div>
+            <span className={label}>Who can set Not started / In progress / Finished in Slack</span>
+            <ul className="mb-2 divide-y divide-rule border border-rule">
+              {m.status_user_ids.length === 0 && <li className="px-3 py-2.5 text-[13px] text-[color:var(--text-tertiary)]">Only the operations team.</li>}
+              {m.status_user_ids.map((id) => (
+                <li key={id} className="flex min-h-11 items-center justify-between gap-3 px-3">
+                  <span className="text-[14px] text-ink">{nameOf(id)}</span>
+                  <button
+                    type="button"
+                    className="min-h-11 px-2 font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-ink hover:underline"
+                    onClick={() => set("status_user_ids", m.status_user_ids.filter((x) => x !== id))}
+                  >
+                    Remove
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="flex gap-2">
+              <select className={field} value={adding} onChange={(e) => setAdding(e.target.value)}>
+                <option value="">Add someone…</option>
+                {slackPeople
+                  .filter((p) => !m.status_user_ids.includes(p.id))
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+              </select>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!adding}
+                onClick={() => {
+                  set("status_user_ids", [...m.status_user_ids, adding]);
+                  setAdding("");
+                }}
+              >
+                Add
+              </Button>
+            </div>
+            <p className="mt-1.5 text-[12px] text-[color:var(--text-tertiary)]">
+              Only people whose Slack is linked to their Hub profile are listed. The operations team can always change statuses.
+            </p>
+          </div>
+          <label>
+            <span className={label}>Guidelines and rules: shown on their own screen every time, before the form. A blank line starts a new paragraph; *bold* works.</span>
+            <textarea className={cn(field, "min-h-64")} value={m.rules} onChange={(e) => set("rules", e.target.value)} maxLength={2500} />
+          </label>
+          <div>
+            <span className={label}>Maintenance Crew hours (anything outside them is out of hours)</span>
+            <div className="divide-y divide-rule border border-rule">
+              {WEEK_ORDER.map((d) => {
+                const h = m.hours[String(d)];
+                const setDay = (v: { open: string; close: string } | null) => {
+                  const next = { ...m.hours };
+                  if (v) next[String(d)] = v;
+                  else delete next[String(d)];
+                  set("hours", next);
+                };
+                return (
+                  <div key={d} className="grid min-h-11 grid-cols-[96px_1fr] items-center gap-2 px-3 py-1.5">
+                    <label className="flex items-center gap-2 text-[13px] text-ink">
+                      <input type="checkbox" className="size-4" checked={!!h} onChange={(e) => setDay(e.target.checked ? { open: "08:00", close: "16:00" } : null)} />
+                      {DAYS[d].slice(0, 3)}
+                    </label>
+                    {h ? (
+                      <div className="flex items-center gap-2">
+                        <input className={cn(field, "min-w-0")} type="time" value={h.open} onChange={(e) => setDay({ ...h, open: e.target.value })} required aria-label={`${DAYS[d]} opens`} />
+                        <span className="text-[13px] text-[color:var(--text-tertiary)]">to</span>
+                        <input className={cn(field, "min-w-0")} type="time" value={h.close} onChange={(e) => setDay({ ...h, close: e.target.value })} required aria-label={`${DAYS[d]} closes`} />
+                      </div>
+                    ) : (
+                      <span className="text-[13px] text-[color:var(--text-tertiary)]">Closed</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <label>
+            <span className={label}>Out-of-hours message (on the form and in the confirmation). {"{when}"} becomes &ldquo;first thing tomorrow&rdquo;, &ldquo;first thing on Monday&rdquo; or &ldquo;later today at 08:00&rdquo;.</span>
+            <textarea className={cn(field, "min-h-20")} value={m.hours_notice} onChange={(e) => set("hours_notice", e.target.value)} maxLength={500} required />
+          </label>
+        </div>
+      </div>
+
       <div>
         <Button type="submit" disabled={busy}>{busy ? "Saving…" : "Save"}</Button>
         <Msg error={error} done={done} />
       </div>
     </form>
+  );
+}
+
+// ── Post the request button / send the follow-up now ────────
+export function MaintenanceSlackButtons() {
+  const { busy, error, done, send } = useSend();
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" disabled={busy} onClick={() => send("/api/operations/slack", "POST", { action: "button" }, "Posted. Pin it in Slack: ⋯ on the message → Pin to channel.")}>
+          Post the request button
+        </Button>
+        <Button variant="outline" disabled={busy} onClick={() => send("/api/operations/slack", "POST", { action: "followup" }, "Follow-up sent.")}>
+          Send the follow-up now
+        </Button>
+      </div>
+      <Msg error={error} done={done} />
+    </div>
   );
 }

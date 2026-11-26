@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { addUpdates, claimReminder, getItem, getUserBrief, updateItem, type UpdateRow } from "@/services/operations";
 import { isClosed, isStatus, type ItemStatus, type OpsItem } from "./areas";
 import { sastDate } from "./dates";
+import { requestPost } from "./maintenance";
 import { reminderMessage, requesterMessage, type Message } from "./messages";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -91,6 +92,11 @@ export async function applyChange(client: Client, input: ChangeInput): Promise<C
     if (statusChanged && before.requested_by_slack_id) {
       const msg = requesterMessage(after, after.status, note, input.actor.name);
       if (msg) await dm(before.requested_by_slack_id, msg);
+    }
+    // A maintenance request the Hub posted shows its status: keep it true.
+    // (Posts from the old Slack form aren't ours to edit; Slack refuses.)
+    if (statusChanged && after.area === "maintenance" && after.slack_channel && after.slack_ts) {
+      await slack.updateMessage({ channel: after.slack_channel, ts: after.slack_ts, ...requestPost(after) }).catch(() => {});
     }
     if ((ownerChanged || dueChanged) && after.owner_user_id && after.owner_user_id !== input.actor.userId && !isClosed(after.status)) {
       await sendAssigned(admin, after, input.actor.name);

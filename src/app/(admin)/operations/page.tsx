@@ -2,8 +2,10 @@ import Link from "next/link";
 import { Masthead, MastheadAction, NeedsYou, NeedsYouAction, KpiStrip, Kpi, SectionBar, StatusPill } from "@/components/ffsa";
 import { AREAS, STATUS_LABEL, STATUS_TONE, isAreaKey, type OpsItem } from "@/lib/operations/areas";
 import { toItem } from "@/lib/operations/change";
+import { guideHref } from "@/lib/operations/guide";
 import { dayLabel, dueWords, meetingWeek, sastDate, sastMidnight } from "@/lib/operations/dates";
 import { isPastDate, isQuiet, needsAttention } from "@/lib/operations/messages";
+import { MAINT_LABEL, maintStatus, urgencyLabel } from "@/lib/operations/maintenance";
 import { cn } from "@/lib/utils/cn";
 import { listClosedSince, listOpenItems } from "@/services/operations";
 import { redirect } from "next/navigation";
@@ -51,6 +53,8 @@ export default async function OperationsPage({ searchParams }: { searchParams: P
         actions={
           <>
             <MastheadAction href="/operations/week">This week</MastheadAction>
+            {area === "maintenance" && <MastheadAction href="/operations/maintenance/report">Monthly report</MastheadAction>}
+            <MastheadAction href={guideHref(area)}>Guide</MastheadAction>
             {isAdmin && <MastheadAction href="/operations/settings">Slack settings</MastheadAction>}
           </>
         }
@@ -123,7 +127,10 @@ function ItemTable({ items, today, now }: { items: OpsItem[]; today: string; now
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-1.5">
-                <StatusPill tone={STATUS_TONE[i.status]}>{STATUS_LABEL[i.status]}</StatusPill>
+                <StatusPill tone={STATUS_TONE[i.status]}>
+                  {i.area === "maintenance" && maintStatus(i.status) ? MAINT_LABEL[maintStatus(i.status)!] : STATUS_LABEL[i.status]}
+                </StatusPill>
+                {i.urgency === "urgent" && !i.closed_at && <StatusPill tone="bad">{urgencyLabel(i.urgency)}</StatusPill>}
                 {quiet && <StatusPill tone="warn">Quiet</StatusPill>}
               </div>
               <div className="text-[13px] text-ink">{i.owner_name ?? <span className="text-[color:var(--text-tertiary)]">Nobody yet</span>}</div>

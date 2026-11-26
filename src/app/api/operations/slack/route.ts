@@ -3,10 +3,13 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isOpsTeam } from "@/lib/operations/access";
 import { importMaintenanceRequests, sendRecap } from "@/lib/operations/slack";
+import { postRequestButton, sendMaintenanceFollowup } from "@/lib/operations/maintenance-slack";
 
 // POST /api/operations/slack — operations team buttons that talk to Slack:
 //   { action: "import" }  pick up new maintenance form posts now
 //   { action: "recap" }   post what the meeting handed out to the ops channel
+//   { action: "button" }  post the "New maintenance request" button
+//   { action: "followup" } send the maintenance follow-up now
 export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -21,6 +24,16 @@ export async function POST(request: Request) {
       const res = await importMaintenanceRequests(admin);
       if (res.error) return NextResponse.json({ error: res.error }, { status: 502 });
       return NextResponse.json({ success: true, ...res });
+    }
+    if (body.action === "button") {
+      const res = await postRequestButton(admin);
+      if (!res.ok) return NextResponse.json({ error: res.error }, { status: 400 });
+      return NextResponse.json({ success: true });
+    }
+    if (body.action === "followup") {
+      const res = await sendMaintenanceFollowup(admin);
+      if (!res.sent) return NextResponse.json({ error: res.reason }, { status: 400 });
+      return NextResponse.json({ success: true });
     }
     if (body.action === "recap") {
       const res = await sendRecap(admin);

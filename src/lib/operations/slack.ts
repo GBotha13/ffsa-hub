@@ -118,7 +118,7 @@ export async function importMaintenanceRequests(admin: Client, now = new Date())
   return { imported, seen: messages.length };
 }
 
-async function whoIs(admin: Client, slackUserId: string): Promise<{ userId: string | null; name: string | null }> {
+export async function whoIs(admin: Client, slackUserId: string): Promise<{ userId: string | null; name: string | null }> {
   const { data } = await admin
     .from("users")
     .select("id, display_name, person:people(first_name, last_name)")
@@ -154,6 +154,8 @@ export async function sendMorning(admin: Client, now = new Date()) {
   for (const { key } of AREAS) {
     const channel = channels[key];
     if (!channel) continue;
+    // Maintenance has its own follow-up (maintenance-slack.ts) once its channel is set.
+    if (key === "maintenance" && settings?.maintenance_followup_channel) continue;
     try {
       const { data: last } = await lastDigest(admin, "morning", key);
       const since = last?.sent_at ? new Date(last.sent_at) : new Date(now.getTime() - DAY_MS);
@@ -294,8 +296,12 @@ async function tell(responseUrl: string | undefined, text: string) {
   }).catch(() => {});
 }
 
-/** The Slack presser as a Hub actor allowed to touch this item, or why not. */
-async function actorFor(admin: Client, slackUserId: string, itemId: string): Promise<Actor | { error: string }> {
+/**
+ * The Slack presser as a Hub actor allowed to touch this item, or why not:
+ * whoever it was given to, the operations team, and for maintenance the
+ * people listed in settings (the 07:00 follow-up group).
+ */
+export async function actorFor(admin: Client, slackUserId: string, itemId: string): Promise<Actor | { error: string }> {
   const { data: user } = await admin
     .from("users")
     .select("id, display_name, person:people(first_name, last_name)")
@@ -304,10 +310,14 @@ async function actorFor(admin: Client, slackUserId: string, itemId: string): Pro
   if (!user) return { error: "Your Slack isn't linked to a Hub account yet — link it on your Hub profile." };
   const { data: item } = await getItem(admin, itemId);
   if (!item) return { error: "That item is gone." };
-  if (item.owner_user_id !== user.id && !(await isOpsTeam(admin, user.id))) {
-    return { error: "Only the operations team can update this one." };
+  const actor = { userId: user.id, name: displayName(user) };
+  if (item.owner_user_id === user.id) return actor;
+  if (item.area === "maintenance") {
+    const { data: settings } = await getSettings(admin);
+    if (((settings?.maintenance_status_user_ids ?? []) as string[]).includes(user.id)) return actor;
   }
-  return { userId: user.id, name: displayName(user) };
+  if (await isOpsTeam(admin, user.id)) return actor;
+  return { error: "Only the operations team can update this one." };
 }
 
 /** A short line under the message so everyone in the channel sees it moved. */
@@ -316,7 +326,7 @@ async function announce(channel: string | undefined, threadTs: string | undefine
   await slack.postMessage({ channel, thread_ts: threadTs, text }).catch(() => {});
 }
 
-function modal(itemId: string, title: string, kind: "more_time" | "note", where: { channel?: string; ts?: string }) {
+export function noteModal(itemId: string, title: string, kind: "more_time" | "note", where: { channel?: string; ts?: string }) {
   const blocks: unknown[] = [
     { type: "section", text: { type: "mrkdwn", text: `*${esc(title)}*` } },
     {
@@ -389,7 +399,7 @@ export async function handleOpsInteraction(admin: Client, p: OpsInteraction) {
   if (what === "more_time" || what === "note") {
     // trigger_id lives 3s: open the modal before ACKing.
     const { data: item } = await getItem(admin, itemId);
-    if (item && p.trigger_id) await slack.openView(p.trigger_id, modal(itemId, item.title, what, { channel, ts }));
+    if (item && p.trigger_id) await slack.openView(p.trigger_id, noteModal(itemId, item.title, what, { channel, ts }));
     return NextResponse.json({});
   }
   if (!isStatus(what)) return NextResponse.json({});

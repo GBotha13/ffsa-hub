@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Masthead, MastheadAction, NeedsYou, NeedsYouAction, KpiStrip, Kpi, SectionBar, StatusPill } from "@/components/ffsa";
 import { daysBetween, dueWords, sastDate } from "@/lib/operations/dates";
+import { guideHref } from "@/lib/operations/guide";
 import {
   isActiveStage,
   openIn,
@@ -61,7 +62,12 @@ export default async function VisitingTeamsPage() {
       <Masthead
         context="Operations"
         title="Visiting teams"
-        actions={<MastheadAction href="/operations/week">This week</MastheadAction>}
+        actions={
+          <>
+            <MastheadAction href="/operations/week">This week</MastheadAction>
+            <MastheadAction href={guideHref("teams")}>Guide</MastheadAction>
+          </>
+        }
       />
       <AreaTabs current="teams" />
 

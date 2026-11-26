@@ -61,4 +61,10 @@ export type OpsItem = {
   created_at: string;
   last_activity_at: string;
   closed_at: string | null;
+  slack_channel?: string | null;
+  slack_ts?: string | null;
+  /** Maintenance requests from the Hub form (migration 405). */
+  urgency?: string | null;
+  photo_count?: number | null;
+  out_of_hours?: boolean | null;
 };
