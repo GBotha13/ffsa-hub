@@ -381,11 +381,17 @@ export async function discardVisaLetterTemplateDraft(supabase: Client, templateI
   return supabase.rpc("visa_discard_letter_template_draft", { p_template_id: templateId });
 }
 
+// What the case page and Your visa list: no letter text, inputs or scan
+// path. Those are read one letter at a time by the checked PDF and scan routes.
+const LETTER_LIST_COLUMNS =
+  "id, case_id, template_id, kind, program_id, letter_date, title, status, replaces_id, " +
+  "student_note, confirmed_at, scan_uploaded_at, status_note, issued_by, created_at, updated_at";
+
 /** A case's letters, newest first (legal, its school leaders, the student). */
 export async function getVisaLetters(supabase: Client, caseId: string) {
   return supabase
     .from("visa_letters")
-    .select(LETTER_COLUMNS)
+    .select(LETTER_LIST_COLUMNS)
     .eq("case_id", caseId)
     .order("created_at", { ascending: false });
 }

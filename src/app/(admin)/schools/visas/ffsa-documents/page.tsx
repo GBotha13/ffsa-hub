@@ -101,8 +101,8 @@ export default async function FfsaDocumentsPage() {
         <p className="max-w-[720px] text-[14px]">
           The papers FFSA sends with every application. The Hub warns {STANDING_SOON_DAYS} days before a certified copy
           needs re-certifying or a document runs out. Only you see this list. A document you give to students can be
-          downloaded by a student once you&apos;ve approved their case, until it&apos;s lodged, and each download is
-          recorded on the case.
+          downloaded by a student while their case is approved or lodged (it stops once the embassy decides). Every
+          time one is opened, by you or a student, it&apos;s recorded.
         </p>
 
         <div className="border border-ink">
