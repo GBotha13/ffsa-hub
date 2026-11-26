@@ -491,7 +491,7 @@ export function InspectForm(props: InspectFormProps) {
           <a href={fileUrl(f.id)} target="_blank" rel="noopener noreferrer" className="min-w-0 break-all underline">
             {(f.type || "").startsWith("image/") ? `Photo: ${f.name || "image"}` : f.name || "Document"}
           </a>
-          <button type="button" className={cn(btnOutline, "min-h-9")} onClick={() => update((x) => void x.docs.splice(i, 1))}>
+          <button type="button" className={cn(btnOutline, "min-h-11")} onClick={() => update((x) => void x.docs.splice(i, 1))}>
             Remove
           </button>
         </li>
